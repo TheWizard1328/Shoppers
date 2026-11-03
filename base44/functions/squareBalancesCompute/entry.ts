@@ -899,7 +899,10 @@ Deno.serve(async (req) => {
       try {
         const rows = await b44.asServiceRole.entities.SquareBalancesSnapshot.list('-version', 5, 0);
         const sorted = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0));
-        const existing = sorted.find((r) => r?.payload) || null;
+        // Match the existing payload record even when its summary now lives in
+        // shards (p1..pN) — a shard-only record has no `payload` field, and
+        // missing it here would create a fresh record on every publish.
+        const existing = sorted.find((r) => r?.ping !== true && (Number(r?.parts_count || 0) > 0 || r?.payload)) || null;
         let snapshot_id = null;
         if (existing?.id) {
           await b44.asServiceRole.entities.SquareBalancesSnapshot.update(existing.id, rec);
