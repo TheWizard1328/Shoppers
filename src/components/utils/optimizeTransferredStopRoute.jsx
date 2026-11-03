@@ -19,6 +19,8 @@
  */
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { commitDeliveryUpdatesSilently } from './routeCommitMarker';
+import { unlockDeliveryFields } from './completionLockout';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const dayOf = (v) => String(v || '').slice(0, 10);
@@ -51,6 +53,72 @@ const placementOf = (row) => (!row ? null : {
   status: String(row.status || '').toLowerCase(),
   track: row.tracking_number || '',
 });
+
+const ACTIVE_ONLY = ['pending', 'en_route', 'in_transit'];
+
+/**
+ * OWNER RULE (Nov 3 2026): "the isNextDelivery flag was still set for the original
+ * first stop before the stop was transferred — we need to remove the isNextDelivery
+ * flag for the new date route, then run the optimizer, and reset the flag."
+ *
+ * The engine pins whatever stop currently owns the flag at position 1, so on the
+ * target route that stale owner swallowed the transfer and the moved stop landed
+ * last. Sweep every ACTIVE flag on that route (IDB first — the engine reads local —
+ * plus ONE silent bulk write so other devices converge), release any per-device
+ * field lock that would reject the clear, then let the run re-assign the flag.
+ */
+async function sweepNextFlags(route) {
+  const flagged = (route || []).filter(
+    (d) => d && d.isNextDelivery === true && ACTIVE_ONLY.includes(String(d.status || '').toLowerCase()),
+  );
+  if (flagged.length === 0) return [];
+  for (const row of flagged) {
+    try { unlockDeliveryFields(row.id); } catch (_) { /* no lock */ }
+    try {
+      await offlineDB.save(offlineDB.STORES.DELIVERIES, { ...row, isNextDelivery: false });
+    } catch (_) { /* IDB best effort */ }
+  }
+  try {
+    await commitDeliveryUpdatesSilently(flagged.map((row) => ({ id: row.id, data: { isNextDelivery: false } })));
+  } catch (err) {
+    console.warn('[TransferOptimize] next-flag sweep write failed:', err?.message || err);
+  }
+  return flagged.map((row) => String(row.id));
+}
+
+/**
+ * After the run exactly ONE active stop must own the flag. The engine normally
+ * assigns it, but when a guard or a stale flag-lock ate that write the route can
+ * end up with no next stop at all — put it on the first active stop by stop_order.
+ */
+async function ensureOneNextFlag(route) {
+  const active = (route || [])
+    .filter((d) => d && ACTIVE_ONLY.includes(String(d.status || '').toLowerCase()))
+    .sort((a, b) => (Number(a.stop_order) || 9999) - (Number(b.stop_order) || 9999));
+  if (active.length === 0) return null;
+  const owners = active.filter((d) => d.isNextDelivery === true);
+  if (owners.length === 1) return String(owners[0].id);
+  const winner = active[0];
+  for (const row of owners) {
+    if (String(row.id) === String(winner.id)) continue;
+    try {
+      await offlineDB.save(offlineDB.STORES.DELIVERIES, { ...row, isNextDelivery: false });
+    } catch (_) { /* best effort */ }
+  }
+  try {
+    await offlineDB.save(offlineDB.STORES.DELIVERIES, { ...winner, isNextDelivery: true });
+  } catch (_) { /* best effort */ }
+  try {
+    const updates = owners
+      .filter((row) => String(row.id) !== String(winner.id))
+      .map((row) => ({ id: row.id, data: { isNextDelivery: false } }));
+    updates.push({ id: winner.id, data: { isNextDelivery: true } });
+    await commitDeliveryUpdatesSilently(updates);
+  } catch (err) {
+    console.warn('[TransferOptimize] next-flag reset write failed:', err?.message || err);
+  }
+  return String(winner.id);
+}
 
 /**
  * Place a transferred stop on its new route.
@@ -87,6 +155,15 @@ export async function optimizeTransferredStopRoute({
     console.warn(`[TransferOptimize] ${source} — moved stop not in the local ${driverId} / ${deliveryDate} route yet; optimizing the route anyway`);
   }
 
+  // OWNER RULE (Nov 3 2026): clear the stale next-delivery flag on the target
+  // route BEFORE optimizing, or the engine pins that stop at position 1 and the
+  // transferred stop stays last. The flag is restored right after the run.
+  const sweptIds = await sweepNextFlags(localRoute);
+  if (sweptIds.length > 0) {
+    console.log(`[TransferOptimize] ${source} — swept stale isNextDelivery off ${sweptIds.length} stop(s) before sequencing`);
+    localRoute = await readLocalRoute(driverId, deliveryDate);
+  }
+
   const { performRouteOptimization } = await import('./routeOptimizationCoordinator');
 
   let result = null;
@@ -105,6 +182,9 @@ export async function optimizeTransferredStopRoute({
         forceRegenerate: true,
         includePendingPolylines: isFuture,
         recalcTrackingNumbers,
+        // Contest mode: with the flags swept, every active stop competes for
+        // position 1 instead of a stale owner holding the lock.
+        clearNextDeliveryLock: sweptIds.length > 0,
         source: attempt === 1 ? source : `${source}_retry`,
       });
     } catch (err) {
@@ -119,6 +199,15 @@ export async function optimizeTransferredStopRoute({
     const drawn = !placed || !IN_HAND.includes(placed.status) || placed.hasPolyline;
 
     if (result?.success && sequenced && drawn) {
+      // OWNER RULE (Nov 3 2026): reset the next-delivery flag after the run — the
+      // first active stop on the new order owns it, and nobody else does.
+      try {
+        const resetRoute = await readLocalRoute(driverId, deliveryDate);
+        const nextOwner = await ensureOneNextFlag(resetRoute);
+        if (nextOwner) console.log(`[TransferOptimize] ${source} — isNextDelivery reset to ${nextOwner}`);
+      } catch (err) {
+        console.warn('[TransferOptimize] next-flag reset skipped:', err?.message || err);
+      }
       console.log(`[TransferOptimize] ${source} — placed as stop ${placed.stopOrder}${placed.track ? ` / TR${placed.track}` : ''} on ${dayOf(deliveryDate)}`);
       // Repaint NOW: the optimizer commits silently (bulk + route_commit marker), so
       // nothing else tells the dashboard/map that stop_order and the legs moved. The

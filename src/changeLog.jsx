@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 92;
+export const BUILD_NUMBER = 93;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 93, area: 'Route writing', audience: 'dispatchers', summary: 'A transferred stop clears the old Next Delivery flag on its new route first, then the optimizer re-numbers the route and hands the flag to the new first stop.' },
   { build: 92, area: 'Route writing', audience: 'dispatchers', summary: 'A transferred stop is sequenced on its new route from local data the moment it lands, so it no longer sits last with a blank leg until a refresh.' },
   { build: 91, area: 'Route writing', audience: 'dispatchers', summary: 'A stop moved to another day or driver now re-optimizes that route for real: it comes back sequenced with its own leg and TR#, instead of sitting last with the old polyline.' },
   { build: 90, area: 'Square balances', audience: 'dispatchers', summary: 'Collected CODs can be tapped back to Not Tapped again, those rows stay listed under Collected Today, and Payment discrepancies starts collapsed.' },
