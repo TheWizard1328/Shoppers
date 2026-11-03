@@ -39,12 +39,18 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   const endRef = useRef(null);
   const patientId = patient?.id;
 
+  // Read receipts go through the patientPush function: the portal is a public
+  // page with no Base44 user, so service-role writes are the reliable path.
   const markStaffMessagesRead = useCallback(async (rows) => {
     const unread = (rows || []).filter((m) => !m.read && m.sender_id !== patientSender(patientId));
     if (unread.length === 0) return;
-    await Promise.all(
-      unread.map((m) => base44.entities.Message.update(m.id, { read: true }).catch(() => {}))
-    );
+    await base44.functions.invoke('patientPush', {
+      action: 'patientMarkRead',
+      patient_id: patientId,
+    }).catch(() => {});
+    setMessages((prev) => prev.map((m) => (
+      unread.some((u) => u.id === m.id) ? { ...m, read: true } : m
+    )));
     onUnreadChange?.(0);
   }, [patientId, onUnreadChange]);
 
@@ -86,7 +92,10 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
           return [...prev, row];
         });
         if (open && row.sender_id !== patientSender(patientId) && !row.read) {
-          base44.entities.Message.update(row.id, { read: true }).catch(() => {});
+          base44.functions.invoke('patientPush', {
+            action: 'patientMarkRead',
+            patient_id: patientId,
+          }).catch(() => {});
         }
       });
     } catch { /* realtime is optional */ }
@@ -103,32 +112,18 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
     setSending(true);
     setError('');
     try {
-      const created = await base44.entities.Message.create({
-        sender_id: patientSender(patientId),
-        sender_name: patient?.full_name || 'Patient',
-        receiver_id: '',
-        receiver_name: 'Pharmacy',
-        conversation_id: conversationIdFor(patientId),
+      // ONE call: writes the message service-role and alerts the store's staff
+      // devices, so a patient reply never depends on entity RLS or on someone
+      // having the Messaging panel open.
+      const res = await base44.functions.invoke('patientPush', {
+        action: 'patientSend',
+        patient_id: patientId,
         content: text,
-        message_type: 'text',
-        read: false,
-        patient_id: patientId,
-        store_id: patient?.store_id || '',
       });
+      const created = res?.data?.message || res?.message || null;
+      if (!created?.id) throw new Error(res?.data?.error || 'send_failed');
       setInput('');
-      if (created?.id) {
-        setMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [...prev, created]));
-      }
-      // Alert the store's staff devices so a reply does not wait for someone
-      // to open the Messaging panel (best effort).
-      base44.functions.invoke('patientPush', {
-        action: 'notifyStaff',
-        patient_id: patientId,
-        store_id: patient?.store_id || '',
-        title: `New message from ${patient?.full_name || 'a patient'}`,
-        body: text.length > 140 ? `${text.slice(0, 137)}...` : text,
-        url: '/',
-      }).catch(() => {});
+      setMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [...prev, created]));
     } catch {
       setError('Message not sent. Please try again.');
     } finally {

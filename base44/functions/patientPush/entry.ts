@@ -21,6 +21,64 @@ import webpush from 'npm:web-push@3.6.7';
  * Body: { action, patient_id, subscription, device_identifier, user_agent,
  *         title, body, url, tag }
  */
+/**
+ * notifyStoreStaff — push a patient message alert to the store's staff phones
+ * (AppUsers of that store, plus admins/owner). Shared by the standalone
+ * `notifyStaff` action and by `patientSend` so a patient message alerts staff
+ * in ONE round trip.
+ */
+async function notifyStoreStaff(base44: any, { patient_id, store_id, title, body, url }: any) {
+  const vapidPub = Deno.env.get('VAPID_PUBLIC_KEY');
+  const vapidPriv = Deno.env.get('VAPID_PRIVATE_KEY');
+  const vapidSubj = Deno.env.get('VAPID_SUBJECT');
+  if (!vapidPub || !vapidPriv || !vapidSubj) return { sent: 0, removed: 0, recipients: 0, error: 'VAPID keys not configured' };
+
+  const users = await base44.asServiceRole.entities.AppUser.filter({}, '-created_date', 200).catch(() => []);
+  const recipients = (users || []).filter((u: any) => {
+    if (!u?.id) return false;
+    const roles = Array.isArray(u.app_roles) ? u.app_roles : [];
+    const isAdmin = roles.includes('admin') || roles.includes('app_owner') || u.role === 'admin';
+    const stores = Array.isArray(u.store_ids) ? u.store_ids : (u.store_id ? [u.store_id] : []);
+    if (store_id) return isAdmin || stores.includes(store_id);
+    return isAdmin;
+  }).slice(0, 15);
+
+  if (recipients.length === 0) return { sent: 0, removed: 0, recipients: 0 };
+
+  webpush.setVapidDetails(vapidSubj, vapidPub, vapidPriv);
+  const notification = {
+    title: title || 'New patient message',
+    body: body || '',
+    url: url || '/',
+    tag: `patient-thread-${patient_id || 'x'}`,
+    timestamp: Date.now(),
+    requireInteraction: false,
+  };
+
+  let sent = 0, removed = 0;
+  for (const staffUser of recipients) {
+    const subs = await base44.asServiceRole.entities.PushSubscription
+      .filter({ user_id: staffUser.id })
+      .catch(() => []);
+    for (const sub of subs || []) {
+      if (sub.endpoint?.startsWith('fcm://')) continue; // web push only here
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } },
+          JSON.stringify(notification)
+        );
+        sent++;
+      } catch (err: any) {
+        if (err?.statusCode === 404 || err?.statusCode === 410) {
+          await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
+          removed++;
+        }
+      }
+    }
+  }
+  return { sent, removed, recipients: recipients.length };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -101,61 +159,70 @@ Deno.serve(async (req) => {
     // A patient message must reach the store's phones even when nobody has the
     // Messaging panel open. Recipients are the AppUsers of that store (plus
     // admins), pushed through the same VAPID keys as everything else.
+    // ── Patient side writes (no auth: the portal is a public page) ──────────
+    // Patients are not Base44 users, so their Message writes and read receipts
+    // run service-role here instead of depending on entity RLS.
+    if (action === 'patientSend' || action === 'patientMarkRead') {
+      const { patient_id } = payload;
+      if (!patient_id) return Response.json({ ok: false, error: 'patient_id is required' }, { status: 400 });
+
+      let patient = null;
+      try {
+        patient = await base44.asServiceRole.entities.Patient.get(patient_id);
+      } catch (_) {
+        return Response.json({ ok: false, error: 'Patient not found' }, { status: 404 });
+      }
+      if (!patient || patient.status === 'inactive') {
+        return Response.json({ ok: false, error: 'Patient not found' }, { status: 404 });
+      }
+
+      const patientSenderId = `patient:${patient_id}`;
+
+      if (action === 'patientMarkRead') {
+        const rows = await base44.asServiceRole.entities.Message
+          .filter({ patient_id, read: false }, '-created_date', 100)
+          .catch(() => []);
+        const unread = (rows || []).filter((m: any) => m.sender_id !== patientSenderId);
+        for (const m of unread) {
+          await base44.asServiceRole.entities.Message.update(m.id, { read: true }).catch(() => {});
+        }
+        return Response.json({ ok: true, marked: unread.length });
+      }
+
+      const text = String(payload.content || '').trim().slice(0, 2000);
+      if (!text) return Response.json({ ok: false, error: 'Message text is required' }, { status: 400 });
+
+      const created = await base44.asServiceRole.entities.Message.create({
+        sender_id: patientSenderId,
+        sender_name: patient.full_name || 'Patient',
+        receiver_id: '',
+        receiver_name: 'Pharmacy',
+        conversation_id: `patient:${patient_id}`,
+        content: text,
+        message_type: 'text',
+        read: false,
+        patient_id,
+        store_id: patient.store_id || '',
+      });
+
+      const alerted = await notifyStoreStaff(base44, {
+        patient_id,
+        store_id: patient.store_id || '',
+        title: `New message from ${patient.full_name || 'a patient'}`,
+        body: text.length > 140 ? `${text.slice(0, 137)}...` : text,
+        url: '/',
+      }).catch(() => ({ sent: 0 }));
+
+      return Response.json({ ok: true, message: created, alerted });
+    }
+
+    // ── Patient → staff alert (no auth: fired by the public portal page) ────
     if (action === 'notifyStaff') {
       const { patient_id, store_id, title, body, url } = payload;
       if (!patient_id) return Response.json({ ok: false, error: 'patient_id is required' }, { status: 400 });
-
-      const vapidPub = Deno.env.get('VAPID_PUBLIC_KEY');
-      const vapidPriv = Deno.env.get('VAPID_PRIVATE_KEY');
-      const vapidSubj = Deno.env.get('VAPID_SUBJECT');
-      if (!vapidPub || !vapidPriv || !vapidSubj) {
-        return Response.json({ ok: false, error: 'VAPID keys not configured' }, { status: 500 });
-      }
-
-      const users = await base44.asServiceRole.entities.AppUser.filter({}, '-created_date', 200).catch(() => []);
-      const recipients = (users || []).filter((u: any) => {
-        if (!u?.id) return false;
-        const roles = Array.isArray(u.app_roles) ? u.app_roles : [];
-        const isAdmin = roles.includes('admin') || roles.includes('app_owner') || u.role === 'admin';
-        const stores = Array.isArray(u.store_ids) ? u.store_ids : (u.store_id ? [u.store_id] : []);
-        if (store_id) return isAdmin || stores.includes(store_id);
-        return isAdmin;
-      }).slice(0, 15);
-
-      if (recipients.length === 0) return Response.json({ ok: true, sent: 0, message: 'No staff recipients' });
-
-      webpush.setVapidDetails(vapidSubj, vapidPub, vapidPriv);
-      const notification = {
-        title: title || 'New patient message',
-        body: body || '',
-        url: url || '/',
-        tag: `patient-thread-${patient_id}`,
-        timestamp: Date.now(),
-        requireInteraction: false,
-      };
-
-      let sent = 0, removed = 0;
-      for (const staffUser of recipients) {
-        const subs = await base44.asServiceRole.entities.PushSubscription
-          .filter({ user_id: staffUser.id })
-          .catch(() => []);
-        for (const sub of subs || []) {
-          if (sub.endpoint?.startsWith('fcm://')) continue; // web push only here
-          try {
-            await webpush.sendNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } },
-              JSON.stringify(notification)
-            );
-            sent++;
-          } catch (err: any) {
-            if (err?.statusCode === 404 || err?.statusCode === 410) {
-              await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
-              removed++;
-            }
-          }
-        }
-      }
-      return Response.json({ ok: true, sent, removed, recipients: recipients.length });
+      const result = await notifyStoreStaff(base44, { patient_id, store_id, title, body, url });
+      if (result.error) return Response.json({ ok: false, error: result.error }, { status: 500 });
+      return Response.json({ ok: true, ...result });
     }
 
     // ── Send: staff only ────────────────────────────────────────────────────

@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 73;
+export const BUILD_NUMBER = 74;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,6 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
+  { build: 74, area: 'Patient portal', audience: 'patients', summary: 'Patient messages and read receipts now go through the patientPush function with service-role writes, so sending works reliably from the public portal page and the store is alerted in the same call.' },
   { build: 73, area: 'Patient portal', audience: 'patients', summary: 'Patients can now message their pharmacy from the portal and turn on notifications, so a reply or delivery alert reaches their phone without the APK.' },
   { build: 73, area: 'Messaging', audience: 'dispatchers', summary: 'New Patients tab in Messages: message any patient of your store, with unread badges and a push sent to their devices.' },
   { build: 72, area: 'Map', audience: 'everyone', summary: 'Cycling start and end pins no longer pick up a cluster count badge or cluster fan lines. They keep their own paired look and fan-out.' },
