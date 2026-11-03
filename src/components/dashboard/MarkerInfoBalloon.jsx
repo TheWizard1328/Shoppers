@@ -4,6 +4,7 @@ import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interS
 import { useUser } from '../utils/UserContext';
 import { shouldRedactDeliveryInfo, redactPatientName } from '../common/deliveryRedaction';
 import { cleanBuzzerFromAddress } from '../utils/addressCleaner';
+import { formatCodAmount } from './mapBalloonHelpers';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -99,6 +100,8 @@ export default function MarkerInfoBalloon({
     : isISP
       ? (ispSourceStore?.name || ispLoc?.store_name || 'Inter-Store')
       : (store?.name || 'Store');
+  // COD amount beside the store name (blank when the stop carries none).
+  const codLabel = formatCodAmount(delivery);
   const wrapperClass = compact ? 'space-y-1' : 'space-y-1.5';
 
   return (
@@ -113,9 +116,17 @@ export default function MarkerInfoBalloon({
       </div>
 
       {/* Row 2: Store / location name — building icon for stores & interstores */}
-      <div className="flex items-center gap-1.5 text-[11px] text-label">
-        <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="truncate">{displayStoreName}</span>
+      {/* Row 2: Store name — COD amount right aligned beside it (owner request
+          Nov 3 2026: "the COD amounts on the map marker info balloons next the
+          Store names right aligned for single stop markers"). */}
+      <div className="flex items-center justify-between gap-2 text-[11px] text-label">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="truncate">{displayStoreName}</span>
+        </div>
+        {codLabel ? (
+          <span className="shrink-0 text-right font-semibold text-amber-600 dark:text-amber-400">{codLabel}</span>
+        ) : null}
       </div>
       {/* Row 2b: ISP/ISD address */}
       {isISPOrISD && ispLoc?.store_address && (

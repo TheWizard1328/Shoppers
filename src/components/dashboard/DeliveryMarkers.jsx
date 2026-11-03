@@ -7,6 +7,7 @@ import MarkerInfoBalloon from './MarkerInfoBalloon';
 import { createSimpleCircleIcon, createDeliveryIcon, createCyclingStartIcon, createCyclingEndIcon, createCyclingSplitIcon } from './MapIcons';
 import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
+import { formatCodAmount, clusterLocationAddress } from './mapBalloonHelpers';
 import { portalWatchersStore, usePortalWatcherVersion, isWatcherVisibleForDelivery } from '../utils/portalWatchers';
 import { useAppData } from '../utils/AppDataContext';
 
@@ -469,9 +470,14 @@ function DeliveryMarkers({
                           return (
                             <div key={`sg-${storeId}`} className="mb-1.5">
                               {/* Store row — shown once per store per driver */}
-                              <div className="flex items-center gap-1.5 text-[11px] mb-1 pl-1 text-label">
-                                <Home className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate font-medium">{sg.store?.name || 'Store'}</span>
+                              <div className="flex items-center justify-between gap-2 text-[11px] mb-1 pl-1 text-label">
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  <Home className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate font-medium">{sg.store?.name || 'Store'}</span>
+                                </div>
+                                {clusterLocationAddress(sg.stops) ? (
+                                  <span className="shrink-0 max-w-[58%] truncate text-right text-soft">{clusterLocationAddress(sg.stops)}</span>
+                                ) : null}
                               </div>
 
                               {/* Stop rows: Pin | Stop# | Name | Time */}
@@ -500,7 +506,11 @@ function DeliveryMarkers({
                                       <span className="shrink-0 font-medium text-soft" style={{ fontFamily: 'Courier New, monospace' }}>#{String(stopNum).padStart(2, '0')}</span>
                                       <span className="truncate">{name}</span>
                                     </div>
-                                    {timeLabel && (
+                                    
+{formatCodAmount(m) ? (
+                                        <span className="shrink-0 font-semibold text-amber-600 dark:text-amber-400">{formatCodAmount(m)}</span>
+                                      ) : null}
+                                      {timeLabel && (
                                       <div className={`shrink-0 flex items-center gap-1 ${timeColor}`}>
                                         <Clock className="w-3 h-3 flex-shrink-0" />
                                         <span>{timeLabel}</span>
@@ -571,9 +581,14 @@ function DeliveryMarkers({
                             const sg = dGroup.storeMap[storeId];
                             return (
                               <div key={`sg-${storeId}`} className="mb-1.5">
-                                <div className="flex items-center gap-1.5 text-[11px] mb-1 pl-1 text-label">
-                                  <Home className="w-3 h-3 flex-shrink-0" />
-                                  <span className="truncate font-medium">{sg.store?.name || 'Store'}</span>
+                                <div className="flex items-center justify-between gap-2 text-[11px] mb-1 pl-1 text-label">
+                                  <div className="flex min-w-0 items-center gap-1.5">
+                                    <Home className="w-3 h-3 flex-shrink-0" />
+                                    <span className="truncate font-medium">{sg.store?.name || 'Store'}</span>
+                                  </div>
+                                  {clusterLocationAddress(sg.stops) ? (
+                                    <span className="shrink-0 max-w-[55%] truncate text-right text-soft">{clusterLocationAddress(sg.stops)}</span>
+                                  ) : null}
                                 </div>
                                 {sg.stops.map((m) => {
                                   const isDone = DONE.includes(m.status);
@@ -590,6 +605,10 @@ function DeliveryMarkers({
                                         <span className="shrink-0 font-medium text-soft" style={{ fontFamily: 'Courier New, monospace' }}>#{stopNum != null ? String(stopNum).padStart(2, '0') : '??'}</span>
                                         <span className="truncate">{name}</span>
                                       </div>
+                                      
+{formatCodAmount(m) ? (
+                                        <span className="shrink-0 font-semibold text-amber-600 dark:text-amber-400">{formatCodAmount(m)}</span>
+                                      ) : null}
                                       {timeLabel && (
                                         <div className={`shrink-0 flex items-center gap-1 ${timeColor}`}>
                                           <Clock className="w-3 h-3 flex-shrink-0" />
