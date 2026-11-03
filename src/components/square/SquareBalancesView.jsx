@@ -2755,13 +2755,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             };
             for (const it of src.items || []) addRow(it, 'o');
             for (const it of src.cashItems || []) addRow(it, 'c');
-            // Completed charges collected by card since true-up (they have no
-            // row of their own on the card — the drill-down is where they show).
-            for (const it of src.deductItems || []) {
-              if (it?.in_window === false) continue;
-              if (String(it?.reason || '') !== 'collected_charge') continue;
-              addRow(it, 'd');
-            }
+            // COMPLETED charges are NOT listed (owner report Nov 3 2026, second
+            // pass: "it is still showing completed items in the lists").
+            // Collected/settled CODs have no live row on the card, so listing
+            // them under a line the owner reads as "what is still holding
+            // money" was noise. This list is ONLY the rows the card shows.
             for (const it of catalogUncollectedByLoc?.[loc.location_id] || []) addRow(it, 'cat');
             rows.sort((x, y) => (y.sub || '').localeCompare(x.sub || ''));
             const cents = rows.reduce((sum, r) => sum + Math.round(r.amount * 100), 0);
@@ -2841,6 +2839,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                         </div>
                         <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(shownTotal)}</div>
                       </summary>
+                      {rows.length === 0 &&
+                        <div className="mt-1 pl-5 text-[11px] text-slate-400">settled earlier — no open rows</div>
+                      }
                       {rows.length > 0 &&
                         <div className="mt-1 space-y-0.5 pl-5 pr-1">
                           {rows.map((r) => (
