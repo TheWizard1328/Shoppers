@@ -363,7 +363,7 @@ Deno.serve(async (req) => {
       }
       drivers.forEach((d: any) => { delete d.resolved_profile; });
 
-      return Response.json({ ok: true, today, drivers });
+      return Response.json({ ok: true, today, drivers, v: 132 });
     }
 
     // ── Patient side writes (no auth: the portal is a public page) ──────────

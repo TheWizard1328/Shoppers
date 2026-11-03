@@ -234,13 +234,41 @@ export async function sendStaffMessageToDriverThread({ user, patient, driverId, 
   return message;
 }
 
-/** Duty status for a set of driver ids (patient-facing status chips). */
+const ACTIVE_DELIVERY_STATUSES = ['in_transit', 'en_route', 'arrived', 'out_for_delivery'];
+
+/**
+ * Duty status for a set of driver ids (patient-facing status chips).
+ *
+ * The server copy of driver_status can lag or be missing (the profile row is
+ * resolved by auth user id), so the portal also treats "this driver is carrying
+ * a live delivery to you right now" as ON DUTY — the same thing the map shows
+ * as a green marker. The server's on_break always wins.
+ */
 export async function loadDriverDirectory(patientId) {
   if (!patientId) return { drivers: [], today: '' };
   try {
     const res = await base44.functions.invoke('patientPush', { action: 'driverDirectory', patient_id: patientId });
     const data = res?.data || res || {};
-    return { drivers: data.drivers || [], today: data.today || '' };
+    const drivers = data.drivers || [];
+    const today = data.today || '';
+
+    if (drivers.some((d) => d && d.duty_status !== 'on_duty' && d.duty_status !== 'on_break')) {
+      const rows = await base44.entities.Delivery
+        .filter({ patient_id: patientId, delivery_date: today }, '-delivery_date', 20)
+        .catch(() => []);
+      const liveDriverIds = new Set(
+        (rows || [])
+          .filter((d) => d?.driver_id && ACTIVE_DELIVERY_STATUSES.includes(String(d.status)))
+          .map((d) => String(d.driver_id))
+      );
+      drivers.forEach((d) => {
+        if (d && liveDriverIds.has(String(d.driver_id)) && d.duty_status !== 'on_break') {
+          d.duty_status = 'on_duty';
+        }
+      });
+    }
+
+    return { drivers, today };
   } catch {
     return { drivers: [], today: '' };
   }
