@@ -190,6 +190,23 @@ const PORTAL_PAD_BOTTOM_RIGHT = L.point(50, 50);
 // OWNER TWEAK (Oct 23 2026): 25px extra top padding so the fit clears the
 // tracking driver badge overlay (50 + 25 = 75px effective top padding).
 const PORTAL_PAD_TOP_LEFT = L.point(50, 75);
+/**
+ * MapInvalidateOnPad — Leaflet caches the container size at mount. The map's
+ * top padding is reserved for the floating today card and lands a frame after
+ * mount (the card has to render and be measured), so the map must be told to
+ * re-read its box or the tiles stay laid out for the taller container.
+ */
+function MapInvalidateOnPad({ pad }) {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try { map.invalidateSize({ animate: false }); } catch (_) { /* map gone */ }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [map, pad]);
+  return null;
+}
+
 function portalFit(map, points) {
   // Guard: a single NaN/undefined coordinate makes latLngBounds invalid and
   // getBoundsZoom throw — which would silently kill the auto-fit forever.
@@ -388,6 +405,9 @@ export default function PatientPortal({ embedded = false } = {}) {
   // offering yesterday's card — the floating card compares against this one and
   // its own minute tick instead.
   const [liveDay, setLiveDay] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  // Height of the collapsed floating today card. The map area reserves this as
+  // TOP PADDING so the card never covers the map (owner request Nov 2 2026).
+  const [floatCardHeight, setFloatCardHeight] = useState(0);
   const [driverLocation, setDriverLocation] = useState(null);
 
   // ── Dark mode map tiles (owner Oct 23 2026): follow the app's theme ────────
@@ -992,7 +1012,11 @@ export default function PatientPortal({ embedded = false } = {}) {
         {/* Map */}
         <div
           className="flex-1 px-4 pt-3 overflow-hidden relative"
-          style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
+          style={{
+            paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))',
+            // Reserve the floating today card's collapsed height above the map.
+            paddingTop: floatCardHeight ? `${floatCardHeight + 12}px` : undefined,
+          }}
         >
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
               Only while the sidebar is hidden (phones, or the drawer closed), and
@@ -1000,11 +1024,12 @@ export default function PatientPortal({ embedded = false } = {}) {
               TODAY only, so tomorrow this card simply stops rendering and the
               delivery lives in the sidebar history. */}
           {todayDelivery && todayDelivery.delivery_date === liveDay && !sidebarOpen && (
-            <div className="absolute top-2 left-2 z-[900] md:hidden">
+            <div className="absolute top-0 left-4 z-[900] md:hidden">
               <PatientTodayFloatingCard
                 delivery={todayDelivery}
                 pickupStops={pickupStops}
                 stores={stores}
+                onCollapsedHeight={setFloatCardHeight}
               />
             </div>
           )}
@@ -1034,6 +1059,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               // pinch/scroll no longer jumps whole levels either.
               zoomSnap={0}
             >
+              <MapInvalidateOnPad pad={floatCardHeight} />
               <TileLayer
                 key={tileUrl}
                 url={tileUrl}
