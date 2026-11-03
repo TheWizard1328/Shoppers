@@ -155,6 +155,14 @@ const parseTimeToMinutesLocal = (timeStr) => {
   return h * 60 + m;
 };
 
+// Minutes -> 'HH:MM' (client engine parity for the past-window clamp).
+const formatMinutesToTimeLocal = (minutes) => {
+  const total = Math.max(0, Math.min(23 * 60 + 59, Math.round(Number(minutes) || 0)));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
 // SHARED Alberta rule (albertaTime) - Intl America/Denver is an hour behind
 // after the Nov 1 2026 fall-back Alberta did not take, and the server request's
 // currentMinutes drives window clamping + band sort.
@@ -217,7 +225,21 @@ export const buildServerOptimizeRequest = async ({
   if (driverDeliveries.length === 0) return { supported: false, reason: 'no_deliveries' };
 
   const completed = driverDeliveries.filter(d => FINISHED_STATUSES.includes(String(d.status || '').toLowerCase()));
-  const active = driverDeliveries.filter(d => !FINISHED_STATUSES.includes(String(d.status || '').toLowerCase()));
+  // ── STOP-POOL PARITY (owner report Nov 3 2026: 'two separate thorough
+  // optimizations between the server and client side optimizers, they're both
+  // different with the same active stops') ────────────────────────────────────
+  // The client engine sequences ONLY in_transit / en_route / pending
+  // (ACTIVE_STATUSES + pending in clientRouteEngine). The server used to take
+  // EVERY non-finished delivery, so any other status (staged, assigned, …)
+  // entered the server's waypoint list and silently changed the sequence.
+  // Same pool or the two engines can never agree.
+  const SEQUENCED_STATUSES = ['in_transit', 'en_route', 'pending'];
+  const IN_FLIGHT_STATUSES = ['in_transit', 'en_route'];
+  const _inFlight = driverDeliveries.filter(d =>
+    IN_FLIGHT_STATUSES.includes(String(d.status || '').toLowerCase()));
+  const _pendingStops = driverDeliveries.filter(d =>
+    String(d.status || '').toLowerCase() === 'pending');
+  const active = [..._inFlight, ..._pendingStops];
   if (active.length === 0) return { supported: false, reason: 'no_active_stops' };
 
   let driverAppUser = (appUsers || []).find(au => au?.user_id === driverId || au?.id === driverId) || {};
@@ -265,7 +287,23 @@ export const buildServerOptimizeRequest = async ({
   // HERE sequenced from there and produced a different order. Now BOTH
   // engines anchor identically: locked next stop → last finished → home →
   // first active.
-  const explicitNext = active.find(d => d?.isNextDelivery === true) || null;
+  // ── PINNED NEXT-STOP PARITY (owner report Nov 3 2026) ────────────────────
+  // The CLIENT locks a next stop even when NOTHING is flagged isNextDelivery:
+  // it falls back to the first IN-FLIGHT stop (in_transit / en_route) and pins
+  // it at position 1, excluding it from HERE sequencing. The server only ever
+  // pinned a real isNextDelivery flag, so on a fresh batch (nothing flagged)
+  // the server resequenced that stop freely while the client held it first —
+  // two different orders for the same stops. Same rule now, including the
+  // preserveExistingOrder / clearNextDeliveryLock exemptions.
+  const _explicitNextRaw = active.find(d => d?.isNextDelivery === true) || null;
+  const _explicitNextIsInFlight = !!_explicitNextRaw
+    && IN_FLIGHT_STATUSES.includes(String(_explicitNextRaw.status || '').toLowerCase());
+  const _implicitNext = !_explicitNextRaw
+    ? (active.find(d => IN_FLIGHT_STATUSES.includes(String(d.status || '').toLowerCase())) || null)
+    : null;
+  const explicitNext = (!preserveExistingOrder && !clearNextDeliveryLock)
+    ? (_explicitNextIsInFlight ? _explicitNextRaw : (_implicitNext || null))
+    : null;
   // OWNER SPEC (Oct 26 2026): manual reorders / force-regenerate runs
   // repolyline ALL active stops in the caller's order, chained from the
   // most recent completed stop through the driver's live GPS — the dragged
@@ -381,10 +419,32 @@ export const buildServerOptimizeRequest = async ({
     if (!coords) continue; // unmappable stops stay untouched server-side
     const patient = d.patient_id ? patientMap.get(d.patient_id) : null;
     // THE DELIVERY'S OWN WINDOW IS AUTHORITATIVE (repo rule Sep 30 2026).
-    const windowStart = d.delivery_time_start || d.time_window_start || patient?.time_window_start || null;
-    const windowEnd = d.delivery_time_end || d.time_window_end || patient?.time_window_end || null;
+    let windowStart = d.delivery_time_start || d.time_window_start || patient?.time_window_start || null;
+    let windowEnd = d.delivery_time_end || d.time_window_end || patient?.time_window_end || null;
+    // ── PAST-WINDOW CLAMP + EXPIRED-END DROP (client parity, owner report
+    // Nov 3 2026). clientRouteEngine collapses a past windowStart to 'now' on
+    // today's routes and DROPS a windowEnd that has already passed ('fully
+    // expired — deliver ASAP'). The server shipped the raw values, so an
+    // expired end (09:00 end on a 13:00 route) became an acc window HERE could
+    // never satisfy — the request came back infeasible, the server reported
+    // unsupported and the client engine re-optimized: two different orders for
+    // the same stops, exactly what the owner saw.
+    if (isToday && windowStart) {
+      const _wsMin = parseTimeToMinutesLocal(windowStart);
+      if (Number.isFinite(_wsMin) && _wsMin < currentMinutes) {
+        windowStart = formatMinutesToTimeLocal(currentMinutes);
+        if (windowEnd) {
+          const _weMin = parseTimeToMinutesLocal(windowEnd);
+          if (!Number.isFinite(_weMin) || _weMin <= currentMinutes) windowEnd = null;
+        }
+      }
+    }
     const isInterStore = isInterStoreDeliveryId(d.delivery_id);
-    const isPickup = !d.patient_id && !d.is_cycling_marker && !isInterStore;
+    // PICKUP definition — client parity: the CLIENT treats any delivery with
+    // no patient_id as a pickup (clientRouteEngine `isPickup: !patient_id`),
+    // which also covers InterStore runs. Only the window GATING and dwell use
+    // this, and an InterStore leg is a transport, never a patient appointment.
+    const isPickup = !d.patient_id;
     stops.push({
       id: d.id,
       deliveryId: d.delivery_id,

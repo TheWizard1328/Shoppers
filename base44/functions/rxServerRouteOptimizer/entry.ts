@@ -194,7 +194,7 @@ const decodeHereFlexiblePolyline = (encoded) => {
 };
 
 // ─── HERE findsequence2 (ported from callHereSequence) ───────────────────────
-async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs = null }) {
+async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs = null, routeIsToday = false }) {
   const params = new URLSearchParams();
   params.set('apiKey', apiKey);
   params.set('departure', buildLocalIso(deliveryDate, formatMinutesToTime(currentMinutes)));
@@ -233,9 +233,17 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
       const WINDOW_SWAY_MINUTES = 30;
       if (stop.isPickup !== true) {
         let openMin = parseTimeToMinutes(stop.windowStart);
-        if (Number.isFinite(openMin) && Number.isFinite(currentMinutes) && openMin < currentMinutes) openMin = currentMinutes;
-        if (Number.isFinite(openMin)) openMin = Math.max(0, openMin - WINDOW_SWAY_MINUTES);
         let closeMin = parseTimeToMinutes(stop.windowEnd);
+        // EXPIRED WINDOWS ARE NOT CONSTRAINTS (client parity). On TODAY's route
+        // the client collapses a past start to 'now' and DROPS an end that has
+        // already passed; an expired end sent to HERE makes the whole request
+        // infeasible, which is how a server run and a client run ended up
+        // producing two different orders. Future dates keep their real windows.
+        if (routeIsToday) {
+          if (Number.isFinite(openMin) && openMin < currentMinutes) openMin = currentMinutes;
+          if (Number.isFinite(closeMin) && closeMin <= currentMinutes) closeMin = null;
+        }
+        if (Number.isFinite(openMin)) openMin = Math.max(0, openMin - WINDOW_SWAY_MINUTES);
         if (Number.isFinite(closeMin)) closeMin = Math.min(23 * 60 + 59, closeMin + WINDOW_SWAY_MINUTES);
         const acc = buildAccessConstraint(
           deliveryDate,
@@ -253,6 +261,16 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
   // Deno fetch has NO default timeout — a stalled HERE connection left the whole
   // function hanging, so the client's functions.invoke never resolved (KITT bar
   // forever, no audit entry, no client fallback). Client engine parity: 25s cap.
+  // PARITY DIAGNOSTIC (owner report Nov 3 2026: server and client produced two
+  // different orders for the same stops). The client logs its full HERE payload;
+  // the server logged nothing, so a divergence could not be diagnosed from the
+  // function logs. Compact one-liner: departure + every waypoint as id|acc|st.
+  try {
+    const _dest = [];
+    for (let _i = 1; params.has(`destination${_i}`); _i++) _dest.push(params.get(`destination${_i}`));
+    console.log(`[rxServerRouteOptimizer] HERE payload: depart=${params.get('departure')} mode=${params.get('mode')} improveFor=${params.get('improveFor')} start=${params.get('start')} end=${params.get('end')} stops=[${_dest.join(' , ')}]`);
+  } catch (_) { /* diagnostics must never break sequencing */ }
+
   const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
     signal: AbortSignal.timeout(25000)
   });
@@ -689,7 +707,7 @@ Deno.serve(async (req) => {
           orderedStops = _lockedStop ? [_lockedStop] : [];
         } else {
           const seqResult = await callHereSequence({
-            origin, stops: _seqPool, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs,
+            origin, stops: _seqPool, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs, routeIsToday: _routeIsToday,
           });
           orderedStops = _lockedStop ? [_lockedStop, ...resolveSequence(seqResult, _seqPool)] : resolveSequence(seqResult, _seqPool);
         }
