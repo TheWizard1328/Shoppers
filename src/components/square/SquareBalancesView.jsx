@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3, UserRound, ChevronDown } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3, UserRound, ChevronDown, PenLine, StickyNote } from "lucide-react";
 import StoreFeesByDay from "./StoreFeesByDay";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
@@ -154,7 +154,11 @@ function splitSwipeCents(total, weights) {
   return base;
 }
 
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null, locationOrder = [], cardLocId = null }) {
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null, locationOrder = [], cardLocId = null,
+  // ADMIN NOTES (owner request Nov 3 2026): a pen on every delivery item card
+  // opens a note dialog that saves to that balance item, and a note-paper icon
+  // appears when the DRIVER left a note on the delivery (tapping shows it).
+  canEditNotes = false, balanceNotesById = {}, driverNotesById = {}, onEditNote = null, onViewDriverNote = null }) {
   // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
   // uncollected cash-awaiting-square row is clickable — the owner can
   // correct the recorded tender to Debit or Credit (which re-does the
@@ -332,6 +336,24 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                   <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] truncate flex-1 min-w-0">{it.patientName || 'COD'}</p>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
+                  {canEditNotes && r.delivery_id &&
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onEditNote?.(r); }}
+                    title={balanceNotesById?.[String(r.delivery_id)]?.note ? `Note: ${balanceNotesById[String(r.delivery_id)].note}` : 'Add a note to this COD'}
+                    className={`shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-colors ${balanceNotesById?.[String(r.delivery_id)]?.note ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                    <PenLine className="w-3.5 h-3.5" />
+                  </button>
+                  }
+                  {r.delivery_id && driverNotesById?.[String(r.delivery_id)] &&
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onViewDriverNote?.(r, driverNotesById[String(r.delivery_id)]); }}
+                    title="Driver note on this delivery"
+                    className="shrink-0 w-6 h-6 rounded-md border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                    <StickyNote className="w-3.5 h-3.5" />
+                  </button>
+                  }
                   <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(it.amount)}</span>
                   {combinedList
                     ? <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span>
@@ -469,6 +491,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [topups, setTopups] = useState([]); // card_topup transfers onto the Square Cards since true-up
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
+  // ADMIN NOTES on COD delivery items (owner request Nov 3 2026). Notes live in
+  // their own entity (SquareBalanceNote) keyed by delivery_id — never on the
+  // Delivery record, which would fire the COD refresh chain on every device.
+  const [balanceNotesById, setBalanceNotesById] = useState({});
+  const [noteTarget, setNoteTarget] = useState(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [driverNoteView, setDriverNoteView] = useState(null);
   const [codCollectedTodayByLoc, setCodCollectedTodayByLoc] = useState({}); // owner-only: today's collected CODs per card
   const [catalogUncollectedByLoc, setCatalogUncollectedByLoc] = useState(undefined); // owner-only: ACTIVE SquareCatalogItems = uncollected, all dates
   // RACE GUARD (Oct 6 2026, owner report: "Past Uncollected shows up then
@@ -545,6 +575,87 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const computeCatalogUncollectedRef = useRef(null);
 
   const ownerCanEdit = !!(currentUser && isAppOwner(currentUser));
+  // Notes are an ADMIN tool (owner request: "for Admin's"): app owner or an
+  // AppUser carrying the admin role.
+  const canEditBalanceNotes = !!(currentUser && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin')));
+
+  // Load every admin note once, then keep it fresh on other admins' saves.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const rows = await base44.entities.SquareBalanceNote.list('-updated_date', 1000, 0);
+        if (cancelled) return;
+        const map = {};
+        for (const r of rows || []) { if (r?.delivery_id) map[String(r.delivery_id)] = r; }
+        setBalanceNotesById(map);
+      } catch { /* notes are best-effort — the page works without them */ }
+    };
+    void load();
+    let unsub = null;
+    try {
+      unsub = base44.entities.SquareBalanceNote.subscribe(() => { void load(); });
+    } catch { /* subscription is optional */ }
+    return () => { cancelled = true; try { unsub?.(); } catch { /* noop */ } };
+  }, []);
+
+  // Driver notes come straight off the COD items (delivery_notes), so no extra
+  // delivery read is needed to know which rows wear the note-paper icon.
+  const driverNotesById = useMemo(() => {
+    const map = {};
+    const scan = (locMap) => {
+      for (const locId of Object.keys(locMap || {})) {
+        const bucket = locMap[locId] || {};
+        for (const arr of [bucket.items, bucket.cashItems, bucket.deductItems, bucket.legacyDeductItems]) {
+          for (const it of arr || []) {
+            const id = it?.delivery_id ? String(it.delivery_id) : null;
+            if (id && it?.delivery_notes && !map[id]) map[id] = String(it.delivery_notes);
+          }
+        }
+      }
+    };
+    scan(localOutstanding);
+    scan(codOutstandingByLoc);
+    return map;
+  }, [localOutstanding, codOutstandingByLoc]);
+
+  const saveBalanceNote = useCallback(async (target, text) => {
+    const deliveryId = String(target?.delivery_id || '');
+    if (!deliveryId) return;
+    const existing = balanceNotesById[deliveryId] || null;
+    const clean = String(text || '').trim();
+    setNoteSaving(true);
+    try {
+      // Empty note + existing record = delete it (an empty note is no note).
+      if (!clean && existing?.id) {
+        await base44.entities.SquareBalanceNote.delete(existing.id);
+        setBalanceNotesById((prev) => { const next = { ...prev }; delete next[deliveryId]; return next; });
+        toast.success('Note removed');
+        return true;
+      }
+      if (!clean) { return true; }
+      const payload = {
+        delivery_id: deliveryId,
+        location_id: target?.cardLocId || null,
+        patient_name: target?.patientName || null,
+        note: clean,
+        author_id: currentUser?.id || null,
+        author_name: currentUser?.full_name || currentUser?.email || null,
+      };
+      const saved = existing?.id
+        ? await base44.entities.SquareBalanceNote.update(existing.id, payload)
+        : await base44.entities.SquareBalanceNote.create(payload);
+      setBalanceNotesById((prev) => ({ ...prev, [deliveryId]: { ...(existing || {}), ...payload, ...(saved || {}) } }));
+      toast.success('Note saved');
+      return true;
+    } catch (e) {
+      console.error('saveBalanceNote failed:', e);
+      toast.error('Could not save the note');
+      return false;
+    } finally {
+      setNoteSaving(false);
+    }
+  }, [balanceNotesById, currentUser]);
   // DRIVER SCOPE (owner rule Oct 9 2026): a driver only sees the delivery
   // items assigned to them — balance/card math stays global (it is the
   // store's real card money), only the row lists are scoped.
@@ -3101,6 +3212,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     <CardCodList
                       canMarkSpend={!!currentUser}
                       isOwner={ownerCanEdit}
+                      canEditNotes={canEditBalanceNotes}
+                      balanceNotesById={balanceNotesById}
+                      driverNotesById={driverNotesById}
+                      onEditNote={(row) => { setNoteTarget({ ...row, cardLocId: loc.location_id }); setNoteDraft(String(balanceNotesById[String(row.delivery_id)]?.note || '')); }}
+                      onViewDriverNote={(row, note) => setDriverNoteView({ patientName: row?.patientName || null, sub: row?.sub || null, amount: row?.amount, note })}
                       combineCandidates={combineCandidates} locationOrder={(config?.locations || []).map((l) => l.location_id)} cardLocId={loc.location_id}
                       onMarkSpend={markCardSpend}
                       onMarkRefunded={markFailedRefunded}
@@ -3120,6 +3236,62 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
         })}
       </div>
+
+      {/* ADMIN NOTE DIALOG (owner request Nov 3 2026): pen icon on a COD
+          delivery item card opens this; the note saves to that balance item
+          and shows on the row for every admin/device. */}
+      <Dialog open={!!noteTarget} onOpenChange={(o) => { if (!o) { setNoteTarget(null); setNoteDraft(''); } }}>
+        <DialogContent className="sm:max-w-md w-[94vw]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PenLine className="w-4 h-4" /> Note — {noteTarget?.patientName || 'COD'}
+            </DialogTitle>
+            <DialogDescription>
+              {[noteTarget?.sub, noteTarget?.amount != null ? fmtMoney(noteTarget.amount) : null, noteTarget?.driverName].filter(Boolean).join(' · ') || 'COD delivery'}
+              {balanceNotesById?.[String(noteTarget?.delivery_id)]?.author_name ? ` · last edit by ${balanceNotesById[String(noteTarget.delivery_id)].author_name}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            rows={5}
+            autoFocus
+            placeholder="Add a note about this COD (visible to admins on this row)…"
+            className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-slate-400">Empty and saved = note removed</span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={noteSaving} onClick={() => { setNoteTarget(null); setNoteDraft(''); }}>Cancel</Button>
+              <Button size="sm" disabled={noteSaving} onClick={async () => {
+                  const ok = await saveBalanceNote(noteTarget, noteDraft);
+                  if (ok) { setNoteTarget(null); setNoteDraft(''); }
+                }}>{noteSaving ? 'Saving…' : 'Save note'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* DRIVER NOTE VIEWER (owner request Nov 3 2026): tapping the note-paper
+          icon shows the note the driver left on that delivery. Read only. */}
+      <Dialog open={!!driverNoteView} onOpenChange={(o) => { if (!o) setDriverNoteView(null); }}>
+        <DialogContent className="sm:max-w-md w-[94vw]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <StickyNote className="w-4 h-4 text-sky-600 dark:text-sky-400" /> Driver note — {driverNoteView?.patientName || 'COD'}
+            </DialogTitle>
+            <DialogDescription>
+              {[driverNoteView?.sub, driverNoteView?.amount != null ? fmtMoney(driverNoteView.amount) : null].filter(Boolean).join(' · ') || 'COD delivery'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[50vh] overflow-y-auto rounded-md border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 whitespace-pre-wrap break-words">
+            {driverNoteView?.note || 'No note'}
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => setDriverNoteView(null)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* FEES BY DAY POPOUT DIALOG (owner spec Oct 27 2026 night): the
           per-store fee breakdown opens as a larger dialog instead of being

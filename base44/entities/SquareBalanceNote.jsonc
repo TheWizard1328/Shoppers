@@ -1,0 +1,35 @@
+{
+  "name": "SquareBalanceNote",
+  "type": "object",
+  "description": "Admin note pinned to a COD delivery item on the Square Balances page (owner request Nov 3 2026: \"add for Admin's the ability to add notes (Pen Icon on each card) to each Square Balance delivery item card\"). One record per delivery. Deliberately a SEPARATE entity from Delivery: writing a Delivery record fires the COD-relevant refresh chain (every device re-runs squareBalancesCompute) and the realtime sync field whitelists, so a note would cost far more than it should.",
+  "properties": {
+    "delivery_id": {
+      "type": "string",
+      "description": "Delivery id this note belongs to (one note per delivery)"
+    },
+    "location_id": {
+      "type": "string",
+      "description": "Square location id of the card the row was noted on"
+    },
+    "patient_name": {
+      "type": "string",
+      "description": "Patient name at the time of the note (display only, so the note still reads if the patient is renamed)"
+    },
+    "note": {
+      "type": "string",
+      "description": "The admin's note text"
+    },
+    "author_id": {
+      "type": "string",
+      "description": "AppUser/User id of the admin who last saved the note"
+    },
+    "author_name": {
+      "type": "string",
+      "description": "Display name of the admin who last saved the note"
+    }
+  },
+  "required": [
+    "delivery_id"
+  ],
+  "rls": {}
+}

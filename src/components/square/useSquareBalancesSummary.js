@@ -1265,7 +1265,10 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // ASSIGNED DRIVER (owner request Nov 1 2026): every COD row on a store
       // card must name the driver it is assigned to, so driver_name rides
       // along next to driver_id (driver_id alone is unreadable on screen).
-      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, driver_name: d.driver_name || null, ...storeBadgeOf(d.store_id) };
+      // delivery_notes rides along (owner request Nov 3 2026): the row shows a
+      // note-paper icon when the driver left one, so the balance page never
+      // has to re-read deliveries just to know a note exists.
+      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, driver_name: d.driver_name || null, delivery_notes: d.delivery_notes || null, ...storeBadgeOf(d.store_id) };
       if (status === 'failed' && failedKeepIds.has(String(d.id))) item.covers_retry_ids = coversByFailed.get(String(d.id)) || [];
       // FAILED + REFUNDED (auto or manual) → resolved: the refund put the
       // money back on the card, so the row leaves the Uncollected lists and
@@ -1324,7 +1327,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       delivery_id: d.id, status: 'completed', amount: centsOf(required) / 100,
       reason: 'cash_collected', date: String(d.delivery_date || '').slice(0, 10),
       created_date: d.created_date || null,
-      patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, driver_name: d.driver_name || null, ...storeBadgeOf(d.store_id)
+      patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, driver_name: d.driver_name || null, delivery_notes: d.delivery_notes || null, ...storeBadgeOf(d.store_id)
     });
   }
 
@@ -1390,6 +1393,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       patient_id: d.patient_id || null,
       patient: patientNameOf(d.patient_id), store_id: d.store_id || null,
       driver_id: d.driver_id || null, driver_name: d.driver_name || null,
+      delivery_notes: d.delivery_notes || null,
       ...storeBadgeOf(d.store_id),
     });
   }

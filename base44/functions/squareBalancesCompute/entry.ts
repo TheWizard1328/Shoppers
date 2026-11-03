@@ -439,7 +439,7 @@ async function computeSummary(b44, userId) {
       // the money — the failed original must NOT show or deduct. A stamp or
       // an active/pending retry alone no longer hides a failed row.
       if (status === 'failed' && failedHiddenByCompleted.has(String(d.id))) continue;
-      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, spend_at: d?.cod_card_spend_at || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, ...storeBadgeOf(d.store_id) };
+      const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, spend_at: d?.cod_card_spend_at || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, delivery_notes: d.delivery_notes || null, ...storeBadgeOf(d.store_id) };
       if (status === 'failed' && failedKeepIds.has(String(d.id))) item.covers_retry_ids = coversByFailed.get(String(d.id)) || [];
       if (status === 'failed') {
         if (manualRefundMarks[String(d.id)]) continue;
