@@ -364,7 +364,8 @@ async function handleBriefing(base44, params = {}) {
   // without sending a briefing to anyone.
   if (params?.balances_preview) {
     const bal = await buildBalanceLines(base44, { freshen: params?.freshen !== false });
-    return Response.json({ source: bal.source, note: bal.note || null, lines: bal.lines });
+    // Plain object — Deno.serve wraps handleBriefing's return in Response.json.
+    return { balances_preview: true, source: bal.source, note: bal.note || null, lines: bal.lines };
   }
 
   console.log('[briefing] invoked. dry_run:', dryRun, '| test_driver_id:', testDriverId || 'none', '| date:', today);
