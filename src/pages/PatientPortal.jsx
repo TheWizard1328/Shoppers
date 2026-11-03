@@ -867,21 +867,26 @@ export default function PatientPortal({ embedded = false } = {}) {
 
         // --- Update route deliveries ref for badge recalculation ---
         const route = todayDeliveryRouteRef.current;
-        if (
-          route &&
-          updated.driver_id === route.driver_id &&
-          updated.delivery_date === TODAY
-        ) {
-          // Patch or add this delivery into our local route snapshot
+        if (route) {
           const existing = routeDeliveriesRef.current;
           const idx = existing.findIndex((d) => d.id === updated.id);
-          const next = idx >= 0
-            ? existing.map((d) => d.id === updated.id ? { ...d, ...updated } : d)
-            : [...existing, updated];
-          routeDeliveriesRef.current = next;
-          setRouteDeliveries([...next]);
-          // Recount badge using the patient's own delivery as reference
-          recountStopsRemaining(routeDeliveriesRef.current, route);
+          // ROUTE MEMBERSHIP, BOTH WAYS (owner report Nov 3 2026): the snapshot
+          // only ADDED or PATCHED stops that still match this driver+date, so a
+          // stop TRANSFERRED to another driver never left it — its stored
+          // polyline kept painting on the patient's map for the rest of the day.
+          // A delivery that no longer belongs to this route is now REMOVED.
+          const belongsNow = updated.driver_id === route.driver_id && updated.delivery_date === TODAY;
+          if (belongsNow || idx >= 0) {
+            const next = !belongsNow
+              ? existing.filter((d) => d.id !== updated.id)
+              : (idx >= 0
+                ? existing.map((d) => d.id === updated.id ? { ...d, ...updated } : d)
+                : [...existing, updated]);
+            routeDeliveriesRef.current = next;
+            setRouteDeliveries([...next]);
+            // Recount badge using the patient's own delivery as reference
+            recountStopsRemaining(routeDeliveriesRef.current, route);
+          }
         }
 
         // --- Update this patient's own deliveries ---
@@ -993,41 +998,70 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
   const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsRemaining);
 
-  // Helper: merge decoded polyline segments, deduplicating shared endpoints
-  const mergePolylineSegments = (stops) => {
-    const merged = [];
+  // ── POLYLINE INTEGRITY (owner report Nov 3 2026) ─────────────────────────
+  // Two portal-only artefacts, both from gluing leg polylines blindly:
+  //   • STRAIGHT LINES where a leg has no polyline data — the merge pushed the
+  //     next leg's points straight after the previous leg's end, so Leaflet drew
+  //     one long straight chord across the gap.
+  //   • ROAD LINES for stops that LEFT this driver's route (transferred to
+  //     another driver) — their stored encoded_polyline survived in the local
+  //     route snapshot and kept painting.
+  // Fix: never concatenate across a gap. Each leg is decoded, VALIDATED against
+  // the stop it belongs to, and painted as its own segment; a missing or stale
+  // leg is a GAP (nothing drawn), never a chord.
+  const pointGapMeters = (a, b) => {
+    if (!a || !b) return Infinity;
+    const lat1 = Number(a[0]), lng1 = Number(a[1]), lat2 = Number(b[0]), lng2 = Number(b[1]);
+    if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;
+    const dy = (lat1 - lat2) * 110540;
+    const dx = (lng1 - lng2) * 111320 * Math.cos(((lat1 + lat2) / 2) * Math.PI / 180);
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // A leg is STALE when its polyline does not actually end at its own stop
+  // (moved/transferred stop, polyline from a different route order). 200 m is
+  // generous: real generated legs land on the stop.
+  const legIsStale = (stop, coords) => {
+    if (!Array.isArray(coords) || coords.length < 2) return true;
+    const lat = Number(stop?.lat), lng = Number(stop?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return false; // can't judge
+    return pointGapMeters(coords[coords.length - 1], [lat, lng]) > 200;
+  };
+
+  // Paint-ready segments: contiguous legs join only when they truly touch.
+  const buildPolylineSegments = (stops) => {
+    const segments = [];
+    let current = null;
     for (const stop of stops) {
       const decoded = decodePolyline(stop.encoded_polyline);
-      if (decoded.length < 2) continue;
-      if (merged.length > 0) {
-        const [lastLat, lastLng] = merged[merged.length - 1];
-        const [firstLat, firstLng] = decoded[0];
-        if (Math.abs(lastLat - firstLat) < 1e-5 && Math.abs(lastLng - firstLng) < 1e-5) {
-          merged.push(...decoded.slice(1));
-        } else {
-          merged.push(...decoded);
-        }
+      if (legIsStale(stop, decoded)) { current = null; continue; } // gap — draw nothing
+      if (current && pointGapMeters(current[current.length - 1], decoded[0]) <= 40) {
+        current.push(...decoded.slice(1));
       } else {
-        merged.push(...decoded);
+        current = decoded.slice();
+        segments.push(current);
       }
     }
-    return merged;
+    return segments;
   };
 
   // Build route polylines split into:
-  // 1. staticPolylineCoords — all legs EXCEPT the first stop's leg and the current leg (always visible)
+  // 1. staticPolylineSegments — all legs EXCEPT the first stop's leg and the current leg (always visible)
   // 2. firstLegCoords — the leg from store → first stop (hidden when off duty / before 9:30)
   // 3. currentLegCoords — the leg leading to the driver's isNextDelivery stop (hidden when off duty / before 9:30)
-  const { staticPolylineCoords, firstLegCoords, currentLegCoords } = useMemo(() => {
-    if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return { staticPolylineCoords: [], firstLegCoords: [], currentLegCoords: [] };
+  const { staticPolylineSegments, firstLegCoords, currentLegCoords } = useMemo(() => {
+    if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return { staticPolylineSegments: [], firstLegCoords: [], currentLegCoords: [] };
     const patientStopOrder = Number(todayDelivery.stop_order);
     const DONE_STATUSES = ['completed', 'failed', 'cancelled'];
 
     const relevantStops = routeDeliveries
+      // DRIVER SCOPE: a stop transferred to another driver is not on this route
+      // any more, no matter what the local snapshot still holds.
+      .filter((d) => !d.driver_id || !todayDelivery.driver_id || d.driver_id === todayDelivery.driver_id)
       .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status))
       .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
 
-    if (relevantStops.length === 0) return { staticPolylineCoords: [], firstLegCoords: [], currentLegCoords: [] };
+    if (relevantStops.length === 0) return { staticPolylineSegments: [], firstLegCoords: [], currentLegCoords: [] };
 
     const firstStop = relevantStops[0];
     const minStopOrder = Number(firstStop.stop_order);
@@ -1044,11 +1078,13 @@ export default function PatientPortal({ embedded = false } = {}) {
     const firstLegStop = firstStop.isNextDelivery ? null : firstStop;
 
     return {
-      staticPolylineCoords: mergePolylineSegments(staticStops),
-      firstLegCoords: firstLegStop ? decodePolyline(firstLegStop.encoded_polyline) : [],
-      currentLegCoords: currentLegStop ? decodePolyline(currentLegStop.encoded_polyline) : [],
+      staticPolylineSegments: buildPolylineSegments(staticStops),
+      firstLegCoords: firstLegStop && !legIsStale(firstLegStop, decodePolyline(firstLegStop.encoded_polyline))
+        ? decodePolyline(firstLegStop.encoded_polyline) : [],
+      currentLegCoords: currentLegStop && !legIsStale(currentLegStop, decodePolyline(currentLegStop.encoded_polyline))
+        ? decodePolyline(currentLegStop.encoded_polyline) : [],
     };
-  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
+  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id, todayDelivery?.driver_id]);
 
   // Visible route path (owner spec Oct 23 2026): every leg the patient can
   // see on the map, flattened into one point list for bounds fitting — the
@@ -1082,7 +1118,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       }
     }
     return pts;
-    // NOTE: staticPolylineCoords/firstLegCoords/currentLegCoords deliberately
+    // NOTE: staticPolylineSegments/firstLegCoords/currentLegCoords deliberately
     // NOT in the deps — the leg arrays are for PAINTING; the fit rides the
     // stop coordinates, which change with routeDeliveries.
   }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
@@ -1368,12 +1404,15 @@ export default function PatientPortal({ embedded = false } = {}) {
               />
 
               {/* Remaining legs (between the driver and the patient) — solid green, always visible */}
-              {staticPolylineCoords.length > 1 && (
-                <Polyline
-                  positions={staticPolylineCoords}
-                  pathOptions={{ color: routeLegColor, weight: 4, opacity: 0.85 }}
-                />
-              )}
+              {staticPolylineSegments.map((segment, segIdx) => (
+                segment.length > 1 && (
+                  <Polyline
+                    key={`static-leg-${segIdx}`}
+                    positions={segment}
+                    pathOptions={{ color: routeLegColor, weight: 4, opacity: 0.85 }}
+                  />
+                )
+              ))}
 
               {/* First stop leg (store → first stop) — solid green — hidden when off duty or before 9:30 AM */}
               {showLiveTracking && firstLegCoords.length > 1 && (
