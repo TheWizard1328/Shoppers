@@ -135,7 +135,7 @@ const getTodayEdmonton = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 // routeOptimizationMap: Map of "driverId::date" -> { driver_id, delivery_date, shouldOptimize }
-export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEditMode, affectedRoutes = [], routeOptimizationMap = null }) {
+export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEditMode, affectedRoutes = [], routeOptimizationMap = null, recalcRouteKeys = null }) {
   setSelectedBulkDeliveryIds([]);
   setBulkEditMode(false);
 
@@ -149,6 +149,12 @@ export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEdit
           .map((route) => [`${route.driver_id}::${route.delivery_date}`, route])
       ).values()
     );
+
+    // SETTLE FIRST (owner report Nov 3 2026): the delivery writes are IDB-first with
+    // the server write in the background, while the optimizer fetches the route from
+    // the server. Optimizing instantly could sequence a route that did not have the
+    // moved stops yet, leaving them unsequenced with stale legs and TR#s.
+    if (recalcRouteKeys && recalcRouteKeys.size > 0) await new Promise((r) => setTimeout(r, 1500));
 
     // Run route optimizations SEQUENTIALLY — concurrent performRouteOptimization calls
     // each do HERE API calls + IDB reads/writes on the main thread, which freezes the UI.
@@ -169,6 +175,9 @@ export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEdit
           deliveryDate: delivery_date,
           bypassDriverStatus: isFuture,
           source: 'bulk_edit',
+          // A route that RECEIVED moved stops renumbers its TR#s together with
+          // stop_order, so the new day's numbering reads in step.
+          recalcTrackingNumbers: !!(recalcRouteKeys && recalcRouteKeys.has(routeKey)),
         }).catch(() => null);
       }
 
@@ -462,11 +471,21 @@ export async function applyBulkEditStops({
         if (!routeOptimizationMap.has(key)) routeOptimizationMap.set(key, false);
       }
 
+      // Target routes of a date/driver move: their TR#s must match the new order.
+      const recalcRouteKeys = new Set(
+        pickupRelatedChange
+          ? freshDeliveries
+              .filter((delivery) => allIdsToUpdate.includes(delivery.id) && delivery.patient_id)
+              .map((delivery) => `${delivery.driver_id}::${delivery.delivery_date}`)
+          : []
+      );
+
       return finalizeBulkEdit({
         setSelectedBulkDeliveryIds,
         setBulkEditMode,
         affectedRoutes,
         routeOptimizationMap,
+        recalcRouteKeys,
       });
     })
     .finally(async () => {

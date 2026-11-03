@@ -37,6 +37,7 @@ export async function runDeliverySubmitSideEffects({
   isPickupMode,
   updateDeliveryLocal,
   dateChanged,
+  transferOptimized = false,
   skipRouteOptimization = false
 }) {
   if (driverChanged && oldDriver && newDriver && currentUser && isCurrentUserDriver) {
@@ -138,16 +139,41 @@ export async function runDeliverySubmitSideEffects({
       }, 500);
     }
 
-    // Reoptimize NEW driver/date route (background, non-blocking)
+    // Reoptimize NEW driver/date route (background, non-blocking).
+    // OWNER FIX Nov 3 2026: a transferred stop came out UNSEQUENCED on the new
+    // route (kept its old position, leg and TR#) because this ran on a fixed
+    // 1000 ms timer while the delivery write is IDB-first with the server write in
+    // the background — the optimizer fetches the route from the server, so it
+    // either missed the moved stop or hit a coordinator skip. The transfer path now
+    // hands off to optimizeTransferredStopRoute, which waits for the stop to appear
+    // on the target route, optimizes with TR# recalculation and verifies the stop
+    // came back sequenced with its own leg (one retry when it did not).
     const newDriverId = formData.driver_id;
     const newDate = formData.delivery_date;
     if (newDriverId && newDate && (newDriverId !== oldDriverId || newDate !== oldDate)) {
-      setTimeout(async () => {
-        try {
-          const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
-          await performRouteOptimization({ driverId: newDriverId, deliveryDate: newDate, bypassDriverStatus: true, source: 'driver_changed_new' });
-        } catch (_) {}
-      }, 1000);
+      if (transferOptimized) {
+        (async () => {
+          try {
+            const { optimizeTransferredStopRoute } = await import('@/components/utils/optimizeTransferredStopRoute');
+            await optimizeTransferredStopRoute({
+              deliveryId: delivery.id,
+              driverId: newDriverId,
+              deliveryDate: newDate,
+              recalcTrackingNumbers: true,
+              source: 'driver_changed_new',
+            });
+          } catch (err) {
+            console.warn('⚠️ [DeliveryForm] Transfer re-optimization failed:', err?.message || err);
+          }
+        })();
+      } else {
+        setTimeout(async () => {
+          try {
+            const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+            await performRouteOptimization({ driverId: newDriverId, deliveryDate: newDate, bypassDriverStatus: true, source: 'driver_changed_new' });
+          } catch (_) {}
+        }, 1000);
+      }
     }
 
     // Owner spec (Oct 1 2026): moving a stop to another date (or driver) removes it

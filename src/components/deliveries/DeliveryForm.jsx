@@ -142,6 +142,8 @@ export default function DeliveryForm({
   // server values the form still displays; live updates only overwrite a field
   // while the form still holds that baseline value.
   const baselineDateRef = useRef(delivery?.delivery_date || null);
+  // Set when this save is a date/driver transfer — the target route must re-run.
+  const transferOptimizationRef = useRef(null);
   const baselineWindowStartRef = useRef(delivery?.delivery_time_start || null);
   const baselineWindowEndRef = useRef(delivery?.delivery_time_end || null);
   const [formData, setFormData] = useState(() => buildDeliveryFormInitialState({
@@ -1320,7 +1322,22 @@ export default function DeliveryForm({
             if (placement.delivery_time_start) dataToSave.delivery_time_start = placement.delivery_time_start;
             dataToSave.delivery_time_end = '';
             if (placement.delivery_notes) dataToSave.delivery_notes = placement.delivery_notes;
+            // Belt and braces on the leg state: the central write gateways already
+            // drop this on a move (applyMoveReset), but the transfer payload carries
+            // it explicitly so a stale leg can never survive the save.
+            dataToSave.encoded_polyline = null;
+            dataToSave.polyline_from_order = null;
+            dataToSave.PolylineUpdated = false;
+            dataToSave.deviation_waypoints = [];
+            dataToSave.estimated_distance_km = null;
+            dataToSave.estimated_duration_minutes = null;
+            dataToSave.travel_dist = 0;
           }
+          // The transfer has to RE-RUN the target route, not just re-tag the stop
+          // (owner report Nov 3 2026: the moved stop kept its old position, leg and
+          // TR#). Stashed here; the side effects kick it off AFTER the write lands,
+          // because the optimizer reads the route from the server.
+          transferOptimizationRef.current = { placed: !!placement };
         } catch (err) {
           console.warn('[DeliveryForm] transfer placement failed:', err?.message || err);
         }
@@ -1378,7 +1395,8 @@ export default function DeliveryForm({
         }
         await onSave({ ...dataToSave, puid: resolvedPuid, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
-      await runDeliverySubmitSideEffects({ delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged, isCurrentUserDriver: userHasRole(currentUser, 'driver'), statusChangedToCompletion, actualDeliveryTimeChanged, timeWindowChanged, travelModeChanged, t: dataToSave.actual_delivery_time, allDeliveries, isPickupMode, updateDeliveryLocal, dateChanged, skipRouteOptimization: Boolean(delivery?.isNextDelivery && ['completed', 'failed', 'cancelled'].includes(formData.status)) });
+      await runDeliverySubmitSideEffects({ delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged, isCurrentUserDriver: userHasRole(currentUser, 'driver'), statusChangedToCompletion, actualDeliveryTimeChanged, timeWindowChanged, travelModeChanged, t: dataToSave.actual_delivery_time, allDeliveries, isPickupMode, updateDeliveryLocal, dateChanged, transferOptimized: Boolean(transferOptimizationRef.current?.placed), skipRouteOptimization: Boolean(delivery?.isNextDelivery && ['completed', 'failed', 'cancelled'].includes(formData.status)) });
+      transferOptimizationRef.current = null;
       return true;
     } catch (error) { setError(error.message); return false; }
     finally { setIsSaving(false); }
