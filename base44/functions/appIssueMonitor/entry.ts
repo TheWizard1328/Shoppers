@@ -14,9 +14,14 @@
 //     the owner — the owner copy is worded for that case).
 //   - In-app Message to the affected user telling them the issue was detected
 //     and the developer has been notified.
-//   - Push to the owner: "App Issue — <Name>" / simple description. Tapping
-//     opens the app to the App Issues conversation (deep link
-//     /?app_issue_message=<ownerMessageId> — handled by AppIssueSupport.jsx).
+//   - ONE combined push to the owner for the whole run (owner request
+//     Nov 3 2026 — previously one push PER ALERT, so four stores reporting the
+//     same error meant four notifications in the same minute):
+//       "App Issues — 4 devices" / "Callingwood Desktop: errors 18 ·
+//        Meadows PC: rate limits 9 · …". Tapping opens the app to the App
+//     Issues conversation (deep link /?app_issue_message=<ownerMessageId> —
+//     handled by AppIssueSupport.jsx). Same notification tag every run, so a
+//     new batch replaces the old one instead of stacking.
 //
 // Push delivery is INLINED (web-push VAPID + FCM v1 HTTP API) — this function
 // runs unauthenticated from a scheduled workflow, so it cannot call
@@ -362,6 +367,14 @@ Deno.serve(async (req) => {
     const capped = alerts.slice(0, Number(cfg.max_alerts_per_run) || 5);
 
     const results = [];
+    // ── COMBINED OWNER PUSH (owner request Nov 3 2026) ─────────────────────
+    // "can I just get one single push notification for all of them" — one push
+    // PER ALERT meant four stores with the same oversize-broadcast error woke
+    // the phone four times in the same minute. Every alert still gets its own
+    // in-app App Issues message (the detail lives there), but the phone now
+    // gets exactly ONE push per run, listing every affected device.
+    const pushItems = [];
+    let pushUrlBest = null;
     for (const alert of capped) {
       const meta = ISSUE_META[alert.type];
       const u = alert.user;
@@ -414,21 +427,17 @@ Deno.serve(async (req) => {
         }).catch((err) => { console.error('[appIssueMonitor] user Message create failed:', err?.message || String(err)); });
       }
 
-      // Owner push — simple: user's name + simple description. Tap opens the
-      // App Issues conversation via the deep-link param.
+      // Queue for the SINGLE combined owner push sent after the loop. Each line
+      // keeps the pieces the owner asked for on Oct 13 2026: WHICH registered
+      // device (so the two Callingwood computers differ) and WHAT the issue was.
       const firstName = String(u.user_name || 'User').trim().split(/\s+/)[0];
-      // Push carries the REGISTERED DEVICE NAME (owner request Oct 13 2026) —
-      // e.g. "App Issue — Robert (THE-DESKTOP)" so the two Callingwood
-      // computers can be told apart at a glance.
       const primaryDevice = deviceLabel ? deviceLabel.split(' (')[0].split(',')[0].trim() : null;
-      const pushTitle = primaryDevice
-        ? `App Issue — ${isOwner ? 'your device' : firstName} (${primaryDevice})`
-        : (isOwner ? 'App Issue — your device' : `App Issue — ${firstName}`);
-      const pushBody = deviceLabel && deviceLabel !== primaryDevice
-        ? `${meta.push_body} — ${deviceLabel}`
-        : meta.push_body;
-      const pushUrl = ownerMessage?.id ? `/?app_issue_message=${ownerMessage.id}` : '/';
-      const push = await sendPushToUser(base44, OWNER_PLATFORM_USER_ID, pushTitle, pushBody, pushUrl, 'app_issues');
+      const countForType = alert.type === 'app_restarts' ? u.appStarts : alert.type === 'rate_limit' ? u.rateLimits : u.errors;
+      const shortType = alert.type === 'app_restarts' ? 'restarts' : alert.type === 'rate_limit' ? 'rate limits' : 'errors';
+      const who = primaryDevice ? `${isOwner ? 'Your device' : firstName} (${primaryDevice})` : (isOwner ? 'Your device' : firstName);
+      pushItems.push(`${who}: ${shortType} ${countForType}`);
+      if (!pushUrlBest && ownerMessage?.id) pushUrlBest = `/?app_issue_message=${ownerMessage.id}`;
+      const push = null;
 
       state.lastAlertAt[`${u.user_id}:${alert.type}`] = new Date(now).toISOString();
       results.push({
@@ -440,6 +449,20 @@ Deno.serve(async (req) => {
         owner_message_id: ownerMessage?.id || null,
         push,
       });
+    }
+
+    // ── ONE push for the whole run (owner request Nov 3 2026).
+    let combinedPush = null;
+    if (!dryRun && pushItems.length > 0) {
+      const shown = pushItems.slice(0, 4);
+      const extra = pushItems.length > shown.length ? ` +${pushItems.length - shown.length} more` : '';
+      const title = pushItems.length === 1
+        ? `App Issue — ${shown[0].split(':')[0]}`
+        : `App Issues — ${pushItems.length} devices`;
+      const body = shown.join(' · ') + extra;
+      // Same tag on every run: a new batch REPLACES the previous batch on the
+      // device instead of stacking another notification on the lock screen.
+      combinedPush = await sendPushToUser(base44, OWNER_PLATFORM_USER_ID, title, body, pushUrlBest || '/', 'app_issues');
     }
 
     // ── Persist cooldown state.
@@ -466,6 +489,7 @@ Deno.serve(async (req) => {
       alerts_detected: alerts.length,
       alerts_sent: results.length,
       alerts: results,
+      combined_push: combinedPush,
       cooldowns_active: Object.keys(state.lastAlertAt).length,
       duration_ms: Date.now() - startedAt,
     });
