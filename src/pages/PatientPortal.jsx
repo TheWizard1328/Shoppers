@@ -418,14 +418,41 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Height of the collapsed floating today card. The map area reserves this as
   // TOP PADDING so the card never covers the map (owner request Nov 2 2026).
   const [floatCardHeight, setFloatCardHeight] = useState(0);
+  // The floating today card only exists when the sidebar is HIDDEN and the
+  // screen is narrow (on md+ the sidebar is permanently visible). Track that
+  // breakpoint in JS so the top fit padding can drop the card height whenever
+  // the sidebar is on screen (owner request Nov 2 2026).
+  const [isNarrowScreen, setIsNarrowScreen] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(max-width: 767px)').matches
+      : false
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const onChange = (e) => setIsNarrowScreen(e.matches);
+    mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener('change', onChange) : mq.removeListener(onChange);
+    };
+  }, []);
+
+  const showFloatTodayCard = !!(
+    todayDelivery &&
+    todayDelivery.delivery_date === liveDay &&
+    !sidebarOpen &&
+    isNarrowScreen
+  );
+
   // Inner fit paddings handed to every auto-fit call: top clears the floating
-  // today card, bottom clears the tracking badge that now lives down there.
+  // today card WHEN IT IS SHOWING (otherwise just the base 115), bottom clears
+  // the tracking badge that now lives down there.
   const mapPad = useMemo(() => ({
     left: 20,
     right: 20,
     bottom: 35,
-    top: floatCardHeight ? floatCardHeight + 52 : 115,
-  }), [floatCardHeight]);
+    top: showFloatTodayCard && floatCardHeight ? floatCardHeight + 52 : 115,
+  }), [showFloatTodayCard, floatCardHeight]);
   const [driverLocation, setDriverLocation] = useState(null);
 
   // ── Dark mode map tiles (owner Oct 23 2026): follow the app's theme ────────
@@ -1038,7 +1065,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               only while the delivery date is TODAY: todayDelivery is resolved for
               TODAY only, so tomorrow this card simply stops rendering and the
               delivery lives in the sidebar history. */}
-          {todayDelivery && todayDelivery.delivery_date === liveDay && !sidebarOpen && (
+          {showFloatTodayCard && (
             <div className="absolute top-2 left-2 z-[900] md:hidden">
               <PatientTodayFloatingCard
                 delivery={todayDelivery}
