@@ -2,12 +2,14 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Package, Info, Loader2, Plus, Bike, Car } from "lucide-react";
+import { Package, Info, Loader2, Plus, Bike, Car, Eye } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import HelpTooltip, { HELP_CONTENT } from "./HelpTooltip";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 import StopCardCODCollection from "./StopCardCODCollection";
+import { useIsDeliveryPatientWatching } from "../utils/portalWatchers";
+import { useAppData } from "../utils/AppDataContext";
 
 export function StopCardPhoneRow({ isPickup, finalDisplayPhone, alternateDisplayPhone }) {
   if (isPickup || !finalDisplayPhone && !alternateDisplayPhone) return null;
@@ -265,6 +267,34 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
   return null;
 }
 
+// PENDING-LIST EYE (owner spec Nov 3 2026): a patient whose delivery is still
+// pending has no stop card yet, so the blue "patient is watching the portal"
+// eye never shows for them. Show the SAME eye (same hook, same store scope as
+// the stop-card header: admin/owner, the stop's own driver, or a dispatcher of
+// that delivery's store) next to their name on the pickup card's pending list.
+function PendingPickupWatcherEye({ projectedDelivery, pickupDelivery }) {
+  const { appUsers, currentUser } = useAppData();
+  const viewerAppUser = React.useMemo(
+    () => (appUsers || []).find((u) => u?.user_id === currentUser?.id) || null,
+    [appUsers, currentUser?.id]
+  );
+  // Scope fields fall back to the pickup card the row sits on (same store).
+  const scoped = React.useMemo(() => ({
+    ...projectedDelivery,
+    store_id: projectedDelivery?.store_id || pickupDelivery?.store_id,
+    driver_id: projectedDelivery?.driver_id || pickupDelivery?.driver_id,
+  }), [projectedDelivery, pickupDelivery?.store_id, pickupDelivery?.driver_id]);
+  const watching = useIsDeliveryPatientWatching(scoped, viewerAppUser);
+  if (!watching) return null;
+  return (
+    <Eye
+      className="h-4 w-4 text-blue-500 shrink-0 animate-pulse"
+      aria-label="Patient is watching the portal"
+      title="Patient is watching the portal right now"
+    />
+  );
+}
+
 export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, delivery, pendingPickups, canAccessAcceptButtons, isAcceptingAll, handleAcceptAllStops, handleAcceptSingleStop, acceptButtonText, onEdit, patients, store, isAtStoreLocation = false }) {
   if (isFinishedDelivery || !isPickup || (delivery.status !== 'en_route' && delivery.status !== 'in_transit') || !pendingPickups || pendingPickups.length === 0) return null;
 
@@ -305,8 +335,9 @@ export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, de
           const projPatientInactive = projPatient?.status === 'inactive';
           return (
             <div key={deliveryId} className={`flex items-center justify-between gap-1 border px-2.5 py-1.0 rounded-md cursor-pointer transition-colors bg-surface ${projPatientInactive ? 'border-red-500 border-2' : 'border-surface'}`} onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-50)';}} onMouseLeave={(e) => {e.currentTarget.style.background = 'var(--bg-white)';}} onClick={(e) => {e.stopPropagation();if (onEdit && projectedDelivery.id) onEdit(projectedDelivery);}}>
-              <span className="text-base font-medium truncate flex-1 text-body">
-                {projPatient?.full_name || projectedDelivery.patient_name || 'Unknown Patient'}
+              <span className="text-base font-medium truncate flex-1 text-body flex items-center gap-1 min-w-0">
+                <span className="truncate">{projPatient?.full_name || projectedDelivery.patient_name || 'Unknown Patient'}</span>
+                <PendingPickupWatcherEye projectedDelivery={projectedDelivery} pickupDelivery={delivery} />
               </span>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <SpecialSymbolsBadges delivery={projectedDelivery} patient={projPatient} isPickup={false} size="sm" />
