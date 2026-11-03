@@ -1009,8 +1009,11 @@ export default function PatientPortal({ embedded = false } = {}) {
             </div>
           )}
 
+          {/* Tracking badge — BOTTOM CENTER (owner request Nov 2 2026, moved
+              down from the top centre so it no longer overlaps the floating
+              today card or the header controls). */}
           {showLiveTracking && driverLocation && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
               <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
                 {trackingMode ? '📍 Tracking driver' : '⏳ Tracking resumes shortly'}
               </div>
