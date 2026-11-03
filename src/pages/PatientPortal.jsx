@@ -517,7 +517,13 @@ export default function PatientPortal({ embedded = false } = {}) {
   const currentLegColor = routeLegColor;
   const [loading, setLoading]               = useState(true);
   const [liveConnected, setLiveConnected]   = useState(false);
-  const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
+  // Stops REMAINING today on the driver's route — ONE number for both surfaces
+  // (the red badge on the patient's home marker AND the card's "stops left"
+  // line), owner fix Nov 3 2026. Previously the badge counted non-terminal
+  // stops AHEAD of the patient (pickups included) while the card counted only
+  // live PATIENT deliveries, so Phoenix Campbell read 8 on the map and 6 on the
+  // card. Both now use countStopsRemaining below.
+  const [stopsRemaining, setStopsRemaining] = useState(null);
   const [routeDeliveries, setRouteDeliveries] = useState([]);
   // trackingMode: Phase 2 auto-fit (driver+patient always in view) — ON by
   // default and self-reactivating: a user zoom/drag pauses it for 10s, then it
@@ -747,13 +753,13 @@ export default function PatientPortal({ embedded = false } = {}) {
           });
           routeDeliveriesRef.current = routeDeliveries;
           setRouteDeliveries(routeDeliveries);
-          setStopsBeforePatient(countStopsBeforePatient(routeDeliveries, activeToday));
+          setStopsRemaining(countStopsRemaining(routeDeliveries, activeToday));
         } catch (_) {
           setStopsBeforePatient(null);
         }
       } else {
         routeDeliveriesRef.current = [];
-        setStopsBeforePatient(null);
+        setStopsRemaining(null);
       }
 
       // Seed driver location from initial load (no poll — WS takes over after this)
@@ -808,29 +814,27 @@ export default function PatientPortal({ embedded = false } = {}) {
   // a PENDING stop ALSO counts when its engine-assigned ETA precedes the
   // patient's ETA — the ETAs are cumulative along the optimized sequence, so
   // an earlier ETA = a temporary route position before the patient.
-  const countStopsBeforePatient = useCallback((routeDeliveries, patientDelivery) => {
-    if (!patientDelivery) return 0;
+  const countStopsRemaining = useCallback((routeDeliveries, patientDelivery) => {
     const TERMINAL = ['completed', 'failed', 'cancelled'];
-    const patientOrder = patientDelivery.stop_order != null ? Number(patientDelivery.stop_order) : NaN;
-    const patientEtaMin = hhmmToMinutes(patientDelivery?.delivery_time_eta);
-    return routeDeliveries.filter((d) => {
-      if (!d || d.id === patientDelivery.id) return false;
-      if (TERMINAL.includes(d.status)) return false;
-      const ord = d.stop_order != null ? Number(d.stop_order) : NaN;
-      if (Number.isFinite(ord) && Number.isFinite(patientOrder) && ord < patientOrder) return true;
-      if (String(d.status) === 'pending' && patientEtaMin != null) {
-        const etaMin = hhmmToMinutes(d.delivery_time_eta);
-        return etaMin != null && etaMin < patientEtaMin;
-      }
-      return false;
-    }).length;
+    const live = (routeDeliveries || []).filter((d) => d && !TERMINAL.includes(d.status));
+    // The patient's OWN stop is part of "stops remaining" (a route with only
+    // their delivery left reads 1, not 0) and must be counted even when the
+    // route snapshot has not picked it up yet.
+    if (
+      patientDelivery &&
+      !TERMINAL.includes(patientDelivery.status) &&
+      !live.some((d) => d.id === patientDelivery.id)
+    ) {
+      live.push(patientDelivery);
+    }
+    return live.length;
   }, []);
 
   // Helper: recount stops before patient from a given route deliveries array
-  const recountStopsBefore = useCallback((routeDeliveries, patientDelivery) => {
-    if (patientDelivery?.stop_order == null && patientDelivery?.delivery_time_eta == null) return;
-    setStopsBeforePatient(countStopsBeforePatient(routeDeliveries, patientDelivery));
-  }, [countStopsBeforePatient]);
+  const recountStopsRemaining = useCallback((routeDeliveries, patientDelivery) => {
+    if (!patientDelivery) return;
+    setStopsRemaining(countStopsRemaining(routeDeliveries, patientDelivery));
+  }, [countStopsRemaining]);
 
   // ── WebSocket: Delivery subscription ─────────────────────────────
   // Listens for any Delivery change. Filters to this patient's records for
@@ -862,7 +866,7 @@ export default function PatientPortal({ embedded = false } = {}) {
           routeDeliveriesRef.current = next;
           setRouteDeliveries([...next]);
           // Recount badge using the patient's own delivery as reference
-          recountStopsBefore(routeDeliveriesRef.current, route);
+          recountStopsRemaining(routeDeliveriesRef.current, route);
         }
 
         // --- Update this patient's own deliveries ---
@@ -972,7 +976,7 @@ export default function PatientPortal({ embedded = false } = {}) {
   const driverMapIcon = useMemo(() => (driverIsCycling ? cyclingDriverIcon : driverIcon), [driverIsCycling]);
 
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
-  const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsBeforePatient);
+  const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsRemaining);
 
   // Helper: merge decoded polyline segments, deduplicating shared endpoints
   const mergePolylineSegments = (stops) => {
@@ -1108,13 +1112,9 @@ export default function PatientPortal({ embedded = false } = {}) {
   // current delivery card. Pickup containers (no patient_id) are excluded so
   // the number reads the same way the patient thinks about it.
   const liveRemainingStops = useMemo(() => {
-    if (!todayDelivery?.id) return null;
-    const live = (routeDeliveries || []).filter(
-      (d) => d?.patient_id && LIVE_DRIVER_STATUSES.includes(d.status)
-    );
-    if (!live.length) return null;
-    return { [todayDelivery.id]: live.length };
-  }, [routeDeliveries, todayDelivery?.id]);
+    if (!todayDelivery?.id || stopsRemaining == null) return null;
+    return { [todayDelivery.id]: stopsRemaining };
+  }, [todayDelivery?.id, stopsRemaining]);
 
   // OWNER REQUEST (Nov 3 2026): a PENDING (not yet picked up) delivery still
   // shows the driver — an on-duty driver shows immediately whatever the clock,

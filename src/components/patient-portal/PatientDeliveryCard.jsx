@@ -100,6 +100,13 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
           </div>
           <div className="flex flex-col items-center flex-shrink-0">
             <div className="flex items-center gap-1">
+              {/* Invisible chevron spacer (owner fix Nov 3 2026): the visible
+                  chevron used to push the status badge off-centre, so the ETA /
+                  delivered time, and the new stops-left line, sat under the
+                  badge+chevron pair instead of under the badge itself. A
+                  matching invisible chevron on the left keeps the badge dead
+                  centre and the lines below it perfectly aligned. */}
+              <ChevronDown className="w-3.5 h-3.5 opacity-0" aria-hidden="true" />
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
                 expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`
               }`}>
@@ -112,15 +119,16 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               }
             </div>
             {subBadge && (
-              <p className={`text-sm font-medium mt-0.5 leading-tight ${expanded ? 'text-slate-300' : subBadge.color}`}>
+              <p className={`text-sm font-medium mt-0.5 leading-tight text-center ${expanded ? 'text-slate-300' : subBadge.color}`}>
                 {subBadge.text}
               </p>
             )}
-            {/* REMAINING STOPS (owner request Nov 3 2026): right under the
-                Pending / In Transit badge, far right on the same card, so the
+            {/* REMAINING STOPS (owner requests Nov 3 2026): directly under the
+                Pending / In Transit badge, CENTRE-aligned with it (owner fix
+                same day — it was rendering off-centre to the right), so the
                 patient sees how many stops the driver still has today. */}
             {remainingStops != null && ['pending', 'en_route', 'in_transit'].includes(delivery.status) && (
-              <p className={`text-[11px] font-semibold mt-0.5 leading-tight text-right ${expanded ? 'text-slate-400 dark:text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>
+              <p className={`text-[11px] font-semibold mt-0.5 leading-tight text-center ${expanded ? 'text-slate-400 dark:text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>
                 {Number(remainingStops) === 1 ? 'Last stop' : `${remainingStops} stops left`}
               </p>
             )}
