@@ -2398,8 +2398,8 @@ const applyRemoteSharedSnapshot = (rec) => {
     return false;
   }
 };
-const pullAndApplySharedSnapshot = async () => {
-  const rec = await fetchLatestSharedSnapshot().catch(() => null);
+const pullAndApplySharedSnapshot = async (preferredId = null) => {
+  const rec = await fetchLatestSharedSnapshot(preferredId).catch(() => null);
   if (rec) applyRemoteSharedSnapshot(rec);
 };
 
@@ -2664,11 +2664,21 @@ function startSummaryStore(userId, isOwner = false) {
   // spec Oct 9 2026): COD delivery events, page load and the Refresh button
   // are the only sync initiators — passive devices converge via the WS
   // broadcast, the boot pull and the foreground heal.
+  let storeSharedHintId = null;
   const scheduleSharedPull = (delay = 3000) => {
     clearTimeout(storeSharedSubTimer);
-    storeSharedSubTimer = setTimeout(() => { storeSharedSubTimer = null; void pullAndApplySharedSnapshot(); }, delay);
+    storeSharedSubTimer = setTimeout(() => {
+      storeSharedSubTimer = null;
+      const id = storeSharedHintId; storeSharedHintId = null;
+      void pullAndApplySharedSnapshot(id);
+    }, delay);
   };
-  unsubs.push(subscribeSharedSnapshot(() => scheduleSharedPull()));
+  // A ping broadcast names the payload record, so the pull is ONE by-id read
+  // (Nov 3 2026: the payload record itself is too big to broadcast).
+  unsubs.push(subscribeSharedSnapshot((snapshotId) => {
+    if (snapshotId) storeSharedHintId = snapshotId;
+    scheduleSharedPull();
+  }));
   const sharedBootPull = setTimeout(() => void pullAndApplySharedSnapshot(), 10000);
 
   teardownStore = () => {

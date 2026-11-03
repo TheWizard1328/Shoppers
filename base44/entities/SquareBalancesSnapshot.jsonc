@@ -28,6 +28,14 @@
     "computed_by_device": {
       "type": "string",
       "description": "UserDevice name of the computing device (e.g. THE-DESKTOP(Editor)) — diagnostics for the single-compute-host gate"
+    },
+    "ping": {
+      "type": "boolean",
+      "description": "TRANSPORT PING (owner report Nov 3 2026: the payload record was oversize for the realtime broadcast and got stubbed in transport). True means this record carries NO payload — it exists only to broadcast a tiny create/update so every device pulls the real record by snapshot_id. Readers always skip ping rows."
+    },
+    "snapshot_id": {
+      "type": "string",
+      "description": "For a ping record: the id of the payload record it announces (the silent, service-role write made by squareBalancesCompute publish_payload)"
     }
   },
   "required": [

@@ -53,6 +53,25 @@ export const buildSummaryPayload = (data) => {
 const PUBLISH_FETCH_ATTEMPTS = 3; // retries before giving up — NEVER blind-create on a failed fetch
 const DUPE_DELETE_CAP = 5;        // opportunistic cleanup: max stale dupes deleted per publish
 
+// TRANSPORT PING (Nov 3 2026): a tiny record whose only job is to broadcast.
+// Its payload is null and it points at the silently-written payload record.
+let pingRecordId = null;
+const pingSharedSnapshot = async ({ version, snapshotId }) => {
+  const rec = { payload: null, ping: true, version: Number(version) || Date.now(), snapshot_id: snapshotId || null, computed_at: new Date().toISOString() };
+  if (pingRecordId) {
+    try { await base44.entities.SquareBalancesSnapshot.update(pingRecordId, rec); return; } catch { pingRecordId = null; }
+  }
+  const rows = await base44.entities.SquareBalancesSnapshot.list('-version', 20, 0).catch(() => []);
+  const existingPing = (rows || []).find((r) => r?.ping === true);
+  if (existingPing?.id) {
+    pingRecordId = existingPing.id;
+    await base44.entities.SquareBalancesSnapshot.update(existingPing.id, rec);
+  } else {
+    const created = await base44.entities.SquareBalancesSnapshot.create(rec);
+    pingRecordId = created?.id || null;
+  }
+};
+
 const fetchTopRows = async (limit = 10) => {
   const rows = await base44.entities.SquareBalancesSnapshot.list('-version', limit, 0);
   return (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0));
@@ -63,7 +82,31 @@ export const publishSharedSnapshot = async (data, { version, userId, userName, d
     const payload = buildSummaryPayload(data);
     if (!payload) return null;
     const ver = Number(version || Date.now());
-    const rec = { payload, version: ver, computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null, computed_by_device: deviceName || null };
+
+    // SILENT PUBLISH (owner report Nov 3 2026): the payload record is far over
+    // the realtime transport limit (10 KB per field), so writing it from the
+    // client broadcast a STUB to every device. squareBalancesCompute now stores
+    // it with the service role (no broadcast at all) and we follow up with a
+    // tiny ping record — that is the only thing that hits the wire.
+    try {
+      const res = await base44.functions.invoke('squareBalancesCompute', {
+        publish_payload: payload,
+        publish_version: ver,
+        computed_by: userId || null,
+        computed_by_name: userName || null,
+        computed_by_device: deviceName || null,
+      });
+      const bodyOut = res?.data || res || {};
+      const published = Number(bodyOut?.published || 0) || null;
+      if (published) {
+        await pingSharedSnapshot({ version: published, snapshotId: bodyOut?.snapshot_id || null });
+        return published;
+      }
+    } catch (e) {
+      console.warn('[squareBalancesSharedSnapshot] silent publish failed, falling back to a client write:', e?.message || e);
+    }
+
+    const rec = { payload, version: ver, computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null, computed_by_device: deviceName || null, ping: false };
 
     // DUPLICATE-PROLIFERATION FIX (owner spec Oct 14 2026): ~600 snapshot records
     // accumulated because a FAILED fetch (429 storms) fell through to a blind
@@ -123,9 +166,18 @@ export const publishSharedSnapshot = async (data, { version, userId, userName, d
 /**
  * Pull the newest shared snapshot record (whole database), or null.
  */
-export const fetchLatestSharedSnapshot = async () => {
+export const fetchLatestSharedSnapshot = async (preferredId = null) => {
+  // BY-ID FIRST (Nov 3 2026): a ping tells us exactly which record to read, so
+  // the pull is ONE record read instead of a list that drags whole payloads.
+  if (preferredId) {
+    try {
+      const rec = await base44.entities.SquareBalancesSnapshot.get(preferredId);
+      if (rec?.payload) return rec;
+    } catch { /* fall through to the list */ }
+  }
   try {
-    return (await fetchTopRows())[0] || null;
+    // Ping rows carry no payload — never treat one as the snapshot.
+    return (await fetchTopRows(5)).find((r) => r?.payload && r?.ping !== true) || null;
   } catch (e) {
     return null;
   }
@@ -144,7 +196,8 @@ export const subscribeSharedSnapshot = (cb) => {
     return base44.entities.SquareBalancesSnapshot.subscribe((event) => {
       try {
         if (event?.type === 'delete') return;
-        cb();
+        // A ping names the record to pull; anything else just triggers a pull.
+        cb(event?.data?.snapshot_id || null);
       } catch {}
     });
   } catch { return null; }

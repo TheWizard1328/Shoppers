@@ -26,7 +26,7 @@
 // Add one entry per shipped change, with the build number of the push that
 // carried it. Keep it to one short sentence.
 
-export const BUILD_NUMBER = 103;
+export const BUILD_NUMBER = 104;
 
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
@@ -142,7 +142,7 @@ export const CHANGE_LOG = [
   { build: 56, area: 'Sidebar', audience: 'owner', summary: 'The version number is plain text again and the update log lives on its own Change Logs link under it.' },
   { build: 57, area: 'Theme', audience: 'all', summary: 'A refresh can no longer come up part dark on a dark computer: the app starts from the theme you last saved instead of guessing from the system first. The Change Logs link also sits tighter under the version number.' },
   { build: 58, area: 'Patients', audience: 'dispatchers+admins', summary: 'Edited patient distances now save and stay: opening the edit form no longer wipes the stored distance and replaces it with a fresh lookup, and the stop panel only re-heals a distance that is still the straight-line value.' },
-  { build: 103, area: 'Square Balances', audience: 'owner', summary: 'Not Tapped carry-over rows now show the patient name and store badge, and a COD that is still uncollected no longer appears in Collected.' },
+  { build: 104, area: 'Sync & balances transport', audience: 'owner', summary: 'Pull to Sync retries once automatically after a rate limit. The shared balances snapshot is now written silently on the server and announced with a tiny ping, so the oversize broadcast warning is gone.' },
   { build: 101, area: 'COD Briefing', audience: 'owner', summary: 'The briefing balances now reuse the Square Balances page math, so the estimate stops reading hundreds of dollars too high. Store lines read Store: $ 53.90 Loan $ 2732.17.' },
   { build: 98, area: 'Projections', audience: 'dispatchers', summary: 'Deleting a projected patient from the staged or pending list puts them straight back in the projections. Map balloons now label the amount COD:.' },
   { build: 97, area: 'Map', audience: 'all', summary: 'Map balloons show COD amounts: right aligned beside the store name on a single stop, between the patient name and the time on a cluster, and clusters also show the location address beside the store name.' },

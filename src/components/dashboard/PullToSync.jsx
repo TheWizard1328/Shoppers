@@ -140,13 +140,34 @@ export default function PullToSync({
       };
       window.addEventListener('manualSyncPriorityDataReady', handlePriorityDataReady, { once: true });
 
-      const syncResult = await manualSyncSelected(selectedDateStr, currentCityId, priorityOnly);
+      // RATE-LIMIT SELF-HEAL (owner report Nov 3 2026: "Pull to Sync — Sync
+      // failed: Rate limit exceeded: entity_list allows 140 requests per 60s …
+      // Retry after 10s"). A 429 here is transient pool saturation from other
+      // app traffic, not a broken sync: read the advertised wait, cool down,
+      // and run the sync ONCE more before surfacing any error.
+      const attemptSync = async () => {
+        const r = await manualSyncSelected(selectedDateStr, currentCityId, priorityOnly);
+        if (r?.error) throw new Error(r.error);
+        return r;
+      };
+      const rateLimitWaitMs = (msg) => {
+        const m = String(msg || '').match(/retry after\s*(\d+)\s*s/i);
+        if (m) return Math.min(30, Math.max(1, Number(m[1]))) * 1000;
+        return /rate limit|429|too many requests/i.test(String(msg || '')) ? 10000 : 0;
+      };
+      let syncResult;
+      try {
+        syncResult = await attemptSync();
+      } catch (e) {
+        const waitMs = rateLimitWaitMs(e?.message);
+        if (!waitMs) throw e;
+        console.log(`⏳ [PullToSync] rate limited — retrying in ${Math.round(waitMs / 1000)}s`);
+        try { invalidatePrioritySyncCache?.(); } catch (_) { /* cache clear is best effort */ }
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        syncResult = await attemptSync();
+      }
       // Remove priority listener in case it didn't fire (e.g. error path)
       window.removeEventListener('manualSyncPriorityDataReady', handlePriorityDataReady);
-
-      if (syncResult?.error) {
-        throw new Error(syncResult.error);
-      }
       // WIPE FIX (Sep 4 2026): a skipped sync (already in progress / paused — e.g. the
       // auto pull-to-sync fired 1s after Complete while the completion sync was still
       // running) returns NO deliveries and NO stores. Proceeding would filter the IDB
@@ -258,13 +279,23 @@ export default function PullToSync({
       }
 
     } catch (error) {
-      console.error('❌ [Pull to Sync] Sync failed:', error?.message || error?.response?.status || error);
+      const _msg = String(error?.message || '');
+      if (/rate limit|429|too many requests/i.test(_msg)) {
+        // Retried once already (see the self-heal block) — say what happened
+        // in plain words instead of dumping the raw API error at the owner.
+        console.warn('⏳ [Pull to Sync] still rate limited:', _msg);
+      } else {
+        console.error('❌ [Pull to Sync] Sync failed:', error?.message || error?.response?.status || error);
+      }
       try {
         window.__dashboardSyncing = false;
         window.dispatchEvent(new CustomEvent('pullToSyncComplete', { detail: { syncRunId, failed: true, completedAt: Date.now() } }));
       } catch (e) {}
       if (!silent) {
-        toast.error('Sync failed', { description: error?.message || 'Unknown error' });
+        const friendly = /rate limit|429|too many requests/i.test(_msg)
+          ? 'Server is busy — try again in a few seconds.'
+          : (error?.message || 'Unknown error');
+        toast.error('Sync failed', { description: friendly });
       }
     } finally {
       setTimeout(() => {

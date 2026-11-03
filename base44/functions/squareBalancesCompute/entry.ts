@@ -836,6 +836,48 @@ Deno.serve(async (req) => {
     const force = !!body?.force;
     const userId = user?.id || null;
 
+    // SILENT SNAPSHOT PUBLISH (owner report Nov 3 2026: "Realtime broadcast for
+    // SquareBalancesSnapshot#… was oversize and got slimmed for transport.
+    // Fields >10 KB are empty and the rest of the record may be a stub").
+    // The shared snapshot payload is tens of KB, so a CLIENT write of it
+    // broadcast to every device and the platform stubbed it. Writes now happen
+    // here with the service-role client: no WS broadcast, no oversize warning.
+    // The publishing device follows up with a tiny ping record (id + version)
+    // and every other device pulls this record by id.
+    if (body?.publish_payload) {
+      const ver = Number(body?.publish_version || Date.now());
+      const rec = {
+        payload: body.publish_payload,
+        version: ver,
+        computed_at: new Date().toISOString(),
+        computed_by: body?.computed_by || null,
+        computed_by_name: body?.computed_by_name || null,
+        computed_by_device: body?.computed_by_device || null,
+        ping: false,
+      };
+      try {
+        const rows = await b44.asServiceRole.entities.SquareBalancesSnapshot.list('-version', 5, 0);
+        const sorted = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0));
+        const existing = sorted.find((r) => r?.payload) || null;
+        let snapshot_id = null;
+        if (existing?.id) {
+          await b44.asServiceRole.entities.SquareBalancesSnapshot.update(existing.id, rec);
+          snapshot_id = existing.id;
+        } else {
+          const created = await b44.asServiceRole.entities.SquareBalancesSnapshot.create(rec);
+          snapshot_id = created?.id || null;
+        }
+        // Opportunistic dupe cleanup (silent, capped) — the old client-side
+        // path could leave strays behind after a 429.
+        const stale = sorted.filter((r) => r?.id && r.id !== snapshot_id && r?.ping !== true && Number(r?.version || 0) < ver).slice(0, 3);
+        for (const dup of stale) { try { await b44.asServiceRole.entities.SquareBalancesSnapshot.delete(dup.id); } catch { /* best effort */ } }
+        return Response.json({ published: ver, snapshot_id });
+      } catch (e) {
+        console.log('[balances] silent snapshot write failed:', e?.message || e);
+        return Response.json({ published: null, error: e?.message || 'write failed' });
+      }
+    }
+
     // SERVER-SIDE DEBOUNCE: unless forced, a compute fresher than 90s is
     // returned as-is (page load + Refresh pass force=true; debounced COD
     // delivery events ride the cache) — one compute per change at most.
