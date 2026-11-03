@@ -20,6 +20,7 @@ import UpdateInfoBalloon from '@/components/common/UpdateInfoBalloon';
 import { useWebUpdateCheck } from '@/components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from '@/components/utils/interactionIdleTracker';
 import { clearUserCache } from '@/components/utils/auth';
+import { purgeStaleServiceWorkerAndCaches } from '@/components/utils/ChunkErrorBoundary';
 import { isAppDarkTheme } from '@/lib/utils';
 
 // Fix default Leaflet icon paths
@@ -35,6 +36,29 @@ L.Icon.Default.mergeOptions({
 // and has not picked this parcel up yet). Every live-tracking gate in this page
 // reads this one list so pending / en route / in transit all behave alike.
 const LIVE_DRIVER_STATUSES = ['pending', 'en_route', 'in_transit'];
+
+/**
+ * ONE hard-update routine for the patient portal (owner request Nov 3 2026:
+ * "is pressing that refresh button supposed to do a complete app restart to
+ * install the update, like the force full app refresh the staff have?").
+ *
+ * A plain reload is not enough: the service worker and Cache Storage can hand
+ * back the OLD index.html, which still points at the old hashed chunks, so the
+ * patient comes back to the same build with the update dot still showing. This
+ * runs the SAME purge the staff "Clear Cache & Refresh" recovery uses (SW
+ * unregister + Cache Storage wipe, HERE tile caches preserved), drops the user
+ * cache, revalidates the document, then reloads onto the new build.
+ */
+async function applyPortalUpdate() {
+  try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { /* ignore */ }
+  try { clearUserCache(); } catch { /* silent */ }
+  try { await purgeStaleServiceWorkerAndCaches(); } catch { /* silent */ }
+  // Revalidate the document: a plain reload can return the cached index.html.
+  try {
+    await fetch(`/?_u=${Date.now()}`, { cache: 'reload', credentials: 'same-origin' });
+  } catch { /* offline — the cache wipe still helps */ }
+  window.location.reload();
+}
 
 const HOUSE_SVG = (strokeColor) =>
   `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg>`;
@@ -516,6 +540,8 @@ export default function PatientPortal({ embedded = false } = {}) {
   const routeLegColor = isDarkTheme ? '#4ade80' : '#16a34a';
   const currentLegColor = routeLegColor;
   const [loading, setLoading]               = useState(true);
+  // Spinner while the refresh button runs a data refresh or installs an update.
+  const [updating, setUpdating]             = useState(false);
   const [liveConnected, setLiveConnected]   = useState(false);
   // Stops REMAINING today on the driver's route — ONE number for both surfaces
   // (the red badge on the patient's home marker AND the card's "stops left"
@@ -627,14 +653,7 @@ export default function PatientPortal({ embedded = false } = {}) {
     const IDLE_RESTART_DELAY_MS = 60 * 1000;        // let the balloon be seen first
     const SHORT_BACKGROUND_THRESHOLD_MS = 45 * 1000; // normal short gap resume
 
-    const applyUpdate = async () => {
-      try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { /* ignore */ }
-      try { clearUserCache(); } catch { /* silent — reload still picks up the build */ }
-      // Revalidate the document first: a plain reload can hand back the OLD
-      // index.html, which still points at the old hashed chunks.
-      try { await fetch(`/?_u=${Date.now()}`, { cache: 'reload', credentials: 'same-origin' }); } catch { /* offline */ }
-      window.location.reload();
-    };
+    const applyUpdate = applyPortalUpdate;
 
     let backgroundedAt = document.hidden ? Date.now() : null;
     let idleRestartTimer = null;
@@ -1229,21 +1248,32 @@ export default function PatientPortal({ embedded = false } = {}) {
               accent="#10b981"
               icon="⬆️"
               title="Update available"
-              message="A new version of the patient portal is ready. Tap here to refresh."
-              cta="Tap to update"
-              onClick={() => {
-                try { clearUserCache(); } catch { /* silent */ }
-                window.location.reload(true);
-              }}
+              message="A new version of the patient portal is ready. Tap here to install it now."
+              cta="Tap to install update"
+              onClick={() => { void applyPortalUpdate(); }}
             />
+            {/* REFRESH / UPDATE BUTTON (owner clarification Nov 3 2026): with an
+                update waiting this is a FULL APP RESTART onto the new build
+                (same purge as the staff "Clear Cache & Refresh"), not a data
+                refresh — the live data already arrives over the websocket, so a
+                data-only tap looked like it did nothing. With no update waiting
+                it stays a plain data refresh. */}
             <button
               data-patient-update-btn
-              onClick={loadData}
+              onClick={() => {
+                if (hasWebUpdate) {
+                  setUpdating(true);
+                  void applyPortalUpdate();
+                  return;
+                }
+                try { setUpdating(true); } catch { /* ignore */ }
+                loadData().finally(() => setUpdating(false));
+              }}
               className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
-              title={hasWebUpdate ? 'Update available — tap to refresh' : 'Refresh'}
-              aria-label="Refresh"
+              title={hasWebUpdate ? 'Update available — tap to install' : 'Refresh'}
+              aria-label={hasWebUpdate ? 'Update and restart' : 'Refresh'}
             >
-              <RefreshCw className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              <RefreshCw className={`w-4 h-4 text-slate-500 dark:text-slate-400 ${updating ? 'animate-spin' : ''}`} />
               {/* Green update dot (owner request Nov 3 2026): the same cue the
                   staff update arrow gives, so a patient knows why the balloon
                   keeps appearing. */}
