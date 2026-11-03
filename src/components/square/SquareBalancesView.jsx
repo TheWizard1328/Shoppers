@@ -2973,8 +2973,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     const out = [];
                     const ded = (localOutstanding?.[loc.location_id] || codOutstandingByLoc[loc.location_id] || {}).deductItems || [];
                     const alreadyListed = new Set((codCollectedTodayByLoc[loc.location_id] || []).map((r) => String(r.delivery_id || '')));
+                    // Still-uncollected CODs (cash sitting in the drawer, or a
+                    // COD not collected at all) already have their own row in
+                    // Uncollected Past — never carry those into Collected
+                    // (owner report Nov 3 2026, Margit Kovalik $4.94 Bonnie
+                    // Doon, whose matching Uncollected row is still open).
+                    for (const it of [...(outItems || []), ...(cashItems || [])]) {
+                      if (it?.delivery_id) alreadyListed.add(String(it.delivery_id));
+                    }
                     for (const it of ded) {
                       if (String(it?.status || '') !== 'completed') continue;
+                      if (String(it?.reason || '') !== 'collected_charge') continue;
                       const id = it?.delivery_id ? String(it.delivery_id) : null;
                       if (!id || alreadyListed.has(id)) continue;
                       const mark = manualSpendMarksRef.current?.[id];

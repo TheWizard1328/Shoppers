@@ -1388,8 +1388,9 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // Not Tapped must stay visible on the store card after its collected date
       // passes, so the row needs who/what it was without a delivery lookup.
       patient_id: d.patient_id || null,
-      store_id: d.store_id || null, driver_id: d.driver_id || null,
-      driver_name: d.driver_name || null,
+      patient: patientNameOf(d.patient_id), store_id: d.store_id || null,
+      driver_id: d.driver_id || null, driver_name: d.driver_name || null,
+      ...storeBadgeOf(d.store_id),
     });
   }
 
