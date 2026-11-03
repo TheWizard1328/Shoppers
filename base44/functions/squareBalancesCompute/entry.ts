@@ -823,6 +823,44 @@ async function computeSummary(b44, userId) {
   return { payload, autoRefundedFailed };
 }
 
+// ── PAYLOAD SHARDS (owner spec Nov 3 2026) ────────────────────────────────
+// The summary is tens of KB and the realtime transport slims any field over
+// 10 KB, which turned every publish into "Realtime broadcast for
+// SquareBalancesSnapshot#… was oversize and got slimmed for transport" errors
+// on all 8 store PCs. The record therefore stores NO big field: the summary
+// JSON is sliced into 8000-character shards p1..p16 and readers rejoin them.
+// The wire now carries a tiny CHANGE MARKER; each device pulls the record by
+// id and hydrates its own offline copy.
+const SHARD_SIZE = 8000;
+const MAX_SHARDS = 16;
+const shardPayload = (payload) => {
+  let json = '';
+  try { json = JSON.stringify(payload || null); } catch { json = 'null'; }
+  if (!json) json = 'null';
+  const out: Record<string, any> = { parts_count: 0 };
+  const total = Math.ceil(json.length / SHARD_SIZE);
+  if (total > MAX_SHARDS) {
+    console.log('[balances] payload larger than the shard budget — publishing the legacy field instead', json.length);
+    return { fields: { payload }, ok: false };
+  }
+  for (let i = 0; i < total; i++) {
+    out[`p${i + 1}`] = json.slice(i * SHARD_SIZE, (i + 1) * SHARD_SIZE);
+  }
+  out.parts_count = total;
+  return { fields: out, ok: true };
+};
+
+// Rejoin p1..pN into the summary object (legacy records keep `payload`).
+const hydratePayload = (rec) => {
+  if (!rec || typeof rec !== 'object') return rec;
+  if (rec.payload) return rec;
+  const n = Number(rec.parts_count || 0);
+  if (!n) return rec;
+  let json = '';
+  for (let i = 1; i <= n; i++) json += String(rec[`p${i}`] ?? '');
+  try { return { ...rec, payload: JSON.parse(json) }; } catch { return rec; }
+};
+
 Deno.serve(async (req) => {
   try {
     const b44 = createClientFromRequest(req);
@@ -846,8 +884,11 @@ Deno.serve(async (req) => {
     // and every other device pulls this record by id.
     if (body?.publish_payload) {
       const ver = Number(body?.publish_version || Date.now());
+      const { fields: shardFields } = shardPayload(body.publish_payload);
       const rec = {
-        payload: body.publish_payload,
+        ...shardFields,
+        // Never keep a stale inline payload next to fresh shards.
+        payload: shardFields?.payload ?? null,
         version: ver,
         computed_at: new Date().toISOString(),
         computed_by: body?.computed_by || null,
@@ -884,7 +925,10 @@ Deno.serve(async (req) => {
     if (!force) {
       try {
         const rows = await db.entities.SquareBalancesSnapshot.list('-version', 10, 0);
-        const latest = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))[0];
+        const latestHydrated = (rows || []).filter(Boolean)
+          .sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))
+          .map((r) => hydratePayload(r))[0];
+        const latest = latestHydrated;
         if (latest?.computed_at && Date.now() - new Date(latest.computed_at).getTime() < DEBOUNCE_MS && latest?.payload) {
           return Response.json({ debounced: true, version: Number(latest.version), computed_at: latest.computed_at, computed_by: latest.computed_by || null, payload: latest.payload });
         }

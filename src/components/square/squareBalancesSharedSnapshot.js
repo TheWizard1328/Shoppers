@@ -72,6 +72,38 @@ const pingSharedSnapshot = async ({ version, snapshotId }) => {
   }
 };
 
+/**
+ * PAYLOAD SHARDS (owner spec Nov 3 2026): the shared record stores the summary
+ * as 8000-char slices p1..pN so NO field trips the 10 KB realtime transport
+ * limit. That limit was stubbing every publish on the wire ("Realtime broadcast
+ * for SquareBalancesSnapshot#… was oversize and got slimmed for transport") on
+ * all 8 store PCs. The wire now carries only a change marker; each device pulls
+ * this record by id and hydrates its own offline mirror here. Legacy records
+ * that still carry the inline `payload` are handled unchanged.
+ */
+export const hydrateSnapshotRecord = (rec) => {
+  if (!rec || typeof rec !== 'object') return rec;
+  if (rec.payload) return rec;
+  const n = Number(rec.parts_count || 0);
+  if (!n) return rec;
+  let json = '';
+  for (let i = 1; i <= n; i++) json += String(rec[`p${i}`] ?? '');
+  try { return { ...rec, payload: JSON.parse(json) }; } catch { return rec; }
+};
+
+// Client mirror of the backend shard writer: 8000-char slices, max 16 parts.
+const SHARD_SIZE = 8000;
+const MAX_SHARDS = 16;
+const shardPayloadFields = (payload) => {
+  let json = 'null';
+  try { json = JSON.stringify(payload ?? null) || 'null'; } catch { json = 'null'; }
+  const total = Math.ceil(json.length / SHARD_SIZE);
+  if (total > MAX_SHARDS) return { payload }; // pathological: keep the legacy field
+  const fields = { parts_count: total };
+  for (let i = 0; i < total; i++) fields[`p${i + 1}`] = json.slice(i * SHARD_SIZE, (i + 1) * SHARD_SIZE);
+  return fields;
+};
+
 const fetchTopRows = async (limit = 10) => {
   const rows = await base44.entities.SquareBalancesSnapshot.list('-version', limit, 0);
   return (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0));
@@ -103,10 +135,13 @@ export const publishSharedSnapshot = async (data, { version, userId, userName, d
         return published;
       }
     } catch (e) {
-      console.warn('[squareBalancesSharedSnapshot] silent publish failed, falling back to a client write:', e?.message || e);
+      console.warn('[squareBalancesSharedSnapshot] silent publish attempt failed:', e?.message || e);
     }
 
-    const rec = { payload, version: ver, computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null, computed_by_device: deviceName || null, ping: false };
+    // Fallback write also uses SHARDS (owner spec Nov 3 2026) — a client write
+    // of the raw payload was the last way an oversize field could still reach
+    // the wire and stub every device's copy.
+    const rec = { ...shardPayloadFields(payload), version: ver, computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null, computed_by_device: deviceName || null, ping: false };
 
     // DUPLICATE-PROLIFERATION FIX (owner spec Oct 14 2026): ~600 snapshot records
     // accumulated because a FAILED fetch (429 storms) fell through to a blind
@@ -171,13 +206,13 @@ export const fetchLatestSharedSnapshot = async (preferredId = null) => {
   // the pull is ONE record read instead of a list that drags whole payloads.
   if (preferredId) {
     try {
-      const rec = await base44.entities.SquareBalancesSnapshot.get(preferredId);
+      const rec = hydrateSnapshotRecord(await base44.entities.SquareBalancesSnapshot.get(preferredId));
       if (rec?.payload) return rec;
     } catch { /* fall through to the list */ }
   }
   try {
     // Ping rows carry no payload — never treat one as the snapshot.
-    return (await fetchTopRows(5)).find((r) => r?.payload && r?.ping !== true) || null;
+    return (await fetchTopRows(5)).map(hydrateSnapshotRecord).find((r) => r?.payload && r?.ping !== true) || null;
   } catch (e) {
     return null;
   }

@@ -321,7 +321,15 @@ async function buildBalanceLines(base44, opts = {}) {
   if (!payload?.byLocId?.length) {
     try {
       const rows = (await base44.asServiceRole.entities.SquareBalancesSnapshot.list('-version', 5, 0)) || [];
-      const latest = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))[0];
+      const latestRaw = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))[0];
+      // Payload shards (owner spec Nov 3 2026): the record stores the summary as
+      // p1..pN slices so no field trips the 10 KB realtime transport limit.
+      let latest = latestRaw;
+      if (latestRaw && !latestRaw.payload && Number(latestRaw.parts_count || 0) > 0) {
+        let json = '';
+        for (let i = 1; i <= Number(latestRaw.parts_count); i++) json += String(latestRaw[`p${i}`] ?? '');
+        try { latest = { ...latestRaw, payload: JSON.parse(json) }; } catch { latest = latestRaw; }
+      }
       if (latest?.payload?.byLocId?.length) { payload = latest.payload; source = `snapshot ${latest.computed_at || ''}`.trim(); }
     } catch (e) { console.log('[briefing] snapshot fallback failed:', e?.message || e); }
   }
