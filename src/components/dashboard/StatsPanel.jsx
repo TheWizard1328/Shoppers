@@ -412,16 +412,55 @@ export default function StatsPanel({
 
   const StatsCardMinWidth = 385;
 
-  // Blue calendar hint: true when the selected driver has any pending stops
-  // scheduled for the next date after the currently selected date.
+  // BLUE CALENDAR HINT (owner report Nov 3 2026): the date-selector calendar
+  // icon must turn blue whenever a route is already set up for the NEXT date.
+  // The old check scanned the in-memory `deliveries` array, but after the
+  // v1.9.26 IDB-first lazy boot that array only holds the SELECTED date, so the
+  // badge never lit even though the popover dots (which read the offline DB)
+  // showed the next date had stops. Now the badge reads the SAME source as the
+  // calendar dots: per-date flags straight from IndexedDB for the next date.
+  const nextDateStr = useMemo(
+    () => (selectedDate ? format(addDays(selectedDate, 1), 'yyyy-MM-dd') : null),
+    [selectedDate]
+  );
+  const [nextDateFlags, setNextDateFlags] = useState(null);
+  const [nextDateFlagsTick, setNextDateFlagsTick] = useState(0);
+
+  // Re-read when deliveries change for any date (route created/transferred in).
+  useEffect(() => {
+    const bump = () => setNextDateFlagsTick((t) => t + 1);
+    const events = ['deliveriesUpdated', 'deliveriesImported', 'smartRefreshComplete', 'routeCommitted'];
+    events.forEach((ev) => window.addEventListener(ev, bump));
+    return () => events.forEach((ev) => window.removeEventListener(ev, bump));
+  }, []);
+
+  useEffect(() => {
+    if (!nextDateStr) { setNextDateFlags(null); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const driverFilter = !isDispatcher && selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null;
+        const storeFilter = isDispatcher ? (currentUser?.store_ids || []) : null;
+        const flags = await offlineDB.getDeliveryCalendarFlags(nextDateStr, nextDateStr, driverFilter, storeFilter);
+        if (alive) setNextDateFlags(flags?.[nextDateStr] || null);
+      } catch {
+        if (alive) setNextDateFlags(null);
+      }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextDateStr, selectedDriverId, isDispatcher, (currentUser?.store_ids || []).join(','), nextDateFlagsTick]);
+
   const hasPendingNextDate = useMemo(() => {
-    if (!deliveries || deliveries.length === 0) return false;
-    const nextDateStr = format(addDays(selectedDate, 1), 'yyyy-MM-dd');
-    return deliveries.some((d) =>
+    const inMemory = (deliveries || []).some((d) =>
       d && d.delivery_date === nextDateStr && d.status === 'pending' &&
       (selectedDriverId === 'all' || d.driver_id === selectedDriverId)
     );
-  }, [deliveries, selectedDate, selectedDriverId]);
+    if (inMemory) return true;
+    // IDB fallback — identical rule to the calendar's blue dot: the next date
+    // has stops and none of them are finished yet (route set up, not driven).
+    return !!nextDateFlags?.hasAny && !nextDateFlags?.hasCompleted && !nextDateFlags?.hasFailed;
+  }, [deliveries, nextDateStr, selectedDriverId, nextDateFlags]);
 
   return (
     <div ref={statsContainerRef} data-dashboard-stats-container className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
