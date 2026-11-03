@@ -195,8 +195,10 @@ const PORTAL_FIT_MAX_ZOOM = 17;
 //   top    : the collapsed height of the floating today card, so the two
 //            markers never tuck underneath it
 const PORTAL_PAD_SIDE = 50;
-const PORTAL_PAD_BOTTOM = 75;
-const PORTAL_PAD_TOP_DEFAULT = 75;
+// OWNER TWEAK (Nov 2 2026): bottom padding reduced by 40 (75 -> 35) and the top
+// padding raised by the same 40 so the frame sits lower on the map.
+const PORTAL_PAD_BOTTOM = 35;
+const PORTAL_PAD_TOP_DEFAULT = 115;
 function portalFit(map, points, pad = {}) {
   // Guard: a single NaN/undefined coordinate makes latLngBounds invalid and
   // getBoundsZoom throw — which would silently kill the auto-fit forever.
@@ -419,8 +421,8 @@ export default function PatientPortal({ embedded = false } = {}) {
   const mapPad = useMemo(() => ({
     left: 50,
     right: 50,
-    bottom: 75,
-    top: floatCardHeight ? floatCardHeight + 12 : 75,
+    bottom: 35,
+    top: floatCardHeight ? floatCardHeight + 52 : 115,
   }), [floatCardHeight]);
   const [driverLocation, setDriverLocation] = useState(null);
 
