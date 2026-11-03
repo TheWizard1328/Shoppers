@@ -395,3 +395,196 @@ export function unitNumberMicroSort(stops, adapters = {}) {
 }
 
 function* iterators(list) { for (const it of list) yield it; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RULE 7 (OWNER SPEC Nov 3 2026): WHERE A TRANSFERRED STOP BELONGS
+// ─────────────────────────────────────────────────────────────────────────────
+// The pickups are the day's FIXED skeleton: home → P1 → P2 → … → Pn. They do not
+// reorder before the driver goes on duty, so a stop moved to another date (or
+// driver) has to be "fished into" that preset order. Only its START TIME is
+// decided here; the 2-hour window band sort and the ETA ladder do the rest.
+//
+// The geometry: for every skeleton leg (A → B) measure how much a detour to the
+// stop actually costs — costKm = (A→S) + (S→B) − (A→B). A leg only qualifies when
+// the stop sits inside a corridor around it:
+//   • near-end screen: the SMALLER of the angle A→S vs A→B and B→S vs B→A must be
+//     within `halfAngleDeg` (30°). Taking the smaller angle is what makes a stop
+//     sitting right next to one end of a long leg qualify; testing both ends at 30°
+//     would reject it (owner case: a stop 0.8 km from home on an 11.8 km leg is 81°
+//     off the home end but only 4° off the far end).
+//   • lateral cap: perpendicular distance to the leg ≤ `maxPerpendicularKm`
+//     (2.5 km). This, not the angle, is what keeps stops genuinely off-route out.
+//   • projection: the stop must project onto the leg, allowing a small overshoot
+//     (`minT` −0.1 … `maxT` 1.1), so a stop far past a pickup cannot join it.
+//
+// The cheapest qualifying leg wins:
+//   • home leg (origin → P1) cheapest AND within the lead cap → START = '09:00',
+//     i.e. deliver it on the way out before the first pickup (owner fallback:
+//     "9am only if it works best on route to the first pickup without too much
+//     deviation"). The cap is min(homeLeadMaxCostKm, 25% of the leg).
+//   • a pickup leg (Pi → Pi+1) cheapest → START = Pi+1's window start + 5 min, so
+//     it slots between those two pickups.
+//   • nothing qualifies (or the home leg is over the cap and no pickup leg
+//     qualifies) → START = the LAST pickup's window start + 5, i.e. the tail. Never
+//     9am by default: an unrelated far stop would otherwise be dragged first.
+export const TRANSFER_CORRIDOR = Object.freeze({
+  halfAngleDeg: 30,
+  maxPerpendicularKm: 2.5,
+  minT: -0.1,
+  maxT: 1.1,
+  homeLeadMaxCostKm: 3,
+  homeLeadMaxCostRatio: 0.25,
+  leadTime: '09:00',
+  pickupOffsetMinutes: 5,
+});
+
+const KM_PER_DEG = 111.32;
+
+// Initial great-circle bearing A → B, degrees clockwise from north.
+export function bearingBetween(a, b) {
+  const la1 = Number(a?.lat) * Math.PI / 180;
+  const la2 = Number(b?.lat) * Math.PI / 180;
+  const dLon = (Number(b?.lng) - Number(a?.lng)) * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(la2);
+  const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLon);
+  if (!Number.isFinite(y) || !Number.isFinite(x)) return NaN;
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+// Smallest angle between two bearings, 0…180°.
+export function angularGapDeg(a, b) {
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return NaN;
+  const v = Math.abs((a - b) % 360);
+  return v > 180 ? 360 - v : v;
+}
+
+// Great-circle distance in km between two {lat,lng} points.
+export function kmBetween(a, b) {
+  const la1 = Number(a?.lat), lo1 = Number(a?.lng), la2 = Number(b?.lat), lo2 = Number(b?.lng);
+  if (![la1, lo1, la2, lo2].every(Number.isFinite)) return NaN;
+  const R = 6371.0088;
+  const rla1 = la1 * Math.PI / 180, rla2 = la2 * Math.PI / 180;
+  const dLat = rla2 - rla1, dLon = (lo2 - lo1) * Math.PI / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rla1) * Math.cos(rla2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// Local flat projection (km) around `from` — accurate at city scale.
+const localKm = (from, p) => {
+  const lat0 = Number(from.lat) * Math.PI / 180;
+  return {
+    x: (Number(p.lng) - Number(from.lng)) * KM_PER_DEG * Math.cos(lat0),
+    y: (Number(p.lat) - Number(from.lat)) * KM_PER_DEG,
+  };
+};
+
+/**
+ * Measures one corridor leg against the candidate stop.
+ * Returns null when the leg is degenerate or any input lacks coordinates.
+ */
+export function corridorCandidate({ from, to, point, options }) {
+  const o = { ...TRANSFER_CORRIDOR, ...(options || {}) };
+  const legKm = kmBetween(from, to);
+  const dFrom = kmBetween(from, point);
+  const dTo = kmBetween(to, point);
+  if (!Number.isFinite(legKm) || !Number.isFinite(dFrom) || !Number.isFinite(dTo) || legKm < 0.05) return null;
+
+  const a = localKm(from, to);
+  const s = localKm(from, point);
+  const L = Math.hypot(a.x, a.y);
+  const t = L > 0 ? ((s.x * a.x) + (s.y * a.y)) / (L * L) : NaN;
+  const perpendicularKm = L > 0 ? Math.abs((s.x * a.y) - (s.y * a.x)) / L : NaN;
+
+  const angleFromDeg = angularGapDeg(bearingBetween(from, to), bearingBetween(from, point));
+  const angleToDeg = angularGapDeg(bearingBetween(to, from), bearingBetween(to, point));
+  const nearAngleDeg = Number.isFinite(angleFromDeg) && Number.isFinite(angleToDeg)
+    ? Math.min(angleFromDeg, angleToDeg)
+    : (Number.isFinite(angleFromDeg) ? angleFromDeg : angleToDeg);
+
+  const costKm = dFrom + dTo - legKm;
+  const inCorridor = Number.isFinite(t)
+    && t >= o.minT && t <= o.maxT
+    && perpendicularKm <= o.maxPerpendicularKm
+    && Number.isFinite(nearAngleDeg) && nearAngleDeg <= o.halfAngleDeg;
+
+  return { legKm, costKm, perpendicularKm, t, angleFromDeg, angleToDeg, nearAngleDeg, inCorridor };
+}
+
+/**
+ * Decides the START TIME a transferred stop gets on its new route.
+ *
+ * @param {object}   args
+ * @param {object}   args.point     {lat,lng} of the transferred stop
+ * @param {object}   args.origin    {lat,lng} route origin — driver home for an
+ *                                  unstarted date, live/last position for a
+ *                                  running one (null → the home leg is skipped)
+ * @param {Array}    args.skeleton  ordered pickups [{ stopId, start, lat, lng }]
+ * @param {object}   [args.options] overrides for TRANSFER_CORRIDOR
+ * @returns {{kind:'lead'|'pickup'|'tail'|'none', startTime:string|null,
+ *            pickupStopId:string|null, corridorIndex:number,
+ *            costKm:number|null, detail:object|null}}
+ */
+export function resolveTransferStart({ point, origin, skeleton, options }) {
+  const o = { ...TRANSFER_CORRIDOR, ...(options || {}) };
+  const pickups = (skeleton || []).filter((p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
+  const none = { kind: 'none', startTime: null, pickupStopId: null, corridorIndex: -1, costKm: null, detail: null };
+  if (!pickups.length || !point || !Number.isFinite(Number(point.lat)) || !Number.isFinite(Number(point.lng))) return none;
+
+  const legs = [];
+  if (origin && Number.isFinite(Number(origin.lat)) && Number.isFinite(Number(origin.lng))) {
+    legs.push({ index: 0, from: origin, to: pickups[0], pickup: pickups[0] });
+  }
+  for (let i = 1; i < pickups.length; i++) {
+    legs.push({ index: i, from: pickups[i - 1], to: pickups[i], pickup: pickups[i] });
+  }
+
+  const scored = legs.map((leg) => {
+    const c = corridorCandidate({ from: leg.from, to: leg.to, point, options: o });
+    return c ? { ...leg, ...c } : null;
+  }).filter(Boolean);
+
+  const qualifies = scored.filter((s) => s.inCorridor).sort((a, b) => a.costKm - b.costKm);
+  const lastStart = parseTimeToMinutes(pickups[pickups.length - 1].start);
+  const tail = () => ({
+    kind: 'tail',
+    startTime: Number.isFinite(lastStart) && lastStart > 0 ? formatMinutesToTime(lastStart + o.pickupOffsetMinutes) : null,
+    pickupStopId: pickups[pickups.length - 1].stopId || null,
+    corridorIndex: -1,
+    costKm: null,
+    detail: null,
+  });
+
+  // The 09:00 lead only wins when the HOME leg is the CHEAPEST qualifying leg —
+  // a stop sitting on or beside a later pickup always joins that pickup instead
+  // (cost 0 there beats any detour out of home).
+  const cheapest = qualifies[0] || null;
+  const homeLeg = cheapest && cheapest.index === 0 ? cheapest : null;
+  if (homeLeg) {
+    const cap = Math.min(o.homeLeadMaxCostKm, Math.max(0.5, o.homeLeadMaxCostRatio * homeLeg.legKm));
+    if (homeLeg.costKm <= cap) {
+      return {
+        kind: 'lead',
+        startTime: o.leadTime,
+        pickupStopId: homeLeg.pickup.stopId || null,
+        corridorIndex: 0,
+        costKm: homeLeg.costKm,
+        detail: homeLeg,
+      };
+    }
+  }
+
+  const pickupLeg = qualifies.find((q) => q.index >= 1) || null;
+  if (pickupLeg) {
+    const base = parseTimeToMinutes(pickupLeg.pickup.start);
+    return {
+      kind: 'pickup',
+      startTime: Number.isFinite(base) && base > 0 ? formatMinutesToTime(base + o.pickupOffsetMinutes) : null,
+      pickupStopId: pickupLeg.pickup.stopId || null,
+      corridorIndex: pickupLeg.index,
+      costKm: pickupLeg.costKm,
+      detail: pickupLeg,
+    };
+  }
+
+  return tail();
+}

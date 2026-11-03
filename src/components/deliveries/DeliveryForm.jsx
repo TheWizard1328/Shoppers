@@ -44,6 +44,7 @@ import useDeliveryCamera from './useDeliveryCamera';
 import { sortStagedDeliveries, sortProjectedDeliveries } from './deliverySortHelpers';
 import { isCareProSearch } from '../utils/careProSearchHelper';
 import { buildUpdatedDeliveryPayload } from './deliveryCodSaveHelpers';
+import { resolveTransferPlacement } from '../utils/transferStopPlacement';
 import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
 import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
@@ -1290,6 +1291,39 @@ export default function DeliveryForm({
       if (delivery?.id && (driverChanged || dateChanged) && (dataToSave.status || formData.status) !== 'completed') {
         dataToSave.arrival_time = null;
         dataToSave.actual_delivery_time = null;
+      }
+      // ── OWNER SPEC Nov 3 2026: FISH THE TRANSFERRED STOP INTO THE NEW DAY ──
+      // A date and/or driver move is not just a field edit: the stop has to be
+      // re-hung on the target day's pickup skeleton. The shared corridor rule in
+      // routeRules.js decides its start time (09:00 lead before the first pickup,
+      // a pickup window + 5, or the tail pickup + 5), the PUID re-points at the
+      // patient's store pickup when the DATE changes (created first if that day
+      // has no pickups yet), the old window's end time is cleared, and the
+      // transfer note is appended. Same-date driver moves keep their PUID.
+      if (delivery?.id && delivery?.patient_id && (driverChanged || dateChanged)
+        && !TERMINAL.includes(formData.status) && !delivery.is_cycling_marker
+        && !String(delivery.id).toUpperCase().startsWith('ISP-')
+        && !String(delivery.id).toUpperCase().startsWith('ISD-')) {
+        try {
+          const placement = await resolveTransferPlacement({
+            delivery,
+            targetDate: dataToSave.delivery_date || formData.delivery_date,
+            targetDriverId: dataToSave.driver_id || formData.driver_id,
+            targetDriverName: formData.driver_name || delivery.driver_name || '',
+            allDeliveries,
+            stores,
+            drivers,
+            patients,
+          });
+          if (placement) {
+            if (placement.puid) dataToSave.puid = placement.puid;
+            if (placement.delivery_time_start) dataToSave.delivery_time_start = placement.delivery_time_start;
+            dataToSave.delivery_time_end = '';
+            if (placement.delivery_notes) dataToSave.delivery_notes = placement.delivery_notes;
+          }
+        } catch (err) {
+          console.warn('[DeliveryForm] transfer placement failed:', err?.message || err);
+        }
       }
       if (statusChangedToCompletion) dataToSave.isNextDelivery = false;
       // COD removed on an existing delivery — clear payment bookkeeping on the save

@@ -1,0 +1,207 @@
+/**
+ * TRANSFERRED-STOP PLACEMENT (owner spec Nov 3 2026)
+ *
+ * When a delivery moves to another date and/or driver it has to be "fished into"
+ * that day's fixed pickup skeleton (home → P1 → P2 → … → Pn). This module
+ * gathers the inputs and decides the four things a transfer owns:
+ *
+ *   1. PUID — a DATE change re-points to the patient's assigned store pickup on
+ *      the new date (created first if that day has no pickups yet). A same-date
+ *      DRIVER change keeps the current PUID.
+ *   2. delivery_time_start — decided by the shared corridor rule in routeRules.js
+ *      (09:00 lead, a pickup window + 5, or the tail pickup + 5).
+ *   3. delivery_time_end — always cleared; it belongs to the old date's window.
+ *   4. Driver note — "Delivery Transferred from [Driver] on [Date]" when the
+ *      driver changes, "Delivery Transferred from [Date]" otherwise, appended on
+ *      a new line when the stop already carries a note.
+ *
+ * The geometry itself lives in routeRules.js (resolveTransferStart) so the client
+ * and server engines stay on one rule base. This file only does data plumbing.
+ */
+import { base44 } from '@/api/base44Client';
+import { resolveTransferStart } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+
+const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
+const BOOKED_OFF = '__booked_off__';
+
+const dayOf = (v) => String(v || '').slice(0, 10);
+
+const coordsOf = (row, storesById) => {
+  const lat = Number(row?.latitude);
+  const lng = Number(row?.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)) return { lat, lng };
+  const store = storesById.get(String(row?.store_id || ''));
+  const sLat = Number(store?.latitude);
+  const sLng = Number(store?.longitude);
+  if (Number.isFinite(sLat) && Number.isFinite(sLng) && !(sLat === 0 && sLng === 0)) return { lat: sLat, lng: sLng };
+  return null;
+};
+
+const driverHome = (drivers, driverId) => {
+  const match = (drivers || []).find((d) => d && (
+    String(d.id) === String(driverId)
+    || String(d.user_id || '') === String(driverId)
+  ));
+  const lat = Number(match?.home_latitude);
+  const lng = Number(match?.home_longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)) return { lat, lng };
+  return null;
+};
+
+const driverLabel = (drivers, driverId, fallbackName) => {
+  const match = (drivers || []).find((d) => d && (
+    String(d.id) === String(driverId)
+    || String(d.user_id || '') === String(driverId)
+  ));
+  return match?.user_name || match?.full_name || match?.driver_name || fallbackName || '';
+};
+
+/** Store + slot pairs this driver is scheduled for on a date (store day-of-week fields). */
+const scheduledStoreSlots = (stores, targetDate, targetDriverId) => {
+  const dow = new Date(`${dayOf(targetDate)}T00:00:00`).getDay();
+  const prefix = dow === 6 ? 'saturday' : dow === 0 ? 'sunday' : 'weekday';
+  const out = [];
+  for (const store of stores || []) {
+    if (!store || !store.id) continue;
+    const amId = store[`${prefix}_am_driver_id`];
+    const pmId = store[`${prefix}_pm_driver_id`];
+    if (amId && String(amId) === String(targetDriverId)) out.push({ store, slot: 'AM' });
+    if (pmId && String(pmId) === String(targetDriverId)) out.push({ store, slot: 'PM' });
+  }
+  return out;
+};
+
+/** Existing pickups for the driver + date, in the day's preset order. */
+const pickupsForDay = (allDeliveries, targetDate, targetDriverId) => (allDeliveries || [])
+  .filter((d) => d
+    && !d.patient_id
+    && dayOf(d.delivery_date) === dayOf(targetDate)
+    && String(d.driver_id || '') === String(targetDriverId)
+    && d.driver_id !== BOOKED_OFF
+    && !d.is_cycling_marker)
+  .sort((a, b) => (Number(a.stop_order) || 9999) - (Number(b.stop_order) || 9999));
+
+/**
+ * Creates the driver's default pickups for a date that has none yet.
+ * Owner rule: "if I had no stops tomorrow I would need all of my default pickups
+ * created first before the stop is transferred."
+ */
+const createDefaultPickups = async ({ stores, targetDate, targetDriverId, targetDriverName }) => {
+  const created = [];
+  const pairs = scheduledStoreSlots(stores, targetDate, targetDriverId);
+  for (const { store, slot } of pairs) {
+    try {
+      const res = await base44.functions.invoke('ensurePickupForDelivery', {
+        storeId: store.id,
+        deliveryDate: dayOf(targetDate),
+        driverId: targetDriverId,
+        ampmDeliveries: slot,
+        allowCreateIfMissing: true,
+      });
+      const pickup = res?.data?.pickup || null;
+      if (pickup) {
+        created.push({ ...pickup, ...(pickup.driver_name ? {} : { driver_name: targetDriverName }) });
+      }
+    } catch (err) {
+      console.warn('[transferPlacement] ensurePickupForDelivery failed', store?.name, slot, err?.message || err);
+    }
+  }
+  return created;
+};
+
+/**
+ * Resolves everything a transfer needs. Returns null when there is nothing to
+ * decide (no coords, no pickups possible) so the caller keeps its current values.
+ */
+export async function resolveTransferPlacement({
+  delivery,
+  targetDate,
+  targetDriverId,
+  targetDriverName,
+  allDeliveries = [],
+  stores = [],
+  drivers = [],
+  patients = [],
+  options = null,
+}) {
+  if (!delivery || !targetDate || !targetDriverId) return null;
+  const nextDate = dayOf(targetDate);
+  const prevDate = dayOf(delivery.delivery_date);
+  const dateChanged = nextDate !== prevDate;
+  const driverChanged = String(delivery.driver_id || '') !== String(targetDriverId || '');
+  if (!dateChanged && !driverChanged) return null;
+  if (delivery.is_cycling_marker || !delivery.patient_id) return null;
+
+  const storesById = new Map((stores || []).filter((s) => s?.id).map((s) => [String(s.id), s]));
+
+  // ── 1. the day's pickup skeleton (created first when the day is empty) ──────
+  let pickups = pickupsForDay(allDeliveries, nextDate, targetDriverId);
+  let createdPickups = [];
+  if (!pickups.length) {
+    createdPickups = await createDefaultPickups({ stores, targetDate: nextDate, targetDriverId, targetDriverName });
+    const working = createdPickups.length ? allDeliveries.concat(createdPickups) : allDeliveries;
+    pickups = pickupsForDay(working, nextDate, targetDriverId);
+  }
+  if (!pickups.length) return null;
+
+  const skeleton = pickups.map((p, i) => ({
+    stopId: p.stop_id || p.puid || p.id || null,
+    start: p.delivery_time_start || '',
+    lat: coordsOf(p, storesById)?.lat,
+    lng: coordsOf(p, storesById)?.lng,
+    store_id: p.store_id,
+    order: Number(p.stop_order) || i + 1,
+  })).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+
+  // ── 2. PUID — date change re-points at the patient's store pickup ──────────
+  let nextPuid = null;
+  if (dateChanged) {
+    const sameStore = pickups.find((p) => String(p.store_id || '') === String(delivery.store_id || ''));
+    const fallback = sameStore || pickups[0];
+    nextPuid = fallback?.stop_id || fallback?.puid || null;
+  }
+
+  // ── 3. route origin: home before duty, last-reached stop once running ──────
+  const dayStops = (allDeliveries || []).filter((d) => d
+    && d.patient_id
+    && dayOf(d.delivery_date) === nextDate
+    && String(d.driver_id || '') === String(targetDriverId));
+  const touched = dayStops
+    .filter((d) => d.arrival_time || d.actual_delivery_time)
+    .sort((a, b) => String(b.actual_delivery_time || b.arrival_time || '').localeCompare(String(a.actual_delivery_time || a.arrival_time || '')))[0];
+  const origin = (touched && coordsOf(touched, storesById)) || driverHome(drivers, targetDriverId);
+
+  // ── 4. the stop's own point ───────────────────────────────────────────────
+  const patient = (patients || []).find((p) => p && String(p.id) === String(delivery.patient_id));
+  const point = coordsOf({ ...delivery, latitude: delivery.latitude ?? patient?.latitude, longitude: delivery.longitude ?? patient?.longitude }, storesById);
+  if (!point) return null;
+
+  // ── 5. start time from the shared corridor rule ────────────────────────────
+  const placement = resolveTransferStart({ point, origin, skeleton, options });
+
+  // ── 6. driver note ─────────────────────────────────────────────────────────
+  const oldDriverName = delivery.driver_name || driverLabel(drivers, delivery.driver_id, '');
+  const fromDate = prevDate || dayOf(delivery.created_date);
+  const line = driverChanged && oldDriverName
+    ? `Delivery Transferred from ${oldDriverName} on ${fromDate}`
+    : `Delivery Transferred from ${fromDate}`;
+  const existingNote = String(delivery.delivery_notes || '').trim();
+  const nextNotes = existingNote && !existingNote.includes(line)
+    ? `${existingNote}\n${line}`
+    : (existingNote ? existingNote : line);
+
+  return {
+    dateChanged,
+    driverChanged,
+    puid: nextPuid,
+    delivery_time_start: placement.startTime || '',
+    delivery_time_end: '',
+    delivery_notes: nextNotes,
+    placement,
+    skeleton,
+    origin,
+    createdPickups,
+  };
+}
+
+export default resolveTransferPlacement;
