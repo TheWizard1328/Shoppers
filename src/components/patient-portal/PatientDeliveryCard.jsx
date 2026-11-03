@@ -129,11 +129,27 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
                 delivery never counts), matching the red badge on their home
                 marker. 0 of them reads "You're next". */}
             {remainingStops != null && ['pending', 'en_route', 'in_transit'].includes(delivery.status) && (
-              <p className={`text-[11px] font-semibold mt-0.5 leading-tight text-center ${expanded ? 'text-slate-400 dark:text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                {Number(remainingStops) === 0
+              (() => {
+                // BADGE, not plain text (owner request Nov 3 2026): the active
+                // store card shows the stops-left count as a pill, and
+                // "You're next" becomes a green pill of its own.
+                const isNext = Number(remainingStops) === 0;
+                const label = isNext
                   ? "You're next"
-                  : `${remainingStops} stop${Number(remainingStops) === 1 ? '' : 's'} left`}
-              </p>
+                  : `${remainingStops} stop${Number(remainingStops) === 1 ? '' : 's'} left`;
+                const cls = isNext
+                  ? (expanded
+                      ? 'bg-green-900/60 border-green-700 text-green-300'
+                      : 'bg-green-50 border-green-200 text-green-700 dark:bg-green-950 dark:border-green-800 dark:text-green-300')
+                  : (expanded
+                      ? 'bg-slate-700 border-slate-600 text-slate-200'
+                      : 'bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300');
+                return (
+                  <span className={`inline-flex items-center justify-center mt-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight whitespace-nowrap ${cls}`}>
+                    {label}
+                  </span>
+                );
+              })()
             )}
           </div>
         </div>
