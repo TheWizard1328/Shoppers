@@ -3,6 +3,7 @@ import { HeartPulse, LogOut, Package, ChevronDown, ChevronUp } from 'lucide-reac
 import PatientDeliveryCard from './PatientDeliveryCard';
 import { buildDeliveryCardProps } from './deliveryCardHelpers';
 import { PatientSessionManager } from './PatientSessionManager';
+import { formatAppVersion } from '@/version';
 
 export default function PatientSidebar({ patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false }) {
   const [showAll, setShowAll] = useState(false);
@@ -117,13 +118,25 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
           className="p-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0"
           style={{ paddingBottom: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 hover:text-red-600 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </button>
+          {/* Sign Out + version on ONE row (owner request Nov 3 2026): the
+              patient portal version sits far right, level with the button, so a
+              patient can read out which build they are on when reporting an
+              issue — same number staff see in their sidebar. */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleLogout}
+              className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 hover:text-red-600 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </button>
+            <span
+              className="shrink-0 pr-1 text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500"
+              title="App version"
+            >
+              {formatAppVersion()}
+            </span>
+          </div>
         </div>
       </div>
     </>
