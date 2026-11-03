@@ -123,6 +123,12 @@ export async function resolveTransferPlacement({
   drivers = [],
   patients = [],
   options = null,
+  // BULK ONLY (owner spec Nov 3 2026): a bulk move sends several stops to the
+  // same target day. `cache` builds that day's pickup skeleton ONCE and lets
+  // every stop rank against the same skeleton; `usedStarts` keeps two moved
+  // stops off the same clock minute.
+  cache = null,
+  usedStarts = null,
 }) {
   if (!delivery || !targetDate || !targetDriverId) return null;
   const nextDate = dayOf(targetDate);
@@ -133,14 +139,23 @@ export async function resolveTransferPlacement({
   if (delivery.is_cycling_marker || !delivery.patient_id) return null;
 
   const storesById = new Map((stores || []).filter((s) => s?.id).map((s) => [String(s.id), s]));
+  const dayKey = `${String(targetDriverId)}::${nextDate}`;
 
   // ── 1. the day's pickup skeleton (created first when the day is empty) ──────
-  let pickups = pickupsForDay(allDeliveries, nextDate, targetDriverId);
+  let pickups = null;
   let createdPickups = [];
-  if (!pickups.length) {
-    createdPickups = await createDefaultPickups({ stores, targetDate: nextDate, targetDriverId, targetDriverName });
-    const working = createdPickups.length ? allDeliveries.concat(createdPickups) : allDeliveries;
-    pickups = pickupsForDay(working, nextDate, targetDriverId);
+  if (cache && cache.has(dayKey)) {
+    const cached = cache.get(dayKey);
+    pickups = cached.pickups || [];
+    createdPickups = cached.createdPickups || [];
+  } else {
+    pickups = pickupsForDay(allDeliveries, nextDate, targetDriverId);
+    if (!pickups.length) {
+      createdPickups = await createDefaultPickups({ stores, targetDate: nextDate, targetDriverId, targetDriverName });
+      const working = createdPickups.length ? allDeliveries.concat(createdPickups) : allDeliveries;
+      pickups = pickupsForDay(working, nextDate, targetDriverId);
+    }
+    if (cache) cache.set(dayKey, { pickups, createdPickups });
   }
   if (!pickups.length) return null;
 
@@ -179,6 +194,22 @@ export async function resolveTransferPlacement({
   // ── 5. start time from the shared corridor rule ────────────────────────────
   const placement = resolveTransferStart({ point, origin, skeleton, options });
 
+  // Two stops moved to the same day must not share a clock minute.
+  let startTime = placement.startTime || '';
+  if (startTime && usedStarts) {
+    const used = usedStarts.get(dayKey) || new Set();
+    let guard = 0;
+    while (used.has(startTime) && guard < 24) {
+      const [hh, mm] = startTime.split(':').map(Number);
+      const bumped = new Date(2000, 0, 1, hh || 0, mm || 0);
+      bumped.setMinutes(bumped.getMinutes() + 5);
+      startTime = `${String(bumped.getHours()).padStart(2, '0')}:${String(bumped.getMinutes()).padStart(2, '0')}`;
+      guard += 1;
+    }
+    used.add(startTime);
+    usedStarts.set(dayKey, used);
+  }
+
   // ── 6. driver note ─────────────────────────────────────────────────────────
   const oldDriverName = delivery.driver_name || driverLabel(drivers, delivery.driver_id, '');
   const fromDate = prevDate || dayOf(delivery.created_date);
@@ -194,11 +225,12 @@ export async function resolveTransferPlacement({
     dateChanged,
     driverChanged,
     puid: nextPuid,
-    delivery_time_start: placement.startTime || '',
+    delivery_time_start: startTime,
     delivery_time_end: '',
     delivery_notes: nextNotes,
-    placement,
+    placement: { ...placement, startTime },
     skeleton,
+    dayKey,
     origin,
     createdPickups,
   };

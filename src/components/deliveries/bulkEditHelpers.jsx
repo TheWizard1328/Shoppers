@@ -190,7 +190,10 @@ export async function applyBulkEditStops({
   selectedBulkDeliveryIds,
   setSelectedBulkDeliveryIds,
   setBulkEditMode,
-  setIsBulkUpdating
+  setIsBulkUpdating,
+  stores = [],
+  patients = [],
+  drivers = []
 }) {
   const baseUpdates = buildBulkEditBaseUpdates({ values, initialValues, currentUser, bulkEditableDrivers });
 
@@ -243,6 +246,52 @@ export async function applyBulkEditStops({
 
   const allIdsToUpdate = [...selectedBulkDeliveryIds, ...linkedPendingDeliveryIds];
 
+  // ── OWNER SPEC Nov 3 2026: bulk transfers fish each moved stop into the ────
+  // target day's pickup skeleton, exactly like the single-stop form does.
+  // Resolved SEQUENTIALLY before the parallel write loop: pickup creation is
+  // per (driver, date) and must happen once, and each placed stop feeds the
+  // used-start set so two moved stops never land on the same minute.
+  const placementById = new Map();
+  if (pickupRelatedChange) {
+    try {
+      const { resolveTransferPlacement } = await import("../utils/transferStopPlacement");
+      const source = allDeliveries || deliveries || [];
+      const cache = new Map();
+      const usedStarts = new Map();
+      for (const deliveryId of allIdsToUpdate) {
+        const target = source.find((d) => d && d.id === deliveryId);
+        if (!target || !target.patient_id || target.is_cycling_marker) continue;
+        const effectiveStatus = String(baseUpdates.status || target.status || '').toLowerCase();
+        if (['completed', 'failed', 'cancelled'].includes(effectiveStatus)) continue;
+        const targetDate = baseUpdates.delivery_date || target.delivery_date;
+        const targetDriverId = baseUpdates.driver_id || target.driver_id;
+        try {
+          const placement = await resolveTransferPlacement({
+            delivery: target,
+            targetDate,
+            targetDriverId,
+            targetDriverName: baseUpdates.driver_name || target.driver_name || '',
+            allDeliveries: source,
+            stores,
+            drivers,
+            patients,
+            cache,
+            usedStarts,
+          });
+          if (placement) placementById.set(deliveryId, placement);
+        } catch (err) {
+          console.warn(`⚠️ [BulkEdit] transfer placement skipped for ${deliveryId}:`, err?.message || err);
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ [BulkEdit] transfer placement unavailable:', err?.message || err);
+    }
+  }
+
+  // Explicit window edits from the panel always win over the corridor result.
+  const explicitStart = values.delivery_time_start !== initialValues?.delivery_time_start;
+  const explicitEnd = values.delivery_time_end !== initialValues?.delivery_time_end;
+
   // CRITICAL: Enter batch silent mode to suppress per-record notifyMutation calls.
   // Without this, each updateDeliveryLocal fires a UI notification, causing N concurrent
   // re-renders that freeze the browser when many stops are selected.
@@ -265,6 +314,14 @@ export async function applyBulkEditStops({
             selectedStoreOption,
             allDeliveries
           });
+
+      const transfer = placementById.get(deliveryId) || null;
+      if (transfer) {
+        if (transfer.puid && !nextUpdates.puid) nextUpdates.puid = transfer.puid;
+        if (!explicitStart) nextUpdates.delivery_time_start = transfer.delivery_time_start || '';
+        if (!explicitEnd) nextUpdates.delivery_time_end = '';
+        nextUpdates.delivery_notes = transfer.delivery_notes;
+      }
 
       const { updateDeliveryLocal } = await import("../utils/entityMutations");
       console.warn(`🔍 [BulkEdit] Deliveries-page apply to ${deliveryId} (linked=${isLinked}): payload=${JSON.stringify(nextUpdates)}`);

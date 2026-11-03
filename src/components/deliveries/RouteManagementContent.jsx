@@ -121,9 +121,12 @@ export default function RouteManagementContent({
       loadData,
       setSelectedBulkDeliveryIds,
       setBulkEditMode,
-      setIsBulkUpdating
+      setIsBulkUpdating,
+      stores,
+      patients,
+      drivers
     });
-  }, [allDeliveries, bulkEditableDrivers, currentUser, deliveries, loadData, selectedBulkDeliveryIds]);
+  }, [allDeliveries, bulkEditableDrivers, currentUser, deliveries, drivers, loadData, patients, selectedBulkDeliveryIds, stores]);
 
   const handleBulkDeleteSelected = useCallback(async () => {
     if (selectedBulkDeliveryIds.length === 0 || isBulkUpdating) return;
