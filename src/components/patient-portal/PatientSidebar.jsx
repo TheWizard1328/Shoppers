@@ -5,7 +5,7 @@ import { buildDeliveryCardProps } from './deliveryCardHelpers';
 import { PatientSessionManager } from './PatientSessionManager';
 import { formatAppVersion } from '@/version';
 
-export default function PatientSidebar({ patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false }) {
+export default function PatientSidebar({ patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false, liveRemainingStops = null }) {
   const [showAll, setShowAll] = useState(false);
 
   const storeMap = {};
@@ -92,6 +92,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
                 <PatientDeliveryCard
                   key={delivery.id}
                   {...buildDeliveryCardProps(delivery, { pickupStops, storeMap })}
+                  remainingStops={liveRemainingStops?.[delivery.id] ?? null}
                 />
               ))}
 

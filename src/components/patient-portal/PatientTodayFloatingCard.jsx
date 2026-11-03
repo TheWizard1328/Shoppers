@@ -13,7 +13,7 @@ import { buildDeliveryCardProps } from './deliveryCardHelpers';
  * Once the delivery date has passed the card is gone: the portal only resolves
  * todayDelivery for TODAY's date, so nothing renders tomorrow.
  */
-export default function PatientTodayFloatingCard({ delivery, pickupStops, stores, onCollapsedHeight }) {
+export default function PatientTodayFloatingCard({ delivery, pickupStops, stores, onCollapsedHeight, remainingStops = null }) {
   // The portal reserves map top padding for this card. Report its COLLAPSED
   // height (the smallest height observed) so expanding the details never pushes
   // the map around — the owner asked for the minimum, unexpanded height.
@@ -66,7 +66,7 @@ export default function PatientTodayFloatingCard({ delivery, pickupStops, stores
           Today
         </p>
       </div>
-      <PatientDeliveryCard {...cardProps} expandInline />
+      <PatientDeliveryCard {...cardProps} remainingStops={remainingStops} expandInline />
     </div>
   );
 }

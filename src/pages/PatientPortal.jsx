@@ -546,6 +546,63 @@ export default function PatientPortal({ embedded = false } = {}) {
   }, []);
   const [driverStatus, setDriverStatus] = useState(null);
 
+  // ── KEEP THE SCREEN ON (owner request Nov 3 2026) ─────────────────────────
+  // Same behaviour the driver and dispatcher apps have: on a mobile device the
+  // portal holds a screen Wake Lock so it does not dim/lock while the patient
+  // is watching their driver. Re-requested every time the page becomes visible
+  // (the browser drops the lock on hide), and skipped on low battery unless
+  // the device is charging — a patient's phone should not be drained flat.
+  useEffect(() => {
+    const isMobileDevice = (navigator?.maxTouchPoints > 0) || window.innerWidth <= 1024;
+    if (!isMobileDevice || !('wakeLock' in navigator)) return undefined;
+
+    let wakeLock = null;
+    let battery = null;
+    let cancelled = false;
+
+    const request = async () => {
+      if (cancelled || wakeLock) return;
+      if (document.visibilityState !== 'visible') return;
+      try {
+        if (battery && battery.level * 100 < 15 && !battery.charging) return;
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } catch { /* unsupported, denied, or battery saver — nothing to do */ }
+    };
+
+    const release = () => {
+      try { wakeLock?.release?.(); } catch { /* already gone */ }
+      wakeLock = null;
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void request();
+      else release();
+    };
+
+    const watchBattery = async () => {
+      if (!('getBattery' in navigator)) return;
+      try {
+        battery = await navigator.getBattery();
+        const check = () => {
+          if (battery.level * 100 < 15 && !battery.charging) release();
+          else if (document.visibilityState === 'visible') void request();
+        };
+        battery.addEventListener?.('levelchange', check);
+        battery.addEventListener?.('chargingchange', check);
+      } catch { /* battery API optional */ }
+    };
+
+    void watchBattery();
+    void request();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      release();
+    };
+  }, []);
+
   // ── Web code update detection (owner request Nov 3 2026): patients get the
   // SAME update balloon the dispatchers, drivers and admins get, and the same
   // automatic refresh when the portal sits idle or backgrounded with a new
@@ -1046,6 +1103,19 @@ export default function PatientPortal({ embedded = false } = {}) {
     const now = new Date();
     return now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() >= 30);
   })();
+  // REMAINING STOPS (owner request Nov 3 2026): how many patient stops the
+  // driver still has on today's route, shown under the status badge on the
+  // current delivery card. Pickup containers (no patient_id) are excluded so
+  // the number reads the same way the patient thinks about it.
+  const liveRemainingStops = useMemo(() => {
+    if (!todayDelivery?.id) return null;
+    const live = (routeDeliveries || []).filter(
+      (d) => d?.patient_id && LIVE_DRIVER_STATUSES.includes(d.status)
+    );
+    if (!live.length) return null;
+    return { [todayDelivery.id]: live.length };
+  }, [routeDeliveries, todayDelivery?.id]);
+
   // OWNER REQUEST (Nov 3 2026): a PENDING (not yet picked up) delivery still
   // shows the driver — an on-duty driver shows immediately whatever the clock,
   // and the 9:30am floor stays as the guard against an overnight stale fix.
@@ -1108,6 +1178,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         embedded={embedded}
+        liveRemainingStops={liveRemainingStops}
       />
 
       {/* Main Content */}
@@ -1206,6 +1277,7 @@ export default function PatientPortal({ embedded = false } = {}) {
                 pickupStops={pickupStops}
                 stores={stores}
                 onCollapsedHeight={setFloatCardHeight}
+                remainingStops={liveRemainingStops?.[todayDelivery.id] ?? null}
               />
             </div>
           )}

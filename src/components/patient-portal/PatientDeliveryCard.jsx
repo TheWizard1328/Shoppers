@@ -24,7 +24,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween, expandInline = false }) {
+export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween, remainingStops = null, expandInline = false }) {
   const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
@@ -114,6 +114,14 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
             {subBadge && (
               <p className={`text-sm font-medium mt-0.5 leading-tight ${expanded ? 'text-slate-300' : subBadge.color}`}>
                 {subBadge.text}
+              </p>
+            )}
+            {/* REMAINING STOPS (owner request Nov 3 2026): right under the
+                Pending / In Transit badge, far right on the same card, so the
+                patient sees how many stops the driver still has today. */}
+            {remainingStops != null && ['pending', 'en_route', 'in_transit'].includes(delivery.status) && (
+              <p className={`text-[11px] font-semibold mt-0.5 leading-tight text-right ${expanded ? 'text-slate-400 dark:text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                {Number(remainingStops) === 1 ? 'Last stop' : `${remainingStops} stops left`}
               </p>
             )}
           </div>
