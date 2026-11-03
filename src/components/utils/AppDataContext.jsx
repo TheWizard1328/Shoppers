@@ -98,9 +98,55 @@ export const AppDataProvider = ({ children, value }) => {
     //    marker via driverLocationsUpdated; real field changes (driver_status,
     //    travel mode, ...) still rewrite appUsers state for the legend.
     const _appUserLocationOnly = batch.appUsers.locationOnly || new Map();
+
+    // ── OWNER FIX (Nov 2 2026) — a stop that LEAVES this device's selection ──
+    // Moving a stop to another driver (same date) or to another date arrives here
+    // as an upsert that is no longer relevant to the current selection. Previously
+    // NOTHING was applied in that case, so the stop stayed on screen for the
+    // originally-assigned driver until the next full refresh cycle pulled it away.
+    // Treat a scope-lost upsert as a DELETE for STATE (not for IDB — the record is
+    // still someone else's stop and other devices/viewers need it cached).
+    const _stateSnapshot = (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries) && window.__appDeliveries.length > 0)
+      ? window.__appDeliveries
+      : deliveriesRef.current || [];
+    const _stateById = new Map(_stateSnapshot.filter(Boolean).map((item) => [item.id, item]));
+    // A driver-only device's own id(s). Drivers do not always carry a
+    // selectedDriverId (it can be 'all' on their own dashboard), so the selection
+    // test alone would miss a same-date reassignment — check identity explicitly.
+    const _selfDriverIds = (() => {
+      try {
+        const cached = JSON.parse(sessionStorage.getItem('effectiveUserCache') || 'null');
+        const roles = cached?.appUser?.app_roles || cached?.user?.app_roles || [];
+        const driverOnly = roles.includes('driver') && !roles.includes('admin') && !roles.includes('dispatcher');
+        if (!driverOnly) return null;
+        const ids = [cached?.appUser?.id, cached?.user?.id, cached?.appUser?.user_id, cached?.user?.user_id].filter(Boolean);
+        return ids;
+      } catch (_) { return null; }
+    })();
+    const _leftSelection = (item) => {
+      const inState = _stateById.get(item.id);
+      if (!inState) return false;
+      // Merge over the cached record so a PARTIAL WS payload (missing driver_id or
+      // delivery_date) can never be misread as a move.
+      const merged = { ...inState, ...item };
+      if (!isDeliveryRelevantToCurrentSelection(merged)) return true;
+      if (_selfDriverIds) {
+        const ownDriverId = String(merged.driver_id || '');
+        if (!ownDriverId || !_selfDriverIds.includes(ownDriverId)) return true;
+      }
+      return false;
+    };
+    const scopeLostIds = deliveryUpserts.filter((item) => item?.id && _leftSelection(item)).map((item) => item.id);
+    const stateDeliveryDeletes = scopeLostIds.length
+      ? Array.from(new Set([...deliveryDeletes, ...scopeLostIds]))
+      : deliveryDeletes;
+    if (scopeLostIds.length) {
+      console.log(`[AppDataContext] ${scopeLostIds.length} delivery(ies) left this device's driver/date selection — pruned from state immediately (no refresh wait)`);
+    }
+
     const shouldApplyDeliveriesToState =
       deliveryUpserts.some((item) => isDeliveryRelevantToCurrentSelection(item)) ||
-      deliveryDeletes.length > 0;
+      stateDeliveryDeletes.length > 0;
     const shouldApplyAppUsersToState =
       appUserDeletes.length > 0 ||
       appUserUpserts.some((item) => !_appUserLocationOnly.get(item?.id));
@@ -147,6 +193,20 @@ export const AppDataProvider = ({ children, value }) => {
         ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null))
       ]);
 
+      // Driver-only devices never view another driver's stops, so a record that
+      // left their scope is dropped from the local cache as well — a stale boot
+      // read can then never resurrect a stop that was reassigned away from them.
+      if (scopeLostIds.length) {
+        try {
+          const cached = JSON.parse(sessionStorage.getItem('effectiveUserCache') || 'null');
+          const roles = cached?.appUser?.app_roles || cached?.user?.app_roles || [];
+          const driverOnly = roles.includes('driver') && !roles.includes('admin') && !roles.includes('dispatcher');
+          if (driverOnly) {
+            await Promise.all(scopeLostIds.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)));
+          }
+        } catch (_) { /* role unknown — keep the cache, state prune already applied */ }
+      }
+
       if (deliveryChanged && shouldApplyDeliveriesToState) {
         // CRITICAL: Read from window.__appDeliveries (synchronously updated by updateDeliveriesLocally)
         // rather than deliveriesRef.current (which is updated by useEffect — async, after paint).
@@ -155,7 +215,7 @@ export const AppDataProvider = ({ children, value }) => {
         const currentDeliveries = (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries) && window.__appDeliveries.length > 0)
           ? window.__appDeliveries
           : deliveriesRef.current || [];
-        const deleteSet = new Set(deliveryDeletes);
+        const deleteSet = new Set(stateDeliveryDeletes);
         const currentById = new Map(currentDeliveries.filter(Boolean).map((item) => [item.id, item]));
 
         // CRITICAL: Instead of reading the full offline DB (which may be stale relative to
@@ -289,7 +349,7 @@ export const AppDataProvider = ({ children, value }) => {
 
     if (deliveryChanged && shouldApplyDeliveriesToState && !nextDeliveries.length && deliveriesRef.current?.length) {
       const byId = new Map(deliveriesRef.current.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
-      deliveryDeletes.forEach((id) => byId.delete(id));
+      stateDeliveryDeletes.forEach((id) => byId.delete(id));
       // Apply lockout in the fallback path too — same protection as the main merge.
       let _fallbackLockout;
       try {
@@ -350,7 +410,7 @@ export const AppDataProvider = ({ children, value }) => {
     if (deliveryChanged && shouldApplyDeliveriesToState) {
       const dedupedDeliveries = Array.from(new Map((nextDeliveries || []).filter(Boolean).map((item) => [item.id, item])).values());
       if (applyDeliveryChangesLocallyRef.current) {
-        applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: deliveryDeletes });
+        applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: stateDeliveryDeletes });
       } else if (updateDeliveriesLocallyRef.current) {
         updateDeliveriesLocallyRef.current(dedupedDeliveries, true);
       }

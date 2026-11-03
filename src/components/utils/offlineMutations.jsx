@@ -523,10 +523,10 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     // for one driver. Moving the stop to another date or driver clears them.
     if (existingDelivery && updates) {
       try {
-        const { isStopMoved } = await import('./deviationResetOnMove');
-        if (isStopMoved(existingDelivery, updates) && !('deviation_waypoints' in updates)) {
-          updates = { ...updates, deviation_waypoints: [] };
-          console.log('[OfflineMutations] stop moved to a new date/driver — cleared deviation_waypoints', deliveryId);
+        const { applyMoveReset, isStopMoved } = await import('./deviationResetOnMove');
+        if (isStopMoved(existingDelivery, updates)) {
+          updates = applyMoveReset(existingDelivery, updates);
+          console.log('[OfflineMutations] stop moved to a new date/driver — cleared polyline + deviation_waypoints', deliveryId);
         }
       } catch (_) { /* helper unavailable: leave payload untouched */ }
     }

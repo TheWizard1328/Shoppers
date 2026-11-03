@@ -638,14 +638,15 @@ export default function DriverScheduleCalendar() {
             base44.entities.Delivery.update(d.id, {
               driver_id: targetDriverId,
               driver_name: targetDriverName,
-              encoded_polyline: null,
-              PolylineUpdated: false,
+              encoded_polyline: null, polyline_from_order: null, PolylineUpdated: false,
+              deviation_waypoints: [], estimated_distance_km: null,
+              estimated_duration_minutes: null, travel_dist: 0,
               isNextDelivery: d.isNextDelivery ? false : undefined,
             })
           ));
           setDeliveriesByDay((prev) => {
             const updated = (prev[dateStr] || []).map((d) =>
-              toUpdate.some((t) => t.id === d.id) ? { ...d, driver_id: targetDriverId, driver_name: targetDriverName, encoded_polyline: null, PolylineUpdated: false, isNextDelivery: false } : d
+              toUpdate.some((t) => t.id === d.id) ? { ...d, driver_id: targetDriverId, driver_name: targetDriverName, encoded_polyline: null, polyline_from_order: null, PolylineUpdated: false, deviation_waypoints: [], estimated_distance_km: null, estimated_duration_minutes: null, travel_dist: 0, isNextDelivery: false } : d
             );
             return { ...prev, [dateStr]: updated };
           });
@@ -741,8 +742,9 @@ export default function DriverScheduleCalendar() {
             base44.entities.Delivery.update(d.id, {
               driver_id: targetDriverId,
               driver_name: targetDriverName,
-              encoded_polyline: null,
-              PolylineUpdated: false,
+              encoded_polyline: null, polyline_from_order: null, PolylineUpdated: false,
+              deviation_waypoints: [], estimated_distance_km: null,
+              estimated_duration_minutes: null, travel_dist: 0,
               isNextDelivery: d.isNextDelivery ? false : undefined,
             })
           )
@@ -750,7 +752,7 @@ export default function DriverScheduleCalendar() {
         setDeliveriesByDay((prev) => {
           const updated = (prev[dateStr] || []).map((d) =>
             toUpdate.some((t) => t.id === d.id)
-              ? { ...d, driver_id: targetDriverId, driver_name: targetDriverName, encoded_polyline: null, PolylineUpdated: false, isNextDelivery: false }
+              ? { ...d, driver_id: targetDriverId, driver_name: targetDriverName, encoded_polyline: null, polyline_from_order: null, PolylineUpdated: false, deviation_waypoints: [], estimated_distance_km: null, estimated_duration_minutes: null, travel_dist: 0, isNextDelivery: false }
               : d
           );
           return { ...prev, [dateStr]: updated };

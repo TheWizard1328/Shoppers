@@ -35,6 +35,45 @@ export const isStopMoved = (existing, updates) => {
 };
 
 /**
+ * OWNER RULE Nov 2 2026: "prior to the move with a different date and/or driver,
+ * the polyline and ALL deviation points should be cleared."
+ *
+ * So a move resets the whole leg state, not just the deviation points:
+ *   - deviation_waypoints        the GPS detour points for the old leg
+ *   - encoded_polyline           the painted leg INTO this stop
+ *   - polyline_from_order        which predecessor the leg was drawn from
+ *   - PolylineUpdated            the "polyline already generated" gate
+ *   - estimated_* / travel_dist  distance + duration stamps derived from that leg
+ * The leg is rebuilt from scratch when the new date/driver route is optimized.
+ */
+export const MOVED_STOP_RESET = Object.freeze({
+  deviation_waypoints: [],
+  encoded_polyline: null,
+  polyline_from_order: null,
+  PolylineUpdated: false,
+  estimated_distance_km: null,
+  estimated_duration_minutes: null,
+  travel_dist: 0,
+});
+
+/**
+ * Applies the move reset to an update payload when the stop changes date or
+ * driver. Fields the payload sets EXPLICITLY always win (a caller that knows
+ * better is never overridden).
+ */
+export const applyMoveReset = (existing, updates) => {
+  if (!updates) return updates;
+  if (!isStopMoved(existing, updates)) return updates;
+  const next = { ...updates };
+  Object.keys(MOVED_STOP_RESET).forEach((field) => {
+    if (!Object.prototype.hasOwnProperty.call(updates, field)) {
+      next[field] = MOVED_STOP_RESET[field];
+    }
+  });
+  return next;
+};
+
+/**
  * Returns the update payload with deviation waypoints cleared when the stop is
  * being moved to another date or driver. Any explicit deviation_waypoints in the
  * payload wins (a caller that knows better is never overridden).
