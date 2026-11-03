@@ -136,7 +136,21 @@ export function inheritPickupWindows(stops, adapters) {
   return inherited;
 }
 
-// ── RULE: 2-hour window-band chronology sort ─────────────────────────────────
+// ── RETIRED (Nov 3 2026): windowBandSort / enforceWindowDeadlines ───────────
+// OWNER SPEC, verbatim: "we are basically supposed to use the time windows as
+// gates for ordering meaning deliveries must be done after the delivery start
+// time anytime after the delivery start time and if there is a delivery end
+// time the optimizer should be able to place that stop anywhere prior to that
+// end time and not have to hoist it first if there's time to get to it with
+// other stops before it."
+// Both helpers below are NO LONGER CALLED by either engine. Windows now travel
+// with the HERE waypoint payload (both sides, ±30-minute sway, past starts
+// clamped to the current time, pickups never gated), so HERE sequences by road
+// while honouring them and no post-hoc band sort or hoist pass runs at all.
+// Measured on the real Nov 3 route: the old banded order drove 142.2 km, this
+// is 122.3 km. Kept only as reference — do NOT re-wire them.
+
+// ── RULE: 2-hour window-band chronology sort (RETIRED — see above) ───────────
 // BAND = the stop's EARLIEST SERVABLE TIME (owner rule Oct 5 2026): no window,
 // or a window already open (TODAY routes only) → the "now" band (earliest);
 // a future window → its window's chronological band. Stable — ties keep the

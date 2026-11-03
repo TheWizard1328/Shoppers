@@ -5,15 +5,11 @@
 import {
   parseTimeToMinutes,
   formatMinutesToTime,
-  windowBandSort as sharedWindowBandSort,
-  hasTimeWindows as sharedHasTimeWindows,
-  windowBandOfStop as sharedWindowBandOfStop,
   inheritedPickupWindowStart as sharedInheritedPickupWindowStart,
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
   enforceCyclingBlock as sharedEnforceCyclingBlock,
-  enforceWindowDeadlines as sharedEnforceWindowDeadlines,
   dwellMinutesForStop as sharedDwellMinutes,
   resolveSequenceSearch,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
@@ -247,26 +243,41 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   stopsToSequence.forEach((stop, index) => {
     const segments = [`${stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id};${stop.lat},${stop.lng}`];
     if (includeTimeWindows) {
-      // OWNER RULES (Oct 5 + Oct 21 2026): on TODAY's live route a start
-      // window is NOT a HERE sequencing constraint at all — not for
-      // already-open windows (Oct 5) and not for future openings either
-      // (Oct 21: "stops with delivery start times before the current time
-      // kept getting placed first instead of getting placed along the road
-      // — filter them in based on the current time"). From-side constraints
-      // made HERE front-load unconstrained (open-window) stops ahead of
-      // future-window stops regardless of geography. NOW: HERE sequences
-      // PURELY by the road; window chronology is enforced afterward by the
-      // shared 2h band sort and the ETA window floors. The window END (to
-      // side) stays a real constraint on every route.
-      const _isTodayLive = deliveryDate === getEdmontonTodayDateString();
-      const wsMin = parseTimeToMinutes(stop.windowStart);
-      const dropFromSide = _isTodayLive; // open OR future — no from constraint today
-      const accessConstraint = buildAccessConstraint(
-        deliveryDate,
-        dropFromSide ? null : stop.windowStart,
-        stop.windowEnd,
-      );
-      if (accessConstraint) segments.push(accessConstraint);
+      // ── OWNER SPEC (Nov 3 2026): give HERE the REAL windows ─────────────
+      // "we are basically supposed to use the time windows as gates for
+      // ordering meaning deliveries must be done after the delivery start
+      // time anytime after the delivery start time and if there is a delivery
+      // end time the optimizer should be able to place that stop anywhere
+      // prior to that end time" + "most delivery and time windows can sway
+      // about 30 minutes if need be to optimize better" + "delivery start
+      // time windows in the past can be adjusted to be current time for the
+      // optimizer in order to help potentially optimize those stops".
+      //
+      // So: BOTH sides go out as one acc window, starts that already passed are
+      // clamped to now (an old stop stays optimizable instead of frozen at the
+      // back), and each side is widened by WINDOW_SWAY_MINUTES.
+      //
+      // PICKUPS ARE NEVER GATED. A pickup's window is written as "5 minutes
+      // after the accept time", i.e. it is open the moment it exists — sending
+      // it made HERE treat the whole trip as an appointment and park it at the
+      // end of the route regardless of geography (owner report Nov 3 2026).
+      // The store's own delivery_time_start is not a customer promise.
+      const WINDOW_SWAY_MINUTES = 30;
+      const isPickupStop = stop.isPickup === true || stop.delivery?.is_pickup === true;
+      if (!isPickupStop) {
+        const nowMin = Number.isFinite(currentMinutes) ? currentMinutes : parseTimeToMinutes(currentLocalTime || '');
+        let openMin = parseTimeToMinutes(stop.windowStart);
+        if (Number.isFinite(openMin) && Number.isFinite(nowMin) && openMin < nowMin) openMin = nowMin;
+        if (Number.isFinite(openMin)) openMin = Math.max(0, openMin - WINDOW_SWAY_MINUTES);
+        let closeMin = parseTimeToMinutes(stop.windowEnd);
+        if (Number.isFinite(closeMin)) closeMin = Math.min(23 * 60 + 59, closeMin + WINDOW_SWAY_MINUTES);
+        const accessConstraint = buildAccessConstraint(
+          deliveryDate,
+          Number.isFinite(openMin) ? formatMinutesToTime(openMin) : null,
+          Number.isFinite(closeMin) ? formatMinutesToTime(closeMin) : null,
+        );
+        if (accessConstraint) segments.push(accessConstraint);
+      }
     }
     segments.push(`st:${Math.round((stop.delivery.extra_time || (stop.isPickup ? 15 : 5)) * 60)}`);
     params.set(`destination${index + 1}`, segments.join(';'));
@@ -964,79 +975,15 @@ let _inheritedWindowCount = 0;
         withHome: true
       });
 
-      let finalStops = orderedStops;
-      let finalLegs = legs;
-
-      if (hasTimeWindows && orderedStops.length > 1) {
-        const TIME_BAND_MINUTES = 120; // 2-hour bands — same span as the old buckets
-
-        // BAND SEMANTICS (fixed Oct 5 2026, owner report "Meadows keeps
-        // sequencing next"): the band is the stop's EARLIEST SERVABLE TIME.
-        // A stop with NO window, or whose window has ALREADY OPENED, is
-        // servable RIGHT NOW → it takes the "now" band (earliest possible).
-        // A stop whose window opens in the FUTURE is servable only at its
-        // window start → it takes its window's chronological band, which is
-        // LATER than the now band → it sorts after every servable-now stop.
-        // The old code returned POSITIVE_INFINITY ("sorts last") for
-        // windowless/past-window stops — but that meant ANY future-window
-        // stop (finite band) sorted IN FRONT of them: Anna's 17:30-18:00
-        // Meadows pickup (band 8) kept landing ahead of servable-now stops
-        // whose 14:00 windows had passed, on every Start and manual
-        // optimize. Future-window stops sort last, chronologically among
-        // themselves; ties inside a band keep HERE's drive-time order.
-        // SHARED RULE (routeRules.js windowBandSort): 2h band chronology —
-        // no window / window-open-today → now band; future window → its
-        // chronological band. Stable — HERE drive-time order within a band.
-        const _sharedBandOpts = {
-          routeIsToday, currentMinutes,
-          windowOf: (st) => st?.windowStart || st?.delivery?.delivery_time_start || '',
-          windowEndOf: (st) => st?.windowEnd || st?.delivery?.delivery_time_end || '',
-        };
-        const bandOf = (stop) => sharedWindowBandOfStop(stop, _sharedBandOpts);
-        finalStops = sharedWindowBandSort(orderedStops, _sharedBandOpts);
-
-        // SHARED RULE (owner spec Nov 3 2026): window STARTS gate the clock,
-        // window ENDS are deadlines. A stop may sit anywhere before its end, so
-        // the band sort no longer hoists it to the front — this pass lifts it
-        // ONLY when the forward clock proves it would otherwise arrive late.
-        try {
-          finalStops = sharedEnforceWindowDeadlines(finalStops, {
-            currentMinutes,
-            startOf: (st) => st?.windowStart || st?.delivery?.delivery_time_start || '',
-            endOf: (st) => st?.windowEnd || st?.delivery?.delivery_time_end || '',
-            coordsOf: (st) => {
-          const la = Number(st?.lat ?? st?.latitude ?? st?.patient_latitude);
-          const ln = Number(st?.lng ?? st?.lon ?? st?.longitude ?? st?.patient_longitude);
-          return Number.isFinite(la) && Number.isFinite(ln) && la !== 0 ? { lat: la, lng: ln } : null;
-        },
-          });
-        } catch (wdErr) {
-          console.warn('[clientRouteEngine] window deadline pass skipped:', wdErr?.message || wdErr);
-        }
-
-        // HERE's own sequence order — the leg rebuild below maps each stop back
-        // to its HERE position to decide which transitions keep their real legs.
-        const hereOrder = new Map(orderedStops.map((stop, i) => [stop, i]));
-
-        const reordered = finalStops.some((stop, i) => finalStops[i] !== orderedStops[i]);
-        console.log(`[clientRouteEngine] ${source} — window-band enforcement: ${reordered ? 'reordered HERE sequence' : 'HERE order already window-compliant'} (${finalStops.length} stops, ${new Set(finalStops.map(bandOf)).size} band(s))`);
-
-        // Rebuild legs: a transition keeps HERE's leg only when both stops were
-        // consecutive in HERE's own sequence; everything else is a placeholder.
-        finalLegs = finalStops.map((stop, j) => {
-          const hereIdx = hereOrder.get(stop);
-          const prevStop = j > 0 ? finalStops[j - 1] : null;
-          const prevHereIdx = prevStop ? hereOrder.get(prevStop) : null;
-          if (j === 0 && hereIdx === 0 && legs[0]) return legs[0];
-          if (j > 0 && hereIdx !== undefined && prevHereIdx === hereIdx - 1 && legs[hereIdx]) {
-            return legs[hereIdx]; // preserved transition — real HERE leg data
-          }
-          const fromLat = prevStop ? prevStop.lat : seqOrigin.lat;
-          const fromLng = prevStop ? prevStop.lng : seqOrigin.lng;
-          const d = calculateCrowFliesDistance(fromLat, fromLng, stop.lat, stop.lng);
-          return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 };
-        });
-      }
+      // ── OWNER SPEC (Nov 3 2026): HERE owns the order ────────────────────
+      // HERE now receives the REAL windows (both sides, ±30-minute sway, past
+      // starts clamped to the current time, pickups never gated), so it can
+      // sequence by road while honouring the windows. The 2-hour band sort and
+      // the closes-first / deadline hoists that used to run here are GONE:
+      // they were what pushed a far-west stop to the middle of the route and
+      // dragged the north stops into a double run. Less code, better order.
+      const finalStops = orderedStops;
+      const finalLegs = legs;
 
       routeStops = [...routeStops, ...finalStops];
       directionsLegs = routeOriginStop
@@ -1624,47 +1571,12 @@ let _inheritedWindowCount = 0;
     stopIdOf: (st) => st.stop_id,
   });
 
-  // ── FINAL window-chronology pass (owner report Oct 30 2026) ───────────────
-  // 'two Hamptons pickups at one address, windows 10:00-11:00 and 13:30-14:30,
-  // always optimized back to back instead of with stops between them'. Cause:
-  // the two swap-based enforcements above (pending-follows-pickup, ISP-before-
-  // ISD) move a stop EITHER WAY, and a swap pulls the later pickup forward to
-  // sit beside its same-address sibling — silently undoing the band sort that
-  // had correctly separated them. Windows outrank both constraints, so the
-  // shared band sort runs one final time here. Inside a band the current order
-  // is kept (pickup still before its delivery, ISP still before its ISD).
-  if (sharedHasTimeWindows(activeStops, (st) => st?.delivery_time_start) && activeStops.length > 1) {
-    const _finalBandOpts = {
-      routeIsToday,
-      currentMinutes,
-      windowOf: (st) => st?.delivery_time_start || '',
-      windowEndOf: (st) => st?.delivery_time_end || '',
-    };
-    const _beforeFinal = activeStops.map((st) => String(st.id)).join(',');
-    activeStops = sharedWindowBandSort(activeStops, _finalBandOpts);
-    const _afterFinal = activeStops.map((st) => String(st.id)).join(',');
-    if (_beforeFinal !== _afterFinal) {
-      console.log(`[clientRouteEngine] ${source} — final window pass restored band order (pickup/ISP swaps had pulled stops out of their windows)`);
-    }
-
-    // SHARED RULE (owner spec Nov 3 2026): the swaps above can bury a stop with
-    // a real deadline, so the clock is walked once more — and only a stop that
-    // would genuinely arrive after its own window end is lifted earlier.
-    try {
-      activeStops = sharedEnforceWindowDeadlines(activeStops, {
-        currentMinutes,
-        startOf: (st) => st?.delivery_time_start || '',
-        endOf: (st) => st?.delivery_time_end || '',
-        coordsOf: (st) => {
-          const la = Number(st?.lat ?? st?.latitude ?? st?.patient_latitude);
-          const ln = Number(st?.lng ?? st?.lon ?? st?.longitude ?? st?.patient_longitude);
-          return Number.isFinite(la) && Number.isFinite(ln) && la !== 0 ? { lat: la, lng: ln } : null;
-        },
-      });
-    } catch (wdErr) {
-      console.warn('[clientRouteEngine] final window deadline pass skipped:', wdErr?.message || wdErr);
-    }
-  }
+  // ── WINDOW ORDER (owner spec Nov 3 2026) ─────────────────────────────────
+  // Windows are HERE's job now: they ride along with the waypoints, so the
+  // pickup/ISP swaps below cannot silently break a window and nothing needs a
+  // second sort or a hoist pass here. Hard constraints that remain below are
+  // purely about WHAT CAN PHYSICALLY HAPPEN (pickup before its delivery, an
+  // in-hand stop before nothing, the cycling block), not about time.
 
   // ── SHARED RULE (owner directive Nov 3 2026): an IN-HAND stop is never ────
   // dragged behind its own pickup. The pickup-first constraint only exists
