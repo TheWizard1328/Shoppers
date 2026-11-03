@@ -1,7 +1,9 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { base44 } from '@/api/base44Client';
 import ConversationsList from './ConversationsList';
 import ChatWindow from './ChatWindow';
+import PatientThreadsPanel from './PatientThreadsPanel';
+import { loadPatientThreadMessages, isPatientSender } from './patientThreads';
 import { Loader2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -15,10 +17,32 @@ import {
 
 function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange, pendingBlinkConversationId, onClearBlink }) {
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
+  // Patient portal threads (owner build Nov 2 2026) live beside staff chat.
+  const [tab, setTab] = useState('staff');
+  // Unread patient messages, so the tab shows a badge before it is opened.
+  const [patientUnread, setPatientUnread] = useState(0);
   const [isBroadcastingUpdate, setIsBroadcastingUpdate] = useState(false);
   const [updateBroadcastSent, setUpdateBroadcastSent] = useState(false);
   const canBroadcastUpdate = isAppOwner(currentUser);
   
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const rows = await loadPatientThreadMessages(currentUser);
+      if (cancelled) return;
+      setPatientUnread((rows || []).filter((m) => !m.read && isPatientSender(m.sender_id)).length);
+    })();
+    let unsub = null;
+    try {
+      unsub = base44.entities.Message.subscribe((event) => {
+        const row = event?.data || event?.payload || event;
+        if (!row?.patient_id || !isPatientSender(row.sender_id) || row.read) return;
+        setPatientUnread((prev) => prev + 1);
+      });
+    } catch { /* realtime optional */ }
+    return () => { cancelled = true; try { unsub?.(); } catch { /* noop */ } };
+  }, [currentUser?.id]);
+
   const handleMessagesRead = useCallback((count) => {
     if (onUnreadCountChange) {
       onUnreadCountChange(prev => Math.max(0, prev - count));
@@ -120,7 +144,33 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
           </div>
         </div>
 
-        {/* Content */}
+        {/* Tabs: staff chat vs patient portal threads */}
+        <div className="flex items-center gap-1 px-4 pb-2" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+          <button
+            onClick={() => setTab('staff')}
+            className={`h-8 px-3 rounded-lg text-sm font-medium ${tab === 'staff' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            Staff
+          </button>
+          <button
+            onClick={() => setTab('patients')}
+            className={`h-8 px-3 rounded-lg text-sm font-medium ${tab === 'patients' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            Patients
+            {patientUnread > 0 && (
+              <span className="ml-1.5 inline-flex min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold items-center justify-center align-middle">
+                {patientUnread > 9 ? '9+' : patientUnread}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Content: patient portal threads or staff chat */}
+        {tab === 'patients' ? (
+          <div className="flex-1 flex overflow-hidden">
+            <PatientThreadsPanel currentUser={currentUser} onUnreadCountChange={onUnreadCountChange} />
+          </div>
+        ) : (
         <div className="flex-1 flex overflow-hidden">
           {/* Conversations list - hidden on mobile when chat is open */}
           <div 
@@ -162,6 +212,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

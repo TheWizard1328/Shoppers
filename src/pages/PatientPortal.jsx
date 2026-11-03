@@ -3,11 +3,13 @@ import PWAInstallPrompt from '@/components/common/PWAInstallPrompt';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Menu, X, Package, MapPin, Clock, Truck, CheckCircle, RefreshCw, HeartPulse, Wifi } from 'lucide-react';
+import { Menu, X, Package, MapPin, Clock, Truck, CheckCircle, RefreshCw, HeartPulse, Wifi, MessageSquare } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { PatientSessionManager } from '@/components/patient-portal/PatientSessionManager';
 import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
+import PatientMessaging, { loadPatientUnreadCount } from '@/components/patient-portal/PatientMessaging';
+import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
 import { format } from 'date-fns';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
 import { getHereApiKey } from '@/components/utils/hereApiKeyStore';
@@ -372,6 +374,10 @@ export default function PatientPortal({ embedded = false } = {}) {
     };
   }, [patient?.id]);
   const [sidebarOpen, setSidebarOpen]       = useState(false);
+  // Patient messaging (owner build Nov 2 2026): one thread with the pharmacy,
+  // unread badge on the header button, pushed to the device when a reply lands.
+  const [messagingOpen, setMessagingOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [deliveries, setDeliveries]         = useState([]);
   const [pickupStops, setPickupStops]       = useState([]);
   const [stores, setStores]                 = useState([]);
@@ -872,6 +878,26 @@ export default function PatientPortal({ embedded = false } = {}) {
   })();
   const showLiveTracking = isAfter930am && driverStatus === 'on_duty';
 
+  // Unread pharmacy replies — badge on the header button. Refreshed on mount,
+  // on focus and after the sheet closes; the sheet itself clears it on open.
+  useEffect(() => {
+    if (!patient?.id) return undefined;
+    let cancelled = false;
+    const refresh = async () => {
+      const count = await loadPatientUnreadCount(patient.id);
+      if (!cancelled) setUnreadMessages(count);
+    };
+    refresh();
+    const timer = setInterval(refresh, 60000);
+    const onFocus = () => refresh();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [patient?.id, messagingOpen]);
+
   return (
     <div className={`flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}>
       <PatientPortalGuard />
@@ -917,6 +943,19 @@ export default function PatientPortal({ embedded = false } = {}) {
               </div>
             )}
             <button
+              onClick={() => setMessagingOpen(true)}
+              className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
+              title="Messages"
+              aria-label="Messages"
+            >
+              <MessageSquare className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              {unreadMessages > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
+                </span>
+              )}
+            </button>
+            <button
               onClick={loadData}
               className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
               title="Refresh"
@@ -926,6 +965,8 @@ export default function PatientPortal({ embedded = false } = {}) {
             </button>
           </div>
         </div>
+
+        <PatientNotifyPrompt patient={patient} />
 
         {/* Map */}
         <div
@@ -1031,6 +1072,13 @@ export default function PatientPortal({ embedded = false } = {}) {
           </div>
         </div>
       </div>
+
+      <PatientMessaging
+        patient={patient}
+        open={messagingOpen}
+        onClose={() => setMessagingOpen(false)}
+        onUnreadChange={setUnreadMessages}
+      />
     </div>
   );
 }

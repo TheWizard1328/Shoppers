@@ -70,6 +70,14 @@
         "type": "string"
       },
       "description": "Array of user_ids who have read this group message (per-member read receipts)"
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "For patient-portal threads: the Patient entity id. Empty for staff-to-staff messages."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "For patient-portal threads: the patient's store at send time (lets dispatchers list only their own patients' threads)."
     }
   },
   "required": [
