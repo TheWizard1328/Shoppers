@@ -186,28 +186,18 @@ function AnimatedDriverMarker({ driverLocation, legCoords, icon, children, onPai
 // Leaflet's fitBounds IGNORES its minZoom option (and zoomSnap is a no-op
 // there), so the zoom is computed manually and applied with flyTo.
 const PORTAL_FIT_MAX_ZOOM = 17;
-const PORTAL_PAD_BOTTOM_RIGHT = L.point(50, 50);
-// OWNER TWEAK (Oct 23 2026): 25px extra top padding so the fit clears the
-// tracking driver badge overlay (50 + 25 = 75px effective top padding).
-const PORTAL_PAD_TOP_LEFT = L.point(50, 75);
-/**
- * MapInvalidateOnPad — Leaflet caches the container size at mount. The map's
- * top padding is reserved for the floating today card and lands a frame after
- * mount (the card has to render and be measured), so the map must be told to
- * re-read its box or the tiles stay laid out for the taller container.
- */
-function MapInvalidateOnPad({ pad }) {
-  const map = useMap();
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try { map.invalidateSize({ animate: false }); } catch (_) { /* map gone */ }
-    }, 60);
-    return () => clearTimeout(timer);
-  }, [map, pad]);
-  return null;
-}
-
-function portalFit(map, points) {
+// INNER map padding (owner spec Nov 2 2026). These are the paddings the auto
+// fit keeps the driver and patient markers away from, NOT container padding —
+// the map itself stays full height and the today card floats over it.
+//   sides  : 50px, unchanged
+//   bottom : 75px — the old TOP padding, because the tracking badge moved from
+//            the top of the map to the bottom
+//   top    : the collapsed height of the floating today card, so the two
+//            markers never tuck underneath it
+const PORTAL_PAD_SIDE = 50;
+const PORTAL_PAD_BOTTOM = 75;
+const PORTAL_PAD_TOP_DEFAULT = 75;
+function portalFit(map, points, pad = {}) {
   // Guard: a single NaN/undefined coordinate makes latLngBounds invalid and
   // getBoundsZoom throw — which would silently kill the auto-fit forever.
   const pts = (points || [])
@@ -215,7 +205,14 @@ function portalFit(map, points) {
     .map(([a, b]) => [Number(a), Number(b)]);
   if (pts.length === 0) return;
   const bounds = L.latLngBounds(pts);
-  const fitZoom = map.getBoundsZoom(bounds, false, PORTAL_PAD_TOP_LEFT.add(PORTAL_PAD_BOTTOM_RIGHT));
+  const topPad = Number.isFinite(pad.top) ? pad.top : PORTAL_PAD_TOP_DEFAULT;
+  const bottomPad = Number.isFinite(pad.bottom) ? pad.bottom : PORTAL_PAD_BOTTOM;
+  const leftPad = Number.isFinite(pad.left) ? pad.left : PORTAL_PAD_SIDE;
+  const rightPad = Number.isFinite(pad.right) ? pad.right : PORTAL_PAD_SIDE;
+  // NOTE: L.Point.add() MUTATES the point it is called on, so the fit padding
+  // uses its own throwaway point — otherwise paddingOffset below would be
+  // computed from already-doubled values (a long-standing bug in this fit).
+  const fitZoom = map.getBoundsZoom(bounds, false, L.point(leftPad + rightPad, topPad + bottomPad));
   // OWNER FIX (Oct 23 2026): the 13-floor was over-zooming — on long
   // driver↔patient spans the true fit is ~10-12, and forcing 13 zoomed IN
   // past the fit, pushing both markers off screen. Now the auto-fit uses
@@ -227,17 +224,21 @@ function portalFit(map, points) {
     : PORTAL_FIT_MAX_ZOOM;
   // Asymmetric padding shifts the center the same way Leaflet's
   // _getBoundsCenterZoom does: paddingOffset = (bottomRight - topLeft) / 2.
-  const paddingOffset = PORTAL_PAD_BOTTOM_RIGHT.subtract(PORTAL_PAD_TOP_LEFT).divideBy(2);
+  const paddingOffset = L.point(rightPad - leftPad, bottomPad - topPad).divideBy(2);
   const swPoint = map.project(bounds.getSouthWest(), targetZoom);
   const nePoint = map.project(bounds.getNorthEast(), targetZoom);
   const center = map.unproject(swPoint.add(nePoint).divideBy(2).add(paddingOffset), targetZoom);
   map.flyTo(center, targetZoom, { duration: 0.75 });
 }
 
-function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords }) {
+function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad }) {
   const map = useMap();
   const fittedRef = useRef(false);
   const fittedWithRouteRef = useRef(false);
+  // The floating today card is measured after the first fit, which changes the
+  // TOP inner padding — refit once when that happens, otherwise the markers
+  // would keep their pre-card balance for the whole session.
+  const fittedPadRef = useRef(null);
 
   useEffect(() => {
     // Must have patient location
@@ -252,21 +253,26 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
     if (showDriver && driverLatLng) {
       // Already fitted this view — refit only once, when the route path first
       // becomes available (it loads after the driver ping in some cases).
-      if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current)) return;
+      const padKey = String(mapPad?.top ?? '');
+      if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current) && fittedPadRef.current === padKey) return;
       fittedRef.current = true;
+      fittedPadRef.current = padKey;
       if (hasRoute) fittedWithRouteRef.current = true;
       const points = [driverLatLng, patientLatLng, ...routePoints];
-      portalFit(map, points);
+      portalFit(map, points, mapPad);
     } else if (storeLatLng) {
       // Normal case: fit store + patient (wait until store is loaded)
-      if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current)) return;
+      const padKey = String(mapPad?.top ?? '');
+      if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current) && fittedPadRef.current === padKey) return;
       fittedRef.current = true;
+      fittedPadRef.current = padKey;
       if (hasRoute) fittedWithRouteRef.current = true;
       const points = [storeLatLng, patientLatLng, ...routePoints];
-      portalFit(map, points);
+      portalFit(map, points, mapPad);
     }
     // If neither condition met yet, effect will re-run when deps change
   }, [
+    mapPad?.top,
     patientLatLng ? patientLatLng.join(',') : null,
     storeLatLng ? storeLatLng.join(',') : null,
     driverLatLng ? driverLatLng.join(',') : null,
@@ -284,7 +290,7 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
 // auto-fit from pausing itself (fitBounds fires the same zoomstart/drag-adjacent
 // events a user gesture does — without the flag the tracker would disable
 // itself on every driver tick, which is exactly why tracking never stuck).
-function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, trackingMode, onDoubleTap, onUserInteract, routeCoords }) {
+function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, trackingMode, onDoubleTap, onUserInteract, routeCoords, mapPad }) {
   const map = useMap();
   const programmaticRef = useRef(false);
 
@@ -312,7 +318,7 @@ function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, tracking
     // crop off-screen instead of shrinking everything); maxZoom stops a
     // degenerate tight fit from pinching all the way in. Small buffer — the
     // markers should sit close to the map edges, not centered with big gaps.
-    portalFit(map, positions);
+    portalFit(map, positions, mapPad);
     const clearProgrammatic = () => { programmaticRef.current = false; };
     map.once('moveend', clearProgrammatic);
     map.once('zoomend', clearProgrammatic);
@@ -327,7 +333,7 @@ function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, tracking
     };
     // routeCoords identity changes only when the visible legs change (new stop
     // accepted, completion, regen) — refit then so the frame tracks the route.
-  }, [anchor?.[0], anchor?.[1], trackingMode, routeCoords]);
+  }, [anchor?.[0], anchor?.[1], trackingMode, routeCoords, mapPad?.top, mapPad?.bottom]);
 
   // Double-tap resumes tracking immediately; USER zoom/drag starts the 10s
   // pause. Programmatic fits are flagged and ignored.
@@ -408,6 +414,14 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Height of the collapsed floating today card. The map area reserves this as
   // TOP PADDING so the card never covers the map (owner request Nov 2 2026).
   const [floatCardHeight, setFloatCardHeight] = useState(0);
+  // Inner fit paddings handed to every auto-fit call: top clears the floating
+  // today card, bottom clears the tracking badge that now lives down there.
+  const mapPad = useMemo(() => ({
+    left: 50,
+    right: 50,
+    bottom: 75,
+    top: floatCardHeight ? floatCardHeight + 12 : 75,
+  }), [floatCardHeight]);
   const [driverLocation, setDriverLocation] = useState(null);
 
   // ── Dark mode map tiles (owner Oct 23 2026): follow the app's theme ────────
@@ -449,10 +463,11 @@ export default function PatientPortal({ embedded = false } = {}) {
     return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   }, [hereApiKey, isDarkTheme]);
   // OWNER FIX (Oct 23 2026): the regular route line colors (green-600 /
-  // blue-600) sink into the dark night tiles — brighten both lines for dark
-  // mode (green-400 / blue-400) so the route stays readable.
+  // mode) sink into the dark night tiles, so the line brightens for dark mode.
+  // OWNER SPEC Nov 2 2026: the whole path is always GREEN — the blue current-leg
+  // colour is gone; the active leg is still drawn heavier so it reads as current.
   const routeLegColor = isDarkTheme ? '#4ade80' : '#16a34a';
-  const currentLegColor = isDarkTheme ? '#60a5fa' : '#2563EB';
+  const currentLegColor = routeLegColor;
   const [loading, setLoading]               = useState(true);
   const [liveConnected, setLiveConnected]   = useState(false);
   const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
@@ -1012,11 +1027,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         {/* Map */}
         <div
           className="flex-1 px-4 pt-3 overflow-hidden relative"
-          style={{
-            paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))',
-            // Reserve the floating today card's collapsed height above the map.
-            paddingTop: floatCardHeight ? `${floatCardHeight + 12}px` : undefined,
-          }}
+          style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
               Only while the sidebar is hidden (phones, or the drawer closed), and
@@ -1024,7 +1035,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               TODAY only, so tomorrow this card simply stops rendering and the
               delivery lives in the sidebar history. */}
           {todayDelivery && todayDelivery.delivery_date === liveDay && !sidebarOpen && (
-            <div className="absolute top-0 left-4 z-[900] md:hidden">
+            <div className="absolute top-2 left-2 z-[900] md:hidden">
               <PatientTodayFloatingCard
                 delivery={todayDelivery}
                 pickupStops={pickupStops}
@@ -1059,7 +1070,6 @@ export default function PatientPortal({ embedded = false } = {}) {
               // pinch/scroll no longer jumps whole levels either.
               zoomSnap={0}
             >
-              <MapInvalidateOnPad pad={floatCardHeight} />
               <TileLayer
                 key={tileUrl}
                 url={tileUrl}
@@ -1076,6 +1086,7 @@ export default function PatientPortal({ embedded = false } = {}) {
                 driverLatLng={driverLocation ? [driverLocation.lat, driverLocation.lng] : null}
                 showDriver={showLiveTracking && !!driverLocation}
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
+                mapPad={mapPad}
               />
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
@@ -1085,6 +1096,7 @@ export default function PatientPortal({ embedded = false } = {}) {
                 onDoubleTap={handleDoubleTap}
                 onUserInteract={handleUserInteract}
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
+                mapPad={mapPad}
               />
 
               {/* Remaining legs (between the driver and the patient) — solid green, always visible */}
