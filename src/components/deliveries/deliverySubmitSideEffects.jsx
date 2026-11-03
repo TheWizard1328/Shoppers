@@ -152,20 +152,12 @@ export async function runDeliverySubmitSideEffects({
     const newDate = formData.delivery_date;
     if (newDriverId && newDate && (newDriverId !== oldDriverId || newDate !== oldDate)) {
       if (transferOptimized) {
-        (async () => {
-          try {
-            const { optimizeTransferredStopRoute } = await import('@/components/utils/optimizeTransferredStopRoute');
-            await optimizeTransferredStopRoute({
-              deliveryId: delivery.id,
-              driverId: newDriverId,
-              deliveryDate: newDate,
-              recalcTrackingNumbers: true,
-              source: 'driver_changed_new',
-            });
-          } catch (err) {
-            console.warn('⚠️ [DeliveryForm] Transfer re-optimization failed:', err?.message || err);
-          }
-        })();
+        // TRANSFER PATH owns the new-route run (owner report Nov 3 2026): the
+        // placement flow calls optimizeTransferredStopRoute, which optimizes from
+        // LOCAL IDB route data with stores + patients (so TR# bases resolve),
+        // forces a full pass and verifies the stop came back sequenced. Firing the
+        // timer-based run here as well would only double the HERE calls.
+        console.log('[DeliveryForm] transfer — new-route optimization handed to optimizeTransferredStopRoute');
       } else {
         setTimeout(async () => {
           try {

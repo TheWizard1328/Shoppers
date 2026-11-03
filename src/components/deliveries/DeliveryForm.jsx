@@ -1302,6 +1302,7 @@ export default function DeliveryForm({
       // patient's store pickup when the DATE changes (created first if that day
       // has no pickups yet), the old window's end time is cleared, and the
       // transfer note is appended. Same-date driver moves keep their PUID.
+      let transferTarget = null;
       if (delivery?.id && delivery?.patient_id && (driverChanged || dateChanged)
         && !TERMINAL.includes(formData.status) && !delivery.is_cycling_marker
         && !String(delivery.id).toUpperCase().startsWith('ISP-')
@@ -1338,6 +1339,13 @@ export default function DeliveryForm({
           // TR#). Stashed here; the side effects kick it off AFTER the write lands,
           // because the optimizer reads the route from the server.
           transferOptimizationRef.current = { placed: !!placement };
+          if (placement) {
+            transferTarget = {
+              deliveryId: delivery.id,
+              driverId: dataToSave.driver_id || formData.driver_id,
+              deliveryDate: dataToSave.delivery_date || formData.delivery_date,
+            };
+          }
         } catch (err) {
           console.warn('[DeliveryForm] transfer placement failed:', err?.message || err);
         }
@@ -1396,6 +1404,26 @@ export default function DeliveryForm({
         await onSave({ ...dataToSave, puid: resolvedPuid, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
       await runDeliverySubmitSideEffects({ delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged, isCurrentUserDriver: userHasRole(currentUser, 'driver'), statusChangedToCompletion, actualDeliveryTimeChanged, timeWindowChanged, travelModeChanged, t: dataToSave.actual_delivery_time, allDeliveries, isPickupMode, updateDeliveryLocal, dateChanged, transferOptimized: Boolean(transferOptimizationRef.current?.placed), skipRouteOptimization: Boolean(delivery?.isNextDelivery && ['completed', 'failed', 'cancelled'].includes(formData.status)) });
+
+      // OWNER FIX Nov 3 2026: place the transferred stop on its new route NOW, from
+      // local data, and renumber TR# with it. Runs after the write so IDB already
+      // holds the new date/driver; fire-and-forget so the form closes instantly.
+      if (transferTarget) {
+        (async () => {
+          try {
+            const { optimizeTransferredStopRoute } = await import('../utils/optimizeTransferredStopRoute');
+            await optimizeTransferredStopRoute({
+              ...transferTarget,
+              stores,
+              patients,
+              recalcTrackingNumbers: true,
+              source: 'transfer_new_route',
+            });
+          } catch (err) {
+            console.warn('⚠️ [DeliveryForm] Transfer re-optimization failed:', err?.message || err);
+          }
+        })();
+      }
       transferOptimizationRef.current = null;
       return true;
     } catch (error) { setError(error.message); return false; }
