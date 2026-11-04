@@ -235,7 +235,7 @@ const enforceWindowBands = (stops, nowMin) => {
   return keyed.sort((a, b) => a.b - b.b || a.i - b.i).map((x) => x.st);
 };
 
-async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode, deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows, windowSway = 30, driverId = null, userName = null }) {
+async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode, deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows, windowSway = 0, driverId = null, userName = null }) {
   const params = new URLSearchParams();
   params.set('apiKey', hereApiKey);
   params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
@@ -330,6 +330,13 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
         if (Number.isFinite(openMin)) openMin = Math.max(0, openMin - WINDOW_SWAY_MINUTES);
         let closeMin = parseTimeToMinutes(stop.windowEnd);
         if (Number.isFinite(closeMin)) closeMin = Math.min(23 * 60 + 59, closeMin + WINDOW_SWAY_MINUTES);
+        // OWNER REPORT (Nov 4 2026): a store pickup is a "not before" collection
+        // appointment, never a deadline. Handing HERE a close side for a pickup
+        // makes Beverly (14:00-15:30) and Londonderry (16:00-17:00) overlap once
+        // sway is applied, and HERE then picks freely — Londonderry first. Gate
+        // the START only: Beverly must open at 14:00, Londonderry at 16:00, and
+        // the ascending order is forced while geography stays free.
+        if (isPickupStop) closeMin = null;
         const accessConstraint = buildAccessConstraint(
           deliveryDate,
           Number.isFinite(openMin) ? formatMinutesToTime(openMin) : null,
@@ -810,7 +817,7 @@ let _inheritedWindowCount = 0;
     let result = null;
     let waypoints = [];
     let interconnections = [];
-    for (const _sway of [30, 60, 90]) {
+    for (const _sway of [0, 30, 60]) {
       attempt = await callHereSequence({
         sequenceStart, stopsToSequence: seqStops,
         resolvedHomePosition: destination || (withHome ? resolvedHomePosition : null),

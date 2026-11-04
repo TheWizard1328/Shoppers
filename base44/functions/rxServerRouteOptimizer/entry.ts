@@ -217,7 +217,7 @@ const enforceWindowBands = (stops: any[], nowMin: number) => {
   return keyed.sort((a, b) => a.b - b.b || a.i - b.i).map((x) => x.st);
 };
 
-async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs = null, routeIsToday = false, windowSway = 30 }) {
+async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs = null, routeIsToday = false, windowSway = 0 }) {
   const params = new URLSearchParams();
   params.set('apiKey', apiKey);
   params.set('departure', buildLocalIso(deliveryDate, formatMinutesToTime(currentMinutes)));
@@ -296,6 +296,10 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
         }
         if (Number.isFinite(openMin)) openMin = Math.max(0, openMin - WINDOW_SWAY_MINUTES);
         if (Number.isFinite(closeMin)) closeMin = Math.min(23 * 60 + 59, closeMin + WINDOW_SWAY_MINUTES);
+        // PARITY: pickups gate on their START only (see clientRouteEngine) — a
+        // close side on a pickup made Beverly/Londonderry overlap and let HERE
+        // pick Londonderry first.
+        if (stop.isPickup === true) closeMin = null;
         const acc = buildAccessConstraint(
           deliveryDate,
           Number.isFinite(openMin) ? formatMinutesToTime(openMin) : null,
