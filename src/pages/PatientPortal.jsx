@@ -1651,6 +1651,7 @@ export default function PatientPortal({ embedded = false } = {}) {
 
       <PatientMessaging
         patient={patient}
+        stores={stores}
         open={messagingOpen}
         onClose={() => setMessagingOpen(false)}
         onUnreadChange={setUnreadMessages} />

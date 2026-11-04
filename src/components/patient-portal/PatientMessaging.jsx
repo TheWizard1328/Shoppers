@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { X, Send, Loader2, MessageSquare, ArrowLeft, Store, Car, RefreshCw } from 'lucide-react';
+import { X, Send, Loader2, MessageSquare, ArrowLeft, Store, Car, RefreshCw, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import DriverDutyBadge, { normalizeDriverDuty } from '@/components/messaging/DriverDutyBadge';
@@ -32,8 +32,14 @@ export async function loadPatientUnreadCount(patientId) {
   }
 }
 
-export default function PatientMessaging({ patient, open, onClose, onUnreadChange }) {
+export default function PatientMessaging({ patient, open, onClose, onUnreadChange, stores = [] }) {
   const patientId = patient?.id;
+  // SEARCH (owner request Nov 3 2026): the list grows with every driver who has
+  // ever delivered, so both fields filter the list live — one for drivers (by
+  // name, and by duty word like "on duty") and one for the pharmacy/store by
+  // name or abbreviation.
+  const [driverQuery, setDriverQuery] = useState('');
+  const [storeQuery, setStoreQuery] = useState('');
   const [messages, setMessages] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [active, setActive] = useState(null); // { kind: 'store' } | { kind: 'driver', driver }
@@ -189,6 +195,27 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
 
   if (!open) return null;
 
+  // Pharmacy label: the portal hands us the stores this patient's deliveries
+  // belong to, so the row names the real pharmacy instead of a generic title.
+  const patientStore = (stores || []).find((st) => String(st?.id) === String(patient?.store_id));
+  const storeName = patientStore?.name || patientStore?.store_name || '';
+  const storeAbbrev = String(patientStore?.abbreviation || patientStore?.store_abbreviation || '').toUpperCase();
+  const storeHaystack = `${storeName} ${storeAbbrev} pharmacy team store`.toLowerCase();
+  const storeMatches = !storeQuery.trim() || storeHaystack.includes(storeQuery.trim().toLowerCase());
+
+  const driverNeedle = driverQuery.trim().toLowerCase();
+  const visibleDrivers = driverNeedle
+    ? drivers.filter((d) => {
+        const hay = `${d.driver_name || ''} ${d.duty_status || ''} ${d.is_current ? 'today' : ''}`.toLowerCase();
+        return hay.includes(driverNeedle) || hay.replace(/_/g, ' ').includes(driverNeedle);
+      })
+    : drivers;
+  // Active drivers first, so a search surfaces whoever is actually out now.
+  const sortedDrivers = [...visibleDrivers].sort((a, b) => {
+    const rank = (d) => (d?.is_current ? 0 : (d?.duty_status === 'on_duty' ? 1 : (d?.duty_status === 'on_break' ? 2 : 3)));
+    return rank(a) - rank(b);
+  });
+
   const renderBubble = (m) => {
     const mine = m.sender_id === patientSender(patientId);
     const ts = parseEntityTimestamp?.(m.created_date) || m.created_date;
@@ -264,11 +291,51 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
         {/* Body */}
         {!active ? (
           <div className="flex-1 overflow-y-auto">
+            {/* SEARCH FIELDS (owner request Nov 3 2026) */}
+            <div className="px-3 pt-3 pb-2 space-y-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-10">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={driverQuery}
+                  onChange={(e) => setDriverQuery(e.target.value)}
+                  placeholder="Search drivers"
+                  className="w-full h-9 pl-8 pr-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500"
+                />
+                {driverQuery && (
+                  <button
+                    onClick={() => setDriverQuery('')}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    aria-label="Clear driver search"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={storeQuery}
+                  onChange={(e) => setStoreQuery(e.target.value)}
+                  placeholder="Search pharmacy"
+                  className="w-full h-9 pl-8 pr-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500"
+                />
+                {storeQuery && (
+                  <button
+                    onClick={() => setStoreQuery('')}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    aria-label="Clear pharmacy search"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
             {loading ? (
               <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
             ) : (
               <>
                 {/* Pharmacy team thread — shared by all dispatchers of the store */}
+                {storeMatches && (
                 <button
                   onClick={openStoreThread}
                   className="w-full text-left px-3 py-3 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -277,7 +344,9 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
                     <Store className="w-4 h-4 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Pharmacy team</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                      {storeName || 'Pharmacy team'}
+                    </p>
                     <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
                       {stats.get('store')?.lastText || 'All dispatchers at your store'}
                     </p>
@@ -288,14 +357,17 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
                     </span>
                   )}
                 </button>
+                )}
 
                 {/* Driver threads */}
-                {drivers.length === 0 ? (
+                {sortedDrivers.length === 0 ? (
                   <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500">
-                    Drivers appear here once you have a delivery with them.
+                    {driverQuery.trim()
+                      ? 'No drivers match that search.'
+                      : 'Drivers appear here once you have a delivery with them.'}
                   </p>
                 ) : (
-                  drivers.map((driver) => {
+                  sortedDrivers.map((driver) => {
                     const key = `driver:${driver.driver_id}`;
                     const s = stats.get(key);
                     return (
