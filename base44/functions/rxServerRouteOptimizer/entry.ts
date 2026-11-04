@@ -219,6 +219,24 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
   } else if (home && Number.isFinite(home.lat) && Number.isFinite(home.lng)) {
     params.set('end', `driverHome;${home.lat},${home.lng}`);
   }
+  // ── EXPIRED WINDOW LADDER (owner report Nov 4 2026) ────────────────────
+  // "It seems to be failing in such a way that it is not optimizing with time
+  // windows, for example Robert's route: Beverly and Londonderry are in the
+  // wrong order." Cause: retrying yesterday's failed stops runs them on today's
+  // route with windows that are already over, so every start collapsed to "now"
+  // and every end was dropped — the pharmacy's intended order (Beverly before
+  // Londonderry) evaporated and HERE sequenced by pure road distance.
+  // Fix: shift the whole expired group forward by ONE offset so the RELATIVE
+  // ladder survives. The earliest expired window opens now; later ones keep
+  // their original spacing. Real constraints (windows still open) are untouched.
+  const _expiredStarts = routeIsToday
+    ? stops
+        .filter((s) => s.isPickup !== true)
+        .map((s) => parseTimeToMinutes(s.windowStart))
+        .filter((m) => Number.isFinite(m) && m < currentMinutes)
+    : [];
+  const _expiredShift = _expiredStarts.length > 0 ? currentMinutes - Math.min(..._expiredStarts) : 0;
+
   stops.forEach((stop, index) => {
     const segments = [`${stop.stopId || stop.id};${stop.lat},${stop.lng}`];
     if (includeTimeWindows) {
@@ -240,7 +258,12 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
         // infeasible, which is how a server run and a client run ended up
         // producing two different orders. Future dates keep their real windows.
         if (routeIsToday) {
-          if (Number.isFinite(openMin) && openMin < currentMinutes) openMin = currentMinutes;
+          if (Number.isFinite(openMin) && openMin < currentMinutes) {
+            // Time-wravel the expired window onto today instead of flattening
+            // it to "now": the ladder between stops is the actual instruction.
+            openMin = _expiredShift > 0 ? openMin + _expiredShift : currentMinutes;
+            if (Number.isFinite(closeMin) && _expiredShift > 0) closeMin = closeMin + _expiredShift;
+          }
           if (Number.isFinite(closeMin) && closeMin <= currentMinutes) closeMin = null;
         }
         if (Number.isFinite(openMin)) openMin = Math.max(0, openMin - WINDOW_SWAY_MINUTES);
@@ -504,7 +527,15 @@ Deno.serve(async (req) => {
     const _endMarker = _cyclingMarkers.find((s) => String(s.deliveryNotes || '').toLowerCase().includes('end')) || null;
     const _hasCyclingStops = routeStops.some((s) => !s.isCyclingMarker &&
       String(s.transportMode || '').toLowerCase() === 'cycling');
-    if ((_cyclingMarkers.length > 0 || _hasCyclingStops) && !_endMarker) {
+    // OWNER REPORT (Nov 4 2026): "server optimizer has failed a few times today
+    // and they were always when retrying failed deliveries from yesterday."
+    // Retried stops can still carry transport_mode 'cycling' from the day they
+    // were created while today's route is a plain driving route with no cycling
+    // markers at all. That is stale flag data, not a cycling shape, so it must
+    // NOT trip the Sep 8 rule — only a route that actually has cycling markers
+    // but is missing its END marker is unsupported.
+    const _staleCyclingFlag = _cyclingMarkers.length === 0 && _hasCyclingStops;
+    if ((_cyclingMarkers.length > 0 || _hasCyclingStops) && !_endMarker && !_staleCyclingFlag) {
       return Response.json({ success: true, supported: false, reason: 'cycling_route_without_end_marker' });
     }
     const mixedMode = !!_endMarker;

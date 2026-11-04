@@ -240,6 +240,16 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
     params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
   }
 
+  // ONE shift offset for the expired-window ladder (see the clamp below).
+  const _expiredShift = (() => {
+    if (!Number.isFinite(currentMinutes)) return 0;
+    const expired = stopsToSequence
+      .filter((st) => !(st.isPickup === true || st.delivery?.is_pickup === true))
+      .map((st) => parseTimeToMinutes(st.windowStart))
+      .filter((m) => Number.isFinite(m) && m < currentMinutes);
+    return expired.length > 0 ? currentMinutes - Math.min(...expired) : 0;
+  })();
+
   stopsToSequence.forEach((stop, index) => {
     const segments = [`${stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id};${stop.lat},${stop.lng}`];
     if (includeTimeWindows) {
@@ -267,7 +277,15 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
       if (!isPickupStop) {
         const nowMin = Number.isFinite(currentMinutes) ? currentMinutes : parseTimeToMinutes(currentLocalTime || '');
         let openMin = parseTimeToMinutes(stop.windowStart);
-        if (Number.isFinite(openMin) && Number.isFinite(nowMin) && openMin < nowMin) openMin = nowMin;
+        // EXPIRED WINDOW LADDER (owner report Nov 4 2026, PARITY with
+        // rxServerRouteOptimizer): retrying yesterday's failed stops runs
+        // already-expired windows on today's route. Collapsing each one to
+        // "now" erased the pharmacy's intended order (Beverly before
+        // Londonderry) and HERE sequenced by distance. Shift the expired group
+        // forward by ONE offset so the relative ladder survives.
+        if (Number.isFinite(openMin) && Number.isFinite(nowMin) && openMin < nowMin) {
+          openMin = _expiredShift > 0 ? openMin + _expiredShift : nowMin;
+        }
         if (Number.isFinite(openMin)) openMin = Math.max(0, openMin - WINDOW_SWAY_MINUTES);
         let closeMin = parseTimeToMinutes(stop.windowEnd);
         if (Number.isFinite(closeMin)) closeMin = Math.min(23 * 60 + 59, closeMin + WINDOW_SWAY_MINUTES);
