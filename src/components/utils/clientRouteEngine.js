@@ -587,9 +587,28 @@ let _inheritedWindowCount = 0;
     // handles stale anchors.
     if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
       const _ownStartMin = parseTimeToMinutes(windowStart);
-      if (!Number.isFinite(_ownStartMin)) {
-        // SHARED RULE (routeRules.js inheritedPickupWindowStart): windowless
-        // patient delivery inherits pickup window start + 5.
+      // ── STALE ENTRY-TIME WINDOW (owner report Nov 4 2026) ────────────────
+      // "Jeans delivery was put in on an earlier date for today and it somehow
+      // inherited the time of the previous date when her delivery was entered
+      // as its delivery start time instead of the pickup store's start time
+      // plus 5 minutes."
+      // A delivery booked days ahead keeps whatever "now" was at booking time
+      // (Jean Bugnet: entered Oct 31, stamped 19:28, gated to the very end of
+      // today's route). The ONLY authority for a delivery's start is the
+      // patient's own time window; without one the start is the pickup's
+      // window START + 5 min, whatever the record happens to hold.
+      const _patientWindowMin = parseTimeToMinutes(patient?.time_window_start);
+      const _hasPatientWindow = Number.isFinite(_patientWindowMin) && _patientWindowMin > 0;
+      if (!_hasPatientWindow) {
+        const pickupWindow = pickupWindowByStopId.get(delivery.puid);
+        const _inherited = sharedInheritedPickupWindowStart(pickupWindow?.start || pickupWindow?.end);
+        if (_inherited) {
+          if (_inherited !== windowStart) _inheritedWindowCount++;
+          windowStart = _inherited;
+        }
+      } else if (!Number.isFinite(_ownStartMin)) {
+        // Patient has a window but the delivery carries none: use the pickup
+        // slot's start + 5 as the anchor, same as before.
         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
         const _inherited = sharedInheritedPickupWindowStart(pickupWindow?.start || pickupWindow?.end);
         if (_inherited) {
