@@ -243,19 +243,17 @@ export async function sendStaffMessageToDriverThread({ user, patient, driverId, 
 export async function sendPatientMessageToDriver({ patientId, driverId, content }) {
   const text = String(content || '').trim();
   if (!patientId || !driverId || !text) return null;
-  try {
-    const res = await base44.functions.invoke('patientThreadMsg', {
-      action: 'send', patient_id: patientId, driver_id: driverId, content: text,
-    });
-    const created = res?.data?.message || res?.message || null;
-    if (created?.id) return created;
-  } catch { /* fall through */ }
-  const res = await base44.functions.invoke('patientPush', {
-    action: 'patientSend', patient_id: patientId, content: text, driver_id: driverId,
-  });
-  const created = res?.data?.message || res?.message || null;
-  if (!created?.id) throw new Error(res?.data?.error || 'send_failed');
-  return created;
+  // patientThreadMsg is the ONLY writer for a driver thread. The old
+  // patientPush fallback resolved the driver by AppUser.id, missed every time,
+  // and dropped the patient's message into the pharmacy thread instead — so a
+  // refusal is now surfaced to the patient rather than silently misrouted.
+  const res = await base44.functions.invoke('patientThreadMsg', {
+    action: 'send', patient_id: patientId, driver_id: driverId, content: text,
+  }).catch((err) => ({ data: { error: err?.message || 'send_failed' } }));
+  const data = res?.data || res || {};
+  const created = data.message || res?.message || null;
+  if (created?.id) return created;
+  throw new Error(data.error || 'send_failed');
 }
 
 /** Read receipt for one driver thread. */

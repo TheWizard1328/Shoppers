@@ -504,10 +504,12 @@ Deno.serve(async (req) => {
         .catch(() => []);
       const userByDriverId = await loadAppUsersByDriverId(base44);
       const targetUser = userByDriverId.get(String(driver_id)) || null;
-      const targetStatus = String(targetUser?.driver_status || '');
-      const targetIsWorking = targetStatus === 'on_duty' || targetStatus === 'on_break';
-      if ((!prior || prior.length === 0) && !targetIsWorking) {
-        return Response.json({ ok: false, error: 'That driver is not on duty' }, { status: 403 });
+      const targetRoles = Array.isArray(targetUser?.app_roles) ? targetUser.app_roles : [];
+      const targetIsRealDriver = !!targetUser
+        && userIsActiveStaff(targetUser)
+        && (targetRoles.includes('driver') || (prior || []).length > 0);
+      if (!targetIsRealDriver) {
+        return Response.json({ ok: false, error: 'That driver is not available to message' }, { status: 403 });
       }
       const driverName = await resolveDriverName(base44, driver_id, prior || []);
 

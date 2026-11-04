@@ -228,8 +228,16 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
       if (!created?.id) throw new Error('send_failed');
       setInput('');
       setMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [...prev, created]));
-    } catch {
-      setError('Message not sent. Please try again.');
+    } catch (err) {
+      // Show the real reason (driver unavailable, store missing) — a blanket
+      // "try again" hid a permission failure and looked like a network blip.
+      const raw = String(err?.message || '');
+      const friendly = /not available to message/i.test(raw)
+        ? 'That driver cannot be messaged right now.'
+        : (/send_failed|Failed to fetch|network/i.test(raw) || !raw
+          ? 'Message not sent. Please try again.'
+          : raw);
+      setError(friendly);
     } finally {
       setSending(false);
     }
