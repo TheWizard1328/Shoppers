@@ -15,7 +15,6 @@ import {
   staffSeesAllStores,
 } from './patientThreads';
 import { searchPatientsIdb } from './patientSearchIdb';
-import DriverDutyBadge from './DriverDutyBadge';
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 
 /**
@@ -58,7 +57,6 @@ export default function PatientThreadsPanel({
   // patient↔driver thread are separate conversations. They used to be merged
   // into one list, so a message sent to a driver looked like it went to the
   // pharmacy team, and every staff reply was forced into the store thread.
-  const [threadSel, setThreadSel] = useState('store'); // 'store' | driverId
   const [driverDir, setDriverDir] = useState([]);
   const [storeRows, setStoreRows] = useState(stores || []);
   const unreadContributedRef = useRef(0);
@@ -202,7 +200,6 @@ export default function PatientThreadsPanel({
   const openThread = useCallback(async (patient) => {
     if (!patient?.id) return;
     setSelected(patient);
-    setThreadSel('store');
     const cached = threadCache.get(patient.id);
     if (cached && Date.now() - cached.at < 30000) {
       setThread(cached.rows);
@@ -265,7 +262,7 @@ export default function PatientThreadsPanel({
     if (!text || sending || !selected) return;
     setSending(true);
     try {
-      const pickedDriver = threadSel !== 'store' ? threadSel : null;
+      const pickedDriver = replyTargetDriver;
       const created = isDriverMode
         ? await sendDriverMessageToPatient({ user: currentUser, patient: selected, content: text, storeName })
         : pickedDriver
@@ -308,32 +305,30 @@ export default function PatientThreadsPanel({
     });
   }, [patients, searchResults, search, threadStats]);
 
-  // Staff thread picker: the pharmacy thread plus one entry per driver thread.
-  const staffThreads = useMemo(() => {
-    if (isDriverMode || !selected) return [];
-    const ids = new Set();
-    (thread || []).forEach((m) => { if (m?.driver_id) ids.add(String(m.driver_id)); });
-    (driverDir || []).forEach((d) => { if (d?.is_current && d?.driver_id) ids.add(String(d.driver_id)); });
-    return Array.from(ids).map((id) => {
-      const dir = (driverDir || []).find((d) => String(d.driver_id) === id);
-      const last = (thread || []).find((m) => String(m.driver_id) === id);
-      return {
-        id,
-        name: dir?.driver_name || last?.receiver_name || 'Driver',
-        duty: dir?.duty_status || 'off_duty',
-      };
-    });
-  }, [isDriverMode, selected, thread, driverDir]);
-
+  // ONE CONVERSATION PER PATIENT (owner request Nov 4 2026): the pharmacy-team /
+  // driver pill picker belongs to the PATIENT's own screen only. Staff see every
+  // message for the patient in one list; a reply goes back into the thread the
+  // patient used most recently (driver thread if that is where they wrote).
   const visibleThread = useMemo(() => {
-    if (isDriverMode) return thread || [];
-    if (threadSel === 'store') return (thread || []).filter((m) => !m.driver_id);
-    return (thread || []).filter((m) => String(m.driver_id) === String(threadSel));
-  }, [thread, threadSel, isDriverMode]);
+    const rows = [...(thread || [])];
+    rows.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+    return rows;
+  }, [thread]);
 
-  const activeThreadName = threadSel === 'store'
-    ? 'Pharmacy team'
-    : (staffThreads.find((t) => t.id === String(threadSel))?.name || 'Driver');
+  const replyTargetDriver = useMemo(() => {
+    const last = visibleThread[visibleThread.length - 1];
+    return last?.driver_id ? String(last.driver_id) : null;
+  }, [visibleThread]);
+
+  const labelForRow = useCallback((m) => {
+    if (!m?.driver_id) return 'pharmacy team';
+    return (driverDir || []).find((d) => String(d.driver_id) === String(m.driver_id))?.driver_name
+      || m.receiver_name
+      || m.sender_name
+      || 'driver';
+  }, [driverDir]);
+
+  const activeThreadName = selected?.phone || storeName;
 
   // DELETE (owner request Nov 4 2026): ONLY the AppOwner may remove a patient
   // message or a whole patient thread from the pharmacy side.
@@ -348,14 +343,14 @@ export default function PatientThreadsPanel({
   };
   const deleteVisibleThread = async () => {
     if (!canDelete || !selected || visibleThread.length === 0) return;
-    if (!window.confirm('Delete this entire thread for everyone? This cannot be undone.')) return;
+    if (!window.confirm("Delete this patient's whole conversation for everyone? This cannot be undone.")) return;
     try {
       let deleted = 0;
       for (const m of visibleThread) {
         try { await base44.entities.Message.delete(m.id); deleted += 1; } catch { /* keep going */ }
       }
       setMessages((prev) => prev.filter((x) => !visibleThread.some((v) => v.id === x.id)));
-      if (deleted > 0) setThreadSel('store');
+
     } catch { window.alert('Could not delete that thread.'); }
   };
 
@@ -372,49 +367,18 @@ export default function PatientThreadsPanel({
             <p className="text-sm font-semibold truncate text-slate-900 dark:text-slate-100">{selected.full_name}</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{activeThreadName}</p>
           </div>
-          {!isDriverMode && threadSel !== 'store' && (
-            <DriverDutyBadge
-              status={staffThreads.find((t) => t.id === String(threadSel))?.duty || 'off_duty'}
-              size="xs"
-            />
-          )}
+
           {canDelete && (
             <button
               onClick={deleteVisibleThread}
               className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40"
-              aria-label="Delete this thread"
-              title="Delete this whole thread"
+              aria-label="Delete this conversation"
+              title="Delete this whole conversation"
             >
               <Trash2 className="w-4 h-4 text-red-500" />
             </button>
           )}
         </div>
-
-        {/* THREAD PICKER — pharmacy thread and each driver thread are separate */}
-        {!isDriverMode && (
-          <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-            <button
-              onClick={() => setThreadSel('store')}
-              className={`h-7 px-2.5 rounded-full text-xs font-medium whitespace-nowrap border ${threadSel === 'store'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
-            >
-              Pharmacy team
-            </button>
-            {staffThreads.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setThreadSel(t.id)}
-                className={`h-7 px-2.5 rounded-full text-xs font-medium whitespace-nowrap border flex items-center gap-1.5 ${String(threadSel) === t.id
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
-              >
-                {t.name}
-                <DriverDutyBadge status={t.duty} size="xs" />
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-slate-50 dark:bg-slate-950/40">
           {threadLoading ? (
@@ -445,6 +409,11 @@ export default function PatientThreadsPanel({
                       ? 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-bl-sm'
                       : 'bg-blue-600 text-white rounded-br-sm'
                   }`}>
+                    {/* With one merged conversation the destination still has
+                        to be obvious, so each outgoing row names its thread. */}
+                    {!fromPatient && !isDriverMode && (
+                      <p className="text-[10px] font-medium text-blue-100 mb-0.5">To {labelForRow(m)}</p>
+                    )}
                     <p className="whitespace-pre-wrap break-words">{m.content}</p>
                     <p className={`mt-1 text-[10px] ${fromPatient ? 'text-slate-400 dark:text-slate-500' : 'text-blue-100'}`}>
                       {ts ? format(new Date(ts), 'MMM d, h:mm a') : ''}
