@@ -91,7 +91,18 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed top-0 right-0 h-full z-[9991] flex flex-col shadow-2xl bg-surface" style={{ width: 'min(400px, 100vw)', borderLeft: '1px solid var(--border-slate-200)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          className="fixed top-0 right-0 h-full z-[9991] flex flex-col shadow-2xl bg-surface" style={{
+            width: 'min(400px, 100vw)',
+            borderLeft: '1px solid var(--border-slate-200)',
+            // OWNER REPORT Nov 4 2026 (APK): the slide-out had a wasted buffer at
+            // the TOP and was clipped behind the phone's navigation buttons at the
+            // BOTTOM. The top inset is therefore dropped and the same height is
+            // given to the bottom, so the last row clears the nav bar. max() keeps
+            // whichever value is real on this device (the WebView sometimes reports
+            // only one of them) and changes nothing on web/desktop where all are 0.
+            paddingTop: 0,
+            paddingBottom: 'calc(max(env(safe-area-inset-top, 0px), env(safe-area-inset-bottom, 0px), var(--native-safe-top, 0px)))',
+          }}>
           
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
