@@ -969,7 +969,17 @@ export function useStopCardStartActions({
               // HERE findsequence2 entirely and only regenerate the legs
               // (ONE Google Directions call) + ETA ladder. Out-of-order starts
               // still get full HERE re-sequencing (the anchor moved).
-              preserveExistingOrder: _isNaturalNextStart,
+              // OWNER REPORT Nov 4 2026: "when the start button is clicked there
+              // is a route optimization happening but all its optimizing is the
+              // started stop being moved the first place everything else stays in
+              // its current order... it should be running a full optimization and
+              // polyline generation." The natural-next shortcut (preserve the
+              // existing order, legs + ETAs only) is retired: a Start always runs
+              // the full HERE re-sequence and regenerates every leg. isNextDelivery
+              // can already be true on a stop that is NOT first in stop_order, so
+              // the old test both skipped sequencing and left the started card
+              // parked at the front with the rest untouched.
+              preserveExistingOrder: false,
               // OWNER DIRECTIVE (Oct 27 2026): Start ALWAYS regenerates every
               // active leg — origin = most recently finished stop, live-GPS
               // via + the transferred deviation chain. The order-unchanged
