@@ -94,7 +94,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
       {/* Base card — always visible, keeps its layout space */}
       <button
         onClick={() => setExpanded((v) => !v)}
-        className={`w-full text-left border transition-all duration-150 px-3 py-3 rounded-[9px] ${
+        className={`w-full text-left border transition-all duration-150 rounded-[9px] pt-3 pr-3 pl-3 pb-1 ${
         transferred ?
         expanded
         // TRANSFERRED (owner request Nov 3 2026): the card itself carries
@@ -115,9 +115,9 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               {dateStr}
             </p>
             {/* Slot rendered immediately UNDER the date (owner request Nov 3
-                           2026: the App-Owner "Exit Patient View" control belongs on the
-                           floating today card here, in the space under the date). It uses
-                           a span so it stays legal inside the card's toggle button. */}
+                            2026: the App-Owner "Exit Patient View" control belongs on the
+                            floating today card here, in the space under the date). It uses
+                            a span so it stays legal inside the card's toggle button. */}
             {belowDateSlot}
             {hasCod &&
             <p className={`text-xs mt-0.5 font-semibold ${expanded ? 'text-green-400' : 'text-green-600'}`}>
@@ -128,11 +128,11 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
           <div className="flex flex-col items-center flex-shrink-0">
             <div className="flex items-center gap-1">
               {/* Invisible chevron spacer (owner fix Nov 3 2026): the visible
-                             chevron used to push the status badge off-centre, so the ETA /
-                             delivered time, and the new stops-left line, sat under the
-                             badge+chevron pair instead of under the badge itself. A
-                             matching invisible chevron on the left keeps the badge dead
-                             centre and the lines below it perfectly aligned. */}
+                              chevron used to push the status badge off-centre, so the ETA /
+                              delivered time, and the new stops-left line, sat under the
+                              badge+chevron pair instead of under the badge itself. A
+                              matching invisible chevron on the left keeps the badge dead
+                              centre and the lines below it perfectly aligned. */}
               <ChevronDown className="w-3.5 h-3.5 opacity-0" aria-hidden="true" />
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
               expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`}`
@@ -155,10 +155,10 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
               </p>)
             }
             {/* REMAINING STOPS (owner requests Nov 3 2026): directly under the
-                           Pending / In Transit badge, CENTRE-aligned with it. This is the
-                           count of stops still PRIOR to the patient's own stop (their own
-                           delivery never counts), matching the red badge on their home
-                           marker. 0 of them reads "You're next". */}
+                            Pending / In Transit badge, CENTRE-aligned with it. This is the
+                            count of stops still PRIOR to the patient's own stop (their own
+                            delivery never counts), matching the red badge on their home
+                            marker. 0 of them reads "You're next". */}
             {['pending', 'en_route', 'in_transit'].includes(delivery.status) && (stopsBetween != null || remainingStops != null) &&
             (() => {
               // PER-CARD COUNT (owner rule Nov 3 2026): the pill shows how many
