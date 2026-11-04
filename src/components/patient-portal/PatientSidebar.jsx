@@ -123,36 +123,40 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
           className="p-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0"
           style={{ paddingBottom: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
         >
-          {/* Sign Out + version on ONE row (owner request Nov 3 2026): the
-              patient portal version sits far right, level with the button, so a
-              patient can read out which build they are on when reporting an
-              issue — same number staff see in their sidebar. */}
+          {/* Sign Out + Exit, EVENLY SPACED (owner request Nov 3 2026): the row
+              used to be a wide Sign Out, a small Exit pill and the version all
+              crammed together, which left the two actions looking unrelated and
+              the row unbalanced. The two buttons now share the width 50/50 with
+              matching height and text size, and the build number drops to its own
+              right-aligned line underneath, so it is still readable without
+              squeezing the buttons. */}
           <div className="flex items-center gap-2">
             <button
               onClick={handleLogout}
-              className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 hover:text-red-600 transition-colors"
+              className="flex-1 min-w-0 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-900 hover:text-red-600 transition-colors"
             >
               <LogOut className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">Sign Out</span>
             </button>
-            {/* EXIT PATIENT VIEW — between Sign Out and the version (owner
-                request Nov 3 2026: the old floating top-right button sat on top
-                of portal controls he didn't even know existed). */}
+            {/* EXIT PATIENT VIEW — app-owner only. Same footprint as Sign Out so
+                the pair reads as one control group. */}
             {canExitPreview && (
               <button
                 onClick={requestExitPatientView}
-                className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white shadow-sm transition-colors"
+                className="flex-1 min-w-0 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold text-white shadow-sm transition-colors"
                 style={{ background: '#1e40af' }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#1d4ed8'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#1e40af'; }}
                 title="Exit Patient View"
               >
-                <X className="w-3 h-3" />
-                Exit
+                <X className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">Exit</span>
               </button>
             )}
+          </div>
+          <div className="mt-1 text-right">
             <span
-              className="shrink-0 pr-1 text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500"
+              className="text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500"
               title="App version"
             >
               {formatAppVersion()}
