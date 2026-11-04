@@ -98,6 +98,14 @@ async function _performRouteOptimizationInner({
   clearNextDeliveryLock = false,
   skipServerWrite = false,
   awaitServerWrite = false,
+  // OWNER REPORT Nov 4 2026: "whenever I edit a delivery start time I see the
+  // KITT bar appear for a fraction of a second and then disappear and no
+  // optimization takes place." A start-time edit changes the window gates, so
+  // the route MUST be re-sequenced even if a pass committed seconds earlier.
+  // windowsChanged therefore (a) clears the fresh-order memo for this route and
+  // (b) overrides the 45-second recent-commit skip, which was swallowing these
+  // runs and returning success before the engine ever ran.
+  windowsChanged = false,
 }) {
   if (!driverId || !deliveryDate) {
     console.warn(`[RouteOptimization] ${source} — missing driverId or deliveryDate`);
@@ -109,6 +117,10 @@ async function _performRouteOptimizationInner({
   // "Active" = not in a terminal status (completed/failed/cancelled).
   // EXCEPTION: forceRegenerate=true bypasses this gate (e.g. ResetPolylinesButton on a completed route).
   const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
+  if (windowsChanged) {
+    _lastOrderByDriverDate.delete(`${driverId}:${deliveryDate}`);
+    console.log(`[RouteOptimization] ${source} — window edit: memo cleared, recent-commit skip bypassed, running a full re-sequence`);
+  }
   // ── Fresh-order skip (see _lastOrderByDriverDate above) ────────────────────
   // Second completion at a multi-delivery address: the remaining order is the
   // order the previous pass just committed, so sequencing cannot change it and
@@ -325,7 +337,7 @@ async function _performRouteOptimizationInner({
       const t = Date.parse(d?.route_commit_at || '');
       if (Number.isFinite(t) && t > _newestCommit) _newestCommit = t;
     }
-    if (_newestCommit > 0 && _now - _newestCommit < 45 * 1000) {
+    if (!windowsChanged && _newestCommit > 0 && _now - _newestCommit < 45 * 1000) {
       console.log(`[RouteOptimization] ${source} — route committed ${Math.round((_now - _newestCommit) / 1000)}s ago by another engine; skipping redundant (possibly stale) run`);
       // SPINNER LEAK FIX (owner report Oct 24 2026 "optimizer hung"): this skip
       // is the most common early return — back-to-back form saves within 45s of

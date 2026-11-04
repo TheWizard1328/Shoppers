@@ -76,6 +76,11 @@ export function requestDeferredOptimization(driverId, deliveryDate, needsOptimiz
         deliveryDate,
         source: 'edit_form_deferred',
         bypassDriverStatus: true,
+        // The form only reaches this point when the driver/dispatcher actually
+        // edited the route (times, windows, stops). Windows gate sequencing, so
+        // every deferred form run is treated as a window change: no 45s
+        // recent-commit skip, no fresh-order memo, always a real engine pass.
+        windowsChanged: true,
       });
     } catch (optErr) {
       console.warn('[optimizationDebouncer] deferred optimization failed:', optErr?.message || optErr);
