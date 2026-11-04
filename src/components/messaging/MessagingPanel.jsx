@@ -133,32 +133,38 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   }, [currentUser?.id, isBroadcastingUpdate, users]);
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
-      <div className="rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden bg-surface">
-        {/* Header */}
-        <div className="p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
-          <h2 className="text-lg font-semibold text-body">Messages</h2>
+    <div className="fixed inset-0 z-[9999] bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
+      <div className="rounded-xl shadow-2xl dark:shadow-black/50 w-full max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+        {/* Header — dark mode mirrors the patient portal panel (owner request
+            Nov 3 2026): slate card, slate-100/800 icon buttons, no washed-out
+            light-only surfaces. */}
+        <div className="p-4 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Messages</h2>
           <div className="flex items-center gap-2">
             {canBroadcastUpdate && (
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={handleBroadcastUpdate}
                 disabled={isBroadcastingUpdate}
-                className="gap-2"
+                className="h-8 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
               >
                 {isBroadcastingUpdate ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 {updateBroadcastSent ? 'Update Sent' : 'Broadcast Update'}
-              </Button>
+              </button>
             )}
-            <Button variant="ghost" size="icon" onClick={handleCloseMessaging}>
-              <X className="w-5 h-5 text-body-2" />
-            </Button>
+            <button
+              type="button"
+              onClick={handleCloseMessaging}
+              className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              aria-label="Close messages"
+            >
+              <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            </button>
           </div>
         </div>
 
         {/* Tabs: staff chat vs patient portal threads */}
-        <div className="flex items-center gap-1 px-4 pb-2" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+        <div className="flex items-center gap-1 px-4 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
           <button
             onClick={() => setTab('staff')}
             className={`h-8 px-3 rounded-lg text-sm font-medium ${tab === 'staff' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
@@ -190,11 +196,10 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
         ) : (
         <div className="flex-1 flex overflow-hidden">
           {/* Conversations list - hidden on mobile when chat is open */}
-          <div 
-            className={`w-full lg:w-80 flex-shrink-0 ${
+          <div
+            className={`w-full lg:w-80 flex-shrink-0 border-r border-slate-200 dark:border-slate-700 ${
               selectedConversation ? 'hidden lg:flex lg:flex-col' : 'flex flex-col'
             }`}
-            style={{ borderRight: '1px solid var(--border-slate-200)' }}
           >
             <ConversationsList
               currentUser={currentUser}
@@ -223,8 +228,8 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
                 autoFocus={!!(initialConversation && initialConversation.conversationId === selectedConversation.conversationId)}
               />
             ) : (
-              <div className="flex-1 flex items-center justify-center text-soft">
-                <p>Select a conversation to start messaging</p>
+              <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-950/40 text-slate-500 dark:text-slate-400">
+                <p className="text-sm">Select a conversation to start messaging</p>
               </div>
             )}
           </div>

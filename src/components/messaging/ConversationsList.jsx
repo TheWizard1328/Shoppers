@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { format, subDays } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import { isHiddenSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
+import { isPatientThreadConversationId } from './patientThreads';
 import { loadGroupsWithPreview } from './groupConversationLoader';
 import { resolveGroupMemberIds, PRESET_LABELS, PRESET_BADGE_STYLES } from './groupHelpers';
 import NewGroupDialog from './NewGroupDialog';
@@ -50,9 +51,12 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
         if (m && m.id) messageMap.set(m.id, m);
       });
 
-      const userMessages = Array.from(messageMap.values()).filter(
-        (message) => !isHiddenSystemBroadcastMessageForThisDevice(message?.id)
-      );
+      // PATIENT THREADS BELONG TO THE PATIENTS TAB (owner request Nov 3 2026):
+      // a store reply carries this staff member as sender_id, so patient rows
+      // used to show up as staff conversations. They are filtered out here.
+      const userMessages = Array.from(messageMap.values())
+        .filter((message) => !message?.patient_id && !isPatientThreadConversationId(message?.conversation_id))
+        .filter((message) => !isHiddenSystemBroadcastMessageForThisDevice(message?.id));
       setMessages(userMessages);
       const totalFetched = sentMessages.length + receivedMessages.length;
       setHasMoreMessages(totalFetched >= limit);
@@ -288,45 +292,51 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
   }
 
   return (
-    <div className="flex flex-col h-full bg-surface">
-      {/* Search + New Group */}
-      <div className="p-3 space-y-2" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900">
+      {/* Search + New Group — buttons follow the patient portal panel style
+          (owner request Nov 3 2026): slate-100/800 pills, never a light-only
+          outline on a dark surface. */}
+      <div className="p-3 space-y-2 border-b border-slate-200 dark:border-slate-700">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
           <Input
             placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-24"
+            className="pl-9 pr-4 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border-0 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2"
+        <button
+          type="button"
           onClick={() => setShowNewGroupDialog(true)}
+          className="w-full h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
         >
           <Users className="w-4 h-4" />
           New Group
-        </Button>
+        </button>
       </div>
 
       {/* Conversations list */}
       <div className="flex-1 overflow-y-auto">
         {hasMoreMessages && !isLoading && filteredConversations.length > 0 && (
-          <div className="p-2" style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
-            <Button variant="ghost" size="sm" onClick={handleLoadMore} disabled={isLoadingMore} className="w-full text-xs text-label">
+          <div className="p-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="w-full h-8 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-60"
+            >
               {isLoadingMore ? (
-                <><Loader2 className="w-3 h-3 mr-2 animate-spin" />Loading older messages...</>
+                <><Loader2 className="w-3 h-3 animate-spin" />Loading older messages...</>
               ) : (
-                <><ChevronUp className="w-3 h-3 mr-2" />Load older messages</>
+                <><ChevronUp className="w-3 h-3" />Load older messages</>
               )}
-            </Button>
+            </button>
           </div>
         )}
 
         {filteredConversations.length === 0 && availableUsers.length === 0 && (
-          <div className="text-center py-8 text-soft">
+          <div className="text-center py-8 text-slate-500 dark:text-slate-400">
             <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>{searchQuery ? 'No users found' : 'No conversations yet'}</p>
             {!searchQuery && <p className="text-xs mt-1">Search for a user or start a group</p>}

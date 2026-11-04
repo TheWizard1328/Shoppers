@@ -18,6 +18,12 @@ import { base44 } from '@/api/base44Client';
 export const PATIENT_SENDER_PREFIX = 'patient:';
 
 export const patientConversationId = (patientId) => `patient:${patientId}`;
+
+/** A conversation id that belongs to a patient thread, not staff chat. */
+export const isPatientThreadConversationId = (conversationId) => {
+  const id = String(conversationId || '');
+  return id.startsWith('patient:') || id.startsWith('driver:');
+};
 export const driverThreadConversationId = (driverId, patientId) => `driver:${driverId}:patient:${patientId}`;
 export const isDriverThread = (message) => !!message?.driver_id;
 export const patientSenderId = (patientId) => `${PATIENT_SENDER_PREFIX}${patientId}`;
@@ -54,30 +60,6 @@ export async function loadPatientThreadMessages(user, limit = 300) {
       )
     );
     return batches.flat().filter((m) => m?.patient_id);
-  } catch {
-    return [];
-  }
-}
-
-/** Patients this staff member can message (portal users first). */
-export async function loadMessagablePatients(user, limit = 200) {
-  const storeIds = staffStoreIds(user);
-  try {
-    if (storeIds.length === 0 || staffSeesAllStores(user)) {
-      const rows = await base44.entities.Patient.filter({ status: 'active' }, '-last_login_date', limit);
-      return rows || [];
-    }
-    const batches = await Promise.all(
-      storeIds.map((storeId) =>
-        base44.entities.Patient.filter({ store_id: storeId, status: 'active' }, '-last_login_date', limit).catch(() => [])
-      )
-    );
-    const seen = new Set();
-    return batches.flat().filter((p) => {
-      if (!p?.id || seen.has(p.id)) return false;
-      seen.add(p.id);
-      return true;
-    });
   } catch {
     return [];
   }
@@ -123,30 +105,11 @@ export async function sendStaffMessageToPatient({ user, patient, content, storeN
  * with them, so the "messageable" list is the patients on their deliveries.
  */
 export async function loadDriverPatientThreads(user, limit = 300) {
-  if (!user?.id) return [];
+  const authId = user?.user_id || user?.id; // Delivery/Message.driver_id = AUTH user id
+  if (!authId) return [];
   try {
-    const rows = await base44.entities.Message.filter({ driver_id: user.id }, '-created_date', limit);
+    const rows = await base44.entities.Message.filter({ driver_id: authId }, '-created_date', limit);
     return rows || [];
-  } catch {
-    return [];
-  }
-}
-
-export async function loadPatientsForDriver(user, limit = 300) {
-  if (!user?.id) return [];
-  try {
-    const deliveries = await base44.entities.Delivery.filter({ driver_id: user.id }, '-delivery_date', limit);
-    const ids = Array.from(new Set((deliveries || []).map((d) => d.patient_id).filter(Boolean)));
-    if (ids.length === 0) return [];
-    const rows = await Promise.all(
-      ids.slice(0, 120).map((id) => base44.entities.Patient.get(id).catch(() => null))
-    );
-    const seen = new Set();
-    return rows.filter((p) => {
-      if (!p?.id || seen.has(p.id)) return false;
-      seen.add(p.id);
-      return true;
-    });
   } catch {
     return [];
   }
@@ -157,18 +120,19 @@ export async function sendDriverMessageToPatient({ user, patient, content, store
   const text = String(content || '').trim();
   if (!text || !patient?.id || !user?.id) return null;
 
+  const authId = user.user_id || user.id;
   const message = await base44.entities.Message.create({
-    sender_id: user.id,
+    sender_id: authId,
     sender_name: user.full_name || user.user_name || 'Driver',
     receiver_id: patientSenderId(patient.id),
     receiver_name: patient.full_name || 'Patient',
-    conversation_id: driverThreadConversationId(user.id, patient.id),
+    conversation_id: driverThreadConversationId(authId, patient.id),
     content: text,
     message_type: 'text',
     read: false,
     patient_id: patient.id,
     store_id: patient.store_id || '',
-    driver_id: user.id,
+    driver_id: authId,
   });
 
   base44.functions.invoke('patientPush', {

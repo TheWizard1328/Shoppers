@@ -5,16 +5,16 @@ import { format } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import {
   loadPatientThreadMessages,
-  loadMessagablePatients,
   sendStaffMessageToPatient,
   loadDriverPatientThreads,
-  loadPatientsForDriver,
   sendDriverMessageToPatient,
   sendStaffMessageToDriverThread,
   loadDriverDirectory,
   isPatientSender,
   staffStoreIds,
+  staffSeesAllStores,
 } from './patientThreads';
+import { searchPatientsIdb } from './patientSearchIdb';
 import DriverDutyBadge from './DriverDutyBadge';
 import { userHasRole } from '@/components/utils/userRoles';
 
@@ -24,8 +24,12 @@ import { userHasRole } from '@/components/utils/userRoles';
  * count, opens the thread, and pushes the reply to the patient's devices.
  */
 export default function PatientThreadsPanel({ currentUser, stores = [], onUnreadCountChange, initialPatientId = null }) {
-  const [patients, setPatients] = useState([]);
   const [messages, setMessages] = useState([]);
+  // SEARCH RESULTS (owner request Nov 3 2026): resolved from IndexedDB, scoped
+  // by role — store sees its own patients, a driver only the patients on the
+  // active route, an admin anyone.
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchNote, setSearchNote] = useState('');
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const [input, setInput] = useState('');
@@ -72,17 +76,52 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     [currentUser]
   );
 
+  // A staff member sees a patient ONLY once a thread exists with them: the list
+  // is built from thread messages, so the whole patient roster is never loaded
+  // (that lookup per store was hammering the online patient table).
+  const patients = useMemo(() => {
+    const byId = new Map();
+    for (const m of messages || []) {
+      const pid = m?.patient_id;
+      if (!pid) continue;
+      const nameFromRow = isPatientSender(m.sender_id) ? m.sender_name : m.receiver_name;
+      const entry = byId.get(pid) || { id: pid, full_name: '', phone: '', store_id: m.store_id || '' };
+      if (!entry.full_name && nameFromRow) entry.full_name = nameFromRow;
+      if (!entry.store_id && m.store_id) entry.store_id = m.store_id;
+      byId.set(pid, entry);
+    }
+    return Array.from(byId.values());
+  }, [messages]);
+
+  // Delivery.driver_id = AUTH user id, which is AppUser.user_id.
+  const driverId = currentUser?.user_id || currentUser?.id;
+  const searchMode = isDriverMode ? 'driver' : (staffSeesAllStores(currentUser) ? 'admin' : 'store');
+
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [patientRows, messageRows] = isDriverMode
-      ? await Promise.all([loadPatientsForDriver(currentUser), loadDriverPatientThreads(currentUser)])
-      : await Promise.all([loadMessagablePatients(currentUser), loadPatientThreadMessages(currentUser)]);
-    setPatients(patientRows || []);
+    const messageRows = isDriverMode
+      ? await loadDriverPatientThreads(currentUser)
+      : await loadPatientThreadMessages(currentUser);
     setMessages(messageRows || []);
     setLoading(false);
   }, [currentUser, isDriverMode]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // LOCAL SEARCH ONLY — IndexedDB, zero network calls, so typing never spends
+  // the API rate budget.
+  useEffect(() => {
+    const q = String(search || '').trim();
+    if (q.length < 2) { setSearchResults([]); setSearchNote(''); return undefined; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const res = await searchPatientsIdb({ user: currentUser, query: q, mode: searchMode, driverId });
+      if (cancelled) return;
+      setSearchResults(res?.patients || []);
+      setSearchNote(res?.routeActive === false ? (res?.reason || '') : '');
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [search, currentUser, searchMode, driverId]);
 
   // Live updates: a new patient message bumps the unread badge immediately.
   useEffect(() => {
@@ -140,7 +179,7 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     }
     try {
       const query = isDriverMode
-        ? { patient_id: patient.id, driver_id: currentUser?.id }
+        ? { patient_id: patient.id, driver_id: driverId }
         : { patient_id: patient.id };
       const rows = await base44.entities.Message.filter(query, '-created_date', 200);
       setThread((rows || []).slice().reverse());
@@ -155,7 +194,7 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     } finally {
       setThreadLoading(false);
     }
-  }, [isDriverMode, currentUser?.id]);
+  }, [isDriverMode, driverId]);
 
   useEffect(() => {
     if (selected) endRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -207,7 +246,13 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = (patients || []).filter((p) => {
+    const seen = new Set();
+    const merged = [...(patients || []), ...(searchResults || [])].filter((p) => {
+      if (!p?.id || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+    const list = merged.filter((p) => {
       if (!q) return true;
       return (p.full_name || '').toLowerCase().includes(q) || (p.phone || '').includes(q);
     });
@@ -220,7 +265,7 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
       const tb = threadStats.get(b.id)?.lastAt || 0;
       return tb - ta;
     });
-  }, [patients, search, threadStats]);
+  }, [patients, searchResults, search, threadStats]);
 
   // Staff thread picker: the pharmacy thread plus one entry per driver thread.
   const staffThreads = useMemo(() => {
@@ -252,7 +297,7 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
   if (selected) {
     return (
       <div className="flex flex-col h-full w-full">
-        <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <button onClick={() => { setSelected(null); setInput(''); }} className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800" aria-label="Back">
             <ArrowLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
@@ -326,14 +371,13 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
           <div ref={endRef} />
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
             placeholder={`Message ${selected.full_name || 'patient'}...`}
-            className="flex-1 h-10 px-3 rounded-lg border bg-white dark:bg-slate-800 text-sm outline-none focus:border-blue-500"
-            style={{ borderColor: 'var(--border-slate-200)' }}
+            className="flex-1 h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-blue-500"
           />
           <button
             onClick={handleSend}
@@ -350,13 +394,13 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="p-2 border-b" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="p-2 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-2 px-2 h-9 rounded-lg bg-slate-100 dark:bg-slate-800">
           <Search className="w-4 h-4 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search patients"
+            placeholder={isDriverMode ? 'Search your route patients' : 'Search your patients'}
             className="flex-1 bg-transparent text-sm outline-none text-slate-700 dark:text-slate-200"
           />
         </div>
@@ -369,6 +413,11 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
           <div className="flex flex-col items-center justify-center h-full text-center gap-1 px-6">
             <User className="w-7 h-7 text-slate-300 dark:text-slate-600" />
             <p className="text-sm text-slate-500 dark:text-slate-400">No patients found</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
+              {searchNote || (search.trim().length >= 2
+                ? 'Search runs on this device only.'
+                : 'Threads appear once you have messaged a patient.')}
+            </p>
           </div>
         ) : (
           filtered.map((p) => {
@@ -378,8 +427,7 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
               <button
                 key={p.id}
                 onClick={() => openThread(p)}
-                className="w-full text-left px-3 py-2.5 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 border-b last:border-b-0"
-                style={{ borderColor: 'var(--border-slate-200)' }}
+                className="w-full text-left px-3 py-2.5 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-200 dark:border-slate-700 last:border-b-0"
               >
                 <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                   <User className="w-4 h-4 text-slate-500 dark:text-slate-300" />
