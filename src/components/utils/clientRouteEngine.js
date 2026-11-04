@@ -599,7 +599,13 @@ let _inheritedWindowCount = 0;
       // window START + 5 min, whatever the record happens to hold.
       const _patientWindowMin = parseTimeToMinutes(patient?.time_window_start);
       const _hasPatientWindow = Number.isFinite(_patientWindowMin) && _patientWindowMin > 0;
-      if (!_hasPatientWindow) {
+      // IN-HAND EXEMPTION (owner report Nov 4 2026, Juanita Ferris): the meds are
+      // already in the vehicle, so the pickup's slot has nothing left to say. An
+      // en_route/in_transit stop keeps its OWN start (already open = leads) and
+      // inherits nothing — otherwise a late store slot drags a carried delivery
+      // behind the pickup, out past 4:00, when it should run on the way.
+      const _inHand = ['en_route', 'in_transit'].includes(String(delivery?.status || '').toLowerCase());
+      if (!_hasPatientWindow && !_inHand) {
         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
         const _inherited = sharedInheritedPickupWindowStart(pickupWindow?.start || pickupWindow?.end);
         if (_inherited) {
