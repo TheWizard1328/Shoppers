@@ -148,9 +148,6 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
             <p className={`text-xs font-medium truncate ${expanded ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
               {storeName || 'Pharmacy'}
             </p>
-            <p className={`font-semibold text-xs my-2 ${expanded ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>
-              {dateStr}
-            </p>
             {/* Slot rendered immediately UNDER the date (owner request Nov 3
                             2026: the App-Owner "Exit Patient View" control belongs on the
                             floating today card here, in the space under the date). It uses
@@ -182,22 +179,27 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
               }
             </div>
-            {subBadge || stopsPill ?
-            <div className="flex items-center justify-center gap-1 mt-0.5 flex-wrap">
-              {stopsPill}
-              {subBadge && (subBadge.pill ?
-              <span className={`inline-flex items-center justify-center rounded-full border font-semibold leading-tight tabular-nums whitespace-nowrap text-xs px-3 mx-1 ${subBadge.pillCls}`}>
-                  {subBadge.text}
-                </span> :
-
-              <p className={`text-sm font-medium leading-tight text-center ${expanded ? 'text-slate-300' : subBadge.color}`}>
-                  {subBadge.text}
-                </p>)
-              }
-            </div> :
-            null
-            }
-          </div>
+                      </div>
+        </div>
+        {/* DATE / STOPS-LEFT / ETA ROW (owner request Nov 4 2026): the stop
+            count belongs CENTRED between the date and the ETA. It was crammed
+            against the ETA in the right column; now it owns the middle of its
+            own row and the ETA sits flush right. */}
+        <div className={`flex items-center gap-2 mt-1 ${expanded ? 'text-slate-300' : ''}`}>
+          <span className={`font-semibold text-xs flex-shrink-0 ${expanded ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>
+            {dateStr}
+          </span>
+          <span className="flex-1 flex items-center justify-center min-w-0">
+            {stopsPill}
+          </span>
+          {subBadge && (subBadge.pill ?
+            <span className={`inline-flex items-center justify-center rounded-full border font-semibold leading-tight tabular-nums whitespace-nowrap text-xs px-3 flex-shrink-0 ${subBadge.pillCls}`}>
+              {subBadge.text}
+            </span> :
+            <span className={`text-sm font-medium leading-tight text-right flex-shrink-0 ${expanded ? 'text-slate-300' : subBadge.color}`}>
+              {subBadge.text}
+            </span>)
+          }
         </div>
       </button>
 

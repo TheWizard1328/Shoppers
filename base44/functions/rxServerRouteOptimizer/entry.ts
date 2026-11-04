@@ -194,7 +194,30 @@ const decodeHereFlexiblePolyline = (encoded) => {
 };
 
 // ─── HERE findsequence2 (ported from callHereSequence) ───────────────────────
-async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs = null, routeIsToday = false }) {
+
+// ── WINDOW BAND GUARD (owner report Nov 4 2026, CLIENT PARITY) ──────────────
+// "Regardless of route type (fastest / shortest / best) time windows must still
+// be accounted for — a stop with a 5:00 start window was optimizing before the
+// Beverly 2:00-3:30 pickup and even before Londonderry 4:00-5:00."
+// HERE may ignore/degrade acc windows depending on search mode, so the FINAL
+// order of every route type is verified: gated stops bucket into 90-minute
+// bands from now and the list is stably re-sorted by band. In-band geography is
+// untouched, so a properly windowed HERE result comes back unchanged.
+const enforceWindowBands = (stops: any[], nowMin: number) => {
+  if (!Array.isArray(stops) || stops.length < 2) return stops;
+  const bandOf = (st: any) => {
+    const m = parseTimeToMinutes(st?.windowStartRaw ?? st?.windowStart);
+    if (!Number.isFinite(m)) return 0;
+    const base = Number.isFinite(nowMin) ? nowMin : (m as number);
+    return Math.max(0, Math.floor(((m as number) - base) / 90));
+  };
+  const keyed = stops.map((st, i) => ({ st, i, b: bandOf(st) }));
+  const inverted = keyed.some((a, idx) => keyed.slice(idx + 1).some((b) => b.b < a.b));
+  if (!inverted) return stops;
+  return keyed.sort((a, b) => a.b - b.b || a.i - b.i).map((x) => x.st);
+};
+
+async function callHereSequence({ origin, stops, home, destination, mode = 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs = null, routeIsToday = false, windowSway = 30 }) {
   const params = new URLSearchParams();
   params.set('apiKey', apiKey);
   params.set('departure', buildLocalIso(deliveryDate, formatMinutesToTime(currentMinutes)));
@@ -248,7 +271,7 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
       // PICKUPS ARE NEVER GATED: a pickup window is written as "5 minutes
       // after the accept time", i.e. already open, and sending it made HERE
       // park the whole trip at the end of the route regardless of geography.
-      const WINDOW_SWAY_MINUTES = 30;
+      const WINDOW_SWAY_MINUTES = windowSway;
       // OWNER REPORT (Nov 4 2026): the two engines ordered Beverly and
       // Londonderry pickups oppositely because NO pickup was gated — pickups
       // with genuine windows floated on a distance tie-break. A pickup with a
@@ -643,7 +666,8 @@ Deno.serve(async (req) => {
       if (resolved.length !== pool.length) {
         throw new Error(`sequence resolution incomplete (${resolved.length}/${pool.length})`);
       }
-      return resolved;
+      // Window ladder guard: never let a 5:00 PM stop sit ahead of a 2:00 PM one.
+      return enforceWindowBands(resolved, currentMinutes);
     };
 
     // Nearest-neighbor crow-flies fallback ordering (shared by both legs).

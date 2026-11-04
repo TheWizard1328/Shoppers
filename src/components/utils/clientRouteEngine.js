@@ -206,7 +206,36 @@ export const getDeliveryCoords = (delivery, patientMap, storeMap) => {
 
 // ─── HERE API: findsequence2 (waypoint sequencing) ────────────────────────────
 
-async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode, deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows, driverId = null, userName = null }) {
+
+// ── WINDOW BAND GUARD (owner report Nov 4 2026) ─────────────────────────────
+// "Regardless of route type (fastest / shortest / best) time windows must still
+// be accounted for. I tested all three and a stop with a 5:00 start window was
+// optimizing BEFORE the Beverly 2:00-3:30 pickup and even before Londonderry
+// 4:00-5:00."
+// HERE is free to ignore/degrade the acc windows depending on the search mode it
+// is given, and the client silently re-ran WITHOUT windows whenever a windowed
+// attempt failed. Either way a late-window stop could jump ahead of an earlier
+// gated one. This guard runs on the FINAL order of every route type and after
+// every fallback: gated stops are bucketed into 90-minute bands from now, and
+// the list is stably re-sorted by band. Geography is untouched inside a band, so
+// a fully windowed HERE result (already ascending) comes back unchanged.
+const enforceWindowBands = (stops, nowMin) => {
+  if (!Array.isArray(stops) || stops.length < 2) return stops;
+  const bandOf = (st) => {
+    const raw = st?.windowStart;
+    const m = parseTimeToMinutes(raw);
+    if (!Number.isFinite(m)) return 0; // windowless rides with the current band
+    const base = Number.isFinite(nowMin) ? nowMin : m;
+    return Math.max(0, Math.floor((m - base) / 90));
+  };
+  const keyed = stops.map((st, i) => ({ st, i, b: bandOf(st) }));
+  const inverted = keyed.some((a, idx) => keyed.slice(idx + 1).some((b) => b.b < a.b));
+  if (!inverted) return stops;
+  console.warn(`🍞 [WindowBands] order violated the window ladder — re-banding ${stops.length} stop(s)`);
+  return keyed.sort((a, b) => a.b - b.b || a.i - b.i).map((x) => x.st);
+};
+
+async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode, deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows, windowSway = 30, driverId = null, userName = null }) {
   const params = new URLSearchParams();
   params.set('apiKey', hereApiKey);
   params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
@@ -274,7 +303,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
       // it made HERE treat the whole trip as an appointment and park it at the
       // end of the route regardless of geography (owner report Nov 3 2026).
       // The store's own delivery_time_start is not a customer promise.
-      const WINDOW_SWAY_MINUTES = 30;
+      const WINDOW_SWAY_MINUTES = windowSway;
       const isPickupStop = stop.isPickup === true || stop.delivery?.is_pickup === true;
       // OWNER REPORT (Nov 4 2026): "neither optimizer puts Juanita before the
       // Beverly and Londonderry pickups; the server does Londonderry before
@@ -773,16 +802,29 @@ let _inheritedWindowCount = 0;
   // Helper: run callHereSequence with time-window fallback, return ordered stops + directionsLegs
   const runHereSequence = async ({ sequenceStart, stops: seqStops, origin, hereMode, withHome, destination }) => {
     if (seqStops.length === 0) return { orderedStops: [], legs: [] };
-    let attempt = await callHereSequence({
-      sequenceStart, stopsToSequence: seqStops,
-      resolvedHomePosition: destination || (withHome ? resolvedHomePosition : null),
-      hereApiKey, hereTransportMode: hereMode,
-      deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true,
-      driverId, userName: _driverUserName
-    });
-    let result = Array.isArray(attempt.data?.results) ? attempt.data.results[0] : null;
-    let waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
-    let interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+    // WIDENED SWAY LADDER (owner report Nov 4 2026): before windows are EVER
+    // dropped, give HERE room — 30 min, then 60, then 90. Previously the first
+    // rejection silently re-ran with no windows at all, which is how a 5:00 PM
+    // stop ended up ahead of a 2:00 PM pickup.
+    let attempt = null;
+    let result = null;
+    let waypoints = [];
+    let interconnections = [];
+    for (const _sway of [30, 60, 90]) {
+      attempt = await callHereSequence({
+        sequenceStart, stopsToSequence: seqStops,
+        resolvedHomePosition: destination || (withHome ? resolvedHomePosition : null),
+        hereApiKey, hereTransportMode: hereMode,
+        deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true,
+        windowSway: _sway,
+        driverId, userName: _driverUserName
+      });
+      result = Array.isArray(attempt.data?.results) ? attempt.data.results[0] : null;
+      waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
+      interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+      if (attempt.response.ok && result && waypoints.length > 0) break;
+      console.warn(`⚠️ [clientRouteEngine] ${source} — windowed HERE attempt rejected (status=${attempt.response.status}) at ±${_sway} min sway`);
+    }
 
     if ((!attempt.response.ok || !result || waypoints.length === 0) && attempt.includeTimeWindows) {
       console.warn(`⚠️ [clientRouteEngine] ${source} — HERE time-window attempt FAILED (status=${attempt.response.status}), retrying WITHOUT time windows`);
@@ -843,7 +885,7 @@ let _inheritedWindowCount = 0;
       }
       return { duration: Number(ic?.time || 0), distance: Number(ic?.distance || 0) };
     });
-    return { orderedStops: ordered.map(i => i.stop), legs };
+    return { orderedStops: enforceWindowBands(ordered.map(i => i.stop), currentMinutes), legs };
   };
 
   if (preserveExistingOrder) {
