@@ -1145,21 +1145,38 @@ export default function PatientPortal({ embedded = false } = {}) {
     // OWNER FIX (Oct 23 2026 — v1.9.65): the fit was anchored to leg ORIGIN
     // endpoints — coordinates of stops the driver had ALREADY FINISHED, sitting
     // behind the driver. Those dead anchors kept the frame wide and static
-    // instead of following the marker. Per owner spec the fit points are ONLY:
-    // the driver's position, the patient's position, and the coordinates of the
-    // INCOMPLETE intermediate stops between them. Route geometry stays painted
-    // via the Polyline components.
+    // instead of following the marker.
     //
-    // OWNER REQUEST (Nov 3 2026): stops that are NOT drawn on the map still have
-    // to hold the frame — including pharmacy pickups (no patient record) — so
-    // every intermediate stop resolves a coordinate from, in order:
-    //   1. its own lat/lng
-    //   2. the patient record (routeStopCoords lookup)
-    //   3. the LAST point of its stored leg polyline (a leg ends at its stop)
-    //   4. its store's coordinates for a pickup stop
+    // OWNER REQUEST (Nov 3 2026, second pass): stops that are NOT drawn on the
+    // map must still hold the pan/zoom frame. Endpoint-only fitting kept missing
+    // them (a stop's own record carries no coordinates, the patient lookup can
+    // come back empty, and a pending stop has no leg polyline yet), so the frame
+    // is now built from the PAINTED ROUTE ITSELF: every leg that is already drawn
+    // between the driver and this patient is sampled into the fit. Whatever the
+    // patient can see bent around an invisible stop, the frame now includes.
     const patientStopOrder = Number(todayDelivery?.stop_order);
-    if (!todayDelivery || routeDeliveries.length === 0) return [];
+    if (!todayDelivery) return [];
 
+    // Sample a painted leg: first, last, and every Nth vertex between them.
+    // 310-point legs are normal, so the stride keeps the array small without
+    // letting a bend (which is exactly where an invisible stop sits) escape.
+    const sampleLeg = (leg, out) => {
+      if (!Array.isArray(leg) || leg.length < 2) return;
+      const stride = Math.max(1, Math.ceil(leg.length / 40));
+      for (let i = 0; i < leg.length; i += stride) out.push(leg[i]);
+      out.push(leg[leg.length - 1]);
+    };
+
+    const pts = [];
+    (staticPolylineSegments || []).forEach((leg) => sampleLeg(leg, pts));
+    sampleLeg(currentLegCoords, pts);
+    // firstLegCoords (store → first stop) is deliberately NOT a fit source: it is
+    // the leg behind the driver, the very "dead anchor" the Oct 23 fix removed.
+
+    // Stop positions on top of the painted geometry: legs are painted only for
+    // stops that already have one, so this still covers a stop the route has not
+    // reached yet. Resolution order: own lat/lng, the patient record, the end of
+    // its stored leg polyline, then its store's coordinates for a pickup.
     const storeCoords = {};
     (stores || []).forEach((st) => {
       const lat = Number(st?.latitude);
@@ -1168,9 +1185,8 @@ export default function PatientPortal({ embedded = false } = {}) {
     });
 
     const DONE = ['completed', 'failed', 'cancelled'];
-    const pts = [];
-    for (const d of routeDeliveries) {
-      if (DONE.includes(d.status)) continue;           // finished stop — never a fit point
+    for (const d of routeDeliveries || []) {
+      if (DONE.includes(d.status)) continue;                 // finished stop — never a fit point
       if (Number(d.stop_order) >= patientStopOrder) continue; // patient & later stops excluded
 
       let pt = null;
@@ -1187,10 +1203,15 @@ export default function PatientPortal({ embedded = false } = {}) {
       if (pt) pts.push(pt);
     }
     return pts;
-    // NOTE: staticPolylineSegments/firstLegCoords/currentLegCoords deliberately
-    // NOT in the deps — the leg arrays are for PAINTING; the fit rides the
-    // stop coordinates, which change with routeDeliveries.
-  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id, routeStopCoords, stores]);
+  }, [
+    routeDeliveries,
+    todayDelivery?.stop_order,
+    todayDelivery?.id,
+    routeStopCoords,
+    stores,
+    staticPolylineSegments,
+    currentLegCoords,
+  ]);
 
   const storeLatLng = activeStore?.latitude && activeStore?.longitude
     ? [activeStore.latitude, activeStore.longitude]
