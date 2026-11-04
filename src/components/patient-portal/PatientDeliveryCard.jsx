@@ -153,15 +153,21 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
                 count of stops still PRIOR to the patient's own stop (their own
                 delivery never counts), matching the red badge on their home
                 marker. 0 of them reads "You're next". */}
-            {remainingStops != null && ['pending', 'en_route', 'in_transit'].includes(delivery.status) && (
+            {['pending', 'en_route', 'in_transit'].includes(delivery.status) && (stopsBetween != null || remainingStops != null) && (
               (() => {
-                // BADGE, not plain text (owner request Nov 3 2026): the active
-                // store card shows the stops-left count as a pill, and
-                // "You're next" becomes a green pill of its own.
-                const isNext = Number(remainingStops) === 0;
-                const label = isNext
-                  ? "You're next"
-                  : `${remainingStops} stop${Number(remainingStops) === 1 ? '' : 's'} left`;
+                // PER-CARD COUNT (owner rule Nov 3 2026): the pill shows how many
+                // stops sat between this delivery's pickup and the patient, NOT the
+                // driver's total remaining stops — so every card carries its own
+                // figure and it always matches the "Stops before you" row.
+                // "You're next" is a STATUS, not a count, so it is appended to the
+                // same pill instead of replacing the number (the number staying and
+                // the badge saying "you're next" was the mismatch the owner hit).
+                const count = stopsBetween != null ? Number(stopsBetween) : Number(remainingStops);
+                const isNext = delivery.isNextDelivery === true;
+                const countLabel = count === 0
+                  ? 'Direct delivery'
+                  : `${count} stop${count === 1 ? '' : 's'}`;
+                const label = isNext ? `${countLabel} · you're next` : countLabel;
                 const cls = isNext
                   ? (expanded
                       ? 'bg-green-900/60 border-green-700 text-green-300'
@@ -192,23 +198,17 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
           <div className="p-3 space-y-0.5">
             {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
             {arrivalTime && <InfoRow icon={Truck} label="Picked up at" value={arrivalTime} />}
-            {/* STOPS BEFORE YOU (owner report Nov 3 2026): stopsBetween is a STATIC
-                pickup-to-patient count by stop_order, so it never dropped as the
-                driver finished stops and disagreed with the live badge ("You're
-                next" beside "2 stops"). While the delivery is live this row uses
-                the same live remaining count as the badge; finished deliveries
-                keep the historical pickup-to-patient count. */}
-            {(() => {
-              const isLive = ['pending', 'en_route', 'in_transit'].includes(delivery.status);
-              if (isLive && remainingStops != null) {
-                const n = Number(remainingStops);
-                return <InfoRow icon={MapPin} label="Stops before you" value={n === 0 ? "None, you're next" : `${n} stop${n !== 1 ? 's' : ''}`} />;
-              }
-              if (stopsBetween != null) {
-                return <InfoRow icon={MapPin} label="Stops before you" value={stopsBetween === 0 ? 'Direct delivery' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`} />;
-              }
-              return null;
-            })()}
+            {/* STOPS BEFORE YOU (owner rule Nov 3 2026): this is the count of stops
+                that sat BETWEEN the pickup that collected this patient's parcel and
+                the patient's own stop — a fixed figure for the delivery. The live
+                driver-remaining count belongs to the status pill, never here. */}
+            {stopsBetween != null && (
+              <InfoRow
+                icon={MapPin}
+                label="Stops before you"
+                value={stopsBetween === 0 ? 'Direct delivery' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`}
+              />
+            )}
             {actualTime && <InfoRow icon={delivery.status === 'failed' ? XCircle : CheckCircle} label={delivery.status === 'failed' ? 'Attempted at' : 'Delivered at'} value={actualTime} />}
             {delivery.tracking_number && <InfoRow icon={Package} label="Tracking #" value={delivery.tracking_number} />}
             {delivery.prescription_number && <InfoRow icon={FileText} label="Prescription #" value={delivery.prescription_number} />}

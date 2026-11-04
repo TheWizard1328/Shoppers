@@ -272,7 +272,7 @@ function portalFit(map, points, pad = {}) {
   map.flyTo(center, targetZoom, { duration: 0.75 });
 }
 
-function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad }) {
+function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly = false }) {
   const map = useMap();
   const fittedRef = useRef(false);
   const fittedWithRouteRef = useRef(false);
@@ -282,6 +282,11 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
   const fittedPadRef = useRef(null);
   // Point count of the last fit, so a later (wider) route point set refits.
   const fittedRouteLenRef = useRef(-1);
+  // Settled mode (owner rule Nov 3 2026): once THIS patient's delivery is
+  // completed or failed, the frame is just the patient's home and the pickup
+  // location — no driver, no route geometry. Tracked so the flip in and out
+  // always re-fits instead of inheriting the live frame.
+  const settledRef = useRef(false);
 
   useEffect(() => {
     // Must have patient location
@@ -299,6 +304,23 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
     // otherwise a later, wider point set would never be framed (owner request
     // Nov 3 2026: invisible intermediate stops must stay in the pan/zoom frame).
     const padKey = String(mapPad?.top ?? '');
+
+    // ── SETTLED FOCUS (owner rule Nov 3 2026) ────────────────────────────────
+    // Completed or failed delivery: pan/zoom to the patient's home and the pickup
+    // location ONLY. The driver has already been here, so his position and the
+    // remaining route must not stretch the frame.
+    if (settledOnly) {
+      const settledPadKey = `settled|${padKey}`;
+      if (settledRef.current && fittedPadRef.current === settledPadKey) return;
+      settledRef.current = true;
+      fittedRef.current = true;
+      fittedPadRef.current = settledPadKey;
+      fittedRouteLenRef.current = Array.isArray(routeCoords) ? routeCoords.length : 0;
+      const points = storeLatLng ? [patientLatLng, storeLatLng] : [patientLatLng];
+      portalFit(map, points, mapPad);
+      return;
+    }
+    settledRef.current = false;
     const routeLen = routePoints.length;
     const routeGrew = hasRoute && routeLen !== fittedRouteLenRef.current;
     const needsFit = !fittedRef.current || routeGrew || fittedPadRef.current !== padKey;
@@ -323,6 +345,7 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
     storeLatLng ? storeLatLng.join(',') : null,
     driverLatLng ? driverLatLng.join(',') : null,
     showDriver,
+    settledOnly,
     Array.isArray(routeCoords) ? routeCoords.length : 0,
   ]);
 
@@ -1290,6 +1313,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   const isLiveDeliveryStatus = !!todayDelivery && LIVE_DRIVER_STATUSES.includes(todayDelivery.status);
   const showLiveTracking = !!driverLocation && isLiveDeliveryStatus && (driverStatus === 'on_duty' || isAfter930am);
 
+  // SETTLED (owner rule Nov 3 2026): this patient's delivery is done — completed
+  // or failed. From that moment the map frames the patient's home and the pickup
+  // location only.
+  const settledDelivery = !!todayDelivery && ['completed', 'failed'].includes(todayDelivery.status);
+
   // Unread pharmacy replies — badge on the header button. Refreshed on mount,
   // on focus and after the sheet closes; the sheet itself clears it on open.
   // Midnight rollover for the floating today card: re-read the calendar day
@@ -1508,12 +1536,13 @@ export default function PatientPortal({ embedded = false } = {}) {
                 showDriver={showLiveTracking && !!driverLocation}
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
                 mapPad={mapPad}
+                settledOnly={settledDelivery}
               />
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
                 driverPaintPos={driverPaintPos}
                 patientLatLng={patientLatLng}
-                trackingMode={trackingMode}
+                trackingMode={settledDelivery ? false : trackingMode}
                 onDoubleTap={handleDoubleTap}
                 onUserInteract={handleUserInteract}
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
