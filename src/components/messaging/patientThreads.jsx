@@ -47,6 +47,9 @@ export function staffSeesAllStores(user) {
  * Recent patient-thread messages visible to this staff member (newest first).
  * Scoped by store_id so a dispatcher never pulls another store's patient chat.
  */
+// RATE-LIMIT SAFE RETURN (owner report Nov 4 2026): null means "the read
+// FAILED", [] means "this store genuinely has no patient threads". Callers must
+// keep what is on screen on null — an empty array used to wipe the panel.
 export async function loadPatientThreadMessages(user, limit = 300) {
   const storeIds = staffStoreIds(user);
   try {
@@ -56,12 +59,13 @@ export async function loadPatientThreadMessages(user, limit = 300) {
     }
     const batches = await Promise.all(
       storeIds.map((storeId) =>
-        base44.entities.Message.filter({ store_id: storeId }, '-created_date', limit).catch(() => [])
+        base44.entities.Message.filter({ store_id: storeId }, '-created_date', limit).then((r) => r).catch(() => null)
       )
     );
-    return batches.flat().filter((m) => m?.patient_id);
+    if (batches.every((b) => b === null)) return null;
+    return batches.filter(Boolean).flat().filter((m) => m?.patient_id);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -111,7 +115,7 @@ export async function loadDriverPatientThreads(user, limit = 300) {
     const rows = await base44.entities.Message.filter({ driver_id: authId }, '-created_date', limit);
     return rows || [];
   } catch {
-    return [];
+    return null; // failed read, not an empty thread list
   }
 }
 

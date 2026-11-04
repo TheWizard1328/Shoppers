@@ -226,20 +226,22 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
           )}
         </div>
 
-        {/* Content: patient portal threads or staff chat */}
-        {tab === 'patients' ? (
-          <div className="flex-1 flex overflow-hidden">
-            <PatientThreadsPanel
+        {/* Content: patient portal threads or staff chat.
+            BOTH STAY MOUNTED (owner report Nov 4 2026): swapping tabs used to
+            unmount the inactive side, so every flip re-ran the patient-thread
+            read and the conversation read — dozens of calls in a row, 429s and a
+            blanked thread list. Now the inactive side is only hidden. */}
+        <div className={tab === 'patients' ? 'flex-1 flex overflow-hidden' : 'hidden'}>
+          <PatientThreadsPanel
               currentUser={currentUser}
               onUnreadCountChange={onUnreadCountChange}
               initialPatientId={initialPatientId}
               searchQuery={patientSearch}
               onSearchChange={setPatientSearch}
               onSelectionChange={setPatientChatOpen}
-            />
-          </div>
-        ) : (
-        <div className="flex-1 flex overflow-hidden">
+          />
+        </div>
+        <div className={tab === 'staff' ? 'flex-1 flex overflow-hidden' : 'hidden'}>
           {/* Conversations list - hidden on mobile when chat is open */}
           <div
             className={`w-full lg:w-80 flex-shrink-0 border-r border-slate-200 dark:border-slate-700 ${
@@ -284,7 +286,6 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
             )}
           </div>
         </div>
-        )}
       </div>
     </div>
   );

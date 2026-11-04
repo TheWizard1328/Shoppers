@@ -23,7 +23,20 @@ import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
  * Nov 2 2026). Lists patients of the staff member's store(s) with an unread
  * count, opens the thread, and pushes the reply to the patient's devices.
  */
-export default function PatientThreadsPanel({ currentUser, stores = [], onUnreadCountChange, initialPatientId = null }) {
+// 30-second thread cache: switching patients (or tabs) must not cost a read.
+const threadCache = new Map();
+
+export default function PatientThreadsPanel({
+  currentUser,
+  stores = [],
+  onUnreadCountChange,
+  initialPatientId = null,
+  // SEARCH LIVES ON THE TABS ROW (owner request Nov 4 2026) — the messaging
+  // panel owns the query so it sits beside the Staff / Patients tabs.
+  searchQuery: controlledSearch,
+  onSearchChange,
+  onSelectionChange,
+}) {
   const [messages, setMessages] = useState([]);
   // SEARCH RESULTS (owner request Nov 3 2026): resolved from IndexedDB, scoped
   // by role — store sees its own patients, a driver only the patients on the
@@ -51,6 +64,8 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
   const unreadContributedRef = useRef(0);
   const endRef = useRef(null);
   const selectedRef = useRef(null);
+  const messagesRef = useRef([]);
+  messagesRef.current = messages;
   // Helper keeps the deep-link effect dependency-free of the selected state.
   const patientIdHandled = (id) => selected?.id === id;
 
@@ -101,15 +116,28 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
   const driverId = currentUser?.user_id || currentUser?.id;
   const searchMode = isDriverMode ? 'driver' : (staffSeesAllStores(currentUser) ? 'admin' : 'store');
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    const messageRows = isDriverMode
+  // RATE-LIMIT SAFE (owner report Nov 4 2026): a failed read used to resolve to
+  // an EMPTY list, which wiped every thread off the panel and forced a manual
+  // refresh. Now a failure keeps whatever is already on screen and retries once
+  // after a short pause.
+  const loadAll = useCallback(async (isRetry = false) => {
+    if (!isRetry) setLoading((prev) => (messagesRef.current.length > 0 ? prev : true));
+    const rows = isDriverMode
       ? await loadDriverPatientThreads(currentUser)
       : await loadPatientThreadMessages(currentUser);
-    setMessages(messageRows || []);
+    if (Array.isArray(rows)) {
+      setMessages(rows);
+      setLoading(false);
+      return;
+    }
+    if (!isRetry) {
+      setTimeout(() => { loadAllRef.current?.(true); }, 4000);
+    }
     setLoading(false);
   }, [currentUser, isDriverMode]);
 
+  const loadAllRef = useRef(null);
+  loadAllRef.current = loadAll;
   useEffect(() => { loadAll(); }, [loadAll]);
 
   // LOCAL SEARCH ONLY — IndexedDB, zero network calls, so typing never spends
@@ -175,7 +203,13 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     if (!patient?.id) return;
     setSelected(patient);
     setThreadSel('store');
-    setThreadLoading(true);
+    const cached = threadCache.get(patient.id);
+    if (cached && Date.now() - cached.at < 30000) {
+      setThread(cached.rows);
+      setThreadLoading(false);
+    } else {
+      setThreadLoading(true);
+    }
     if (!isDriverMode) {
       loadDriverDirectory(patient.id)
         .then((dir) => setDriverDir(dir.drivers || []))
@@ -186,7 +220,9 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
         ? { patient_id: patient.id, driver_id: driverId }
         : { patient_id: patient.id };
       const rows = await base44.entities.Message.filter(query, '-created_date', 200);
-      setThread((rows || []).slice().reverse());
+      const ordered = (rows || []).slice().reverse();
+      setThread(ordered);
+      threadCache.set(patient.id, { at: Date.now(), rows: ordered });
       // Opening the thread clears the unread badge for that patient.
       const unread = (rows || []).filter((m) => !m.read && isPatientSender(m.sender_id));
       await Promise.all(unread.map((m) => base44.entities.Message.update(m.id, { read: true }).catch(() => {})));
@@ -194,7 +230,8 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
         setMessages((prev) => prev.map((m) => (unread.some((u) => u.id === m.id) ? { ...m, read: true } : m)));
       }
     } catch {
-      setThread([]);
+      // Keep the cached/previous rows on a failed read instead of blanking.
+      if (!cached) setThread((prev) => prev);
     } finally {
       setThreadLoading(false);
     }
