@@ -1362,7 +1362,7 @@ export default function PatientPortal({ embedded = false } = {}) {
 
         {/* Top Bar */}
         <div
-          className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10"
+          className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3 flex-shrink-0 z-10 py-4 px-4"
           style={{ paddingTop: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}>
           
           <button
@@ -1380,9 +1380,9 @@ export default function PatientPortal({ embedded = false } = {}) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             {/* EXIT PATIENT VIEW — NARROW SCREENS (owner request Nov 3 2026): the
-                 floating card button took up card space on phones, so up here it
-                 fills the gap between the title and the icons and shows just the
-                 word Exit. md:hidden keeps the card button for wide layouts. */}
+                  floating card button took up card space on phones, so up here it
+                  fills the gap between the title and the icons and shows just the
+                  word Exit. md:hidden keeps the card button for wide layouts. */}
             {canExitPreview &&
             <button
               onClick={() => requestExitPatientView()}
@@ -1415,8 +1415,8 @@ export default function PatientPortal({ embedded = false } = {}) {
               }
             </button>
             {/* WEB-UPDATE BALLOON (owner request Nov 3 2026) — identical look
-                 and rhythm to the staff balloon, anchored to this refresh
-                 button. Tapping it reloads onto the new build. */}
+                  and rhythm to the staff balloon, anchored to this refresh
+                  button. Tapping it reloads onto the new build. */}
             <UpdateInfoBalloon
               active={!!hasWebUpdate}
               anchorSelector="[data-patient-update-btn]"
@@ -1429,11 +1429,11 @@ export default function PatientPortal({ embedded = false } = {}) {
               onClick={() => {void applyPortalUpdate();}} />
             
             {/* REFRESH / UPDATE BUTTON (owner clarification Nov 3 2026): with an
-                 update waiting this is a FULL APP RESTART onto the new build
-                 (same purge as the staff "Clear Cache & Refresh"), not a data
-                 refresh — the live data already arrives over the websocket, so a
-                 data-only tap looked like it did nothing. With no update waiting
-                 it stays a plain data refresh. */}
+                  update waiting this is a FULL APP RESTART onto the new build
+                  (same purge as the staff "Clear Cache & Refresh"), not a data
+                  refresh — the live data already arrives over the websocket, so a
+                  data-only tap looked like it did nothing. With no update waiting
+                  it stays a plain data refresh. */}
             <button
               data-patient-update-btn
               onClick={() => {
@@ -1451,8 +1451,8 @@ export default function PatientPortal({ embedded = false } = {}) {
               
               <RefreshCw className={`w-4 h-4 text-slate-500 dark:text-slate-400 ${updating ? 'animate-spin' : ''}`} />
               {/* Green update dot (owner request Nov 3 2026): the same cue the
-                   staff update arrow gives, so a patient knows why the balloon
-                   keeps appearing. */}
+                    staff update arrow gives, so a patient knows why the balloon
+                    keeps appearing. */}
               {hasWebUpdate &&
               <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
               }
@@ -1468,10 +1468,10 @@ export default function PatientPortal({ embedded = false } = {}) {
           style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}>
           
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
-               Only while the sidebar is hidden (phones, or the drawer closed), and
-               only while the delivery date is TODAY: todayDelivery is resolved for
-               TODAY only, so tomorrow this card simply stops rendering and the
-               delivery lives in the sidebar history. */}
+                Only while the sidebar is hidden (phones, or the drawer closed), and
+                only while the delivery date is TODAY: todayDelivery is resolved for
+                TODAY only, so tomorrow this card simply stops rendering and the
+                delivery lives in the sidebar history. */}
           {showFloatTodayCard &&
           <div className="absolute top-2 left-2 z-[900] md:hidden">
               <PatientTodayFloatingCard
@@ -1486,8 +1486,8 @@ export default function PatientPortal({ embedded = false } = {}) {
           }
 
           {/* Tracking badge — BOTTOM CENTER (owner request Nov 2 2026, moved
-               down from the top centre so it no longer overlaps the floating
-               today card or the header controls). */}
+                down from the top centre so it no longer overlaps the floating
+                today card or the header controls). */}
           {showLiveTracking && driverLocation &&
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
               <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
@@ -1497,9 +1497,9 @@ export default function PatientPortal({ embedded = false } = {}) {
           }
           <div className="h-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm relative">
             {/* Map centre crosshair — same overlay the main dashboard map uses.
-                 Sits at the centre of the SAME padded region the auto-fit uses
-                 (left/right 20, top clears the floating today card, bottom 35),
-                 so it marks the exact point the fit is centred on. */}
+                  Sits at the centre of the SAME padded region the auto-fit uses
+                  (left/right 20, top clears the floating today card, bottom 35),
+                  so it marks the exact point the fit is centred on. */}
             <MapCrosshair topPadding={mapPad.top} bottomPadding={mapPad.bottom} zClass="z-[600]" />
             <MapContainer
               center={defaultCenter}
@@ -1587,8 +1587,8 @@ export default function PatientPortal({ embedded = false } = {}) {
               }
 
               {/* Driver marker — only when live tracking is enabled. Glides smoothly
-                   between 15s location updates (same trail interpolation as the shared
-                   driver dots on dispatcher maps) instead of teleporting. */}
+                    between 15s location updates (same trail interpolation as the shared
+                    driver dots on dispatcher maps) instead of teleporting. */}
               {showLiveTracking && driverLocation &&
               <AnimatedDriverMarker driverLocation={driverLocation} legCoords={currentLegCoords} icon={driverMapIcon} onPaint={handleDriverPaint}>
                   <Popup><strong>Your Driver</strong><br />{driverLocation.name || 'On the way!'}</Popup>
