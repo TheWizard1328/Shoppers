@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
-import { Sun } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Sun, X } from 'lucide-react';
 import PatientDeliveryCard from './PatientDeliveryCard';
 import { buildDeliveryCardProps } from './deliveryCardHelpers';
+import { isPatientViewOverlayActive, requestExitPatientView } from './patientViewExit';
 
 /**
  * PatientTodayFloatingCard (owner request Nov 2 2026)
@@ -19,6 +20,9 @@ export default function PatientTodayFloatingCard({ delivery, pickupStops, stores
   // the map around — the owner asked for the minimum, unexpanded height.
   const wrapRef = useRef(null);
   const minHeightRef = useRef(0);
+  // App-Owner preview only (owner request Nov 3 2026): on a phone the sidebar is
+  // hidden, so the exit control rides this card, right under the date.
+  const [canExitPreview] = useState(isPatientViewOverlayActive);
 
   useEffect(() => {
     if (!wrapRef.current || !onCollapsedHeight) return undefined;
@@ -52,6 +56,23 @@ export default function PatientTodayFloatingCard({ delivery, pickupStops, stores
   const cardProps = buildDeliveryCardProps(delivery, { pickupStops, storeMap });
   if (!cardProps) return null;
 
+  const exitSlot = canExitPreview ? (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={(e) => { e.stopPropagation(); requestExitPatientView(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); requestExitPatientView(); }
+      }}
+      className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-[10px] font-semibold leading-tight text-white shadow-sm"
+      style={{ background: '#1e40af' }}
+      title="Exit Patient View"
+    >
+      <X className="w-2.5 h-2.5" />
+      Exit Patient View
+    </span>
+  ) : null;
+
   return (
     <div
       ref={wrapRef}
@@ -66,7 +87,7 @@ export default function PatientTodayFloatingCard({ delivery, pickupStops, stores
           Today
         </p>
       </div>
-      <PatientDeliveryCard {...cardProps} remainingStops={remainingStops} expandInline />
+      <PatientDeliveryCard {...cardProps} remainingStops={remainingStops} expandInline belowDateSlot={exitSlot} />
     </div>
   );
 }

@@ -280,6 +280,8 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
   // TOP inner padding — refit once when that happens, otherwise the markers
   // would keep their pre-card balance for the whole session.
   const fittedPadRef = useRef(null);
+  // Point count of the last fit, so a later (wider) route point set refits.
+  const fittedRouteLenRef = useRef(-1);
 
   useEffect(() => {
     // Must have patient location
@@ -291,23 +293,26 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
     const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
     const hasRoute = routePoints.length > 1;
 
+    // Fit points can arrive in waves (the route loads after the driver ping, and
+    // the invisible stops resolve their coordinates from their patient record a
+    // moment later), so the fit ALSO re-runs whenever the point COUNT changes —
+    // otherwise a later, wider point set would never be framed (owner request
+    // Nov 3 2026: invisible intermediate stops must stay in the pan/zoom frame).
+    const padKey = String(mapPad?.top ?? '');
+    const routeLen = routePoints.length;
+    const routeGrew = hasRoute && routeLen !== fittedRouteLenRef.current;
+    const needsFit = !fittedRef.current || routeGrew || fittedPadRef.current !== padKey;
+    if (!needsFit) return;
+    fittedRef.current = true;
+    fittedPadRef.current = padKey;
+    fittedRouteLenRef.current = routeLen;
+    if (hasRoute) fittedWithRouteRef.current = true;
+
     if (showDriver && driverLatLng) {
-      // Already fitted this view — refit only once, when the route path first
-      // becomes available (it loads after the driver ping in some cases).
-      const padKey = String(mapPad?.top ?? '');
-      if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current) && fittedPadRef.current === padKey) return;
-      fittedRef.current = true;
-      fittedPadRef.current = padKey;
-      if (hasRoute) fittedWithRouteRef.current = true;
       const points = [driverLatLng, patientLatLng, ...routePoints];
       portalFit(map, points, mapPad);
     } else if (storeLatLng) {
       // Normal case: fit store + patient (wait until store is loaded)
-      const padKey = String(mapPad?.top ?? '');
-      if (fittedRef.current && !(hasRoute && !fittedWithRouteRef.current) && fittedPadRef.current === padKey) return;
-      fittedRef.current = true;
-      fittedPadRef.current = padKey;
-      if (hasRoute) fittedWithRouteRef.current = true;
       const points = [storeLatLng, patientLatLng, ...routePoints];
       portalFit(map, points, mapPad);
     }
@@ -1094,34 +1099,98 @@ export default function PatientPortal({ embedded = false } = {}) {
   // here would be a TDZ error), so the fit never zooms out to include invisible
   // geometry.
   const ROUTE_COORDS_EMPTY = [];
+
+  // STOP COORDINATES for the invisible intermediate stops (owner request Nov 3
+  // 2026): the portal draws markers only for the driver, the pharmacy and this
+  // patient, so the stops in between have to be resolved separately or the
+  // pan/zoom frame never knew they existed and cropped them out of view.
+  // Delivery rows usually carry no lat/lng (those live on the Patient record),
+  // so missing ones are looked up here once per route change.
+  const [routeStopCoords, setRouteStopCoords] = useState({});
+  useEffect(() => {
+    const missing = (routeDeliveries || [])
+      .filter((d) => d?.patient_id
+        && !(Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng)))
+        && !d.encoded_polyline)
+      .map((d) => String(d.patient_id));
+    const ids = [...new Set(missing)];
+    if (ids.length === 0) { setRouteStopCoords({}); return undefined; }
+
+    let alive = true;
+    (async () => {
+      const map = {};
+      const record = (row) => {
+        if (!row) return;
+        const lat = Number(row.latitude);
+        const lng = Number(row.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+          map[String(row.id)] = [lat, lng];
+        }
+      };
+      try {
+        const rows = await base44.entities.Patient.filter({ id: { $in: ids } }, '-updated_date', ids.length);
+        (rows || []).forEach(record);
+      } catch (_) { /* fall through to per-id reads */ }
+      for (const id of ids) {
+        if (map[id]) continue;
+        try { record(await base44.entities.Patient.get(id)); } catch (_) { /* skip */ }
+      }
+      if (alive) setRouteStopCoords(map);
+    })();
+
+    return () => { alive = false; };
+  }, [routeDeliveries]);
+
   const visibleRouteCoords = useMemo(() => {
-    // OWNER FIX (Oct 23 2026 — v1.9.65): the fit was still anchored to leg
-    // ORIGIN endpoints (each leg starts at the previous stop / the store) —
-    // i.e. coordinates of stops the driver has ALREADY FINISHED, sitting
+    // OWNER FIX (Oct 23 2026 — v1.9.65): the fit was anchored to leg ORIGIN
+    // endpoints — coordinates of stops the driver had ALREADY FINISHED, sitting
     // behind the driver. Those dead anchors kept the frame wide and static
-    // instead of following the marker. Per owner spec the fit points are
-    // ONLY: the driver's position, the patient's position, and the
-    // coordinates of the INCOMPLETE intermediate stops between them.
-    // Route geometry stays painted via the Polyline components.
+    // instead of following the marker. Per owner spec the fit points are ONLY:
+    // the driver's position, the patient's position, and the coordinates of the
+    // INCOMPLETE intermediate stops between them. Route geometry stays painted
+    // via the Polyline components.
+    //
+    // OWNER REQUEST (Nov 3 2026): stops that are NOT drawn on the map still have
+    // to hold the frame — including pharmacy pickups (no patient record) — so
+    // every intermediate stop resolves a coordinate from, in order:
+    //   1. its own lat/lng
+    //   2. the patient record (routeStopCoords lookup)
+    //   3. the LAST point of its stored leg polyline (a leg ends at its stop)
+    //   4. its store's coordinates for a pickup stop
     const patientStopOrder = Number(todayDelivery?.stop_order);
     if (!todayDelivery || routeDeliveries.length === 0) return [];
+
+    const storeCoords = {};
+    (stores || []).forEach((st) => {
+      const lat = Number(st?.latitude);
+      const lng = Number(st?.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) storeCoords[String(st.id)] = [lat, lng];
+    });
+
     const DONE = ['completed', 'failed', 'cancelled'];
     const pts = [];
     for (const d of routeDeliveries) {
       if (DONE.includes(d.status)) continue;           // finished stop — never a fit point
       if (Number(d.stop_order) >= patientStopOrder) continue; // patient & later stops excluded
-      if (Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng))) {
-        pts.push([Number(d.lat), Number(d.lng)]);
-      } else if (d.encoded_polyline) {
-        const leg = decodePolyline(d.encoded_polyline); // polyline ends at the stop
-        if (leg.length > 0) pts.push(leg[leg.length - 1]);
+
+      let pt = null;
+      if (Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng))
+        && Number(d.lat) !== 0 && Number(d.lng) !== 0) {
+        pt = [Number(d.lat), Number(d.lng)];
       }
+      if (!pt && d.patient_id) pt = routeStopCoords[String(d.patient_id)] || null;
+      if (!pt && d.encoded_polyline) {
+        const leg = decodePolyline(d.encoded_polyline); // polyline ends at the stop
+        if (leg.length > 0) pt = leg[leg.length - 1];
+      }
+      if (!pt && d.store_id) pt = storeCoords[String(d.store_id)] || null;
+      if (pt) pts.push(pt);
     }
     return pts;
     // NOTE: staticPolylineSegments/firstLegCoords/currentLegCoords deliberately
     // NOT in the deps — the leg arrays are for PAINTING; the fit rides the
     // stop coordinates, which change with routeDeliveries.
-  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
+  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id, routeStopCoords, stores]);
 
   const storeLatLng = activeStore?.latitude && activeStore?.longitude
     ? [activeStore.latitude, activeStore.longitude]

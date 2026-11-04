@@ -24,7 +24,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween, remainingStops = null, expandInline = false }) {
+export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween, remainingStops = null, expandInline = false, belowDateSlot = null }) {
   const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
@@ -108,6 +108,11 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
             <p className={`text-sm font-semibold mt-0.5 ${expanded ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>
               {dateStr}
             </p>
+            {/* Slot rendered immediately UNDER the date (owner request Nov 3
+                2026: the App-Owner "Exit Patient View" control belongs on the
+                floating today card here, in the space under the date). It uses
+                a span so it stays legal inside the card's toggle button. */}
+            {belowDateSlot}
             {hasCod && (
               <p className={`text-xs mt-0.5 font-semibold ${expanded ? 'text-green-400' : 'text-green-600'}`}>
                 COD: ${codTotal.toFixed(2)}

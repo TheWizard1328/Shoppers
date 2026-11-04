@@ -2,14 +2,18 @@
  * PatientViewOverlay
  * Renders the PatientPortal as a full-viewport overlay inside the current page.
  * AppOwner-only. Activated via activatePatientViewOverlay(patient).
- * An "Exit Patient View" button dismisses it without navigating away.
+ * Exiting happens from inside the portal: the sidebar footer (between Sign Out
+ * and the version number) on wide screens, and the floating today card under the
+ * delivery date on a phone. Both dispatch PATIENT_VIEW_EXIT_EVENT, handled here.
  */
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
 import { PatientSessionManager } from './PatientSessionManager';
 import PatientPortal from '@/pages/PatientPortal';
-
-const OVERLAY_FLAG = 'rxdeliver_patient_view_overlay';
+import {
+  PATIENT_VIEW_OVERLAY_FLAG as OVERLAY_FLAG,
+  PATIENT_VIEW_EXIT_EVENT,
+  isPatientViewOverlayActive,
+} from './patientViewExit';
 
 export function activatePatientViewOverlay(patient) {
   PatientSessionManager.login(patient);
@@ -17,9 +21,7 @@ export function activatePatientViewOverlay(patient) {
   window.dispatchEvent(new CustomEvent('patientViewOverlayChanged'));
 }
 
-export function isPatientViewOverlayActive() {
-  return sessionStorage.getItem(OVERLAY_FLAG) === '1';
-}
+export { isPatientViewOverlayActive };
 
 export default function PatientViewOverlay() {
   const [active, setActive] = useState(isPatientViewOverlayActive);
@@ -30,13 +32,20 @@ export default function PatientViewOverlay() {
     return () => window.removeEventListener('patientViewOverlayChanged', handler);
   }, []);
 
-  if (!active) return null;
+  // Exit requests come from INSIDE the portal (sidebar footer on wide screens,
+  // the floating today card on a phone) instead of a floating top-right button
+  // that covered other controls (owner report Nov 3 2026).
+  useEffect(() => {
+    const handler = () => {
+      sessionStorage.removeItem(OVERLAY_FLAG);
+      sessionStorage.removeItem('rxdeliver_patient_session');
+      setActive(false);
+    };
+    window.addEventListener(PATIENT_VIEW_EXIT_EVENT, handler);
+    return () => window.removeEventListener(PATIENT_VIEW_EXIT_EVENT, handler);
+  }, []);
 
-  const handleExit = () => {
-    sessionStorage.removeItem(OVERLAY_FLAG);
-    sessionStorage.removeItem('rxdeliver_patient_session');
-    setActive(false);
-  };
+  if (!active) return null;
 
   return (
     <div
@@ -54,24 +63,6 @@ export default function PatientViewOverlay() {
         paddingRight: 'var(--native-safe-right, env(safe-area-inset-right, 0px))'
       }}
     >
-      {/* Exit button — forced light styling so it's always visible regardless of dark mode.
-          Offset below the status bar via the same native-safe variables. */}
-      <button
-        onClick={handleExit}
-        className="absolute right-3 z-[100000] flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg shadow-lg transition-colors"
-        style={{
-          background: '#1e40af',
-          color: '#ffffff',
-          top: 'calc(0.75rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))'
-        }}
-        onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
-        onMouseLeave={e => e.currentTarget.style.background = '#1e40af'}
-        title="Exit Patient View"
-      >
-        <X className="w-3.5 h-3.5" />
-        Exit Patient View
-      </button>
-
       {/* Full-height container: the wrapper is padded by the safe-area insets, so the
           portal must fill the REMAINING box (h-full), not the raw viewport (h-screen).
           PatientPortal skips its own inset paddings in embedded mode to avoid doubling. */}
