@@ -4,7 +4,7 @@ import { X, Send, Loader2, MessageSquare, ArrowLeft, Store, Car, RefreshCw } fro
 import { format } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import DriverDutyBadge, { normalizeDriverDuty } from '@/components/messaging/DriverDutyBadge';
-import { loadDriverDirectory, patientConversationId, driverThreadConversationId } from '@/components/messaging/patientThreads';
+import { loadDriverDirectory, patientConversationId, driverThreadConversationId, sendPatientMessageToDriver, markDriverThreadRead } from '@/components/messaging/patientThreads';
 
 /**
  * Patient portal messaging (owner build Nov 2 2026).
@@ -122,11 +122,14 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   useEffect(() => { if (open) onUnreadChange?.(totalUnread); }, [totalUnread, open, onUnreadChange]);
 
   const markRead = useCallback(async (driverId) => {
-    await base44.functions.invoke('patientPush', {
-      action: 'patientMarkRead',
-      patient_id: patientId,
-      driver_id: driverId || undefined,
-    }).catch(() => {});
+    if (driverId) {
+      await markDriverThreadRead({ patientId, driverId }).catch(() => {});
+    } else {
+      await base44.functions.invoke('patientPush', {
+        action: 'patientMarkRead',
+        patient_id: patientId,
+      }).catch(() => {});
+    }
     setMessages((prev) => prev.map((m) => {
       const key = threadKey(m);
       const target = driverId ? `driver:${driverId}` : 'store';
@@ -159,14 +162,22 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
     setSending(true);
     setError('');
     try {
-      const res = await base44.functions.invoke('patientPush', {
-        action: 'patientSend',
-        patient_id: patientId,
-        content: text,
-        driver_id: active?.kind === 'driver' ? active.driver.driver_id : undefined,
-      });
-      const created = res?.data?.message || res?.message || null;
-      if (!created?.id) throw new Error(res?.data?.error || 'send_failed');
+      // Driver threads write through patientThreadMsg (patientPush resolves the
+      // driver by the wrong id and drops the message into the pharmacy thread).
+      const targetDriverId = active?.kind === 'driver' ? active.driver.driver_id : '';
+      let created = null;
+      if (targetDriverId) {
+        created = await sendPatientMessageToDriver({ patientId, driverId: targetDriverId, content: text });
+      } else {
+        const res = await base44.functions.invoke('patientPush', {
+          action: 'patientSend',
+          patient_id: patientId,
+          content: text,
+        });
+        created = res?.data?.message || res?.message || null;
+        if (!created?.id) throw new Error(res?.data?.error || 'send_failed');
+      }
+      if (!created?.id) throw new Error('send_failed');
       setInput('');
       setMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [...prev, created]));
     } catch {

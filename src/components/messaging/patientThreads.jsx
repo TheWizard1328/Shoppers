@@ -208,9 +208,20 @@ export async function sendStaffMessageToDriverThread({ user, patient, driverId, 
     driver_id: driverId,
   });
 
-  const preview = text.length > 140 ? `${text.slice(0, 137)}...` : text;
+  // patientThreadMsg writes the row again under its own control and pushes BOTH
+  // sides in one call; the local row above is only the fallback copy.
+  try {
+    const res = await base44.functions.invoke('patientThreadMsg', {
+      action: 'staffSend',
+      patient_id: patient.id,
+      driver_id: driverId,
+      content: text,
+    });
+    const sent = res?.data?.message || res?.message || null;
+    if (sent?.id) return sent;
+  } catch { /* fall through: guaranteed alerts below */ }
 
-  // Patient's devices.
+  const preview = text.length > 140 ? `${text.slice(0, 137)}...` : text;
   base44.functions.invoke('patientPush', {
     action: 'send',
     patient_id: patient.id,
@@ -220,18 +231,45 @@ export async function sendStaffMessageToDriverThread({ user, patient, driverId, 
     tag: `driver-thread-${patient.id}`,
   }).catch(() => {});
 
-  // The driver's devices.
-  base44.functions.invoke('patientPush', {
-    action: 'notifyDriver',
-    driver_id: driverId,
-    patient_id: patient.id,
-    title: `${staffName} · ${patient.full_name || 'Patient'}`,
-    body: preview,
-    url: '/',
-    tag: `driver-thread-${patient.id}`,
-  }).catch(() => {});
-
   return message;
+}
+
+/**
+ * PATIENT → DRIVER thread write (owner report Nov 3 2026). patientPush resolves
+ * drivers by a different id than Delivery.driver_id carries and cannot be
+ * redeployed, so driver-thread writes go through patientThreadMsg. Falls back to
+ * patientPush only if that call fails outright.
+ */
+export async function sendPatientMessageToDriver({ patientId, driverId, content }) {
+  const text = String(content || '').trim();
+  if (!patientId || !driverId || !text) return null;
+  try {
+    const res = await base44.functions.invoke('patientThreadMsg', {
+      action: 'send', patient_id: patientId, driver_id: driverId, content: text,
+    });
+    const created = res?.data?.message || res?.message || null;
+    if (created?.id) return created;
+  } catch { /* fall through */ }
+  const res = await base44.functions.invoke('patientPush', {
+    action: 'patientSend', patient_id: patientId, content: text, driver_id: driverId,
+  });
+  const created = res?.data?.message || res?.message || null;
+  if (!created?.id) throw new Error(res?.data?.error || 'send_failed');
+  return created;
+}
+
+/** Read receipt for one driver thread. */
+export async function markDriverThreadRead({ patientId, driverId }) {
+  if (!patientId || !driverId) return;
+  try {
+    await base44.functions.invoke('patientThreadMsg', {
+      action: 'markRead', patient_id: patientId, driver_id: driverId,
+    });
+    return;
+  } catch { /* fall back */ }
+  await base44.functions.invoke('patientPush', {
+    action: 'patientMarkRead', patient_id: patientId, driver_id: driverId,
+  }).catch(() => {});
 }
 
 const ACTIVE_DELIVERY_STATUSES = ['in_transit', 'en_route', 'arrived', 'out_for_delivery'];
@@ -247,8 +285,15 @@ const ACTIVE_DELIVERY_STATUSES = ['in_transit', 'en_route', 'arrived', 'out_for_
 export async function loadDriverDirectory(patientId) {
   if (!patientId) return { drivers: [], today: '' };
   try {
-    const res = await base44.functions.invoke('patientPush', { action: 'driverDirectory', patient_id: patientId });
-    const data = res?.data || res || {};
+    let data = null;
+    try {
+      const res = await base44.functions.invoke('patientThreadMsg', { action: 'directory', patient_id: patientId });
+      data = res?.data || res || null;
+    } catch { data = null; }
+    if (!data?.drivers) {
+      const res = await base44.functions.invoke('patientPush', { action: 'driverDirectory', patient_id: patientId });
+      data = res?.data || res || {};
+    }
     const drivers = data.drivers || [];
     const today = data.today || '';
 
