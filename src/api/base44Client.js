@@ -45,16 +45,48 @@ const LONG_TIMEOUT_FUNCTIONS = new Set([
   'squareMirrorCatalog',
 ]);
 const LONG_TIMEOUT_MS = 120000;
+// ── SILENT BACKGROUND HOUSEKEEPING (owner report Nov 4 2026) ────────────────
+// "I'm still seeing a lot of these errors quite regularly just after completing
+// stops or just driving along between stops": syncPendingBreadcrumbs,
+// SquareBalancesSnapshot, DriverDailyActivity and patientPortalWatchers all
+// fired within one second of each other on a weak cellular link, all four hit
+// the hard 15s cap, and all four painted an ERROR box over the map.
+// None of them is user-facing: every one retries on its own next cycle. So they
+// get a longer cap (a slow link is not a failure) and they never publish an
+// issue balloon. Real failures still land in the console.
+const SILENT_BACKGROUND_ENDPOINTS = new Set([
+  'syncPendingBreadcrumbs',
+  'patientPortalWatchers',
+  'DriverDailyActivity',
+  'SquareBalancesSnapshot',
+]);
+const SILENT_BACKGROUND_MS = 45000;
+const endpointOfRequest = (url) => {
+  if (typeof url !== 'string') return null;
+  const fn = url.match(/\/functions\/([A-Za-z0-9_]+)(?:\?|$)/);
+  if (fn) return fn[1];
+  const ent = url.match(/\/entities\/([A-Za-z0-9_]+)/);
+  if (ent) return ent[1];
+  return null;
+};
+const isSilentBackground = (url) => SILENT_BACKGROUND_ENDPOINTS.has(endpointOfRequest(url));
+
 const originalAxiosCreate = axios.create.bind(axios);
 axios.create = (config) => {
   const instance = originalAxiosCreate(config);
   // Owner issue balloon: tag every failed SDK request with entity/function + method
   // (the SDK's own console error drops the URL). Passes the error through untouched.
-  instance.interceptors.response.use((r) => r, (error) => { publishApiIssue(error); return Promise.reject(error); });
+  instance.interceptors.response.use((r) => r, (error) => {
+    const failedUrl = error?.config?.url || error?.response?.config?.url;
+    if (!isSilentBackground(failedUrl)) publishApiIssue(error);
+    return Promise.reject(error);
+  });
   instance.interceptors.request.use((cfg) => {
-    const fnMatch = typeof cfg?.url === 'string' ? cfg.url.match(/\/functions\/([A-Za-z0-9_]+)(?:\?|$)/) : null;
-    if (fnMatch && LONG_TIMEOUT_FUNCTIONS.has(fnMatch[1])) {
+    const endpoint = endpointOfRequest(cfg?.url);
+    if (endpoint && LONG_TIMEOUT_FUNCTIONS.has(endpoint)) {
       cfg.timeout = LONG_TIMEOUT_MS;
+    } else if (endpoint && SILENT_BACKGROUND_ENDPOINTS.has(endpoint)) {
+      cfg.timeout = SILENT_BACKGROUND_MS;
     }
     return cfg;
   });
