@@ -12,6 +12,7 @@ import PatientTodayFloatingCard from '@/components/patient-portal/PatientTodayFl
 import MapCrosshair from '@/components/dashboard/MapCrosshair';
 import PatientMessaging, { loadPatientUnreadCount } from '@/components/patient-portal/PatientMessaging';
 import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
+import { resolveLinkedPatientIds } from '@/components/utils/patientLinkedRecords';
 import PatientNotificationToggle from '@/components/patient-portal/PatientNotificationToggle';
 import { format } from 'date-fns';
 import { isPatientViewOverlayActive, requestExitPatientView } from '../components/patient-portal/patientViewExit';
@@ -771,11 +772,34 @@ export default function PatientPortal({ embedded = false } = {}) {
     if (!patient?.id) return;
     setLoading(true);
     try {
-      const allDeliveries = await base44.entities.Delivery.filter(
-        { patient_id: patient.id },
-        '-delivery_date',
-        200
-      );
+      // OWNER REQUEST Nov 4 2026: one login shows EVERY record that shares this
+      // patient's name + phone (same person filed under more than one store),
+      // so the portal merges the deliveries of all linked records instead of
+      // making the patient choose which record they are at login.
+      const linkedIds = await resolveLinkedPatientIds(patient);
+      const idList = linkedIds.length > 0 ? linkedIds : [patient.id];
+      let allDeliveries;
+      if (idList.length === 1) {
+        allDeliveries = await base44.entities.Delivery.filter(
+          { patient_id: idList[0] },
+          '-delivery_date',
+          200
+        );
+      } else {
+        const perRecord = await Promise.all(
+          idList.map((pid) =>
+            base44.entities.Delivery.filter({ patient_id: pid }, '-delivery_date', 200).catch(() => [])
+          )
+        );
+        const seen = new Set();
+        allDeliveries = [];
+        for (const rec of perRecord.flat()) {
+          if (!rec?.id || seen.has(rec.id)) continue;
+          seen.add(rec.id);
+          allDeliveries.push(rec);
+        }
+        allDeliveries.sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || '')));
+      }
       setDeliveries(allDeliveries);
 
       // ── PICKUP STOPS, MATCHED BY PUID ACROSS DATES (owner request Nov 3 2026) ─

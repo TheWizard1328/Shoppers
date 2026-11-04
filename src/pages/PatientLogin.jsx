@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { verifyPatient } from '@/functions/verifyPatient';
-import { lookupPatientByPhone } from '@/functions/lookupPatientByPhone';
+import { lookupPatientPhoneMatches } from '@/functions/lookupPatientPhoneMatches';
 import { PatientSessionManager } from '@/components/patient-portal/PatientSessionManager';
 import PWAInstallPrompt from '@/components/common/PWAInstallPrompt';
 
@@ -20,7 +20,11 @@ export default function PatientLogin() {
   const [success, setSuccess] = useState(false);
 
   // Phone lookup results
-  const [phoneMatches, setPhoneMatches] = useState([]); // [{id, full_name, has_email}]
+  const [phoneMatches, setPhoneMatches] = useState([]); // [{id, full_name, has_email, status, store_abbreviation, address}]
+  // OWNER REQUEST Nov 4 2026: when every match is the SAME person (same name +
+  // phone, different store/address) there is nothing to choose — one login
+  // shows all of their records, so these are held only to explain that.
+  const [householdMatches, setHouseholdMatches] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null); // {id, full_name, has_email}
   const [showNamePicker, setShowNamePicker] = useState(false);
 
@@ -44,6 +48,7 @@ export default function PatientLogin() {
       setPhoneMatches([]);
       setSelectedPatient(null);
       setShowNamePicker(false);
+      setHouseholdMatches([]);
       setError('');
       return;
     }
@@ -52,8 +57,24 @@ export default function PatientLogin() {
       setLookingUp(true);
       setError('');
       try {
-        const res = await lookupPatientByPhone({ phone: digits });
+        const res = await lookupPatientPhoneMatches({ phone: digits });
         const matches = res.data?.matches || [];
+        const normName = (n) => String(n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const samePerson = matches.length > 1 &&
+          matches.every((m) => normName(m.full_name) === normName(matches[0].full_name));
+
+        if (samePerson) {
+          // One person, several records: log them straight in on the first
+          // active record and let the portal merge the rest.
+          const primary = matches.find((m) => String(m.status || 'active').toLowerCase() !== 'inactive') || matches[0];
+          setPhoneMatches(matches);
+          setHouseholdMatches(matches);
+          setSelectedPatient(primary);
+          setShowNamePicker(false);
+          return;
+        }
+
+        setHouseholdMatches([]);
         setPhoneMatches(matches);
         if (matches.length === 1) {
           setSelectedPatient(matches[0]);
@@ -208,6 +229,28 @@ export default function PatientLogin() {
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Same person, several records — explained instead of chosen */}
+                {householdMatches.length > 1 && (
+                  <div className="px-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
+                      <span>
+                        Signed in as <span className="font-semibold">{householdMatches[0].full_name}</span>
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-soft">
+                      You have {householdMatches.length} records. All of their deliveries are shown together.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {householdMatches.map((m) => (
+                        <span key={m.id} className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                          {m.store_abbreviation || m.store_name || 'Store'}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 )}
