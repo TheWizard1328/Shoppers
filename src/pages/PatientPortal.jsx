@@ -13,6 +13,7 @@ import MapCrosshair from '@/components/dashboard/MapCrosshair';
 import PatientMessaging, { loadPatientUnreadCount } from '@/components/patient-portal/PatientMessaging';
 import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
 import { format } from 'date-fns';
+import { isPatientViewOverlayActive, requestExitPatientView } from '../components/patient-portal/patientViewExit';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
 import { getHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { patientPortalPing } from '@/functions/patientPortalPing';
@@ -436,6 +437,9 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Patient messaging (owner build Nov 2 2026): one thread with the pharmacy,
   // unread badge on the header button, pushed to the device when a reply lands.
   const [messagingOpen, setMessagingOpen] = useState(false);
+  // App-owner only: on narrow screens the Exit control lives here in the header's
+  // free space (owner request Nov 3 2026) instead of inside the floating card.
+  const [canExitPreview] = useState(isPatientViewOverlayActive);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [deliveries, setDeliveries]         = useState([]);
   const [pickupStops, setPickupStops]       = useState([]);
@@ -1375,6 +1379,21 @@ export default function PatientPortal({ embedded = false } = {}) {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            {/* EXIT PATIENT VIEW — NARROW SCREENS (owner request Nov 3 2026): the
+                floating card button took up card space on phones, so up here it
+                fills the gap between the title and the icons and shows just the
+                word Exit. md:hidden keeps the card button for wide layouts. */}
+            {canExitPreview && (
+              <button
+                onClick={() => requestExitPatientView()}
+                className="md:hidden shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-white shadow-sm transition-colors"
+                style={{ background: '#1e40af' }}
+                title="Exit Patient View"
+                aria-label="Exit Patient View"
+              >
+                Exit
+              </button>
+            )}
             {/* Live connection indicator */}
             {liveConnected && (
               <div className="hidden sm:flex items-center gap-1.5 text-xs text-green-600 font-medium">

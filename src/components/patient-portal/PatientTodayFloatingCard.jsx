@@ -64,7 +64,7 @@ export default function PatientTodayFloatingCard({ puidGroups, delivery, pickupS
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); requestExitPatientView(); }
       }}
-      className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-[10px] font-semibold leading-tight text-white shadow-sm"
+      className="hidden md:inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-[10px] font-semibold leading-tight text-white shadow-sm"
       style={{ background: '#1e40af' }}
       title="Exit Patient View"
     >
