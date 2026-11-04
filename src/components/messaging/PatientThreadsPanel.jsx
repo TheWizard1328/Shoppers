@@ -359,11 +359,13 @@ export default function PatientThreadsPanel({
     } catch { window.alert('Could not delete that thread.'); }
   };
 
-  if (selected) {
-    return (
-      <div className="flex flex-col h-full w-full">
+  // TWO-PANE LAYOUT (owner request Nov 4 2026): the Patients side now mirrors
+  // the Staff side — thread list on the left, the selected thread on the right.
+  // On phones the list is replaced by the chat until Back is tapped.
+  const chatPane = selected ? (
+      <div className="flex flex-col h-full w-full min-h-0">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <button onClick={() => { setSelected(null); setInput(''); }} className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800" aria-label="Back">
+          <button onClick={() => { setSelected(null); setInput(''); }} className="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800" aria-label="Back">
             <ArrowLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
           <div className="min-w-0 flex-1">
@@ -482,11 +484,18 @@ export default function PatientThreadsPanel({
           </button>
         </div>
       </div>
-    );
-  }
+  ) : (
+    <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950/40 text-slate-500 dark:text-slate-400 px-6 text-center gap-1">
+      <MessageSquare className="w-7 h-7 text-slate-300 dark:text-slate-600" />
+      <p className="text-sm">Select a patient to start messaging</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500">Threads appear here once you have messaged a patient.</p>
+    </div>
+  );
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex h-full w-full overflow-hidden">
+      {/* LEFT: patient thread list */}
+      <div className={`w-full lg:w-80 flex-shrink-0 border-r border-slate-200 dark:border-slate-700 flex-col ${selected ? 'hidden lg:flex' : 'flex'}`}>
       <div className={controlledSearch !== undefined ? 'hidden' : 'p-2 border-b border-slate-200 dark:border-slate-700'}>
         <div className="flex items-center gap-2 px-2 h-9 rounded-lg bg-slate-100 dark:bg-slate-800">
           <Search className="w-4 h-4 text-slate-400" />
@@ -540,6 +549,12 @@ export default function PatientThreadsPanel({
             );
           })
         )}
+      </div>
+      </div>
+
+      {/* RIGHT: the selected thread */}
+      <div className={`flex-1 min-w-0 ${selected ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'}`}>
+        {chatPane}
       </div>
     </div>
   );

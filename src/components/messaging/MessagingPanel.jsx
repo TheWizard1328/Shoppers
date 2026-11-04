@@ -187,8 +187,8 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
             )}
           </button>
 
-          {tab === 'patients' && !patientChatOpen && (
-            <div className="ml-auto flex items-center gap-1.5 min-w-0 pl-2">
+          {tab === 'patients' && (
+            <div className={`ml-auto items-center gap-1.5 min-w-0 pl-2 ${patientChatOpen ? 'hidden lg:flex' : 'flex'}`}>
               <div className="relative min-w-0 flex-1 sm:flex-none">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                 <input
