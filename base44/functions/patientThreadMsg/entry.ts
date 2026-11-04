@@ -47,6 +47,47 @@ async function loadAppUsersByDriverId(base44: any): Promise<Map<string, any>> {
   return map;
 }
 
+// ── FULL DIRECTORY SEARCH (owner request Nov 3 2026) ──────────────────────
+// The old `directory` action could only ever return drivers who had ALREADY
+// delivered to this patient, so the portal search found nobody new. The owner
+// needs the full AppUser list (every active driver) and the full store list, so
+// a patient can reach whoever is out driving now, or any pharmacy.
+const AP_RANK_ACTIVE = 0;
+
+async function loadAllAppUsers(base44: any): Promise<any[]> {
+  return await base44.asServiceRole.entities.AppUser.filter({}, '-created_date', 500).catch(() => []) || [];
+}
+
+function userIsDriver(user: any): boolean {
+  const roles = Array.isArray(user?.app_roles) ? user.app_roles : [];
+  return roles.includes('driver') || !!user?.driver_status;
+}
+
+function userIsActiveStaff(user: any): boolean {
+  return user?.status === 'active' || (!user?.status && user?.driver_status !== 'inactive');
+}
+
+function userDisplayName(user: any): string {
+  return user?.user_name || user?.full_name || '';
+}
+
+function storeStaffUserIds(users: any[], storeId: string): string[] {
+  const ids = new Set<string>();
+  for (const u of users || []) {
+    if (!u) continue;
+    if (u.status === 'inactive') continue;
+    const roles = Array.isArray(u.app_roles) ? u.app_roles : [];
+    const isStaff = roles.some((r: string) => ['dispatcher', 'store_owner', 'admin', 'app_owner'].includes(r));
+    if (!isStaff) continue;
+    const stores = Array.isArray(u.store_ids) ? u.store_ids : [];
+    if (stores.map(String).includes(String(storeId))) {
+      if (u.user_id) ids.add(String(u.user_id));
+      else if (u.id) ids.add(String(u.id));
+    }
+  }
+  return Array.from(ids);
+}
+
 // ── FCM (APK devices) — OAuth2 access token from the service account ────
 let _cachedFcmToken: { token: string; expiresAt: number } | null = null;
 
@@ -225,6 +266,78 @@ Deno.serve(async (req) => {
     const action = payload?.action || '';
     const { patient_id, driver_id } = payload;
 
+    // ── Full directory search: every active driver + every store ───────────
+    if (action === 'searchDirectory') {
+      if (!patient_id) return Response.json({ ok: false, error: 'patient_id is required' }, { status: 400 });
+
+      const query = String(payload.query || '').trim().toLowerCase();
+      const today = albertaTodayKey();
+
+      const patient = await base44.asServiceRole.entities.Patient.get(patient_id).catch(() => null);
+      if (!patient) return Response.json({ ok: false, error: 'Patient not found' }, { status: 404 });
+
+      const users = await loadAllAppUsers(base44);
+
+      // Drivers the patient has actually had, so those rows can be labelled.
+      const priorRows = await base44.asServiceRole.entities.Delivery
+        .filter({ patient_id }, '-delivery_date', 200)
+        .catch(() => []);
+      const priorDriverIds = new Set((priorRows || []).map((d: any) => String(d?.driver_id || '')).filter(Boolean));
+      const todayDriverIds = new Set(
+        (priorRows || []).filter((d: any) => String(d?.delivery_date || '') === today)
+          .map((d: any) => String(d?.driver_id || '')).filter(Boolean)
+      );
+
+      const drvKey = (u: any) => String(u?.user_id || u?.id || '');
+      const drivers = users
+        .filter((u: any) => userIsDriver(u) && userIsActiveStaff(u) && drvKey(u))
+        .map((u: any) => {
+          const id = drvKey(u);
+          const status = String(u?.driver_status || 'off_duty');
+          return {
+            driver_id: id,
+            driver_name: userDisplayName(u) || 'Driver',
+            duty_status: ['on_duty', 'on_break', 'off_duty'].includes(status) ? status : 'off_duty',
+            is_current: todayDriverIds.has(id),
+            is_prior: priorDriverIds.has(id),
+          };
+        })
+        // No query → only the drivers who are actually working right now.
+        // With a query → any active driver whose NAME matches, whatever their duty.
+        .filter((d: any) => {
+          const onDuty = d.duty_status === 'on_duty' || d.duty_status === 'on_break';
+          if (!query) return onDuty;
+          return d.driver_name.toLowerCase().includes(query) || (query.length >= 3 && onDuty && d.driver_name.toLowerCase().split(/\s+/).some((w: string) => w.startsWith(query)));
+        })
+        .sort((a: any, b: any) => {
+          const score = (d: any) => (d.is_current ? 0 : (d.duty_status === 'on_duty' ? 1 : (d.duty_status === 'on_break' ? 2 : (d.is_prior ? 3 : 4))));
+          if (score(a) !== score(b)) return score(a) - score(b);
+          return a.driver_name.localeCompare(b.driver_name);
+        })
+        .slice(0, query ? 25 : 12);
+
+      // Stores: the whole active list, the patient's own first.
+      const storeRows = await base44.asServiceRole.entities.Store.filter({}, 'name', 200).catch(() => []);
+      const stores = (storeRows || [])
+        .filter((st: any) => String(st?.status || 'active') !== 'inactive')
+        .filter((st: any) => {
+          if (!query) return true;
+          const hay = `${st?.name || ''} ${st?.abbreviation || ''} pharmacy`.toLowerCase();
+          return hay.includes(query);
+        })
+        .map((st: any) => ({
+          store_id: st.id,
+          name: st.name || st.abbreviation || 'Pharmacy',
+          abbreviation: String(st.abbreviation || '').toUpperCase(),
+          city_id: st.city_id || '',
+          is_home: String(st.id) === String(patient.store_id || ''),
+        }))
+        .sort((a: any, b: any) => (a.is_home === b.is_home ? a.name.localeCompare(b.name) : (a.is_home ? -1 : 1)))
+        .slice(0, query ? 25 : 12);
+
+      return Response.json({ ok: true, today, query, drivers, stores, v: 'ptm2' });
+    }
+
     // ── Which drivers may this patient message, and are they on duty? ──────
     if (action === 'directory') {
       if (!patient_id) return Response.json({ ok: false, error: 'patient_id is required' }, { status: 400 });
@@ -367,11 +480,18 @@ Deno.serve(async (req) => {
       if (!driver_id) return Response.json({ ok: false, error: 'driver_id is required' }, { status: 400 });
       if (!text) return Response.json({ ok: false, error: 'Message text is required' }, { status: 400 });
 
+      // WHO MAY BE MESSAGED (owner request Nov 3 2026): any driver who has
+      // delivered to this patient, OR any driver who is on duty right now — the
+      // portal now lists every active driver, so the send has to match.
       const prior = await base44.asServiceRole.entities.Delivery
         .filter({ patient_id, driver_id }, '-delivery_date', 5)
         .catch(() => []);
-      if (!prior || prior.length === 0) {
-        return Response.json({ ok: false, error: 'That driver has no delivery with this patient' }, { status: 403 });
+      const userByDriverId = await loadAppUsersByDriverId(base44);
+      const targetUser = userByDriverId.get(String(driver_id)) || null;
+      const targetStatus = String(targetUser?.driver_status || '');
+      const targetIsWorking = targetStatus === 'on_duty' || targetStatus === 'on_break';
+      if ((!prior || prior.length === 0) && !targetIsWorking) {
+        return Response.json({ ok: false, error: 'That driver is not on duty' }, { status: 403 });
       }
       const driverName = await resolveDriverName(base44, driver_id, prior || []);
 
@@ -398,6 +518,60 @@ Deno.serve(async (req) => {
       }).catch(() => ({ sent: 0 }));
 
       return Response.json({ ok: true, message: created, alerted });
+    }
+
+    // ── Patient writes into a STORE thread (public portal) ────────────────
+    // Each pharmacy keeps its own thread on the same patient conversation, told
+    // apart by Message.store_id, and only THAT store's staff is pushed.
+    if (action === 'sendStore' || action === 'markStoreRead') {
+      const storeId = String(payload.store_id || '');
+      if (!storeId) return Response.json({ ok: false, error: 'store_id is required' }, { status: 400 });
+
+      const rows = await base44.asServiceRole.entities.Message
+        .filter({ patient_id, store_id: storeId }, '-created_date', 100)
+        .catch(() => []);
+
+      if (action === 'markStoreRead') {
+        const unread = (rows || []).filter((m: any) => !m.read && m.sender_id !== patientSenderIdOf(patient_id));
+        for (const m of unread) {
+          await base44.asServiceRole.entities.Message.update(m.id, { read: true }).catch(() => {});
+        }
+        return Response.json({ ok: true, marked: unread.length });
+      }
+
+      if (!text) return Response.json({ ok: false, error: 'Message text is required' }, { status: 400 });
+      const store = await base44.asServiceRole.entities.Store.get(storeId).catch(() => null);
+      const storeName = store?.name || 'Pharmacy';
+
+      const created = await base44.asServiceRole.entities.Message.create({
+        sender_id: patientSenderIdOf(patient_id),
+        sender_name: patient.full_name || 'Patient',
+        receiver_id: '',
+        receiver_name: storeName,
+        conversation_id: `patient:${patient_id}`,
+        content: text,
+        message_type: 'text',
+        read: false,
+        patient_id,
+        store_id: storeId,
+        driver_id: '',
+      });
+
+      const users = await loadAllAppUsers(base44);
+      const staffIds = storeStaffUserIds(users, storeId).slice(0, 12);
+      let sent = 0;
+      for (const staffId of staffIds) {
+        const res = await pushToUser(base44, staffId, {
+          title: `New message from ${patient.full_name || 'a patient'}`,
+          body: text.length > 140 ? `${text.slice(0, 137)}...` : text,
+          url: '/',
+          tag: `patient-store-${patient_id}`,
+          patient_id,
+        }).catch(() => ({ sent: 0 }));
+        sent += res?.sent || 0;
+      }
+
+      return Response.json({ ok: true, message: created, alerted: { sent, staff: staffIds.length } });
     }
 
     return Response.json({ ok: false, error: `Unknown action: ${action}` }, { status: 400 });

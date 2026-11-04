@@ -4,7 +4,16 @@ import { X, Send, Loader2, MessageSquare, ArrowLeft, Store, Car, RefreshCw, Sear
 import { format } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import DriverDutyBadge, { normalizeDriverDuty } from '@/components/messaging/DriverDutyBadge';
-import { loadDriverDirectory, patientConversationId, driverThreadConversationId, sendPatientMessageToDriver, markDriverThreadRead } from '@/components/messaging/patientThreads';
+import {
+  loadDriverDirectory,
+  patientConversationId,
+  driverThreadConversationId,
+  sendPatientMessageToDriver,
+  markDriverThreadRead,
+  searchPatientDirectory,
+  sendPatientMessageToStore,
+  markStoreThreadRead,
+} from '@/components/messaging/patientThreads';
 
 /**
  * Patient portal messaging (owner build Nov 2 2026).
@@ -40,7 +49,12 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState([]);
   const [drivers, setDrivers] = useState([]);
-  const [active, setActive] = useState(null); // { kind: 'store' } | { kind: 'driver', driver }
+  // FULL DIRECTORY (owner request Nov 3 2026): every active driver and store from
+  // AppUser/Store, not just the ones this patient already had a delivery with.
+  const [directoryDrivers, setDirectoryDrivers] = useState([]);
+  const [directoryStores, setDirectoryStores] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [active, setActive] = useState(null); // { kind: 'store', store } | { kind: 'driver', driver }
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -92,14 +106,38 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   useEffect(() => {
     if (!open || !patientId) return undefined;
     const timer = setInterval(async () => {
-      const directory = await loadDriverDirectory(patientId);
+      const [directory, full] = await Promise.all([
+        loadDriverDirectory(patientId),
+        searchPatientDirectory({ patientId, query: '' }),
+      ]);
       setDrivers(directory.drivers || []);
+      setDirectoryDrivers(full.drivers || []);
+      setDirectoryStores(full.stores || []);
     }, 60000);
     return () => clearInterval(timer);
   }, [open, patientId]);
 
-  const threadKey = (m) => (m.driver_id ? `driver:${m.driver_id}` : 'store');
-  const activeKey = active ? (active.kind === 'driver' ? `driver:${active.driver.driver_id}` : 'store') : null;
+  // Debounced directory search: the field filters the full AppUser driver list
+  // and the store list, so typing reaches someone who never delivered here.
+  useEffect(() => {
+    if (!open || !patientId) return undefined;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const full = await searchPatientDirectory({ patientId, query });
+      setDirectoryDrivers(full.drivers || []);
+      setDirectoryStores(full.stores || []);
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [open, patientId, query]);
+
+  // Store threads are told apart by Message.store_id, so each pharmacy keeps its
+  // own conversation (matches the backend sendStore/markStoreRead scoping).
+  const storeKeyOf = (storeId) => `store:${storeId || ''}`;
+  const threadKey = (m) => (m.driver_id ? `driver:${m.driver_id}` : storeKeyOf(m.store_id));
+  const activeKey = active
+    ? (active.kind === 'driver' ? `driver:${active.driver.driver_id}` : storeKeyOf(active.store?.store_id))
+    : null;
 
   const threadMessages = useMemo(
     () => (activeKey ? messages.filter((m) => threadKey(m) === activeKey) : []),
@@ -125,9 +163,11 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   );
   useEffect(() => { if (open) onUnreadChange?.(totalUnread); }, [totalUnread, open, onUnreadChange]);
 
-  const markRead = useCallback(async (driverId) => {
+  const markRead = useCallback(async (driverId, storeId) => {
     if (driverId) {
       await markDriverThreadRead({ patientId, driverId }).catch(() => {});
+    } else if (storeId) {
+      await markStoreThreadRead({ patientId, storeId }).catch(() => {});
     } else {
       await base44.functions.invoke('patientPush', {
         action: 'patientMarkRead',
@@ -136,14 +176,14 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
     }
     setMessages((prev) => prev.map((m) => {
       const key = threadKey(m);
-      const target = driverId ? `driver:${driverId}` : 'store';
+      const target = driverId ? `driver:${driverId}` : storeKeyOf(storeId);
       return key === target && !m.read && m.sender_id !== patientSender(patientId) ? { ...m, read: true } : m;
     }));
   }, [patientId]);
 
-  const openStoreThread = () => {
-    setActive({ kind: 'store' });
-    markRead(null);
+  const openStoreThread = (store) => {
+    setActive({ kind: 'store', store });
+    markRead(null, store?.store_id);
   };
 
   const openDriverThread = (driver) => {
@@ -169,9 +209,13 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
       // Driver threads write through patientThreadMsg (patientPush resolves the
       // driver by the wrong id and drops the message into the pharmacy thread).
       const targetDriverId = active?.kind === 'driver' ? active.driver.driver_id : '';
+      const targetStoreId = active?.kind === 'store' ? active.store?.store_id : '';
       let created = null;
       if (targetDriverId) {
         created = await sendPatientMessageToDriver({ patientId, driverId: targetDriverId, content: text });
+      } else if (targetStoreId) {
+        // Only the chosen pharmacy's staff is alerted.
+        created = await sendPatientMessageToStore({ patientId, storeId: targetStoreId, content: text });
       } else {
         const res = await base44.functions.invoke('patientPush', {
           action: 'patientSend',
@@ -191,29 +235,69 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
     }
   };
 
-  if (!open) return null;
-
-  // Pharmacy label: the portal hands us the stores this patient's deliveries
-  // belong to, so the row names the real pharmacy instead of a generic title.
-  const patientStore = (stores || []).find((st) => String(st?.id) === String(patient?.store_id));
-  const storeName = patientStore?.name || patientStore?.store_name || '';
-  const storeAbbrev = String(patientStore?.abbreviation || patientStore?.store_abbreviation || '').toUpperCase();
-  const storeHaystack = `${storeName} ${storeAbbrev} pharmacy team store`.toLowerCase();
+  // ── LIST BUILD (owner request Nov 3 2026) ────────────────────────────────
+  // Stores come from the full Store list (home pharmacy first). Drivers are the
+  // full AppUser driver list from the search, PLUS any driver who delivered to
+  // this patient before (so an off-duty driver never disappears from the list).
   const needle = query.trim().toLowerCase();
-  const storeMatches = !needle || storeHaystack.includes(needle) || 'pharmacy'.includes(needle);
+  const patientStore = (stores || []).find((st) => String(st?.id) === String(patient?.store_id));
+  const homeStoreRow = {
+    store_id: patient?.store_id || patientStore?.id || '',
+    name: patientStore?.name || patientStore?.store_name || 'My pharmacy',
+    abbreviation: String(patientStore?.abbreviation || patientStore?.store_abbreviation || '').toUpperCase(),
+    is_home: true,
+  };
 
-  const driverNeedle = needle;
-  const visibleDrivers = driverNeedle
-    ? drivers.filter((d) => {
-        const hay = `${d.driver_name || ''} ${d.duty_status || ''} ${d.is_current ? 'today' : ''}`.toLowerCase();
-        return hay.includes(driverNeedle) || hay.replace(/_/g, ' ').includes(driverNeedle);
+  const storeRows = useMemo(() => {
+    const rows = [homeStoreRow, ...(directoryStores || [])];
+    const seen = new Set();
+    return rows.filter((row) => {
+      if (!row?.store_id) return false;
+      const key = String(row.store_id);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [directoryStores, homeStoreRow.store_id, homeStoreRow.name, homeStoreRow.abbreviation]);
+
+  const visibleStores = needle
+    ? storeRows.filter((row) => `${row.name || ''} ${row.abbreviation || ''} pharmacy`.toLowerCase().includes(needle))
+    : storeRows;
+
+  const driverRows = useMemo(() => {
+    const byId = new Map();
+    for (const d of directoryDrivers || []) {
+      if (d?.driver_id) byId.set(String(d.driver_id), { ...d });
+    }
+    for (const d of drivers || []) {
+      if (!d?.driver_id) continue;
+      const key = String(d.driver_id);
+      if (byId.has(key)) {
+        byId.set(key, { ...d, ...byId.get(key), is_prior: true });
+      } else {
+        byId.set(key, { ...d, is_prior: true });
+      }
+    }
+    return Array.from(byId.values());
+  }, [directoryDrivers, drivers]);
+
+  const visibleDrivers = (needle
+    ? driverRows.filter((d) => {
+        const hay = `${d.driver_name || ''} ${d.duty_status || ''}`.toLowerCase();
+        return hay.includes(needle) || hay.replace(/_/g, ' ').includes(needle);
       })
-    : drivers;
-  // Active drivers first, so a search surfaces whoever is actually out now.
-  const sortedDrivers = [...visibleDrivers].sort((a, b) => {
-    const rank = (d) => (d?.is_current ? 0 : (d?.duty_status === 'on_duty' ? 1 : (d?.duty_status === 'on_break' ? 2 : 3)));
-    return rank(a) - rank(b);
+    : driverRows
+  ).sort((a, b) => {
+    const rank = (d) => (d?.is_current ? 0 : (d?.duty_status === 'on_duty' ? 1 : (d?.duty_status === 'on_break' ? 2 : (d?.is_prior ? 3 : 4))));
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    return String(a.driver_name || '').localeCompare(String(b.driver_name || ''));
   });
+
+  const hasNoMatches = visibleDrivers.length === 0 && visibleStores.length === 0;
+
+  // Closed sheet: bail AFTER every hook has run (conditional hooks would break
+  // the component the first time the sheet is reopened).
+  if (!open) return null;
 
   const renderBubble = (m) => {
     const mine = m.sender_id === patientSender(patientId);
@@ -256,7 +340,7 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
               {active
-                ? (active.kind === 'driver' ? (active.driver.driver_name || 'Your driver') : 'Pharmacy team')
+                ? (active.kind === 'driver' ? (active.driver.driver_name || 'Your driver') : (active.store?.name || 'Pharmacy'))
                 : 'Messages'}
             </p>
             {active ? (
@@ -265,10 +349,14 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
                   <DriverDutyBadge status={active.driver.duty_status} size="xs" />
                 </div>
               ) : (
-                <p className="text-xs text-slate-400 dark:text-slate-500 truncate">Every dispatcher at your pharmacy sees this</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
+                  {active.store?.abbreviation ? `${active.store.abbreviation} · ` : ''}Every dispatcher at this pharmacy sees this
+                </p>
               )
             ) : (
-              <p className="text-xs text-slate-400 dark:text-slate-500 truncate">Message your pharmacy or your driver</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
+                {searching ? 'Searching all drivers and stores…' : 'Message a pharmacy or an active driver'}
+              </p>
             )}
           </div>
           <button
@@ -316,40 +404,60 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
               <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
             ) : (
               <>
-                {/* Pharmacy team thread — shared by all dispatchers of the store */}
-                {storeMatches && (
-                <button
-                  onClick={openStoreThread}
-                  className="w-full text-left px-3 py-3 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  <div className="w-9 h-9 rounded-full bg-slate-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                    <Store className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                      {storeName || 'Pharmacy team'}
-                    </p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
-                      {stats.get('store')?.lastText || 'All dispatchers at your store'}
-                    </p>
-                  </div>
-                  {(stats.get('store')?.unread || 0) > 0 && (
-                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
-                      {stats.get('store').unread > 9 ? '9+' : stats.get('store').unread}
-                    </span>
-                  )}
-                </button>
+                {hasNoMatches && (
+                  <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500">
+                    Nothing matches "{query.trim()}". Try a driver's name, or the pharmacy name or short code.
+                  </p>
                 )}
+                {/* Pharmacy threads — one row per store, home pharmacy first */}
+                {visibleStores.map((store) => {
+                  const key = `store:${store.store_id}`;
+                  const s2 = stats.get(key);
+                  return (
+                    <button
+                      key={store.store_id}
+                      onClick={() => openStoreThread(store)}
+                      className="w-full text-left px-3 py-3 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-slate-900 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                        <Store className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {store.name || 'Pharmacy'}
+                          </p>
+                          {store.abbreviation && (
+                            <span className="text-[10px] font-bold px-1.5 h-4 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center">
+                              {store.abbreviation}
+                            </span>
+                          )}
+                          {store.is_home && (
+                            <span className="text-[10px] font-medium px-1.5 h-4 rounded-full bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 flex items-center">
+                              My pharmacy
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
+                          {s2?.lastText || 'All dispatchers at this pharmacy'}
+                        </p>
+                      </div>
+                      {(s2?.unread || 0) > 0 && (
+                        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
+                          {s2.unread > 9 ? '9+' : s2.unread}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
 
                 {/* Driver threads */}
-                {sortedDrivers.length === 0 ? (
+                {visibleDrivers.length === 0 ? (
                   <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500">
-                    {query.trim()
-                      ? 'No drivers match that search.'
-                      : 'Drivers appear here once you have a delivery with them.'}
+                    {query.trim() ? 'No drivers match that search.' : 'No drivers are on duty right now.'}
                   </p>
                 ) : (
-                  sortedDrivers.map((driver) => {
+                  visibleDrivers.map((driver) => {
                     const key = `driver:${driver.driver_id}`;
                     const s = stats.get(key);
                     return (
@@ -374,7 +482,9 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
                             <DriverDutyBadge status={driver.duty_status} size="xs" />
                           </div>
                           <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
-                            {s?.lastText || (driver.is_current ? 'Your driver today' : 'Delivered to you before')}
+                            {s?.lastText || (driver.is_current
+                              ? 'Your driver today'
+                              : (driver.is_prior ? 'Delivered to you before' : 'On duty now'))}
                           </p>
                         </div>
                         {(s?.unread || 0) > 0 && (

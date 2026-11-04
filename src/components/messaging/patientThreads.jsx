@@ -318,3 +318,48 @@ export async function loadDriverDirectory(patientId) {
     return { drivers: [], today: '' };
   }
 }
+
+/**
+ * FULL directory search (owner request Nov 3 2026).
+ *
+ * The old directory only listed drivers who had already delivered to this
+ * patient, so a search found nobody else. This asks patientThreadMsg for the
+ * whole AppUser driver list (active drivers when there is no query, name
+ * matches otherwise) plus every store, with the patient's own pharmacy first.
+ */
+export async function searchPatientDirectory({ patientId, query = '' }) {
+  if (!patientId) return { drivers: [], stores: [] };
+  try {
+    const res = await base44.functions.invoke('patientThreadMsg', {
+      action: 'searchDirectory',
+      patient_id: patientId,
+      query,
+    });
+    const data = res?.data || res || {};
+    return { drivers: data.drivers || [], stores: data.stores || [] };
+  } catch {
+    return { drivers: [], stores: [] };
+  }
+}
+
+/** Patient writes into ONE pharmacy's thread (only that store's staff is pushed). */
+export async function sendPatientMessageToStore({ patientId, storeId, content }) {
+  const text = String(content || '').trim();
+  if (!patientId || !storeId || !text) return null;
+  const res = await base44.functions.invoke('patientThreadMsg', {
+    action: 'sendStore', patient_id: patientId, store_id: storeId, content: text,
+  });
+  const created = res?.data?.message || res?.message || null;
+  if (!created?.id) throw new Error(res?.data?.error || 'send_failed');
+  return created;
+}
+
+/** Read receipt for one pharmacy thread. */
+export async function markStoreThreadRead({ patientId, storeId }) {
+  if (!patientId || !storeId) return;
+  try {
+    await base44.functions.invoke('patientThreadMsg', {
+      action: 'markStoreRead', patient_id: patientId, store_id: storeId,
+    });
+  } catch { /* optional */ }
+}
