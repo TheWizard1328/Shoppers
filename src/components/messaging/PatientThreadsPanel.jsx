@@ -13,7 +13,20 @@ import {
   isPatientSender,
   staffStoreIds,
   staffSeesAllStores,
+  patientConversationId,
+  driverThreadConversationId,
+  patientSenderId,
 } from './patientThreads';
+import {
+  pruneMessageCache,
+  cacheMessages,
+  onMessagesChanged,
+  readCachedPatientThread,
+  loadPatientThread,
+  markThreadRead,
+  tempMessageId,
+  commitSentMessage,
+} from './messageCache';
 import { searchPatientsIdb } from './patientSearchIdb';
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 
