@@ -108,6 +108,52 @@ export default function DeliveryFormStaged({
     return `LD: ${Math.floor(diffDays / 30)}Mon`;
   };
 
+  // ── FUTURE-DATE PENDING SPLIT (owner request Nov 4 2026) ──────────────────
+  // "for pending stops in the staged/pending panel on the add to route form that
+  // are for a future date can we separate them into another pending section
+  // divided with a date header?" Pending stops on the date being edited stay in
+  // the normal Pending list; every pending stop booked for another date drops
+  // into its own date-headed group so they no longer mix in with today's work.
+  const _dateKeyOf = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    return raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0];
+  };
+  const _todayKey = (() => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  })();
+  const referenceDateKey = _dateKeyOf(selectedDate) || _todayKey;
+  const _formatDateHeader = (key) => {
+    const [y, m, d] = String(key || '').split('-').map(Number);
+    if (!y || !m || !d) return 'Other date';
+    const dt = new Date(y, m - 1, d);
+    if (Number.isNaN(dt.getTime())) return String(key);
+    const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+    if (y !== new Date().getFullYear()) opts.year = 'numeric';
+    return dt.toLocaleDateString(undefined, opts);
+  };
+  const pendingItems = sortedStagedDeliveries.filter((s) => s.id);
+  const sameDatePending = pendingItems.filter((s) => _dateKeyOf(s.delivery_date) === referenceDateKey);
+  const _futureByDate = new Map();
+  pendingItems.forEach((s) => {
+    const key = _dateKeyOf(s.delivery_date);
+    if (key === referenceDateKey) return;
+    const bucketKey = key || 'unknown';
+    if (!_futureByDate.has(bucketKey)) _futureByDate.set(bucketKey, []);
+    _futureByDate.get(bucketKey).push(s);
+  });
+  const futurePending = Array.from(_futureByDate.values()).reduce((acc, list) => acc + list.length, 0);
+  const pendingSections = [
+    { key: `same::${referenceDateKey}`, header: null, items: sameDatePending },
+    ...Array.from(_futureByDate.keys()).sort().map((key) => ({
+      key: `future::${key}`,
+      header: key === 'unknown' ? 'No date' : `${_formatDateHeader(key)} (${_futureByDate.get(key).length})`,
+      items: _futureByDate.get(key),
+    })),
+  ];
+
   return (
     <div className="space-y-1 flex-1 min-h-0 h-full overflow-y-auto overscroll-contain custom-scrollbar">
       {/* Staged Deliveries Section (new, not yet saved) */}
@@ -232,9 +278,21 @@ export default function DeliveryFormStaged({
       {sortedStagedDeliveries.filter((s) => s.id).length > 0 &&
       <>
           <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-600">
-            Pending ({sortedStagedDeliveries.filter((s) => s.id).length})
+            Pending ({sameDatePending.length})
           </div>
-          {sortedStagedDeliveries.filter((s) => s.id).map((staged) => {
+          {futurePending > 0 &&
+            <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-700">
+              Future Pending ({futurePending})
+            </div>
+          }
+          {pendingSections.map((section) => (
+          <React.Fragment key={section.key}>
+          {section.header &&
+            <div className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-1 mt-1 mb-0.5 text-orange-700 bg-orange-50 dark:bg-orange-950/40 rounded">
+              {section.header}
+            </div>
+          }
+          {section.items.map((staged) => {
           const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
           const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
           const fadedBgColor = hexToRgba(storeColor, 0.1);
@@ -346,6 +404,8 @@ export default function DeliveryFormStaged({
               </div>);
 
         })}
+          </React.Fragment>
+          ))}
           <div className="border-t-2 border-orange-200 my-2" />
         </>
       }
