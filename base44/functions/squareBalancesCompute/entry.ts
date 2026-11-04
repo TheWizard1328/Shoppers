@@ -831,34 +831,74 @@ async function computeSummary(b44, userId) {
 // JSON is sliced into 8000-character shards p1..p16 and readers rejoin them.
 // The wire now carries a tiny CHANGE MARKER; each device pulls the record by
 // id and hydrates its own offline copy.
-const SHARD_SIZE = 8000;
-const MAX_SHARDS = 16;
-const shardPayload = (payload) => {
+// PARTS AS SEPARATE RECORDS (owner report Nov 4 2026: "still getting so many
+// rate limits"). Shards inside ONE record kept the record ~30 KB, so every
+// write still broadcast an OVERSIZE payload, the platform stubbed it, and each
+// of the 8+ devices answered with a 30 KB .get(). Payload text now lives in its
+// own small records (part_of -> anchor id): nothing on the wire is > ~8 KB.
+const PART_SIZE = 8000;
+const MAX_PARTS = 24;
+
+const splitPayload = (payload) => {
   let json = '';
   try { json = JSON.stringify(payload || null); } catch { json = 'null'; }
   if (!json) json = 'null';
-  const out: Record<string, any> = { parts_count: 0 };
-  const total = Math.ceil(json.length / SHARD_SIZE);
-  if (total > MAX_SHARDS) {
-    console.log('[balances] payload larger than the shard budget — publishing the legacy field instead', json.length);
-    return { fields: { payload }, ok: false };
+  const chunks: string[] = [];
+  for (let i = 0; i < json.length; i += PART_SIZE) chunks.push(json.slice(i, i + PART_SIZE));
+  if (chunks.length === 0) chunks.push('null');
+  if (chunks.length > MAX_PARTS) {
+    console.log('[balances] payload larger than the part budget — truncating to one part', json.length);
+    return [json.slice(0, PART_SIZE)];
   }
-  for (let i = 0; i < total; i++) {
-    out[`p${i + 1}`] = json.slice(i * SHARD_SIZE, (i + 1) * SHARD_SIZE);
-  }
-  out.parts_count = total;
-  return { fields: out, ok: true };
+  return chunks;
 };
 
-// Rejoin p1..pN into the summary object (legacy records keep `payload`).
-const hydratePayload = (rec) => {
+const loadParts = async (db, anchorId) => {
+  if (!anchorId) return [] as any[];
+  try {
+    const rows = await db.entities.SquareBalancesSnapshot.filter({ part_of: anchorId }, 'part_index', 32, 0);
+    return (rows || []).filter((r: any) => r && r.part_of)
+      .sort((a: any, b: any) => Number(a.part_index || 0) - Number(b.part_index || 0));
+  } catch { return []; }
+};
+
+const writeParts = async (db, anchorId, payload, version) => {
+  const chunks = splitPayload(payload);
+  const existing = await loadParts(db, anchorId);
+  const byIndex = new Map<number, any>(existing.map((r: any) => [Number(r.part_index || 0), r]));
+  for (let i = 0; i < chunks.length; i++) {
+    const row = { part_of: anchorId, part_index: i, part_text: chunks[i], version, ping: false, anchor: false };
+    const found = byIndex.get(i);
+    try {
+      if (found?.id) await db.entities.SquareBalancesSnapshot.update(found.id, row);
+      else await db.entities.SquareBalancesSnapshot.create(row);
+    } catch { /* next publish rewrites the missing part */ }
+    byIndex.delete(i);
+  }
+  for (const stale of byIndex.values()) {
+    try { await db.entities.SquareBalancesSnapshot.delete(stale.id); } catch { /* best effort */ }
+  }
+};
+
+// Rejoin a record into the summary object. Handles every shape ever written:
+// legacy inline `payload`, legacy in-record shards p1..pN, and part records.
+const hydratePayload = async (db, rec) => {
   if (!rec || typeof rec !== 'object') return rec;
   if (rec.payload) return rec;
-  const n = Number(rec.parts_count || 0);
-  if (!n) return rec;
-  let json = '';
-  for (let i = 1; i <= n; i++) json += String(rec[`p${i}`] ?? '');
-  try { return { ...rec, payload: JSON.parse(json) }; } catch { return rec; }
+  if (rec.anchor || rec.part_of || Number(rec.parts_count || 0) > 0) {
+    const anchorId = rec.part_of || rec.id;
+    const parts = await loadParts(db, anchorId);
+    if (!parts.length) return rec;
+    const json = parts.map((r: any) => String(r.part_text || '')).join('');
+    try { return { ...rec, id: anchorId, payload: JSON.parse(json) }; } catch { return rec; }
+  }
+  if (rec.p1 != null) {
+    const n = Number(rec.parts_count || 0);
+    let json = '';
+    for (let i = 1; i <= n; i++) json += String(rec[`p${i}`] ?? '');
+    try { return { ...rec, payload: JSON.parse(json) }; } catch { return rec; }
+  }
+  return rec;
 };
 
 Deno.serve(async (req) => {
@@ -884,11 +924,12 @@ Deno.serve(async (req) => {
     // and every other device pulls this record by id.
     if (body?.publish_payload) {
       const ver = Number(body?.publish_version || Date.now());
-      const { fields: shardFields } = shardPayload(body.publish_payload);
+      const chunks = splitPayload(body.publish_payload);
       const rec = {
-        ...shardFields,
-        // Never keep a stale inline payload next to fresh shards.
-        payload: shardFields?.payload ?? null,
+        // ANCHOR ONLY — no payload text in this record, so it is tiny on the wire.
+        anchor: true,
+        parts_count: chunks.length,
+        payload: null,
         version: ver,
         computed_at: new Date().toISOString(),
         computed_by: body?.computed_by || null,
@@ -896,13 +937,16 @@ Deno.serve(async (req) => {
         computed_by_device: body?.computed_by_device || null,
         ping: false,
       };
+      // CLEAR the legacy in-record shards, or the anchor keeps carrying ~30 KB
+      // and every write still broadcasts an oversize payload.
+      for (let i = 1; i <= 16; i++) (rec as any)[`p${i}`] = '';
       try {
         const rows = await b44.asServiceRole.entities.SquareBalancesSnapshot.list('-version', 5, 0);
         const sorted = (rows || []).filter(Boolean).sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0));
         // Match the existing payload record even when its summary now lives in
         // shards (p1..pN) — a shard-only record has no `payload` field, and
         // missing it here would create a fresh record on every publish.
-        const existing = sorted.find((r) => r?.ping !== true && (Number(r?.parts_count || 0) > 0 || r?.payload)) || null;
+        const existing = sorted.find((r) => r?.ping !== true && !r?.part_of) || null;
         let snapshot_id = null;
         if (existing?.id) {
           await b44.asServiceRole.entities.SquareBalancesSnapshot.update(existing.id, rec);
@@ -911,9 +955,10 @@ Deno.serve(async (req) => {
           const created = await b44.asServiceRole.entities.SquareBalancesSnapshot.create(rec);
           snapshot_id = created?.id || null;
         }
+        if (snapshot_id) await writeParts(b44.asServiceRole, snapshot_id, body.publish_payload, ver);
         // Opportunistic dupe cleanup (silent, capped) — the old client-side
         // path could leave strays behind after a 429.
-        const stale = sorted.filter((r) => r?.id && r.id !== snapshot_id && r?.ping !== true && Number(r?.version || 0) < ver).slice(0, 3);
+        const stale = sorted.filter((r) => r?.id && r.id !== snapshot_id && r?.ping !== true && !r?.part_of && Number(r?.version || 0) < ver).slice(0, 3);
         for (const dup of stale) { try { await b44.asServiceRole.entities.SquareBalancesSnapshot.delete(dup.id); } catch { /* best effort */ } }
         return Response.json({ published: ver, snapshot_id });
       } catch (e) {
@@ -928,10 +973,10 @@ Deno.serve(async (req) => {
     if (!force) {
       try {
         const rows = await db.entities.SquareBalancesSnapshot.list('-version', 10, 0);
-        const latestHydrated = (rows || []).filter(Boolean)
-          .sort((a, b) => Number(b?.version || 0) - Number(a?.version || 0))
-          .map((r) => hydratePayload(r))[0];
-        const latest = latestHydrated;
+        const newestRow = (rows || []).filter(Boolean)
+          .filter((r: any) => r?.ping !== true && !r?.part_of)
+          .sort((a: any, b: any) => Number(b?.version || 0) - Number(a?.version || 0))[0];
+        const latest = newestRow ? await hydratePayload(db, newestRow) : null;
         if (latest?.computed_at && Date.now() - new Date(latest.computed_at).getTime() < DEBOUNCE_MS && latest?.payload) {
           return Response.json({ debounced: true, version: Number(latest.version), computed_at: latest.computed_at, computed_by: latest.computed_by || null, payload: latest.payload });
         }

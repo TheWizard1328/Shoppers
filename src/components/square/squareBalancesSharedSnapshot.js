@@ -91,17 +91,78 @@ export const hydrateSnapshotRecord = (rec) => {
   try { return { ...rec, payload: JSON.parse(json) }; } catch { return rec; }
 };
 
-// Client mirror of the backend shard writer: 8000-char slices, max 16 parts.
-const SHARD_SIZE = 8000;
-const MAX_SHARDS = 16;
-const shardPayloadFields = (payload) => {
+// ── PART RECORDS (owner report Nov 4 2026 — "still getting so many rate limits") ─
+// The p1..pN shards lived inside ONE record. Each field was under 10 KB, but the
+// WHOLE record was ~30 KB, so every write still broadcast it, the platform
+// stubbed it ("Realtime broadcast for SquareBalancesSnapshot#… was oversize"),
+// and EVERY device answered that warning with a 30 KB .get() — the read storm
+// that saturated the account pool. Payload text now lives in SEPARATE small
+// records (part_of → anchor id), so nothing that reaches the wire is over the
+// transport limit.
+const PART_SIZE = 8000;
+const MAX_PARTS = 24;
+
+const splitPayload = (payload) => {
   let json = 'null';
   try { json = JSON.stringify(payload ?? null) || 'null'; } catch { json = 'null'; }
-  const total = Math.ceil(json.length / SHARD_SIZE);
-  if (total > MAX_SHARDS) return { payload }; // pathological: keep the legacy field
-  const fields = { parts_count: total };
-  for (let i = 0; i < total; i++) fields[`p${i + 1}`] = json.slice(i * SHARD_SIZE, (i + 1) * SHARD_SIZE);
-  return fields;
+  const chunks = [];
+  for (let i = 0; i < json.length; i += PART_SIZE) chunks.push(json.slice(i, i + PART_SIZE));
+  if (chunks.length === 0) chunks.push('null');
+  return chunks.length > MAX_PARTS ? [json.slice(0, PART_SIZE)] : chunks; // pathological: one part, hydration fails safe
+};
+
+const loadParts = async (anchorId) => {
+  if (!anchorId) return [];
+  const rows = await base44.entities.SquareBalancesSnapshot.filter({ part_of: anchorId }, 'part_index', 32, 0).catch(() => []);
+  return (rows || []).filter((r) => r && r.part_of).sort((a, b) => Number(a.part_index || 0) - Number(b.part_index || 0));
+};
+
+/**
+ * Hydrate any snapshot record shape into { ...rec, payload }:
+ *   - legacy inline payload        (before Nov 3)
+ *   - legacy in-record p1..pN       (Nov 3/4, still oversize on the wire)
+ *   - part records (part_of anchor) (current)
+ */
+export const readSnapshotPayload = async (rec) => {
+  if (!rec || typeof rec !== 'object') return null;
+  if (rec.payload) return rec;
+  // ANCHOR / PART shape first: an anchor record may still carry CLEARED legacy
+  // p1..pN keys ('' placeholders) and must never be mistaken for old shards.
+  if (rec.anchor || rec.part_of || Number(rec.parts_count || 0) > 0) {
+    const anchorId = rec.part_of || rec.id;
+    const parts = await loadParts(anchorId);
+    if (parts.length > 0) {
+      const json = parts.map((r) => String(r.part_text || '')).join('');
+      try { return { ...rec, id: anchorId, payload: JSON.parse(json) }; } catch { /* fall through */ }
+    }
+    return null;
+  }
+  // Legacy in-record shards (pre-Nov 4 records).
+  if (rec.p1 != null) {
+    const legacy = hydrateSnapshotRecord(rec);
+    return legacy?.payload ? legacy : null;
+  }
+  return null;
+};
+
+/** Write the payload as small part records anchored to `anchorId`. */
+const writeParts = async (anchorId, payload, version) => {
+  const chunks = splitPayload(payload);
+  const existing = await loadParts(anchorId);
+  const byIndex = new Map(existing.map((r) => [Number(r.part_index || 0), r]));
+  for (let i = 0; i < chunks.length; i++) {
+    const row = { part_of: anchorId, part_index: i, part_text: chunks[i], version, ping: false, anchor: false };
+    const found = byIndex.get(i);
+    try {
+      if (found?.id) await base44.entities.SquareBalancesSnapshot.update(found.id, row);
+      else await base44.entities.SquareBalancesSnapshot.create(row);
+    } catch { /* a missing part just means this publish is incomplete; next publish rewrites it */ }
+    byIndex.delete(i);
+  }
+  // Drop parts the new payload no longer has.
+  for (const stale of byIndex.values()) {
+    base44.entities.SquareBalancesSnapshot.delete(stale.id).catch(() => {});
+  }
 };
 
 const fetchTopRows = async (limit = 10) => {
@@ -141,7 +202,10 @@ export const publishSharedSnapshot = async (data, { version, userId, userName, d
     // Fallback write also uses SHARDS (owner spec Nov 3 2026) — a client write
     // of the raw payload was the last way an oversize field could still reach
     // the wire and stub every device's copy.
-    const rec = { ...shardPayloadFields(payload), version: ver, computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null, computed_by_device: deviceName || null, ping: false };
+    const rec = { anchor: true, parts_count: 0, payload: null, version: ver,
+      // CLEAR the legacy in-record shards: leaving them here kept the whole
+      // record ~30 KB, so every write still broadcast an oversize payload.
+      ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`p${i + 1}`, ''])), computed_at: new Date().toISOString(), computed_by: userId || null, computed_by_name: userName || null, computed_by_device: deviceName || null, ping: false };
 
     // DUPLICATE-PROLIFERATION FIX (owner spec Oct 14 2026): ~600 snapshot records
     // accumulated because a FAILED fetch (429 storms) fell through to a blind
@@ -167,11 +231,14 @@ export const publishSharedSnapshot = async (data, { version, userId, userName, d
     }
     const existing = rows[0] || null;
 
-    if (existing?.id) {
-      await base44.entities.SquareBalancesSnapshot.update(existing.id, rec);
+    let anchorId = existing?.id || null;
+    if (anchorId) {
+      await base44.entities.SquareBalancesSnapshot.update(anchorId, rec);
     } else {
-      await base44.entities.SquareBalancesSnapshot.create(rec);
+      const created = await base44.entities.SquareBalancesSnapshot.create(rec);
+      anchorId = created?.id || null;
     }
+    if (anchorId) await writeParts(anchorId, payload, ver);
 
     // Opportunistic self-cleanup: delete a few stale duplicates each publish
     // (versions older than the record we just wrote). Capped so the delete
@@ -206,13 +273,19 @@ export const fetchLatestSharedSnapshot = async (preferredId = null) => {
   // the pull is ONE record read instead of a list that drags whole payloads.
   if (preferredId) {
     try {
-      const rec = hydrateSnapshotRecord(await base44.entities.SquareBalancesSnapshot.get(preferredId));
+      const rec = await readSnapshotPayload(await base44.entities.SquareBalancesSnapshot.get(preferredId));
       if (rec?.payload) return rec;
     } catch { /* fall through to the list */ }
   }
   try {
-    // Ping rows carry no payload — never treat one as the snapshot.
-    return (await fetchTopRows(5)).map(hydrateSnapshotRecord).find((r) => r?.payload && r?.ping !== true) || null;
+    // Ping / part rows carry no payload — never treat one as the snapshot.
+    const rows = await fetchTopRows(8);
+    for (const row of rows) {
+      if (!row || row.ping === true || row.part_of) continue;
+      const hydrated = await readSnapshotPayload(row);
+      if (hydrated?.payload) return hydrated;
+    }
+    return null;
   } catch (e) {
     return null;
   }
@@ -223,6 +296,24 @@ export const fetchLatestSharedSnapshot = async (preferredId = null) => {
  * event payload is not trusted for rendering — the callback should pull the
  * whole record (one cheap read) and apply it.
  */
+const PULL_THROTTLE_MS = 20000;
+let pullTimer = null;
+let pullPendingId = null;
+let lastPullAt = 0;
+
+const schedulePull = (cb, snapshotId) => {
+  if (snapshotId) pullPendingId = snapshotId;
+  if (pullTimer) return; // already queued — coalesces a burst into one pull
+  const wait = Math.max(0, PULL_THROTTLE_MS - (Date.now() - lastPullAt));
+  pullTimer = setTimeout(() => {
+    pullTimer = null;
+    lastPullAt = Date.now();
+    const id = pullPendingId;
+    pullPendingId = null;
+    try { cb(id); } catch { /* subscriber error is its own problem */ }
+  }, wait);
+};
+
 export const subscribeSharedSnapshot = (cb) => {
   try {
     // Ignore DELETE events: the dupe-cleanup deletes (and any future purge)
@@ -231,8 +322,15 @@ export const subscribeSharedSnapshot = (cb) => {
     return base44.entities.SquareBalancesSnapshot.subscribe((event) => {
       try {
         if (event?.type === 'delete') return;
-        // A ping names the record to pull; anything else just triggers a pull.
-        cb(event?.data?.snapshot_id || null);
+        const row = event?.data || {};
+        // PART records are payload slices: ignore them entirely, or every part
+        // write would look like a fresh snapshot.
+        if (row.part_of) return;
+        // A ping names the record to pull; an anchor carries it itself.
+        if (row.ping !== true && !row.anchor) return;
+        // Coalesce bursts (all 8 store PCs publishing together) into ONE pull
+        // every 20s instead of one per event — the pull is a paid GET.
+        schedulePull(cb, row.snapshot_id || row.id || null);
       } catch {}
     });
   } catch { return null; }
