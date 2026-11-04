@@ -231,9 +231,9 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
   // their original spacing. Real constraints (windows still open) are untouched.
   const _expiredStarts = routeIsToday
     ? stops
-        .filter((s) => s.isPickup !== true)
-        .map((s) => parseTimeToMinutes(s.windowStart))
-        .filter((m) => Number.isFinite(m) && m < currentMinutes)
+        .filter((s) => s.windowStartExpired === true)
+        .map((s) => parseTimeToMinutes(s.windowStartRaw ?? s.windowStart))
+        .filter((m) => Number.isFinite(m))
     : [];
   const _expiredShift = _expiredStarts.length > 0 ? currentMinutes - Math.min(..._expiredStarts) : 0;
 
@@ -249,8 +249,13 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
       // after the accept time", i.e. already open, and sending it made HERE
       // park the whole trip at the end of the route regardless of geography.
       const WINDOW_SWAY_MINUTES = 30;
-      if (stop.isPickup !== true) {
-        let openMin = parseTimeToMinutes(stop.windowStart);
+      // OWNER REPORT (Nov 4 2026): the two engines ordered Beverly and
+      // Londonderry pickups oppositely because NO pickup was gated — pickups
+      // with genuine windows floated on a distance tie-break. A pickup with a
+      // real window END is a scheduled collection and gates like a delivery.
+      const _pickupHasRealWindow = stop.isPickup === true && parseTimeToMinutes(stop.windowEnd) > 0;
+      if (stop.isPickup !== true || _pickupHasRealWindow) {
+        let openMin = parseTimeToMinutes(stop.windowStartRaw ?? stop.windowStart);
         let closeMin = parseTimeToMinutes(stop.windowEnd);
         // EXPIRED WINDOWS ARE NOT CONSTRAINTS (client parity). On TODAY's route
         // the client collapses a past start to 'now' and DROPS an end that has

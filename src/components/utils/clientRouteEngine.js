@@ -243,10 +243,12 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   // ONE shift offset for the expired-window ladder (see the clamp below).
   const _expiredShift = (() => {
     if (!Number.isFinite(currentMinutes)) return 0;
+    // Expired stops keep their ORIGINAL start (windowStartExpired flag), so the
+    // ladder is built from real patient times, not the collapsed "now".
     const expired = stopsToSequence
-      .filter((st) => !(st.isPickup === true || st.delivery?.is_pickup === true))
+      .filter((st) => st.windowStartExpired === true)
       .map((st) => parseTimeToMinutes(st.windowStart))
-      .filter((m) => Number.isFinite(m) && m < currentMinutes);
+      .filter((m) => Number.isFinite(m));
     return expired.length > 0 ? currentMinutes - Math.min(...expired) : 0;
   })();
 
@@ -274,7 +276,17 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
       // The store's own delivery_time_start is not a customer promise.
       const WINDOW_SWAY_MINUTES = 30;
       const isPickupStop = stop.isPickup === true || stop.delivery?.is_pickup === true;
-      if (!isPickupStop) {
+      // OWNER REPORT (Nov 4 2026): "neither optimizer puts Juanita before the
+      // Beverly and Londonderry pickups; the server does Londonderry before
+      // Beverly, the client the reverse." Cause: NO pickup was ever gated, so
+      // store pickups with genuine windows (Beverly 14:00-15:30, Londonderry
+      // 16:00-17:00) floated and fell to a pure distance tie-break, which the
+      // two engines break differently. A pickup that carries a real window END
+      // is a scheduled collection and now gates exactly like a delivery; the
+      // auto "5 min after accept" stamps (start only, no end) still never gate.
+      const _pickupHasRealWindow = isPickupStop &&
+        parseTimeToMinutes(stop.windowEnd) > 0;
+      if (!isPickupStop || _pickupHasRealWindow) {
         const nowMin = Number.isFinite(currentMinutes) ? currentMinutes : parseTimeToMinutes(currentLocalTime || '');
         let openMin = parseTimeToMinutes(stop.windowStart);
         // EXPIRED WINDOW LADDER (owner report Nov 4 2026, PARITY with
@@ -562,10 +574,17 @@ let _inheritedWindowCount = 0;
     // windowStart back into the past from a stale pickup end. Skipped for
     // future-date routes (their windows are legitimately ahead of the clock)
     // and historical routes (keep original chronological anchors).
+    // OWNER FIX (Nov 4 2026): this clamp used to OVERWRITE windowStart with
+    // "now", which erased the ladder BEFORE the HERE constraint block could
+    // shift it — every expired stop arrived at the same "now", so the client
+    // ordered Beverly/Londonderry by distance while the server ordered them
+    // the other way. The original start is preserved instead and marked
+    // expired; the constraint block re-anchors the whole group with ONE shift.
+    let windowStartExpired = false;
     if (routeIsToday && windowStart) {
       const _wsMin = parseTimeToMinutes(windowStart);
       if (Number.isFinite(_wsMin) && _wsMin < currentMinutes) {
-        windowStart = formatMinutesToTime(currentMinutes);
+        windowStartExpired = true;
         _clampedWindowCount++;
         if (windowEnd) {
           const _weMin = parseTimeToMinutes(windowEnd);
@@ -576,6 +595,7 @@ let _inheritedWindowCount = 0;
 
     return {
       delivery,
+      windowStartExpired,
       lat: coords?.lat,
       lng: coords?.lng,
       isPickup: !delivery.patient_id,

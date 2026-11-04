@@ -449,10 +449,16 @@ export const buildServerOptimizeRequest = async ({
     // never satisfy — the request came back infeasible, the server reported
     // unsupported and the client engine re-optimized: two different orders for
     // the same stops, exactly what the owner saw.
+    // OWNER FIX (Nov 4 2026): do NOT overwrite the expired start — that erased
+    // the ladder before sequencing and made the two engines break the tie
+    // differently. Ship the ORIGINAL start as windowStartRaw with an expired
+    // flag; the server re-anchors the whole expired group with ONE shift,
+    // exactly like the client engine now does.
+    let windowStartExpired = false;
     if (isToday && windowStart) {
       const _wsMin = parseTimeToMinutesLocal(windowStart);
       if (Number.isFinite(_wsMin) && _wsMin < currentMinutes) {
-        windowStart = formatMinutesToTimeLocal(currentMinutes);
+        windowStartExpired = true;
         if (windowEnd) {
           const _weMin = parseTimeToMinutesLocal(windowEnd);
           if (!Number.isFinite(_weMin) || _weMin <= currentMinutes) windowEnd = null;
@@ -480,6 +486,8 @@ export const buildServerOptimizeRequest = async ({
       transportMode: d.transport_mode || 'driving',
       extraTime: d.extra_time || (isPickup ? 15 : 5),
       windowStart,
+      windowStartRaw: windowStart,
+      windowStartExpired,
       windowEnd,
       deliveryTimeStart: d.delivery_time_start || null,
       currentStopOrder: Number(d.stop_order) || null,
