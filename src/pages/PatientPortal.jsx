@@ -274,81 +274,47 @@ function portalFit(map, points, pad = {}) {
 
 function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly = false }) {
   const map = useMap();
-  const fittedRef = useRef(false);
-  const fittedWithRouteRef = useRef(false);
-  // The floating today card is measured after the first fit, which changes the
-  // TOP inner padding — refit once when that happens, otherwise the markers
-  // would keep their pre-card balance for the whole session.
-  const fittedPadRef = useRef(null);
-  // Point count of the last fit, so a later (wider) route point set refits.
-  const fittedRouteLenRef = useRef(-1);
-  // Settled mode (owner rule Nov 3 2026): once THIS patient's delivery is
-  // completed or failed, the frame is just the patient's home and the pickup
-  // location — no driver, no route geometry. Tracked so the flip in and out
-  // always re-fits instead of inheriting the live frame.
-  const settledRef = useRef(false);
+  // ONE SIGNATURE PER FIT (owner report Nov 3 2026): the fit used to key off a
+  // point COUNT plus the pad, so a coordinate that arrived in a later wave was
+  // never framed — the map sat on the patient alone for a finished delivery until
+  // the side panel changed the padding, and with no delivery today it parked on
+  // the store without ever zooming out to both. Every input that can widen the
+  // frame is now folded into one signature; any change refits exactly once.
+  const signature = [
+    patientLatLng ? patientLatLng.join(',') : '',
+    storeLatLng ? storeLatLng.join(',') : '',
+    showDriver && driverLatLng ? driverLatLng.join(',') : '',
+    String(mapPad?.top ?? ''),
+    String(mapPad?.bottom ?? ''),
+    settledOnly ? 'settled' : 'live',
+    Array.isArray(routeCoords) ? routeCoords.length : 0,
+  ].join('|');
+  const fittedSignatureRef = useRef(null);
 
   useEffect(() => {
-    // Must have patient location
+    // Must have the patient's location for any meaningful frame.
     if (!patientLatLng) return;
-
-    // Full-route fit (owner spec Oct 23 2026): the visible route path (all
-    // legs between the driver and the patient) participates in the bounds so
-    // the patient sees the whole route prior to arrival, not just endpoints.
-    const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
-    const hasRoute = routePoints.length > 1;
-
-    // Fit points can arrive in waves (the route loads after the driver ping, and
-    // the invisible stops resolve their coordinates from their patient record a
-    // moment later), so the fit ALSO re-runs whenever the point COUNT changes —
-    // otherwise a later, wider point set would never be framed (owner request
-    // Nov 3 2026: invisible intermediate stops must stay in the pan/zoom frame).
-    const padKey = String(mapPad?.top ?? '');
+    if (fittedSignatureRef.current === signature) return;
+    fittedSignatureRef.current = signature;
 
     // ── SETTLED FOCUS (owner rule Nov 3 2026) ────────────────────────────────
     // Completed or failed delivery: pan/zoom to the patient's home and the pickup
     // location ONLY. The driver has already been here, so his position and the
     // remaining route must not stretch the frame.
     if (settledOnly) {
-      const settledPadKey = `settled|${padKey}`;
-      if (settledRef.current && fittedPadRef.current === settledPadKey) return;
-      settledRef.current = true;
-      fittedRef.current = true;
-      fittedPadRef.current = settledPadKey;
-      fittedRouteLenRef.current = Array.isArray(routeCoords) ? routeCoords.length : 0;
       const points = storeLatLng ? [patientLatLng, storeLatLng] : [patientLatLng];
       portalFit(map, points, mapPad);
       return;
     }
-    settledRef.current = false;
-    const routeLen = routePoints.length;
-    const routeGrew = hasRoute && routeLen !== fittedRouteLenRef.current;
-    const needsFit = !fittedRef.current || routeGrew || fittedPadRef.current !== padKey;
-    if (!needsFit) return;
-    fittedRef.current = true;
-    fittedPadRef.current = padKey;
-    fittedRouteLenRef.current = routeLen;
-    if (hasRoute) fittedWithRouteRef.current = true;
 
+    const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
     if (showDriver && driverLatLng) {
-      const points = [driverLatLng, patientLatLng, ...routePoints];
-      portalFit(map, points, mapPad);
+      portalFit(map, [driverLatLng, patientLatLng, ...routePoints], mapPad);
     } else if (storeLatLng) {
-      // Normal case: fit store + patient (wait until store is loaded)
-      const points = [storeLatLng, patientLatLng, ...routePoints];
-      portalFit(map, points, mapPad);
+      // Normal case: fit store + patient (+ any visible route geometry)
+      portalFit(map, [storeLatLng, patientLatLng, ...routePoints], mapPad);
     }
-    // If neither condition met yet, effect will re-run when deps change
-  }, [
-    mapPad?.top,
-    patientLatLng ? patientLatLng.join(',') : null,
-    storeLatLng ? storeLatLng.join(',') : null,
-    driverLatLng ? driverLatLng.join(',') : null,
-    showDriver,
-    settledOnly,
-    Array.isArray(routeCoords) ? routeCoords.length : 0,
-  ]);
-
+  }, [signature, patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad?.top, mapPad?.bottom, settledOnly]);
   return null;
 }
 
@@ -473,6 +439,10 @@ export default function PatientPortal({ embedded = false } = {}) {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [deliveries, setDeliveries]         = useState([]);
   const [pickupStops, setPickupStops]       = useState([]);
+  // Every record sharing each puid (pickup + its deliveries) — lets a transferred
+  // delivery find the pickup that actually collected the parcel, even when that
+  // was another driver on an earlier date (owner request Nov 3 2026).
+  const [puidGroups, setPuidGroups]         = useState({});
   const [stores, setStores]                 = useState([]);
   const [todayDelivery, setTodayDelivery]   = useState(null);
   // Live calendar day for the floating today-card gate. TODAY is a module
@@ -758,27 +728,32 @@ export default function PatientPortal({ embedded = false } = {}) {
       );
       setDeliveries(allDeliveries);
 
-      // Fetch pickup stops so sidebar can show "Picked up at" times.
-      // PUIDs are unique per date per pickup, so querying puid + delivery_date gives exactly
-      // the one pickup stop record for that route day — works for all historical dates.
-      const puidDatePairs = [
-        ...new Map(
-          allDeliveries
-            .filter((d) => d.puid && d.delivery_date)
-            .map((d) => [`${d.puid}|${d.delivery_date}`, { puid: d.puid, delivery_date: d.delivery_date }])
-        ).values(),
-      ];
-      if (puidDatePairs.length > 0) {
+      // ── PICKUP STOPS, MATCHED BY PUID ACROSS DATES (owner request Nov 3 2026) ─
+      // The old lookup queried puid + delivery_date, which MISSES a transferred
+      // stop: a move re-points the delivery at the target route's pickup, and the
+      // parcel was physically collected by a possibly different driver on an
+      // earlier date whose record carries the same puid under a different date.
+      // One query per puid (no date) returns the pickup(s) AND the group's
+      // deliveries on every date, which also gives real pickup/delivery times.
+      const uniquePuids = [...new Set(allDeliveries.map((d) => d.puid).filter(Boolean))].slice(0, 40);
+      if (uniquePuids.length > 0) {
         try {
           const results = await Promise.all(
-            puidDatePairs.map(({ puid, delivery_date }) =>
-              base44.entities.Delivery.filter({ puid, delivery_date }, '-delivery_date', 10)
+            uniquePuids.map((puid) =>
+              base44.entities.Delivery.filter({ puid }, '-delivery_date', 50)
                 .catch(() => [])
             )
           );
-          // The pickup stop is the record with no patient_id and no interstore source
-          const allPickups = results.flat().filter((d) => !d.patient_id && !d._interstore_source_id);
-          setPickupStops(allPickups);
+          const groups = {};
+          const pickups = [];
+          results.flat().forEach((rec) => {
+            if (!rec?.puid) return;
+            (groups[rec.puid] = groups[rec.puid] || []).push(rec);
+            // A pickup stop is the record with no patient and no interstore source
+            if (!rec.patient_id && !rec._interstore_source_id) pickups.push(rec);
+          });
+          setPuidGroups(groups);
+          setPickupStops(pickups);
         } catch (_) {}
       }
 
@@ -1370,6 +1345,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         patient={patient}
         deliveries={deliveries}
         pickupStops={pickupStops}
+        puidGroups={puidGroups}
         stores={stores}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -1482,6 +1458,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               <PatientTodayFloatingCard
                 delivery={todayDelivery}
                 pickupStops={pickupStops}
+                puidGroups={puidGroups}
                 stores={stores}
                 onCollapsedHeight={setFloatCardHeight}
                 remainingStops={liveRemainingStops?.[todayDelivery.id] ?? null}

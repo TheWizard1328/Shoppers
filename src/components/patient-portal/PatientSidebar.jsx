@@ -6,7 +6,7 @@ import { PatientSessionManager } from './PatientSessionManager';
 import { formatAppVersion } from '@/version';
 import { isPatientViewOverlayActive, requestExitPatientView } from './patientViewExit';
 
-export default function PatientSidebar({ patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false, liveRemainingStops = null }) {
+export default function PatientSidebar({ puidGroups, patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false, liveRemainingStops = null }) {
   const [showAll, setShowAll] = useState(false);
   // App-Owner preview only: the exit control lives here instead of a floating
   // top-right button that covered other portal controls (owner report Nov 3 2026).
@@ -95,7 +95,7 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
               {displayed.map((delivery) => (
                 <PatientDeliveryCard
                   key={delivery.id}
-                  {...buildDeliveryCardProps(delivery, { pickupStops, storeMap })}
+                  {...buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap })}
                   remainingStops={liveRemainingStops?.[delivery.id] ?? null}
                 />
               ))}

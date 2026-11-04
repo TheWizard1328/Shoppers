@@ -24,7 +24,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween, transferred = false, transferredFrom = null, transferredOn = null, remainingStops = null, expandInline = false, belowDateSlot = null }) {
+export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween, pickupDriverName = null, deliveredBy = null, pickupByOtherDriver = false, transferred = false, transferredFrom = null, transferredOn = null, remainingStops = null, expandInline = false, belowDateSlot = null }) {
   const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
@@ -207,7 +207,16 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
           expandInline ? 'relative' : 'absolute left-0 right-0 top-full z-20'
         }`}>
           <div className="p-3 space-y-0.5">
-            {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
+            {/* TWO DRIVERS (owner request Nov 3 2026): when the parcel changed
+                hands the card names both — who collected it and who delivered it. */}
+            {pickupByOtherDriver ? (
+              <>
+                <InfoRow icon={User} label="Picked up by" value={pickupDriverName} />
+                <InfoRow icon={User} label="Delivered by" value={deliveredBy} />
+              </>
+            ) : (
+              delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />
+            )}
             {arrivalTime && <InfoRow icon={Truck} label="Picked up at" value={arrivalTime} />}
             {/* STOPS BEFORE YOU (owner rule Nov 3 2026): this is the count of stops
                 that sat BETWEEN the pickup that collected this patient's parcel and

@@ -14,7 +14,7 @@ import { isPatientViewOverlayActive, requestExitPatientView } from './patientVie
  * Once the delivery date has passed the card is gone: the portal only resolves
  * todayDelivery for TODAY's date, so nothing renders tomorrow.
  */
-export default function PatientTodayFloatingCard({ delivery, pickupStops, stores, onCollapsedHeight, remainingStops = null }) {
+export default function PatientTodayFloatingCard({ puidGroups, delivery, pickupStops, stores, onCollapsedHeight, remainingStops = null }) {
   // The portal reserves map top padding for this card. Report its COLLAPSED
   // height (the smallest height observed) so expanding the details never pushes
   // the map around — the owner asked for the minimum, unexpanded height.
@@ -53,7 +53,7 @@ export default function PatientTodayFloatingCard({ delivery, pickupStops, stores
   const storeMap = {};
   (stores || []).forEach((s) => { storeMap[s.id] = s.name; });
 
-  const cardProps = buildDeliveryCardProps(delivery, { pickupStops, storeMap });
+  const cardProps = buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap });
   if (!cardProps) return null;
 
   const exitSlot = canExitPreview ? (
