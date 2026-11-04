@@ -9,6 +9,7 @@ import {
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
+  enforcePickupWindowOrder as sharedEnforcePickupWindowOrder,
   enforceCyclingBlock as sharedEnforceCyclingBlock,
   dwellMinutesForStop as sharedDwellMinutes,
   resolveSequenceSearch,
@@ -1687,6 +1688,16 @@ let _inheritedWindowCount = 0;
   } catch (unitErr) {
     console.warn(`[clientRouteEngine] ${source} — unit micro-sort skipped: ${unitErr?.message || unitErr}`);
   }
+
+  // ── SHARED RULE (owner directive Nov 4 2026): unfilled pickups stay in ─────
+  // ascending WINDOW START order — at route start and in every live re-sequence.
+  // Pickup windows are ordering signals only; their end times are not absolute.
+  activeStops = sharedEnforcePickupWindowOrder(activeStops, {
+    isPickupOf: (st) => !!st.isPickup,
+    statusOf: (st) => st.status || st.delivery?.status,
+    startOf: (st) => st.delivery_time_start,
+    parseStart: parseTimeToMinutes,
+  });
 
   // ── SHARED RULE (owner directive Nov 3 2026): an IN-HAND stop is never ────
   // dragged behind its own pickup. The pickup-first constraint only exists

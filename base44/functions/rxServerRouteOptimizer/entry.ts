@@ -33,6 +33,7 @@ import {
   enforceIspBeforeIsd as sharedEnforceIspBeforeIsd,
   enforcePickupBeforePendingDeliveries as sharedEnforcePickupBeforePending,
   enforceInHandBeforeItsPickup as sharedEnforceInHandBeforePickup,
+  enforcePickupWindowOrder as sharedEnforcePickupWindowOrder,
   enforceCyclingBlock as sharedEnforceCyclingBlock,
   isPolylineEligibleStop as sharedIsPolylineEligible,
   dwellMinutesForStop as sharedDwellMinutes,
@@ -821,6 +822,19 @@ Deno.serve(async (req) => {
       });
     } catch (unitErr) {
       console.warn(`[rxServerRouteOptimizer] unit micro-sort skipped: ${unitErr?.message || unitErr}`);
+    }
+
+    // ── 3d2. SHARED RULE: unfilled pickups in ascending window START order ──
+    // OWNER DIRECTIVE Nov 4 2026: pickup windows only sequence pickups, start
+    // side only, and that ordering must hold through every live re-sequence.
+    try {
+      orderedStops = sharedEnforcePickupWindowOrder(orderedStops, {
+        isPickupOf: (st) => !!st?.isPickup,
+        statusOf: (st) => st?.status,
+        startOf: (st) => st?.deliveryTimeStart,
+      });
+    } catch (pickupSeqErr) {
+      console.warn(`[rxServerRouteOptimizer] pickup window order skipped: ${pickupSeqErr?.message || pickupSeqErr}`);
     }
 
     // ── 3e. SHARED RULE: an IN-HAND stop is never dragged behind its pickup ──

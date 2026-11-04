@@ -384,6 +384,54 @@ export function enforcePickupBeforePendingDeliveries(stops, adapters) {
 //   · (its start is at/before the pickup's start),
 // moves to just before that pickup. A stop whose window opens AFTER the
 // pickup's window stays put: it was sequenced there on purpose.
+// ── RULE: PICKUP WINDOW SEQUENCE (owner directive Nov 4 2026) ───────────────
+// "The delivery time windows for pickups are only designed to make sure the
+// pickups are in the right sequence before a route starts, and to keep them in
+// the right sequence throughout the day. When it comes to live sequencing the
+// delivery END times for pickups aren't absolute — all that matters is that
+// pickups are sequenced in the right order based on their pickup START windows."
+//
+// So: unfilled pickups are ordered by their window START relative to each
+// other, start only (never an end), every time the route is sequenced —
+// including mid-day retries and live re-optimizations. Everything that is not
+// an unfilled pickup keeps its position, so geography between pickups survives.
+export function enforcePickupWindowOrder(stops, adapters) {
+  const {
+    isPickupOf = (s) => s.isPickup,
+    statusOf = (s) => s.status,
+    startOf = (s) => s.deliveryTimeStart,
+    parseStart = null,
+  } = adapters || {};
+  const parse = parseStart || ((v) => {
+    const m = String(v || '').trim().match(/^(\d{1,2}):(\d{2})/);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+  });
+  const CLOSED = new Set(['completed', 'failed', 'cancelled', 'returned']);
+  const isOpenPickup = (s) => !!isPickupOf(s) && !CLOSED.has(String(statusOf(s) || '').toLowerCase());
+  let ordered = [...(stops || [])];
+  if (ordered.filter(isOpenPickup).length < 2) return ordered;
+  let guard = 0;
+  let moved = true;
+  while (moved && guard < 200) {
+    moved = false;
+    guard += 1;
+    const idxs = ordered.reduce((acc, s, i) => (isOpenPickup(s) ? acc.concat(i) : acc), []);
+    for (let k = 0; k < idxs.length - 1; k++) {
+      const a = ordered[idxs[k]];
+      const b = ordered[idxs[k + 1]];
+      const sa = parse(startOf(a));
+      const sb = parse(startOf(b));
+      if (Number.isFinite(sa) && Number.isFinite(sb) && sb < sa) {
+        ordered.splice(idxs[k + 1], 1);
+        ordered.splice(idxs[k], 0, b);
+        moved = true;
+        break;
+      }
+    }
+  }
+  return ordered;
+}
+
 export function enforceInHandBeforeItsPickup(stops, adapters) {
   const {
     idOf = (s) => s.id,
