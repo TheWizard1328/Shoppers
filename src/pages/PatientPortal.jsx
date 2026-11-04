@@ -1167,9 +1167,34 @@ export default function PatientPortal({ embedded = false } = {}) {
       out.push(leg[leg.length - 1]);
     };
 
+    // ── BEHIND THE DRIVER IS NEVER IN FRAME (owner rule Nov 3 2026) ─────────
+    // A leg's geometry STARTS at the stop before it, and that stop is usually the
+    // one the driver just finished. Sampling the whole leg dragged that finished
+    // stop back into the frame (owner report: the last completed stop was framing
+    // the view). Only ACTIVE stops between the driver and this patient count, so
+    // the leg the driver is on is trimmed at his own position and anything behind
+    // him is dropped.
+    const driverPoint = Number.isFinite(Number(driverLocation?.lat)) && Number.isFinite(Number(driverLocation?.lng))
+      ? [Number(driverLocation.lat), Number(driverLocation.lng)]
+      : null;
+
+    const trimBehindDriver = (leg) => {
+      if (!Array.isArray(leg) || leg.length < 2) return [];
+      if (!driverPoint) return [];           // can't tell what is behind him — fit without this leg
+      let nearest = 0;
+      let nearestGap = Infinity;
+      for (let i = 0; i < leg.length; i++) {
+        const gap = pointGapMeters(leg[i], driverPoint);
+        if (gap < nearestGap) { nearestGap = gap; nearest = i; }
+      }
+      return nearest >= leg.length - 1 ? [] : leg.slice(nearest);
+    };
+
     const pts = [];
+    // Legs beyond the current stop stay whole: they run from an ACTIVE stop to
+    // an ACTIVE stop, so nothing finished is anchored.
     (staticPolylineSegments || []).forEach((leg) => sampleLeg(leg, pts));
-    sampleLeg(currentLegCoords, pts);
+    sampleLeg(trimBehindDriver(currentLegCoords), pts);
     // firstLegCoords (store → first stop) is deliberately NOT a fit source: it is
     // the leg behind the driver, the very "dead anchor" the Oct 23 fix removed.
 
@@ -1211,6 +1236,8 @@ export default function PatientPortal({ embedded = false } = {}) {
     stores,
     staticPolylineSegments,
     currentLegCoords,
+    driverLocation?.lat,
+    driverLocation?.lng,
   ]);
 
   const storeLatLng = activeStore?.latitude && activeStore?.longitude
