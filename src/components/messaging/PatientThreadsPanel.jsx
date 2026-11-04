@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Send, Search, ArrowLeft, User, MessageSquare } from 'lucide-react';
+import { Loader2, Send, Search, ArrowLeft, User, MessageSquare, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import {
@@ -16,7 +16,7 @@ import {
 } from './patientThreads';
 import { searchPatientsIdb } from './patientSearchIdb';
 import DriverDutyBadge from './DriverDutyBadge';
-import { userHasRole } from '@/components/utils/userRoles';
+import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 
 /**
  * PatientThreadsPanel — staff side of the patient portal chat (owner build
@@ -294,6 +294,30 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
     ? 'Pharmacy team'
     : (staffThreads.find((t) => t.id === String(threadSel))?.name || 'Driver');
 
+  // DELETE (owner request Nov 4 2026): ONLY the AppOwner may remove a patient
+  // message or a whole patient thread from the pharmacy side.
+  const canDelete = isAppOwner(currentUser);
+  const deleteMessage = async (m) => {
+    if (!canDelete || !m?.id) return;
+    if (!window.confirm('Delete this message for everyone?')) return;
+    try {
+      await base44.entities.Message.delete(m.id);
+      setMessages((prev) => prev.filter((x) => x.id !== m.id));
+    } catch { window.alert('Could not delete that message.'); }
+  };
+  const deleteVisibleThread = async () => {
+    if (!canDelete || !selected || visibleThread.length === 0) return;
+    if (!window.confirm('Delete this entire thread for everyone? This cannot be undone.')) return;
+    try {
+      let deleted = 0;
+      for (const m of visibleThread) {
+        try { await base44.entities.Message.delete(m.id); deleted += 1; } catch { /* keep going */ }
+      }
+      setMessages((prev) => prev.filter((x) => !visibleThread.some((v) => v.id === x.id)));
+      if (deleted > 0) setThreadSel('store');
+    } catch { window.alert('Could not delete that thread.'); }
+  };
+
   if (selected) {
     return (
       <div className="flex flex-col h-full w-full">
@@ -310,6 +334,16 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
               status={staffThreads.find((t) => t.id === String(threadSel))?.duty || 'off_duty'}
               size="xs"
             />
+          )}
+          {canDelete && (
+            <button
+              onClick={deleteVisibleThread}
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40"
+              aria-label="Delete this thread"
+              title="Delete this whole thread"
+            >
+              <Trash2 className="w-4 h-4 text-red-500" />
+            </button>
           )}
         </div>
 
@@ -353,7 +387,16 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
               const fromPatient = isPatientSender(m.sender_id);
               const ts = parseEntityTimestamp?.(m.created_date) || m.created_date;
               return (
-                <div key={m.id} className={`flex ${fromPatient ? 'justify-start' : 'justify-end'}`}>
+                <div key={m.id} className={`flex items-center gap-1 ${fromPatient ? 'justify-start' : 'justify-end'}`}>
+                  {canDelete && fromPatient && (
+                    <button
+                      onClick={() => deleteMessage(m)}
+                      className="w-6 h-6 flex-shrink-0 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40"
+                      aria-label="Delete message"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                   <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
                     fromPatient
                       ? 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-bl-sm'
@@ -364,6 +407,15 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
                       {ts ? format(new Date(ts), 'MMM d, h:mm a') : ''}
                     </p>
                   </div>
+                  {canDelete && !fromPatient && (
+                    <button
+                      onClick={() => deleteMessage(m)}
+                      className="w-6 h-6 flex-shrink-0 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40"
+                      aria-label="Delete message"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               );
             })

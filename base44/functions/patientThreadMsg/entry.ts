@@ -22,6 +22,7 @@ import webpush from 'npm:web-push@3.6.7';
  *   directory  → drivers this patient may message + live duty status
  *   send       → public: patient writes into a DRIVER thread (pushes the driver)
  *   markRead   → public: read receipt for one driver thread
+ *   deleteMessage / deleteThread → public: patient deletes one message or a whole thread
  *   staffSend  → AUTH: pharmacy reply inside a driver thread (pushes patient + driver)
  *   notifyDriver → AUTH: alert one driver's devices
  */
@@ -415,6 +416,45 @@ Deno.serve(async (req) => {
     if (!patient_id) return Response.json({ ok: false, error: 'patient_id is required' }, { status: 400 });
     const patient = await base44.asServiceRole.entities.Patient.get(patient_id).catch(() => null);
     if (!patient) return Response.json({ ok: false, error: 'Patient not found' }, { status: 404 });
+
+    // ── PATIENT DELETES (owner request Nov 4 2026) ─────────────────────────
+    // Only the patient (public portal, identified by patient_id) and the app
+    // owner may delete. The portal has no Base44 session, so the delete runs
+    // here with the service role AFTER proving the row belongs to this patient.
+    if (action === 'deleteMessage') {
+      const messageId = String(payload.message_id || '').trim();
+      if (!messageId) return Response.json({ ok: false, error: 'message_id is required' }, { status: 400 });
+      const msg = await base44.asServiceRole.entities.Message.get(messageId).catch(() => null);
+      if (!msg) return Response.json({ ok: true, deleted: 0 });
+      if (String(msg.patient_id || '') !== String(patient_id)) {
+        return Response.json({ ok: false, error: 'Not your message' }, { status: 403 });
+      }
+      await base44.asServiceRole.entities.Message.delete(messageId);
+      return Response.json({ ok: true, deleted: 1 });
+    }
+
+    if (action === 'deleteThread') {
+      // driver_id  → that 1:1 patient<->driver thread
+      // store-only → the shared pharmacy thread for this patient
+      const threadDriverId = String(payload.driver_id || '').trim();
+      const threadStoreId = String(payload.store_id || '').trim();
+      const rows = await base44.asServiceRole.entities.Message
+        .filter({ patient_id }, '-created_date', 500)
+        .catch(() => []);
+      const scope = (rows || []).filter((m: any) => {
+        const d = String(m?.driver_id || '');
+        if (threadDriverId) return d === threadDriverId;
+        // Store thread: never touch a driver thread, and scope to ONE pharmacy
+        // when the portal says which (a patient can hold several store threads).
+        if (d !== '') return false;
+        return threadStoreId ? String(m?.store_id || '') === threadStoreId : true;
+      });
+      let deleted = 0;
+      for (const m of scope) {
+        try { await base44.asServiceRole.entities.Message.delete(m.id); deleted += 1; } catch { /* keep going */ }
+      }
+      return Response.json({ ok: true, deleted });
+    }
 
     // ── Patient read receipt for one driver thread ─────────────────────────
     if (action === 'markRead') {

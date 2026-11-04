@@ -23,7 +23,11 @@ function ChatWindow({
   users,
   onBack,
   onMessagesRead,
-  autoFocus
+  autoFocus,
+  // DELETE RIGHTS (owner request Nov 4 2026): only the AppOwner may delete a
+  // message or a whole thread. The parent passes this in from isAppOwner().
+  canDelete = false,
+  onThreadDeleted
 }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -249,12 +253,47 @@ function ChatWindow({
     }
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDeleteMessage = async (msgId) => {
+    if (!canDelete) return;
+    if (!window.confirm('Delete this message for everyone?')) return;
     try {
       await base44.entities.Message.delete(msgId);
       setMessages((prev) => prev.filter((m) => m.id !== msgId));
     } catch (error) {
       console.error('Error deleting message:', error);
+      window.alert('Could not delete that message.');
+    }
+  };
+
+  // WHOLE THREAD (owner request Nov 4 2026): every message in this conversation,
+  // both directions, removed for all participants.
+  const handleDeleteThread = async () => {
+    if (!canDelete || isDeleting) return;
+    if (!window.confirm('Delete this entire conversation for everyone? This cannot be undone.')) return;
+    setIsDeleting(true);
+    try {
+      const scope = new Map();
+      const collect = (rows) => (rows || []).forEach((m) => { if (m?.id) scope.set(m.id, m); });
+      if (isGroupMode) {
+        collect(await base44.entities.Message.filter({ conversation_id: conversationId }, '-created_date', 500).catch(() => []));
+      } else if (otherUserId) {
+        collect(await base44.entities.Message.filter({ sender_id: currentUser?.id, receiver_id: otherUserId }, '-created_date', 500).catch(() => []));
+        collect(await base44.entities.Message.filter({ sender_id: otherUserId, receiver_id: currentUser?.id }, '-created_date', 500).catch(() => []));
+      }
+      let deleted = 0;
+      for (const id of scope.keys()) {
+        try { await base44.entities.Message.delete(id); deleted += 1; } catch { /* keep going */ }
+      }
+      setMessages([]);
+      if (deleted > 0) onThreadDeleted?.(conversationId);
+      onBack?.();
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      window.alert('Could not delete that conversation.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -316,9 +355,21 @@ function ChatWindow({
             <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-semibold">
               {(otherUserName || '?')[0].toUpperCase()}
             </div>
-            <span className="font-semibold text-body">{otherUserName || 'Unknown User'}</span>
+            <span className="font-semibold text-body flex-1 truncate">{otherUserName || 'Unknown User'}</span>
           </>
         }
+        {canDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDeleteThread}
+            disabled={isDeleting}
+            title="Delete the whole conversation"
+            className="ml-auto flex-shrink-0 hover:bg-red-50 dark:hover:bg-red-950/40"
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin text-red-500" /> : <Trash2 className="w-4 h-4 text-red-500" />}
+          </Button>
+        )}
       </div>
 
       {/* Messages */}
@@ -338,12 +389,11 @@ function ChatWindow({
           const isImage = msg.message_type === 'image' && msg.attachment_url;
           return (
             <div key={msg.id} className={`flex group ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-              {isOwnMessage &&
+              {canDelete && isOwnMessage &&
               <button
                 onClick={() => handleDeleteMessage(msg.id)}
                 className="opacity-0 group-hover:opacity-100 p-1 mr-1 self-center rounded hover:bg-red-100 transition-all"
                 title="Delete message">
-                
                   <Trash2 className="w-3.5 h-3.5 text-red-400" />
                 </button>
               }
@@ -374,6 +424,14 @@ function ChatWindow({
                     {isOwnMessage && !isGroupMode && msg.read && ' • Read'}
                   </p>
                 </div>
+              }
+              {canDelete && !isOwnMessage &&
+              <button
+                onClick={() => handleDeleteMessage(msg.id)}
+                className="opacity-0 group-hover:opacity-100 p-1 ml-1 self-center rounded hover:bg-red-100 transition-all"
+                title="Delete message">
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                </button>
               }
             </div>);
 

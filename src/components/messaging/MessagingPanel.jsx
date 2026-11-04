@@ -255,6 +255,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
                 users={users}
                 onBack={handleBack}
                 onMessagesRead={handleMessagesRead}
+                canDelete={isAppOwner(currentUser)}
                 autoFocus={!!(initialConversation && initialConversation.conversationId === selectedConversation.conversationId)}
               />
             ) : (

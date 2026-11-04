@@ -325,3 +325,38 @@ export async function markStoreThreadRead({ patientId, storeId }) {
     });
   } catch { /* optional */ }
 }
+
+/**
+ * Patient deletes ONE message from one of their threads (owner request Nov 4
+ * 2026). The portal has no session, so the write runs in patientThreadMsg with
+ * the service role after it proves the row carries this patient_id.
+ */
+export async function deletePatientMessage({ patientId, messageId }) {
+  if (!patientId || !messageId) throw new Error('missing_ids');
+  const res = await base44.functions.invoke('patientThreadMsg', {
+    action: 'deleteMessage',
+    patient_id: patientId,
+    message_id: messageId,
+  });
+  const body = res?.data || res || {};
+  if (body?.ok === false) throw new Error(body?.error || 'delete_failed');
+  return true;
+}
+
+/**
+ * Patient deletes a WHOLE thread — pass driverId for the 1:1 driver thread, or
+ * nothing for the shared pharmacy thread. Only rows carrying this patient_id
+ * are ever touched.
+ */
+export async function deletePatientThread({ patientId, driverId = '', storeId = '' }) {
+  if (!patientId) throw new Error('missing_ids');
+  const res = await base44.functions.invoke('patientThreadMsg', {
+    action: 'deleteThread',
+    patient_id: patientId,
+    driver_id: driverId || '',
+    store_id: storeId || '',
+  });
+  const body = res?.data || res || {};
+  if (body?.ok === false) throw new Error(body?.error || 'delete_failed');
+  return Number(body?.deleted || 0);
+}
