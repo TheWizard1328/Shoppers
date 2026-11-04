@@ -192,7 +192,23 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
           <div className="p-3 space-y-0.5">
             {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
             {arrivalTime && <InfoRow icon={Truck} label="Picked up at" value={arrivalTime} />}
-            {stopsBetween != null && <InfoRow icon={MapPin} label="Stops before you" value={stopsBetween === 0 ? 'Direct delivery' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`} />}
+            {/* STOPS BEFORE YOU (owner report Nov 3 2026): stopsBetween is a STATIC
+                pickup-to-patient count by stop_order, so it never dropped as the
+                driver finished stops and disagreed with the live badge ("You're
+                next" beside "2 stops"). While the delivery is live this row uses
+                the same live remaining count as the badge; finished deliveries
+                keep the historical pickup-to-patient count. */}
+            {(() => {
+              const isLive = ['pending', 'en_route', 'in_transit'].includes(delivery.status);
+              if (isLive && remainingStops != null) {
+                const n = Number(remainingStops);
+                return <InfoRow icon={MapPin} label="Stops before you" value={n === 0 ? "None, you're next" : `${n} stop${n !== 1 ? 's' : ''}`} />;
+              }
+              if (stopsBetween != null) {
+                return <InfoRow icon={MapPin} label="Stops before you" value={stopsBetween === 0 ? 'Direct delivery' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`} />;
+              }
+              return null;
+            })()}
             {actualTime && <InfoRow icon={delivery.status === 'failed' ? XCircle : CheckCircle} label={delivery.status === 'failed' ? 'Attempted at' : 'Delivered at'} value={actualTime} />}
             {delivery.tracking_number && <InfoRow icon={Package} label="Tracking #" value={delivery.tracking_number} />}
             {delivery.prescription_number && <InfoRow icon={FileText} label="Prescription #" value={delivery.prescription_number} />}
