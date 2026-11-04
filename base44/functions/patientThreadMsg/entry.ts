@@ -59,8 +59,11 @@ async function loadAllAppUsers(base44: any): Promise<any[]> {
 }
 
 function userIsDriver(user: any): boolean {
+  // Store/dispatcher accounts also carry a driver_status ('online'), which used
+  // to make every pharmacy profile look like a driver. The role is the signal;
+  // a real driver without the role still qualifies through delivery history.
   const roles = Array.isArray(user?.app_roles) ? user.app_roles : [];
-  return roles.includes('driver') || !!user?.driver_status;
+  return roles.includes('driver');
 }
 
 function userIsActiveStaff(user: any): boolean {
@@ -294,7 +297,7 @@ Deno.serve(async (req) => {
 
       const drvKey = (u: any) => String(u?.user_id || u?.id || '');
       const drivers = users
-        .filter((u: any) => userIsDriver(u) && userIsActiveStaff(u) && drvKey(u))
+        .filter((u: any) => userIsActiveStaff(u) && drvKey(u))
         .map((u: any) => {
           const id = drvKey(u);
           const status = String(u?.driver_status || 'off_duty');
@@ -304,8 +307,12 @@ Deno.serve(async (req) => {
             duty_status: ['on_duty', 'on_break', 'off_duty'].includes(status) ? status : 'off_duty',
             is_current: todayDriverIds.has(id),
             is_prior: priorDriverIds.has(id),
+            _is_driver_role: userIsDriver(u),
           };
         })
+        // A real driver by role, or somebody who actually drove for this patient.
+        .filter((d: any) => d._is_driver_role || d.is_prior || d.is_current)
+        .map((d: any) => { const { _is_driver_role, ...row } = d; return row; })
         // No query → only the drivers this patient has actually had (the list is
         // a message inbox, not a phone book). With a query → any active driver
         // whose name matches, whatever their duty, so a new driver is reachable.
