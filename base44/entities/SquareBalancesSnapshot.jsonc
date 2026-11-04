@@ -1,16 +1,16 @@
 {
   "name": "SquareBalancesSnapshot",
   "type": "object",
-  "description": "ONE shared, whole-database broadcast of the computed Square Balances summary (owner spec Oct 9 2026). The owner device's badge pipeline computes the full summary (card balances, loan/folder math, weekly averages, outstanding/cash/deduct items, delivery credits, payouts, config) and publishes the finished numbers here as a single record; every other device's WS ping pulls the whole record, paints UI instantly and refreshes its IDB mirror, then verifies with its own background compute. Whole-snapshot broadcast by design: no per-item events, no merge conflicts — one record, one monotonic version.",
+  "description": "ONE shared, whole-database broadcast of the computed Square Balances summary (owner spec Oct 9 2026). The owner device's badge pipeline computes the full summary (card balances, loan/folder math, weekly averages, outstanding/cash/deduct items, delivery credits, payouts, config) and publishes the finished numbers here as a single record; every other device's WS ping pulls the whole record, paints UI instantly and refreshes its IDB mirror, then verifies with its own background compute. Whole-snapshot broadcast by design: no per-item events, no merge conflicts \u2014 one record, one monotonic version.",
   "properties": {
     "payload": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Serialized summary payload (same shape as the IDB square_balances_summary snapshot: Maps as entry arrays) — byLocId card math, payoutsByLoc, storeToLoc, weeklyByStore, storeNames, dailyRemainingByStore, codOutstandingDetailed (items with patient/store/driver/amount/fees), config, deliveryCredits, payouts"
+      "description": "Serialized summary payload (same shape as the IDB square_balances_summary snapshot: Maps as entry arrays) \u2014 byLocId card math, payoutsByLoc, storeToLoc, weeklyByStore, storeNames, dailyRemainingByStore, codOutstandingDetailed (items with patient/store/driver/amount/fees), config, deliveryCredits, payouts"
     },
     "version": {
       "type": "number",
-      "description": "Monotonic publish version (Date.now() at compute time). Devices apply a remote snapshot only when this is newer than what they already applied — this is also the echo guard"
+      "description": "Monotonic publish version (Date.now() at compute time). Devices apply a remote snapshot only when this is newer than what they already applied \u2014 this is also the echo guard"
     },
     "computed_at": {
       "type": "string",
@@ -27,71 +27,71 @@
     },
     "computed_by_device": {
       "type": "string",
-      "description": "UserDevice name of the computing device (e.g. THE-DESKTOP(Editor)) — diagnostics for the single-compute-host gate"
+      "description": "UserDevice name of the computing device (e.g. THE-DESKTOP(Editor)) \u2014 diagnostics for the single-compute-host gate"
     },
     "p1": {
       "type": "string",
-      "description": "PAYLOAD SHARD 1/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 1/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p2": {
       "type": "string",
-      "description": "PAYLOAD SHARD 2/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 2/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p3": {
       "type": "string",
-      "description": "PAYLOAD SHARD 3/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 3/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p4": {
       "type": "string",
-      "description": "PAYLOAD SHARD 4/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 4/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p5": {
       "type": "string",
-      "description": "PAYLOAD SHARD 5/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 5/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p6": {
       "type": "string",
-      "description": "PAYLOAD SHARD 6/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 6/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p7": {
       "type": "string",
-      "description": "PAYLOAD SHARD 7/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 7/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p8": {
       "type": "string",
-      "description": "PAYLOAD SHARD 8/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 8/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p9": {
       "type": "string",
-      "description": "PAYLOAD SHARD 9/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 9/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p10": {
       "type": "string",
-      "description": "PAYLOAD SHARD 10/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 10/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p11": {
       "type": "string",
-      "description": "PAYLOAD SHARD 11/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 11/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p12": {
       "type": "string",
-      "description": "PAYLOAD SHARD 12/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 12/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p13": {
       "type": "string",
-      "description": "PAYLOAD SHARD 13/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 13/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p14": {
       "type": "string",
-      "description": "PAYLOAD SHARD 14/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 14/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p15": {
       "type": "string",
-      "description": "PAYLOAD SHARD 15/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 15/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "p16": {
       "type": "string",
-      "description": "PAYLOAD SHARD 16/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit — that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#… was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
+      "description": "PAYLOAD SHARD 16/16 (owner spec Nov 3 2026). The summary JSON is sliced into 8000-character strings so NO field of this record ever exceeds the 10 KB realtime transport limit \u2014 that limit was stubbing the whole payload on every broadcast ('Realtime broadcast for SquareBalancesSnapshot#\u2026 was oversize and got slimmed for transport') on all 8 store PCs every compute. Readers join p1..p{parts_count} and JSON.parse. The record now only ever carries a CHANGE MARKER on the wire; each device pulls this record by id and hydrates its own offline mirror."
     },
     "parts_count": {
       "type": "number",
@@ -99,11 +99,27 @@
     },
     "ping": {
       "type": "boolean",
-      "description": "TRANSPORT PING (owner report Nov 3 2026: the payload record was oversize for the realtime broadcast and got stubbed in transport). True means this record carries NO payload — it exists only to broadcast a tiny create/update so every device pulls the real record by snapshot_id. Readers always skip ping rows."
+      "description": "TRANSPORT PING (owner report Nov 3 2026: the payload record was oversize for the realtime broadcast and got stubbed in transport). True means this record carries NO payload \u2014 it exists only to broadcast a tiny create/update so every device pulls the real record by snapshot_id. Readers always skip ping rows."
     },
     "snapshot_id": {
       "type": "string",
       "description": "For a ping record: the id of the payload record it announces (the silent, service-role write made by squareBalancesCompute publish_payload)"
+    },
+    "anchor": {
+      "type": "boolean",
+      "description": "ANCHOR RECORD marker (Nov 4 2026). The anchor is a tiny record that carries the metadata and NO payload text; the summary JSON lives in separate PART records (see part_of). Anchors and pings are the only rows whose realtime events may trigger a client pull."
+    },
+    "part_of": {
+      "type": "string",
+      "description": "PART RECORD link (Nov 4 2026): the id of the anchor record this payload slice belongs to. Part rows carry ~8 KB of summary JSON each so NO record ever exceeds the realtime transport limit (a 30 KB shard-in-one-record payload was stubbed on every broadcast and every device answered with a full re-download \u2014 the Nov 4 rate-limit storm)."
+    },
+    "part_index": {
+      "type": "number",
+      "description": "PART RECORD ordering (Nov 4 2026): 0-based slice index; readers sort ascending and concatenate part_text to rebuild the summary JSON."
+    },
+    "part_text": {
+      "type": "string",
+      "description": "PART RECORD payload slice (Nov 4 2026): ~8000 characters of the summary JSON. Concatenate part_text over ascending part_index, then JSON.parse."
     }
   },
   "required": [

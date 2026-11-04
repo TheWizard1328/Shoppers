@@ -113,8 +113,11 @@ const splitPayload = (payload) => {
 
 const loadParts = async (anchorId) => {
   if (!anchorId) return [];
-  const rows = await base44.entities.SquareBalancesSnapshot.filter({ part_of: anchorId }, 'part_index', 32, 0).catch(() => []);
-  return (rows || []).filter((r) => r && r.part_of).sort((a, b) => Number(a.part_index || 0) - Number(b.part_index || 0));
+  // LINK FIELD IS snapshot_id (already in the schema and filterable) — the
+  // first cut filtered on a brand-new `part_of` field and the API rejected the
+  // query outright ("unknown_filter_field"). snapshot_id carries the anchor id.
+  const rows = await base44.entities.SquareBalancesSnapshot.filter({ snapshot_id: anchorId }, 'part_index', 32, 0).catch(() => []);
+  return (rows || []).filter((r) => r && r.part_text != null).sort((a, b) => Number(a.part_index || 0) - Number(b.part_index || 0));
 };
 
 /**
@@ -128,8 +131,8 @@ export const readSnapshotPayload = async (rec) => {
   if (rec.payload) return rec;
   // ANCHOR / PART shape first: an anchor record may still carry CLEARED legacy
   // p1..pN keys ('' placeholders) and must never be mistaken for old shards.
-  if (rec.anchor || rec.part_of || Number(rec.parts_count || 0) > 0) {
-    const anchorId = rec.part_of || rec.id;
+  if (rec.anchor || rec.part_text != null || Number(rec.parts_count || 0) > 0) {
+    const anchorId = rec.part_text != null ? rec.snapshot_id : rec.id;
     const parts = await loadParts(anchorId);
     if (parts.length > 0) {
       const json = parts.map((r) => String(r.part_text || '')).join('');
@@ -151,7 +154,7 @@ const writeParts = async (anchorId, payload, version) => {
   const existing = await loadParts(anchorId);
   const byIndex = new Map(existing.map((r) => [Number(r.part_index || 0), r]));
   for (let i = 0; i < chunks.length; i++) {
-    const row = { part_of: anchorId, part_index: i, part_text: chunks[i], version, ping: false, anchor: false };
+    const row = { snapshot_id: anchorId, part_index: i, part_text: chunks[i], version, ping: false, anchor: false };
     const found = byIndex.get(i);
     try {
       if (found?.id) await base44.entities.SquareBalancesSnapshot.update(found.id, row);
@@ -281,7 +284,7 @@ export const fetchLatestSharedSnapshot = async (preferredId = null) => {
     // Ping / part rows carry no payload — never treat one as the snapshot.
     const rows = await fetchTopRows(8);
     for (const row of rows) {
-      if (!row || row.ping === true || row.part_of) continue;
+      if (!row || row.ping === true || row.part_text != null) continue;
       const hydrated = await readSnapshotPayload(row);
       if (hydrated?.payload) return hydrated;
     }
@@ -325,7 +328,7 @@ export const subscribeSharedSnapshot = (cb) => {
         const row = event?.data || {};
         // PART records are payload slices: ignore them entirely, or every part
         // write would look like a fresh snapshot.
-        if (row.part_of) return;
+        if (row.part_text != null || row.part_index != null) return;
         // A ping names the record to pull; an anchor carries it itself.
         if (row.ping !== true && !row.anchor) return;
         // Coalesce bursts (all 8 store PCs publishing together) into ONE pull

@@ -856,8 +856,10 @@ const splitPayload = (payload) => {
 const loadParts = async (db, anchorId) => {
   if (!anchorId) return [] as any[];
   try {
-    const rows = await db.entities.SquareBalancesSnapshot.filter({ part_of: anchorId }, 'part_index', 32, 0);
-    return (rows || []).filter((r: any) => r && r.part_of)
+    // snapshot_id is the anchor link (already a schema field; a brand-new
+    // filter field is rejected by the API as unknown_filter_field).
+    const rows = await db.entities.SquareBalancesSnapshot.filter({ snapshot_id: anchorId }, 'part_index', 32, 0);
+    return (rows || []).filter((r: any) => r && r.part_text != null)
       .sort((a: any, b: any) => Number(a.part_index || 0) - Number(b.part_index || 0));
   } catch { return []; }
 };
@@ -867,7 +869,7 @@ const writeParts = async (db, anchorId, payload, version) => {
   const existing = await loadParts(db, anchorId);
   const byIndex = new Map<number, any>(existing.map((r: any) => [Number(r.part_index || 0), r]));
   for (let i = 0; i < chunks.length; i++) {
-    const row = { part_of: anchorId, part_index: i, part_text: chunks[i], version, ping: false, anchor: false };
+    const row = { snapshot_id: anchorId, part_index: i, part_text: chunks[i], version, ping: false, anchor: false };
     const found = byIndex.get(i);
     try {
       if (found?.id) await db.entities.SquareBalancesSnapshot.update(found.id, row);
@@ -885,8 +887,8 @@ const writeParts = async (db, anchorId, payload, version) => {
 const hydratePayload = async (db, rec) => {
   if (!rec || typeof rec !== 'object') return rec;
   if (rec.payload) return rec;
-  if (rec.anchor || rec.part_of || Number(rec.parts_count || 0) > 0) {
-    const anchorId = rec.part_of || rec.id;
+  if (rec.anchor || rec.part_text != null || Number(rec.parts_count || 0) > 0) {
+    const anchorId = rec.part_text != null ? rec.snapshot_id : rec.id;
     const parts = await loadParts(db, anchorId);
     if (!parts.length) return rec;
     const json = parts.map((r: any) => String(r.part_text || '')).join('');
@@ -946,7 +948,7 @@ Deno.serve(async (req) => {
         // Match the existing payload record even when its summary now lives in
         // shards (p1..pN) — a shard-only record has no `payload` field, and
         // missing it here would create a fresh record on every publish.
-        const existing = sorted.find((r) => r?.ping !== true && !r?.part_of) || null;
+        const existing = sorted.find((r: any) => r?.ping !== true && r?.part_text == null) || null;
         let snapshot_id = null;
         if (existing?.id) {
           await b44.asServiceRole.entities.SquareBalancesSnapshot.update(existing.id, rec);
@@ -958,7 +960,7 @@ Deno.serve(async (req) => {
         if (snapshot_id) await writeParts(b44.asServiceRole, snapshot_id, body.publish_payload, ver);
         // Opportunistic dupe cleanup (silent, capped) — the old client-side
         // path could leave strays behind after a 429.
-        const stale = sorted.filter((r) => r?.id && r.id !== snapshot_id && r?.ping !== true && !r?.part_of && Number(r?.version || 0) < ver).slice(0, 3);
+        const stale = sorted.filter((r: any) => r?.id && r.id !== snapshot_id && r?.ping !== true && r?.part_text == null && Number(r?.version || 0) < ver).slice(0, 3);
         for (const dup of stale) { try { await b44.asServiceRole.entities.SquareBalancesSnapshot.delete(dup.id); } catch { /* best effort */ } }
         return Response.json({ published: ver, snapshot_id });
       } catch (e) {
@@ -974,7 +976,7 @@ Deno.serve(async (req) => {
       try {
         const rows = await db.entities.SquareBalancesSnapshot.list('-version', 10, 0);
         const newestRow = (rows || []).filter(Boolean)
-          .filter((r: any) => r?.ping !== true && !r?.part_of)
+          .filter((r: any) => r?.ping !== true && r?.part_text == null)
           .sort((a: any, b: any) => Number(b?.version || 0) - Number(a?.version || 0))[0];
         const latest = newestRow ? await hydratePayload(db, newestRow) : null;
         if (latest?.computed_at && Date.now() - new Date(latest.computed_at).getTime() < DEBOUNCE_MS && latest?.payload) {
