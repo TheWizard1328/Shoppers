@@ -1453,6 +1453,7 @@ export default function PatientPortal({ embedded = false } = {}) {
             <PatientNotificationToggle patient={patient} />
             <button
               onClick={() => setMessagingOpen(true)}
+              data-patient-msg-btn="1"
               className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
               title="Messages"
               aria-label="Messages">

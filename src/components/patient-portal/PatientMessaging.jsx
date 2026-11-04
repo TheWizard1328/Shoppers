@@ -55,11 +55,40 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   const [directoryStores, setDirectoryStores] = useState([]);
   const [searching, setSearching] = useState(false);
   const [active, setActive] = useState(null); // { kind: 'store', store } | { kind: 'driver', driver }
+  // ANCHOR (owner request Nov 3 2026): the panel is a drop-down that hangs off the
+  // header's message button and stays locked to that top corner, instead of a
+  // centred modal / bottom sheet that appeared somewhere else on the screen.
+  const [anchor, setAnchor] = useState(null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const endRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const measure = () => {
+      const el = document.querySelector('[data-patient-msg-btn]');
+      if (!el) { setAnchor(null); return; }
+      const rect = el.getBoundingClientRect();
+      setAnchor({
+        top: Math.max(8, Math.round(rect.bottom + 8)),
+        // Panel's right edge sits on the button's right edge (clamped to 8px so a
+        // narrow phone never pushes it off screen).
+        right: Math.round(Math.max(8, window.innerWidth - rect.right)),
+      });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    const header = document.querySelector('[data-patient-header]');
+    header?.addEventListener('scroll', measure, { passive: true });
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+      header?.removeEventListener('scroll', measure);
+    };
+  }, [open]);
 
   const loadThread = useCallback(async () => {
     if (!patientId) return;
@@ -340,9 +369,16 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   };
 
   return (
-    <div className="fixed inset-0 z-[1200] flex items-end sm:items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[1200]" onClick={onClose}>
+      {/* No dark backdrop: the map stays readable behind the drop-down. */}
       <div
-        className="w-full sm:max-w-lg h-[82vh] sm:h-[70vh] bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="fixed w-[min(380px,calc(100vw-1rem))] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden origin-top-right animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-150"
+        style={{
+          top: anchor?.top ?? 64,
+          right: anchor?.right ?? 8,
+          height: `min(70vh, 560px)`,
+          maxHeight: `calc(100vh - ${(anchor?.top ?? 64) + 12}px)`,
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
