@@ -12,15 +12,26 @@ import { loadGroupsWithPreview } from './groupConversationLoader';
 import { resolveGroupMemberIds, PRESET_LABELS, PRESET_BADGE_STYLES } from './groupHelpers';
 import NewGroupDialog from './NewGroupDialog';
 
-export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange, pendingBlinkConversationId }) {
+export default function ConversationsList({
+  currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange, pendingBlinkConversationId,
+  // SEARCH LIVES ON THE TABS ROW (owner request Nov 4 2026): the panel owns the
+  // query and the New Group trigger, so this list just consumes them.
+  searchQuery: controlledSearch, onSearchChange, hideSearchBar = false, openNewGroupSignal = 0,
+}) {
   const [messages, setMessages] = useState([]);
   const [groupPreviews, setGroupPreviews] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
+  const searchQuery = controlledSearch !== undefined ? controlledSearch : localSearch;
+  const setSearchQuery = onSearchChange || setLocalSearch;
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [loadedDays, setLoadedDays] = useState(1);
   const [showNewGroupDialog, setShowNewGroupDialog] = useState(false);
+
+  useEffect(() => {
+    if (openNewGroupSignal > 0) setShowNewGroupDialog(true);
+  }, [openNewGroupSignal]);
 
   const fetchGroups = useCallback(async () => {
     const previews = await loadGroupsWithPreview(currentUser, users);
@@ -296,7 +307,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       {/* Search + New Group — buttons follow the patient portal panel style
           (owner request Nov 3 2026): slate-100/800 pills, never a light-only
           outline on a dark surface. */}
-      <div className="p-3 space-y-2 border-b border-slate-200 dark:border-slate-700">
+      <div className={hideSearchBar ? 'hidden' : 'p-3 space-y-2 border-b border-slate-200 dark:border-slate-700'}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
           <Input
@@ -306,14 +317,16 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
             className="pl-9 pr-4 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border-0 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setShowNewGroupDialog(true)}
-          className="w-full h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-        >
-          <Users className="w-4 h-4" />
-          New Group
-        </button>
+        {!hideSearchBar && (
+          <button
+            type="button"
+            onClick={() => setShowNewGroupDialog(true)}
+            className="w-full h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Users className="w-4 h-4" />
+            New Group
+          </button>
+        )}
       </div>
 
       {/* Conversations list */}
