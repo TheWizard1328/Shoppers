@@ -48,6 +48,7 @@ import { calculateRouteCodBalance } from '../utils/codTotalCalculator';
 import { createPageUrl } from '../../utils';
 import { useSidebarEntitySubscriptions } from './useSidebarEntitySubscriptions';
 import { useAndroidAppUpdateCheck, NativeUpdateBadge } from '../utils/nativeAppUpdateCheck';
+import { hardRefreshToNewBuild } from '@/components/utils/updateLoopGuard';
 
 /**
  * AppSidebar
@@ -358,7 +359,7 @@ export default function AppSidebar({
                 // Fresh update still pending = the normal refresh path wins.
                 if (hasWebUpdate) {
                   try {clearUserCache();} catch (_) {/* silent — reload still picks up the build */}
-                  window.location.reload(true);
+                  hardRefreshToNewBuild('manual_update');
                   return;
                 }
                 // Just the "we auto-updated you" confirmation — dismiss the balloon.

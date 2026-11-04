@@ -16,6 +16,7 @@ import UpdateArrow from '../common/UpdateArrow';
 import UpdateInfoBalloon from '../common/UpdateInfoBalloon';
 import { clearUserCache } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
+import { hardRefreshToNewBuild } from '@/components/utils/updateLoopGuard';
 
 export default function MobileHeader({
   logo,
@@ -276,7 +277,7 @@ export default function MobileHeader({
               clearUserCache();
               clearSettingsCache();
             } catch (_) { /* silent fail — reload still picks up the build */ }
-            window.location.reload(true);
+            hardRefreshToNewBuild('manual_update');
             return;
           }
           if (onAutoUpdatedDismiss) onAutoUpdatedDismiss();

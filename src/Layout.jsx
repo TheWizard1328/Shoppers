@@ -97,6 +97,7 @@ import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/util
 import { formatAppVersion, apkUpdatesFromSuccessCount } from './version';
 import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from './components/utils/interactionIdleTracker';
+import { canAttemptUpdate, recordUpdateAttempt, hardRefreshToNewBuild } from './components/utils/updateLoopGuard';
 import { useAndroidAppUpdateCheck } from './components/utils/nativeAppUpdateCheck';
 import GlobalOverlays from './components/layout/GlobalOverlays';
 import { useDispatcherMessageAutoOpen } from './components/messaging/useDispatcherMessageAutoOpen';
@@ -398,7 +399,7 @@ export default function Layout({ children, currentPageName }) {
   })();
 
   // Web code update detection — polls /version.json every 5 min
-  const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
+  const { hasUpdate: hasWebUpdate, currentBuildId: pendingBuildId } = useWebUpdateCheck();
 
   // ── Auto-update while backgrounded (owner request, Sep 28 2026) ────────────
   // When an update bubble is showing and the app stays backgrounded/minimized
@@ -451,17 +452,24 @@ export default function Layout({ children, currentPageName }) {
     const IDLE_THRESHOLD_MS = 10 * 60 * 1000;
     const IDLE_RESTART_DELAY_MS = 60 * 1000;
 
+    // LOOP BREAKER (owner report Nov 4 2026): an auto-reload that keeps landing
+    // on the same old bundle used to repeat forever, which is what restarted
+    // drivers' devices every few idle minutes. After a few failed attempts at the
+    // SAME build we stop reloading and stop prompting instead of churning.
     const applyUpdate = async () => {
+      if (!canAttemptUpdate(pendingBuildId)) {
+        console.warn('[Update] auto-reload cap reached for', pendingBuildId, '— leaving the device alone');
+        return;
+      }
+      recordUpdateAttempt(pendingBuildId, pendingBuildId);
       try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { }
       try { clearUserCache(); } catch { /* silent — reload still picks up the build */ }
-      // HTTP cache: a plain reload can hand back the OLD index.html, which
-      // still points at the old hashed chunks (why devices sat on stale
-      // bundles for hours). cache:'reload' revalidates the document and
-      // refreshes the cache entry BEFORE we reload, so the new bundle wins.
-      try {
-        await fetch(`/?_u=${Date.now()}`, { cache: 'reload', credentials: 'same-origin' });
-      } catch { /* offline — the reload below still runs */ }
-      window.location.reload();
+      // A plain reload can be served the OLD index.html from the webview cache,
+      // which still points at the old hashed chunks — the reload then changes
+      // nothing and the banner returns. hardRefreshToNewBuild clears Cache
+      // Storage, drops stale service workers and navigates to a unique URL so
+      // the new bundle is guaranteed to load.
+      await hardRefreshToNewBuild('auto_update');
     };
 
     let backgroundedAt = document.hidden ? Date.now() : null;
@@ -488,7 +496,7 @@ export default function Layout({ children, currentPageName }) {
 
     // Update just became ready — if the device is already foreground-idle past
     // the threshold, arm the 1-minute restart right away.
-    if (!document.hidden && getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
+    if (!document.hidden && getIdleMs() >= IDLE_THRESHOLD_MS && canAttemptUpdate(pendingBuildId)) armIdleRestart();
 
     const tick = () => {
       if (document.hidden) {
@@ -535,7 +543,7 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('keydown', onActivity, { capture: true });
       window.removeEventListener('touchstart', onActivity, { capture: true });
     };
-  }, [hasWebUpdate]);
+  }, [hasWebUpdate, pendingBuildId]);
   // APK update detection — compares installed build vs latest GitHub Actions build
   const { updateAvailable: hasApkUpdate } = useAndroidAppUpdateCheck(latestBuild?.buildNumber ?? null);
 

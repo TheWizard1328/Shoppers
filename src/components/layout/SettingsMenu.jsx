@@ -18,6 +18,7 @@ import { globalFilters } from '../utils/globalFilters';
 import { clearUserCache, getEffectiveUser } from '../utils/auth';
 import { clearSettingsCache, waitForPendingSettingWrites, flushPendingSettingSaves } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
+import { hardRefreshToNewBuild } from '@/components/utils/updateLoopGuard';
 
 
 export default function SettingsMenu({
@@ -228,7 +229,7 @@ export default function SettingsMenu({
             flushPendingSettingSaves();
             clearUserCache();
             clearSettingsCache();
-            window.location.reload(true);
+            hardRefreshToNewBuild('manual_update');
           } catch (error) {
             // Silent fail
           }

@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BUILD_NUMBER } from '@/changeLog';
 import { WEB_VERSION } from '@/version';
 import { base44 } from '@/api/base44Client';
+import { isUpdateSuppressed, clearUpdateAttempts } from '@/components/utils/updateLoopGuard';
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -51,8 +52,6 @@ const serverIsNewer = (server) => {
   if (Number.isFinite(sBn) && sBn > BUILD_NUMBER) return true;
   if (Number.isFinite(sBn) && sBn === BUILD_NUMBER) {
     if (Number.isFinite(sWv) && sWv > Number(WEB_VERSION)) return true;
-    // same numbers, different id = code published without a version bump
-    if (server.buildId && BUILT_BUILD_ID !== 'dev' && server.buildId !== BUILT_BUILD_ID) return true;
     return false;
   }
   return false;
@@ -61,6 +60,7 @@ const serverIsNewer = (server) => {
 export function useWebUpdateCheck() {
   const [hasUpdate, setHasUpdate] = useState(false);
   const [currentBuildId, setCurrentBuildId] = useState(null);
+  const [suppressedBuildId, setSuppressedBuildId] = useState(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -89,20 +89,28 @@ export function useWebUpdateCheck() {
           buildNumber: data?.buildNumber ?? parsed?.buildNumber,
           webVersion: data?.webVersion ?? parsed?.webVersion,
         };
+        // ID strings are NO LONGER part of the decision (owner report Nov 4
+        // 2026). They made a device whose reload kept landing on a cached
+        // index.html report "update available" forever. Only the version
+        // numbers count, and a build the device already failed to reach is
+        // suppressed instead of nagging.
         if (serverIsNewer(server)) {
+          if (isUpdateSuppressed(serverBuildId)) {
+            setHasUpdate(false);
+            setSuppressedBuildId(serverBuildId);
+            console.warn('[Update] suppressed — reload never reached', serverBuildId);
+            return;
+          }
           setHasUpdate(true);
           return;
         }
-        // Exact-id check kept for same-number publishes on a stamped bundle.
-        if (BUILT_BUILD_ID !== 'dev' && serverBuildId !== BUILT_BUILD_ID) {
-          setHasUpdate(true);
-          return;
-        }
-        // Same numbers AND same id: the relative fetch may simply be the
-        // device's own cached copy (max-age=3600). Ask the backend once.
-        if (BUILT_BUILD_ID === 'dev' || serverBuildId === BUILT_BUILD_ID) {
-          await checkViaBackend();
-        }
+        // Numbers are equal: we are current. If an earlier reload finally
+        // landed, clear the attempt history so future updates prompt normally.
+        clearUpdateAttempts();
+        setHasUpdate(false);
+        // The relative fetch may be the device's own cached copy — confirm the
+        // published build once through the backend.
+        await checkViaBackend();
       } catch {
         // Direct fetch failed (CORS, CDN oddity, offline). Fall back to the
         // backend lookup of the LIVE published build before giving up.
@@ -117,7 +125,13 @@ export function useWebUpdateCheck() {
         if (cancelled || !mountedRef.current) return;
         if (!data?.buildNumber) return;
         setCurrentBuildId(data.buildId || null);
-        if (serverIsNewer({ buildId: data.buildId, buildNumber: data.buildNumber, webVersion: data.webVersion })) {
+        const server = { buildId: data.buildId, buildNumber: data.buildNumber, webVersion: data.webVersion };
+        if (serverIsNewer(server)) {
+          if (isUpdateSuppressed(data.buildId)) {
+            setHasUpdate(false);
+            setSuppressedBuildId(data.buildId || null);
+            return;
+          }
           setHasUpdate(true);
         }
       } catch {
@@ -139,5 +153,5 @@ export function useWebUpdateCheck() {
     };
   }, []);
 
-  return { hasUpdate, currentBuildId, builtBuildId: BUILT_BUILD_ID };
+  return { hasUpdate, currentBuildId, suppressedBuildId, builtBuildId: BUILT_BUILD_ID };
 }
