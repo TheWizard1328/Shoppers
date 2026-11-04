@@ -11,6 +11,7 @@ import { invalidate } from '@/components/utils/dataManager';
 import { updateDeliveryLocal } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
 import { addMinutesToTime, generateUniqueSID, populateTemporaryStartTimes } from '@/components/dashboard/DashboardHelpers';
+import { applyPatientWindowOnPending } from '@/components/utils/patientWindowSync';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
 import { filterDeleted } from '@/components/utils/deletedDeliveryRegistry';
 import { requestDeferredOptimization, pauseDeferredOptimization } from '@/components/utils/optimizationDebouncer';
@@ -325,6 +326,19 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       for (const stop of list) {
         if (!stop || stop.patient_id === null) continue;
         const sp = patients.find((p) => p.id === stop.patient_id);
+        // OWNER FIX (Nov 4 2026): a Staged stop has only an auto stamp, never a
+        // dispatcher-typed window, so on the Staged -> pending flip the patient's
+        // own start/end win outright. Before this they kept the pickup ETA + 5
+        // (12:05 instead of the patient's 4:00 p.m.), which is exactly what put
+        // Beverly and Londonderry out of order.
+        if (sp?.time_window_start && String(editingDelivery?.status || '') === 'Staged' &&
+            String(stop.status || '') !== 'Staged' && stop.id === editingDelivery?.id) {
+          const next = applyPatientWindowOnPending(stop, sp);
+          stop.delivery_time_start = next.delivery_time_start;
+          stop.delivery_time_end = next.delivery_time_end;
+          stop.time_window_start = next.time_window_start;
+          stop.time_window_end = next.time_window_end;
+        }
         // Window rules (confirmed Sep 4 2026): patient window if present;
         // otherwise the assigned pickup's start +5 min (or the pickup's
         // estimated_arrival +5 when that's LATER); otherwise leave BLANK —

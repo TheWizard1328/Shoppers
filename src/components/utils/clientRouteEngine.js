@@ -2007,9 +2007,25 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
       // blank — it must never REPLACE a window the driver/dispatcher set on the
       // delivery (the old REPLACE behavior silently overwrote edited windows on
       // every future-route optimization).
-      if (!d.delivery_time_start && patient?.time_window_start) {
+      // OWNER FIX (Nov 4 2026): a pickup-derived stamp is NOT a decision. When
+      // a care-pro stop was flipped Staged -> pending it took the Callingwood
+      // ETA + 5 (12:05) instead of the patient's 4:00 p.m. start, which is why
+      // Beverly and Londonderry came out of order once accepted. So the
+      // acceptance pass re-checks: patient window wins whenever the delivery's
+      // own start is blank OR is just the pickup start/ETA + 5. A window the
+      // dispatcher actually typed still wins, exactly as before.
+      const _ownStart = String(d.delivery_time_start || '').trim().slice(0, 5);
+      const _pickupDerived = (() => {
+        if (!_ownStart) return true;
+        if (!pickup) return false;
+        const cands = [pickup.delivery_time_start, pickup.delivery_time_eta, pickup.estimated_arrival]
+          .filter(Boolean)
+          .map((t) => formatMinutesToTime(parseTimeToMinutes(t) + 5));
+        return cands.includes(_ownStart);
+      })();
+      if (patient?.time_window_start && _pickupDerived) {
         newStart = patient.time_window_start;
-        if (!d.delivery_time_end && patient.time_window_end) newEnd = patient.time_window_end;
+        if (patient.time_window_end) newEnd = patient.time_window_end;
       } else if (!d.delivery_time_start && Number.isFinite(pickupStartMin)) {
         newStart = formatMinutesToTime(pickupStartMin + 5);
       }

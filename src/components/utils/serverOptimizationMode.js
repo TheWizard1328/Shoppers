@@ -418,9 +418,29 @@ export const buildServerOptimizeRequest = async ({
     const coords = getDeliveryCoords(d, patientMap, storeMap);
     if (!coords) continue; // unmappable stops stay untouched server-side
     const patient = d.patient_id ? patientMap.get(d.patient_id) : null;
-    // THE DELIVERY'S OWN WINDOW IS AUTHORITATIVE (repo rule Sep 30 2026).
-    let windowStart = d.delivery_time_start || d.time_window_start || patient?.time_window_start || null;
-    let windowEnd = d.delivery_time_end || d.time_window_end || patient?.time_window_end || null;
+    // THE DELIVERY'S OWN WINDOW IS AUTHORITATIVE (repo rule Sep 30 2026) —
+    // EXCEPT when that own value is only the pickup's time + 5. OWNER FIX
+    // (Nov 4 2026): Staged -> pending stamped care-pro stops with the
+    // Callingwood ETA + 5 (12:05) instead of their patient's 4:00 p.m. start,
+    // which reordered Beverly and Londonderry. Pickup-derived values defer to
+    // the patient window here so the SERVER path sequences identically to the
+    // client (engine parity rule).
+    const _ownWinStart = String(d.delivery_time_start || '').trim().slice(0, 5);
+    const _pickupRow = active.find((x) => x && !x.patient_id && d.puid && x.puid === d.puid);
+    const _pickupDerived = (() => {
+      if (!_ownWinStart) return true;
+      if (!_pickupRow) return false;
+      const cands = [_pickupRow.delivery_time_start, _pickupRow.delivery_time_eta, _pickupRow.estimated_arrival]
+        .filter(Boolean)
+        .map((t) => formatMinutesToTimeLocal(parseTimeToMinutesLocal(t) + 5));
+      return cands.includes(_ownWinStart);
+    })();
+    let windowStart = (patient?.time_window_start && _pickupDerived)
+      ? patient.time_window_start
+      : (d.delivery_time_start || d.time_window_start || patient?.time_window_start || null);
+    let windowEnd = (patient?.time_window_end && _pickupDerived)
+      ? patient.time_window_end
+      : (d.delivery_time_end || d.time_window_end || patient?.time_window_end || null);
     // ── PAST-WINDOW CLAMP + EXPIRED-END DROP (client parity, owner report
     // Nov 3 2026). clientRouteEngine collapses a past windowStart to 'now' on
     // today's routes and DROPS a windowEnd that has already passed ('fully
