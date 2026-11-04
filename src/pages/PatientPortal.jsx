@@ -12,6 +12,7 @@ import PatientTodayFloatingCard from '@/components/patient-portal/PatientTodayFl
 import MapCrosshair from '@/components/dashboard/MapCrosshair';
 import PatientMessaging, { loadPatientUnreadCount } from '@/components/patient-portal/PatientMessaging';
 import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
+import PatientNotificationToggle from '@/components/patient-portal/PatientNotificationToggle';
 import { format } from 'date-fns';
 import { isPatientViewOverlayActive, requestExitPatientView } from '../components/patient-portal/patientViewExit';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
@@ -292,9 +293,54 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
   join('|');
   const fittedSignatureRef = useRef(null);
 
+  // ── SETTLE WINDOW (owner report Nov 3 2026) ──────────────────────────────
+  // The map made three jumps in a row on load: the container's own initial
+  // centre, then our fit for the patient, then another when the store location
+  // arrived (and sometimes a third when the "notifications blocked" banner
+  // changed the map height). Nothing auto-fits for the first 2 seconds, so the
+  // first thing the patient sees is one clean pan/zoom for every point we have.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setArmed(true), 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Last frame we drew, so a container resize can redraw the SAME frame instead
+  // of leaving markers outside the visible map.
+  const lastFrameRef = useRef({ points: null, pad: null });
+  const doFit = useCallback((points, pad) => {
+    lastFrameRef.current = { points, pad };
+    portalFit(map, points, pad);
+  }, [map]);
+
+  // ── RESIZE REFIT (owner report Nov 3 2026) ────────────────────────────────
+  // A banner appearing/disappearing (notifications blocked, update available,
+  // safe-area changes on rotate) shrinks the map, which used to push bottom
+  // markers off screen and never brought them back.
+  useEffect(() => {
+    const container = map?.getContainer?.();
+    if (!container || typeof ResizeObserver === 'undefined') return undefined;
+    let timer = null;
+    const observer = new ResizeObserver(() => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const { points, pad } = lastFrameRef.current || {};
+        if (Array.isArray(points) && points.length > 0) portalFit(map, points, pad);
+      }, 220);
+    });
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      if (timer) clearTimeout(timer);
+    };
+  }, [map]);
+
   useEffect(() => {
     // Must have the patient's location for any meaningful frame.
     if (!patientLatLng) return;
+    // Nothing fits until the 2-second settle window closes (unless the map is
+    // already showing a frame and only needs a redraw).
+    if (!armed && !fittedSignatureRef.current) return;
     if (fittedSignatureRef.current === signature) return;
     fittedSignatureRef.current = signature;
 
@@ -304,18 +350,18 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
     // remaining route must not stretch the frame.
     if (settledOnly) {
       const points = storeLatLng ? [patientLatLng, storeLatLng] : [patientLatLng];
-      portalFit(map, points, mapPad);
+      doFit(points, mapPad);
       return;
     }
 
     const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
     if (showDriver && driverLatLng) {
-      portalFit(map, [driverLatLng, patientLatLng, ...routePoints], mapPad);
+      doFit([driverLatLng, patientLatLng, ...routePoints], mapPad);
     } else if (storeLatLng) {
       // Normal case: fit store + patient (+ any visible route geometry)
-      portalFit(map, [storeLatLng, patientLatLng, ...routePoints], mapPad);
+      doFit([storeLatLng, patientLatLng, ...routePoints], mapPad);
     }
-  }, [signature, patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad?.top, mapPad?.bottom, settledOnly]);
+  }, [signature, armed, doFit, patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad?.top, mapPad?.bottom, settledOnly]);
   return null;
 }
 
@@ -1401,6 +1447,10 @@ export default function PatientPortal({ embedded = false } = {}) {
                 <span>Live</span>
               </div>
             }
+            {/* NOTIFICATIONS CONTROL (owner request Nov 3 2026) — the permanent way
+                for a patient to turn push on or off on this device, whatever state
+                the one-off prompt left them in. */}
+            <PatientNotificationToggle patient={patient} />
             <button
               onClick={() => setMessagingOpen(true)}
               className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"

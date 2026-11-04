@@ -176,3 +176,19 @@ export function usePortalWatchCount(deliveries, appUser = null) {
     return count;
   }, [deliveries, appUser]);
 }
+
+/**
+ * React binding: EVERY watcher on the polled date, whatever route or store they
+ * belong to (owner request Nov 3 2026). The app owner needs to know a patient is
+ * watching a driver even when that route is not the one currently selected, so
+ * the FAB keeps its halo; the count badge still uses the scoped hook below.
+ */
+export function useAllPortalWatchers() {
+  useSyncExternalStore(portalWatchersStore.subscribe, portalWatchersStore.getVersion);
+  return useMemo(() => Array.from(portalWatchersStore.getWatchers().values()), [portalWatchersStore.getVersion()]);
+}
+
+/** Plain (non-hook) read of every watcher on the polled date. */
+export function getAllPortalWatchers() {
+  return Array.from(portalWatchersStore.getWatchers().values());
+}

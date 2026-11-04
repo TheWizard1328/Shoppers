@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
-import { usePortalWatchCount } from '@/components/utils/portalWatchers';
+import { usePortalWatchCount, useAllPortalWatchers } from '@/components/utils/portalWatchers';
 
 export default function MapViewCycleFAB({
   currentUser = null, filteredDeliveries = [], onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false, bottomNavHeight = 0, hideForExpandedCard = false }) {
@@ -26,12 +26,38 @@ export default function MapViewCycleFAB({
   // STORE SCOPE (owner report Nov 2 2026): the FAB ring + count only reflect
   // patients whose delivery belongs to the viewer's own store (dispatchers),
   // their own route (drivers), or everything (admins/owners).
-  const { currentUser: _fabViewer, appUsers: _fabAppUsers } = useAppData();
+  const { currentUser: _fabViewer, appUsers: _fabAppUsers, stores: _fabStores } = useAppData();
   const _fabViewerAppUser = React.useMemo(
     () => (_fabAppUsers || []).find((u) => u?.user_id === _fabViewer?.id) || null,
     [_fabAppUsers, _fabViewer?.id]
   );
   const watchingCount = usePortalWatchCount(filteredDeliveries, _fabViewerAppUser);
+  // ── APP-OWNER AWARENESS (owner request Nov 3 2026) ────────────────────────
+  // The owner must be able to tell that a patient is watching a driver even when
+  // that route is not the one selected: the halo shows for ANY watcher he can
+  // see, while the counter badge stays tied to the selected route, so switching
+  // to that driver's route reveals the number.
+  const allWatchers = useAllPortalWatchers();
+  const _fabRoles = Array.isArray(_fabViewerAppUser?.app_roles) ? _fabViewerAppUser.app_roles : [];
+  const _fabIsAdmin = _fabViewerAppUser?.is_app_owner === true
+    || _fabRoles.includes('app_owner')
+    || _fabRoles.includes('admin');
+  const [showWatchersBalloon, setShowWatchersBalloon] = useState(false);
+  // Hover balloon list: every watcher for the owner, otherwise only the watchers
+  // already inside this viewer's scope (the same set the badge counts).
+  const balloonWatchers = React.useMemo(() => {
+    if (!_fabIsAdmin) {
+      const visiblePatientIds = new Set((filteredDeliveries || []).map((d) => d?.patient_id).filter(Boolean));
+      return allWatchers.filter((w) => visiblePatientIds.has(w.patient_id));
+    }
+    return allWatchers;
+  }, [allWatchers, _fabIsAdmin, filteredDeliveries]);
+  const hasAnyWatcher = _fabIsAdmin ? allWatchers.length > 0 : watchingCount > 0;
+  const storeAbbrevFor = React.useCallback((storeId) => {
+    const store = (_fabStores || []).find((st) => String(st?.id) === String(storeId));
+    const raw = store?.abbreviation || store?.store_abbreviation || '';
+    return String(raw || '').trim().toUpperCase().slice(0, 4);
+  }, [_fabStores]);
 
 
   const flashUpdate = useCallback((reason = 'generic', details = {}) => {
@@ -260,6 +286,10 @@ export default function MapViewCycleFAB({
           }}
           title={getTooltip()}
           aria-label={getTooltip()}
+          onPointerEnter={() => { if (balloonWatchers.length > 0) setShowWatchersBalloon(true); }}
+          onPointerLeave={() => setShowWatchersBalloon(false)}
+          onFocus={() => { if (balloonWatchers.length > 0) setShowWatchersBalloon(true); }}
+          onBlur={() => setShowWatchersBalloon(false)}
           data-fab-temporarily-deactivated={isTemporarilyDeactivated ? 'true' : 'false'}
           className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
             !isEnabled
@@ -273,7 +303,7 @@ export default function MapViewCycleFAB({
                     : (isLocked ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 hover:bg-gray-500')
           }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation', opacity: fabOpacity, cursor: isEnabled ? 'pointer' : 'not-allowed' }}>
           {/* Patient-portal watching halo (hugs the FAB edges; only when someone is watching) */}
-          {watchingCount > 0 && (
+          {hasAnyWatcher && (
             <span className="pointer-events-none absolute -inset-[3px] rounded-xl ring-2 ring-blue-400 bg-blue-500/20 animate-pulse" aria-hidden="true" />
           )}
           {/* Mode number in top-left corner */}
@@ -291,6 +321,30 @@ export default function MapViewCycleFAB({
           )}
           {getIcon()}
         </Button>
+
+        {/* WATCHERS BALLOON (owner request Nov 3 2026): hovering the FAB names
+            every patient viewing right now, each with its store abbreviation
+            badge, so a halo with no counter still tells him WHO is watching and
+            which store they belong to. */}
+        {showWatchersBalloon && balloonWatchers.length > 0 && (
+          <div className="absolute bottom-full right-0 mb-2 w-56 max-w-[70vw] rounded-lg bg-slate-900/95 text-white shadow-xl border border-slate-700 px-2.5 py-2 z-[110]">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-300 mb-1">
+              {balloonWatchers.length} patient{balloonWatchers.length === 1 ? '' : 's'} viewing now
+            </p>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {balloonWatchers.map((w) => (
+                <div key={w.patient_id} className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] truncate">{w.patient_name || 'Patient'}</span>
+                  {storeAbbrevFor(w.store_id) && (
+                    <span className="shrink-0 px-1 py-0.5 rounded bg-blue-500 text-white text-[9px] font-bold leading-tight">
+                      {storeAbbrevFor(w.store_id)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
