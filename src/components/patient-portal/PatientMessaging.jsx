@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { X, Send, Loader2, MessageSquare, ArrowLeft, Store, Car, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
-import DriverDutyBadge, { normalizeDriverDuty } from '@/components/messaging/DriverDutyBadge';
+import DriverDutyBadge from '@/components/messaging/DriverDutyBadge';
 import {
   loadDriverDirectory,
-  patientConversationId,
-  driverThreadConversationId,
   sendPatientMessageToDriver,
   markDriverThreadRead,
   searchPatientDirectory,
@@ -65,6 +63,9 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  // Delete state lives with the other hooks — it used to sit BELOW the
+  // `if (!open) return null` bail, which made the hook count change between renders.
+  const [deletingId, setDeletingId] = useState('');
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -354,7 +355,6 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   // DELETE (owner request Nov 4 2026): the patient may delete one message or the
   // whole thread. Both run through patientThreadMsg, which proves the row
   // belongs to this patient before touching it.
-  const [deletingId, setDeletingId] = useState('');
   const handleDeleteMessage = async (m) => {
     if (!m?.id || deletingId) return;
     if (!window.confirm('Delete this message?')) return;
