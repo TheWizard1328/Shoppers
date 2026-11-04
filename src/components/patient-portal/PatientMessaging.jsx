@@ -248,21 +248,33 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
     is_home: true,
   };
 
-  const storeRows = useMemo(() => {
-    const rows = [homeStoreRow, ...(directoryStores || [])];
+  // The inbox lists the home pharmacy plus any pharmacy this patient has had a
+  // delivery from. Every other store only appears while searching for it.
+  const homeRow = useMemo(() => ({
+    store_id: homeStoreRow.store_id,
+    name: homeStoreRow.name,
+    abbreviation: homeStoreRow.abbreviation,
+    is_home: true,
+    is_prior: false,
+  }), [homeStoreRow.store_id, homeStoreRow.name, homeStoreRow.abbreviation]);
+
+  const visibleStores = useMemo(() => {
+    if (!needle) {
+      // Home row, then each past pharmacy (from the server's is_prior flag).
+      return [homeRow, ...(directoryStores || []).filter((st) => !st.is_home)]
+        .filter((row, index, arr) => row?.store_id
+          && arr.findIndex((other) => String(other.store_id) === String(row.store_id)) === index);
+    }
+    const rows = [homeRow, ...(directoryStores || [])];
     const seen = new Set();
     return rows.filter((row) => {
       if (!row?.store_id) return false;
       const key = String(row.store_id);
       if (seen.has(key)) return false;
       seen.add(key);
-      return true;
+      return `${row.name || ''} ${row.abbreviation || ''} pharmacy`.toLowerCase().includes(needle);
     });
-  }, [directoryStores, homeStoreRow.store_id, homeStoreRow.name, homeStoreRow.abbreviation]);
-
-  const visibleStores = needle
-    ? storeRows.filter((row) => `${row.name || ''} ${row.abbreviation || ''} pharmacy`.toLowerCase().includes(needle))
-    : storeRows;
+  }, [needle, homeRow, directoryStores]);
 
   const driverRows = useMemo(() => {
     const byId = new Map();
@@ -286,7 +298,8 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
         const hay = `${d.driver_name || ''} ${d.duty_status || ''}`.toLowerCase();
         return hay.includes(needle) || hay.replace(/_/g, ' ').includes(needle);
       })
-    : driverRows
+    // No search: an inbox entry only exists for a driver this patient has had.
+    : driverRows.filter((d) => d.is_prior || d.is_current)
   ).sort((a, b) => {
     const rank = (d) => (d?.is_current ? 0 : (d?.duty_status === 'on_duty' ? 1 : (d?.duty_status === 'on_break' ? 2 : (d?.is_prior ? 3 : 4))));
     if (rank(a) !== rank(b)) return rank(a) - rank(b);
@@ -432,14 +445,18 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
                               {store.abbreviation}
                             </span>
                           )}
-                          {store.is_home && (
+                          {store.is_home ? (
                             <span className="text-[10px] font-medium px-1.5 h-4 rounded-full bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 flex items-center">
                               My pharmacy
                             </span>
-                          )}
+                          ) : store.is_prior ? (
+                            <span className="text-[10px] font-medium px-1.5 h-4 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 flex items-center">
+                              Past pharmacy
+                            </span>
+                          ) : null}
                         </div>
                         <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
-                          {s2?.lastText || 'All dispatchers at this pharmacy'}
+                          {s2?.lastText || (store.is_home || store.is_prior ? 'All dispatchers at this pharmacy' : 'Search result')}
                         </p>
                       </div>
                       {(s2?.unread || 0) > 0 && (

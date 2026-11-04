@@ -283,6 +283,10 @@ Deno.serve(async (req) => {
         .filter({ patient_id }, '-delivery_date', 200)
         .catch(() => []);
       const priorDriverIds = new Set((priorRows || []).map((d: any) => String(d?.driver_id || '')).filter(Boolean));
+      // Pharmacies this patient has actually had a delivery from (owner request
+      // Nov 3 2026): the list stays short — home pharmacy + past pharmacies —
+      // and other stores only appear when the patient searches for them.
+      const priorStoreIds = new Set((priorRows || []).map((d: any) => String(d?.store_id || '')).filter(Boolean));
       const todayDriverIds = new Set(
         (priorRows || []).filter((d: any) => String(d?.delivery_date || '') === today)
           .map((d: any) => String(d?.driver_id || '')).filter(Boolean)
@@ -302,12 +306,14 @@ Deno.serve(async (req) => {
             is_prior: priorDriverIds.has(id),
           };
         })
-        // No query → only the drivers who are actually working right now.
-        // With a query → any active driver whose NAME matches, whatever their duty.
+        // No query → only the drivers this patient has actually had (the list is
+        // a message inbox, not a phone book). With a query → any active driver
+        // whose name matches, whatever their duty, so a new driver is reachable.
         .filter((d: any) => {
           const onDuty = d.duty_status === 'on_duty' || d.duty_status === 'on_break';
-          if (!query) return onDuty;
-          return d.driver_name.toLowerCase().includes(query) || (query.length >= 3 && onDuty && d.driver_name.toLowerCase().split(/\s+/).some((w: string) => w.startsWith(query)));
+          if (!query) return d.is_prior || d.is_current;
+          return d.driver_name.toLowerCase().includes(query)
+            || (query.length >= 3 && d.driver_name.toLowerCase().split(/\s+/).some((w: string) => w.startsWith(query)));
         })
         .sort((a: any, b: any) => {
           const score = (d: any) => (d.is_current ? 0 : (d.duty_status === 'on_duty' ? 1 : (d.duty_status === 'on_break' ? 2 : (d.is_prior ? 3 : 4))));
@@ -331,7 +337,10 @@ Deno.serve(async (req) => {
           abbreviation: String(st.abbreviation || '').toUpperCase(),
           city_id: st.city_id || '',
           is_home: String(st.id) === String(patient.store_id || ''),
+          is_prior: priorStoreIds.has(String(st.id)),
         }))
+        // No query: home pharmacy + the pharmacies this patient has used.
+        .filter((st: any) => query || st.is_home || st.is_prior)
         .sort((a: any, b: any) => (a.is_home === b.is_home ? a.name.localeCompare(b.name) : (a.is_home ? -1 : 1)))
         .slice(0, query ? 25 : 12);
 
