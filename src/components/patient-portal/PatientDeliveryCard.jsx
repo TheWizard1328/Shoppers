@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, User, Package, FileText, Camera, DollarSign, MapPin, ArrowLeftRight } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, User, Package, FileText, Camera, DollarSign, MapPin } from 'lucide-react';
 
 const STATUS_CONFIG = {
   completed: { label: 'Delivered', color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-950', border: 'border-green-200', Icon: CheckCircle },
@@ -95,9 +95,15 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
       <button
         onClick={() => setExpanded((v) => !v)}
         className={`w-full text-left rounded-xl border p-3 transition-all duration-150 ${
-          expanded
-            ? 'border-slate-700 bg-slate-900 text-white shadow-md'
-            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:border-slate-600 hover:shadow-sm'
+          transferred
+            ? (expanded
+                // TRANSFERRED (owner request Nov 3 2026): the card itself carries
+                // the amber highlight — no chip, no detail row.
+                ? 'border-amber-500 bg-amber-950/40 text-white shadow-md'
+                : 'border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-600 hover:border-amber-500 hover:shadow-sm')
+            : (expanded
+                ? 'border-slate-700 bg-slate-900 text-white shadow-md'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:border-slate-600 hover:shadow-sm')
         }`}
       >
         <div className="flex items-start justify-between gap-2">
@@ -107,17 +113,6 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
             </p>
             <p className={`text-sm font-semibold mt-0.5 ${expanded ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>
               {dateStr}
-              {/* TRANSFERRED CHIP (owner request Nov 3 2026): a moved stop changes
-                  hands, so it is marked on the collapsed row too — not only inside
-                  the expanded detail. */}
-              {transferred && (
-                <span className={`inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 rounded border text-[10px] font-semibold align-middle ${
-                  expanded ? 'bg-amber-900/50 border-amber-700 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300'
-                }`}>
-                  <ArrowLeftRight className="w-2.5 h-2.5" />
-                  Transferred
-                </span>
-              )}
             </p>
             {/* Slot rendered immediately UNDER the date (owner request Nov 3
                 2026: the App-Owner "Exit Patient View" control belongs on the
@@ -227,17 +222,6 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
                 icon={MapPin}
                 label="Stops before you"
                 value={stopsBetween === 0 ? 'Direct delivery' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`}
-              />
-            )}
-            {transferred && (
-              <InfoRow
-                icon={ArrowLeftRight}
-                label="Transferred"
-                value={
-                  transferredFrom
-                    ? `picked up by ${transferredFrom}${transferredOn ? `, delivered ${transferredOn}` : ''}`
-                    : (transferredOn ? `moved from an earlier route (${transferredOn})` : 'this delivery was moved between routes')
-                }
               />
             )}
             {actualTime && <InfoRow icon={delivery.status === 'failed' ? XCircle : CheckCircle} label={delivery.status === 'failed' ? 'Attempted at' : 'Delivered at'} value={actualTime} />}
