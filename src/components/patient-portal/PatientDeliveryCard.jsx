@@ -24,7 +24,7 @@ function InfoRow({ icon: Icon, label, value }) {
 
 }
 
-export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween, pickupDriverName = null, deliveredBy = null, pickupByOtherDriver = false, transferred = false, transferredFrom = null, transferredOn = null, remainingStops = null, expandInline = false, belowDateSlot = null }) {
+export default function PatientDeliveryCard({ delivery, storeName, pickupTime, pickupEta = null, pickupWindowStart = null, pickupWindowEnd = null, stopsBetween, pickupDriverName = null, deliveredBy = null, pickupByOtherDriver = false, transferred = false, transferredFrom = null, transferredOn = null, remainingStops = null, expandInline = false, belowDateSlot = null }) {
   const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
@@ -64,6 +64,19 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
       'bg-red-900/60 border-red-700 text-red-300' :
       'bg-red-50 border-red-200 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300'
     };
+  } else if (delivery.status === 'pending') {
+    // OWNER REQUEST Nov 4 2026: while the parcel is still waiting to be picked
+    // up there is no delivery ETA yet, so show the PICKUP ETA instead. Once it
+    // is collected the status flips to en route / in transit and the branch
+    // below takes over with the delivery ETA.
+    const windowText = pickupWindowStart && pickupWindowEnd
+      ? `${pickupWindowStart} – ${pickupWindowEnd}`
+      : (pickupWindowStart || null);
+    if (pickupEta) {
+      subBadge = { text: `Pickup ETA ${pickupEta}`, color: 'text-amber-600 dark:text-amber-400' };
+    } else if (windowText) {
+      subBadge = { text: `Pickup ${windowText}`, color: 'text-amber-600 dark:text-amber-400' };
+    }
   } else if (['in_transit', 'en_route'].includes(delivery.status) && delivery.delivery_time_eta) {
     // Owner request (Sep 29 2026): when the ETA equals the delivery window START
     // (the optimizer clamps arrival up to the window floor, e.g. 17:30), the

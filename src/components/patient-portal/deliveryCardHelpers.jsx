@@ -78,6 +78,13 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
   }
 
   const pickupTime = pickupStop?.actual_delivery_time || null;
+  // PENDING PICKUP ETA (owner request Nov 4 2026): until the parcel is actually
+  // collected there is no delivery ETA to show, so the card reports when the
+  // PICKUP is due — the pickup stop's own ETA, falling back to the store's
+  // pickup window.
+  const pickupEta = pickupStop?.delivery_time_eta || null;
+  const pickupWindowStart = pickupStop?.delivery_time_start || null;
+  const pickupWindowEnd = pickupStop?.delivery_time_end || null;
   const pickupDriverName = pickupStop?.driver_name || null;
   const deliveredBy = delivery.driver_name || null;
   const pickupByOtherDriver = !!(pickupDriverName && deliveredBy && pickupDriverName !== deliveredBy);
@@ -136,6 +143,9 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
     delivery,
     storeName,
     pickupTime,
+    pickupEta,
+    pickupWindowStart,
+    pickupWindowEnd,
     stopsBetween,
     pickupDriverName,
     deliveredBy,
