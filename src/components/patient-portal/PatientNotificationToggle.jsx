@@ -5,8 +5,8 @@ import {
   enablePatientPush,
   disablePatientPush,
   isIosDevice,
-  isStandalonePwa,
-} from './patientPushClient';
+  isStandalonePwa } from
+'./patientPushClient';
 
 /**
  * Patient notifications control (owner request Nov 3 2026).
@@ -40,7 +40,7 @@ export default function PatientNotificationToggle({ patient }) {
   // Re-read the state whenever the patient comes back to the tab — permission may
   // have been changed in the browser/app settings while they were away.
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    const onVisible = () => {if (document.visibilityState === 'visible') refresh();};
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [refresh]);
@@ -49,10 +49,10 @@ export default function PatientNotificationToggle({ patient }) {
     setBusy(true);
     const res = await enablePatientPush(patient);
     setBusy(false);
-    if (res.ok) setState('on');
-    else if (res.reason === 'permission') setState('blocked');
-    else if (res.reason === 'needs_install') setState('needs-install');
-    else refresh();
+    if (res.ok) setState('on');else
+    if (res.reason === 'permission') setState('blocked');else
+    if (res.reason === 'needs_install') setState('needs-install');else
+    refresh();
   };
 
   const handleDisable = async () => {
@@ -62,19 +62,19 @@ export default function PatientNotificationToggle({ patient }) {
     refresh();
   };
 
-  const iosNeedsInstall = state === 'needs-install' || (state !== 'on' && isIosDevice() && !isStandalonePwa());
+  const iosNeedsInstall = state === 'needs-install' || state !== 'on' && isIosDevice() && !isStandalonePwa();
 
-  const Icon = state === 'on' ? BellRing : (state === 'off' ? Bell : BellOff);
-  const dotClass = state === 'on'
-    ? 'bg-green-500'
-    : state === 'off' || state === 'blocked'
-      ? 'bg-amber-500'
-      : 'bg-slate-400';
-  const title = state === 'on'
-    ? 'Notifications are on'
-    : state === 'blocked'
-      ? 'Notifications are blocked'
-      : 'Turn on notifications';
+  const Icon = state === 'on' ? BellRing : state === 'off' ? Bell : BellOff;
+  const dotClass = state === 'on' ?
+  'bg-green-500' :
+  state === 'off' || state === 'blocked' ?
+  'bg-amber-500' :
+  'bg-slate-400';
+  const title = state === 'on' ?
+  'Notifications are on' :
+  state === 'blocked' ?
+  'Notifications are blocked' :
+  'Turn on notifications';
 
   return (
     <div className="relative">
@@ -82,65 +82,65 @@ export default function PatientNotificationToggle({ patient }) {
         onClick={() => setOpen((v) => !v)}
         className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
         title={title}
-        aria-label={title}
-      >
+        aria-label={title}>
+        
         <Icon className={`w-4 h-4 ${state === 'on' ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`} />
         <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-900 ${dotClass}`} />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-11 w-64 z-[1200] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-3">
+      {open &&
+      <div className="absolute right-0 top-11 w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-3 z-[9999999]">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Notifications</p>
             <button
-              onClick={() => setOpen(false)}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-              aria-label="Close"
-            >
+            onClick={() => setOpen(false)}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            aria-label="Close">
+            
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {state === null && (
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Checking this device…</p>
-          )}
+          {state === null &&
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Checking this device…</p>
+        }
 
-          {state === 'on' && (
-            <>
+          {state === 'on' &&
+        <>
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 This device gets a phone alert when your pharmacy replies or when your delivery is on the way.
               </p>
               <button
-                onClick={handleDisable}
-                disabled={busy}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60"
-              >
+            onClick={handleDisable}
+            disabled={busy}
+            className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60">
+            
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellOff className="w-4 h-4" />}
                 Turn off on this device
               </button>
             </>
-          )}
+        }
 
-          {(state === 'off' || state === 'blocked') && (
-            <>
+          {(state === 'off' || state === 'blocked') &&
+        <>
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                {state === 'blocked'
-                  ? 'Your browser or app has notifications blocked for this site. Allow them in the site settings (the padlock next to the address), then try again.'
-                  : 'Turn these on to get a phone alert when your pharmacy replies or your delivery is on the way.'}
+                {state === 'blocked' ?
+            'Your browser or app has notifications blocked for this site. Allow them in the site settings (the padlock next to the address), then try again.' :
+            'Turn these on to get a phone alert when your pharmacy replies or your delivery is on the way.'}
               </p>
               <button
-                onClick={handleEnable}
-                disabled={busy}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-60"
-              >
+            onClick={handleEnable}
+            disabled={busy}
+            className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-60">
+            
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
                 {state === 'blocked' ? 'Try again' : 'Turn on notifications'}
               </button>
             </>
-          )}
+        }
 
-          {iosNeedsInstall && (
-            <>
+          {iosNeedsInstall &&
+        <>
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 On iPhone, notifications only work after adding this page to your Home Screen.
               </p>
@@ -148,15 +148,15 @@ export default function PatientNotificationToggle({ patient }) {
                 <Share className="w-3.5 h-3.5" /> Share, then Add to Home Screen
               </p>
             </>
-          )}
+        }
 
-          {state === 'unsupported' && (
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          {state === 'unsupported' &&
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
               This browser cannot show notifications. Open the portal in Chrome or Safari (or the RxDeliver app) to turn them on.
             </p>
-          )}
+        }
         </div>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
