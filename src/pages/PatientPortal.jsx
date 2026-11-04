@@ -29,7 +29,7 @@ delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
 });
 
 // OWNER REQUEST (Nov 3 2026): the driver's live location must be visible even
@@ -51,18 +51,18 @@ const LIVE_DRIVER_STATUSES = ['pending', 'en_route', 'in_transit'];
  * cache, revalidates the document, then reloads onto the new build.
  */
 async function applyPortalUpdate() {
-  try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { /* ignore */ }
-  try { clearUserCache(); } catch { /* silent */ }
-  try { await purgeStaleServiceWorkerAndCaches(); } catch { /* silent */ }
+  try {localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now()));} catch {/* ignore */}
+  try {clearUserCache();} catch {/* silent */}
+  try {await purgeStaleServiceWorkerAndCaches();} catch {/* silent */}
   // Revalidate the document: a plain reload can return the cached index.html.
   try {
     await fetch(`/?_u=${Date.now()}`, { cache: 'reload', credentials: 'same-origin' });
-  } catch { /* offline — the cache wipe still helps */ }
+  } catch {/* offline — the cache wipe still helps */}
   window.location.reload();
 }
 
 const HOUSE_SVG = (strokeColor) =>
-  `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg>`;
+`<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg>`;
 
 function makeStoreIcon(pickupDone) {
   const bg = pickupDone ? '#16a34a' : 'white';
@@ -71,28 +71,28 @@ function makeStoreIcon(pickupDone) {
     html: `<div style="background:${bg};width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid ${border};overflow:hidden;"><img src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/189b7cc2c_ShoppersLogo.ico" style="width:30px;height:30px;object-fit:contain;" /></div>`,
     className: '',
     iconSize: [40, 40],
-    iconAnchor: [20, 20],
+    iconAnchor: [20, 20]
   });
 }
 
 function makePatientIcon(deliveryStatus, isNextDelivery, stopsBeforeCount) {
   let bg = '#2563eb';
   let iconColor = 'white';
-  if (deliveryStatus === 'completed') { bg = '#16a34a'; }
-  else if (deliveryStatus === 'failed') { bg = '#dc2626'; }
-  else if (isNextDelivery) { bg = '#ca8a04'; iconColor = '#fef08a'; }
+  if (deliveryStatus === 'completed') {bg = '#16a34a';} else
+  if (deliveryStatus === 'failed') {bg = '#dc2626';} else
+  if (isNextDelivery) {bg = '#ca8a04';iconColor = '#fef08a';}
 
   // Cluster badge: show stops-before count only when delivery is not yet done and count > 0
   const showBadge = stopsBeforeCount != null && stopsBeforeCount > 0 && !['completed', 'failed', 'cancelled'].includes(deliveryStatus);
-  const badge = showBadge
-    ? `<div style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);z-index:10;">${stopsBeforeCount}</div>`
-    : '';
+  const badge = showBadge ?
+  `<div style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);z-index:10;">${stopsBeforeCount}</div>` :
+  '';
 
   return L.divIcon({
     html: `<div style="position:relative;width:36px;height:36px;"><div style="background:${bg};color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:3px solid white;">${HOUSE_SVG(iconColor)}</div>${badge}</div>`,
     className: '',
     iconSize: [36, 36],
-    iconAnchor: [18, 18],
+    iconAnchor: [18, 18]
   });
 }
 
@@ -116,7 +116,7 @@ const driverIcon = L.divIcon({
   html: DRIVER_MARKER_HTML('🚚'),
   className: '',
   iconSize: [36, 46],
-  iconAnchor: [18, 46],
+  iconAnchor: [18, 46]
 });
 
 // Cycling-mode driver icon: bicycle with a rider wearing a backpack.
@@ -144,7 +144,7 @@ const cyclingDriverIcon = L.divIcon({
   html: DRIVER_MARKER_HTML(CYCLIST_SVG),
   className: '',
   iconSize: [36, 46],
-  iconAnchor: [18, 46],
+  iconAnchor: [18, 46]
 });
 
 // Smoothly animated driver marker — mirrors the shared-location glide used for
@@ -210,8 +210,8 @@ function AnimatedDriverMarker({ driverLocation, legCoords, icon, children, onPai
   return (
     <Marker ref={markerRef} position={initialPosRef.current} icon={icon}>
       {children}
-    </Marker>
-  );
+    </Marker>);
+
 }
 
 // Fits the map to patient + store on load (once both are available).
@@ -242,9 +242,9 @@ const PORTAL_PAD_TOP_DEFAULT = 35;
 function portalFit(map, points, pad = {}) {
   // Guard: a single NaN/undefined coordinate makes latLngBounds invalid and
   // getBoundsZoom throw — which would silently kill the auto-fit forever.
-  const pts = (points || [])
-    .filter((pt) => Array.isArray(pt) && Number.isFinite(Number(pt[0])) && Number.isFinite(Number(pt[1])))
-    .map(([a, b]) => [Number(a), Number(b)]);
+  const pts = (points || []).
+  filter((pt) => Array.isArray(pt) && Number.isFinite(Number(pt[0])) && Number.isFinite(Number(pt[1]))).
+  map(([a, b]) => [Number(a), Number(b)]);
   if (pts.length === 0) return;
   const bounds = L.latLngBounds(pts);
   const topPad = Number.isFinite(pad.top) ? pad.top : PORTAL_PAD_TOP_DEFAULT;
@@ -261,9 +261,9 @@ function portalFit(map, points, pad = {}) {
   // the exact computed zoom (only capped at 17 so a degenerate tiny box
   // can't pinch all the way in). Leaflet's fitBounds always ignored the
   // minZoom option anyway, so this matches the pre-Oct-23 behavior.
-  const targetZoom = Number.isFinite(fitZoom)
-    ? Math.min(PORTAL_FIT_MAX_ZOOM, fitZoom)
-    : PORTAL_FIT_MAX_ZOOM;
+  const targetZoom = Number.isFinite(fitZoom) ?
+  Math.min(PORTAL_FIT_MAX_ZOOM, fitZoom) :
+  PORTAL_FIT_MAX_ZOOM;
   // Asymmetric padding shifts the center the same way Leaflet's
   // _getBoundsCenterZoom does: paddingOffset = (bottomRight - topLeft) / 2.
   const paddingOffset = L.point(rightPad - leftPad, bottomPad - topPad).divideBy(2);
@@ -282,14 +282,14 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
   // the store without ever zooming out to both. Every input that can widen the
   // frame is now folded into one signature; any change refits exactly once.
   const signature = [
-    patientLatLng ? patientLatLng.join(',') : '',
-    storeLatLng ? storeLatLng.join(',') : '',
-    showDriver && driverLatLng ? driverLatLng.join(',') : '',
-    String(mapPad?.top ?? ''),
-    String(mapPad?.bottom ?? ''),
-    settledOnly ? 'settled' : 'live',
-    Array.isArray(routeCoords) ? routeCoords.length : 0,
-  ].join('|');
+  patientLatLng ? patientLatLng.join(',') : '',
+  storeLatLng ? storeLatLng.join(',') : '',
+  showDriver && driverLatLng ? driverLatLng.join(',') : '',
+  String(mapPad?.top ?? ''),
+  String(mapPad?.bottom ?? ''),
+  settledOnly ? 'settled' : 'live',
+  Array.isArray(routeCoords) ? routeCoords.length : 0].
+  join('|');
   const fittedSignatureRef = useRef(null);
 
   useEffect(() => {
@@ -343,9 +343,9 @@ function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, tracking
   useEffect(() => {
     if (!trackingMode || !anchor || !patientLatLng) return;
     const positions = [
-      anchor,
-      patientLatLng,
-    ];
+    anchor,
+    patientLatLng];
+
     const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
     if (routePoints.length > 1) positions.push(...routePoints);
     programmaticRef.current = true;
@@ -355,7 +355,7 @@ function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, tracking
     // degenerate tight fit from pinching all the way in. Small buffer — the
     // markers should sit close to the map edges, not centered with big gaps.
     portalFit(map, positions, mapPad);
-    const clearProgrammatic = () => { programmaticRef.current = false; };
+    const clearProgrammatic = () => {programmaticRef.current = false;};
     map.once('moveend', clearProgrammatic);
     map.once('zoomend', clearProgrammatic);
     // Bounds unchanged (no move/zoom events fire) — clear via short safety
@@ -376,7 +376,7 @@ function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, tracking
   useEffect(() => {
     const handleDblClick = () => onDoubleTap();
     map.on('dblclick', handleDblClick);
-    const handleUserGesture = () => { if (!programmaticRef.current) onUserInteract(); };
+    const handleUserGesture = () => {if (!programmaticRef.current) onUserInteract();};
     map.on('dragstart', handleUserGesture);
     map.on('zoomstart', handleUserGesture);
     return () => {
@@ -394,15 +394,15 @@ const TODAY = format(new Date(), 'yyyy-MM-dd');
 // Decode Google-encoded polyline to [[lat, lng], ...]
 function decodePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
-  let index = 0, lat = 0, lng = 0;
+  let index = 0,lat = 0,lng = 0;
   const coords = [];
   while (index < encoded.length) {
-    let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    let b,shift = 0,result = 0;
+    do {b = encoded.charCodeAt(index++) - 63;result |= (b & 0x1f) << shift;shift += 5;} while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0;result = 0;
+    do {b = encoded.charCodeAt(index++) - 63;result |= (b & 0x1f) << shift;shift += 5;} while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
     coords.push([lat / 1e5, lng / 1e5]);
   }
   return coords;
@@ -426,14 +426,14 @@ export default function PatientPortal({ embedded = false } = {}) {
     };
     ping();
     const timer = setInterval(ping, 30000);
-    const onVisibility = () => { if (document.visibilityState === 'visible') ping(); };
+    const onVisibility = () => {if (document.visibilityState === 'visible') ping();};
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [patient?.id]);
-  const [sidebarOpen, setSidebarOpen]       = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // Patient messaging (owner build Nov 2 2026): one thread with the pharmacy,
   // unread badge on the header button, pushed to the device when a reply lands.
   const [messagingOpen, setMessagingOpen] = useState(false);
@@ -441,14 +441,14 @@ export default function PatientPortal({ embedded = false } = {}) {
   // free space (owner request Nov 3 2026) instead of inside the floating card.
   const [canExitPreview] = useState(isPatientViewOverlayActive);
   const [unreadMessages, setUnreadMessages] = useState(0);
-  const [deliveries, setDeliveries]         = useState([]);
-  const [pickupStops, setPickupStops]       = useState([]);
+  const [deliveries, setDeliveries] = useState([]);
+  const [pickupStops, setPickupStops] = useState([]);
   // Every record sharing each puid (pickup + its deliveries) — lets a transferred
   // delivery find the pickup that actually collected the parcel, even when that
   // was another driver on an earlier date (owner request Nov 3 2026).
-  const [puidGroups, setPuidGroups]         = useState({});
-  const [stores, setStores]                 = useState([]);
-  const [todayDelivery, setTodayDelivery]   = useState(null);
+  const [puidGroups, setPuidGroups] = useState({});
+  const [stores, setStores] = useState([]);
+  const [todayDelivery, setTodayDelivery] = useState(null);
   // Live calendar day for the floating today-card gate. TODAY is a module
   // constant (frozen at load), so a portal left open past midnight would keep
   // offering yesterday's card — the floating card compares against this one and
@@ -462,9 +462,9 @@ export default function PatientPortal({ embedded = false } = {}) {
   // breakpoint in JS so the top fit padding can drop the card height whenever
   // the sidebar is on screen (owner request Nov 2 2026).
   const [isNarrowScreen, setIsNarrowScreen] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia
-      ? window.matchMedia('(max-width: 767px)').matches
-      : false
+  typeof window !== 'undefined' && window.matchMedia ?
+  window.matchMedia('(max-width: 767px)').matches :
+  false
   );
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return undefined;
@@ -477,11 +477,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   }, []);
 
   const showFloatTodayCard = !!(
-    todayDelivery &&
-    todayDelivery.delivery_date === liveDay &&
-    !sidebarOpen &&
-    isNarrowScreen
-  );
+  todayDelivery &&
+  todayDelivery.delivery_date === liveDay &&
+  !sidebarOpen &&
+  isNarrowScreen);
+
 
   // Inner fit paddings handed to every auto-fit call: top clears the floating
   // today card WHEN IT IS SHOWING (otherwise just the base 115), bottom clears
@@ -493,7 +493,7 @@ export default function PatientPortal({ embedded = false } = {}) {
     // Card showing (sidebar hidden on a narrow screen): card height + 32
     // (was + 52, cut by 20 per owner tweak Nov 2 2026). Sidebar visible: 35,
     // identical to the bottom padding.
-    top: showFloatTodayCard && floatCardHeight ? floatCardHeight + 32 : PORTAL_PAD_TOP_DEFAULT,
+    top: showFloatTodayCard && floatCardHeight ? floatCardHeight + 32 : PORTAL_PAD_TOP_DEFAULT
   }), [showFloatTodayCard, floatCardHeight]);
   const [driverLocation, setDriverLocation] = useState(null);
 
@@ -506,7 +506,7 @@ export default function PatientPortal({ embedded = false } = {}) {
   useEffect(() => {
     const observer = new MutationObserver(() => {
       const dark = isAppDarkTheme();
-      setIsDarkTheme(prev => (prev === dark ? prev : dark));
+      setIsDarkTheme((prev) => prev === dark ? prev : dark);
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
@@ -517,17 +517,17 @@ export default function PatientPortal({ embedded = false } = {}) {
       try {
         const { getOrFetchHereApiKey } = await import('@/components/utils/hereApiKeyStore');
         const key = await getOrFetchHereApiKey();
-        if (mounted && key) setHereApiKey(prev => (prev === key ? prev : key));
-      } catch { /* OSM/Carto fallback stays active */ }
+        if (mounted && key) setHereApiKey((prev) => prev === key ? prev : key);
+      } catch {/* OSM/Carto fallback stays active */}
     })();
-    return () => { mounted = false; };
+    return () => {mounted = false;};
   }, []);
   const tileUrl = useMemo(() => {
     if (hereApiKey) {
       // Same HERE v3 tiles the dashboard uses (512px, zoomOffset -1 at render).
-      return isDarkTheme
-        ? `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${hereApiKey}`
-        : `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${hereApiKey}`;
+      return isDarkTheme ?
+      `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${hereApiKey}` :
+      `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${hereApiKey}`;
     }
     // CARTO basemaps now watermark "API KEY REQUIRED" (policy change Oct 2026,
     // seen live on a patient's phone Oct 26) — replaced with plain OSM for BOTH
@@ -541,10 +541,10 @@ export default function PatientPortal({ embedded = false } = {}) {
   // colour is gone; the active leg is still drawn heavier so it reads as current.
   const routeLegColor = isDarkTheme ? '#4ade80' : '#16a34a';
   const currentLegColor = routeLegColor;
-  const [loading, setLoading]               = useState(true);
+  const [loading, setLoading] = useState(true);
   // Spinner while the refresh button runs a data refresh or installs an update.
-  const [updating, setUpdating]             = useState(false);
-  const [liveConnected, setLiveConnected]   = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [liveConnected, setLiveConnected] = useState(false);
   // Stops REMAINING today on the driver's route — ONE number for both surfaces
   // (the red badge on the patient's home marker AND the card's "stops left"
   // line), owner fix Nov 3 2026. Previously the badge counted non-terminal
@@ -571,7 +571,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       const rad = Math.PI / 180;
       const dLat = (lat - prev[0]) * rad;
       const dLng = (lng - prev[1]) * rad;
-      const x = dLng * Math.cos(((prev[0] + lat) / 2) * rad);
+      const x = dLng * Math.cos((prev[0] + lat) / 2 * rad);
       const moved = Math.sqrt(dLat * dLat + x * x) * 6371000;
       if (moved < 40) return;
     }
@@ -587,7 +587,7 @@ export default function PatientPortal({ embedded = false } = {}) {
   // (the browser drops the lock on hide), and skipped on low battery unless
   // the device is charging — a patient's phone should not be drained flat.
   useEffect(() => {
-    const isMobileDevice = (navigator?.maxTouchPoints > 0) || window.innerWidth <= 1024;
+    const isMobileDevice = navigator?.maxTouchPoints > 0 || window.innerWidth <= 1024;
     if (!isMobileDevice || !('wakeLock' in navigator)) return undefined;
 
     let wakeLock = null;
@@ -600,18 +600,18 @@ export default function PatientPortal({ embedded = false } = {}) {
       try {
         if (battery && battery.level * 100 < 15 && !battery.charging) return;
         wakeLock = await navigator.wakeLock.request('screen');
-        wakeLock.addEventListener('release', () => { wakeLock = null; });
-      } catch { /* unsupported, denied, or battery saver — nothing to do */ }
+        wakeLock.addEventListener('release', () => {wakeLock = null;});
+      } catch {/* unsupported, denied, or battery saver — nothing to do */}
     };
 
     const release = () => {
-      try { wakeLock?.release?.(); } catch { /* already gone */ }
+      try {wakeLock?.release?.();} catch {/* already gone */}
       wakeLock = null;
     };
 
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void request();
-      else release();
+      if (document.visibilityState === 'visible') void request();else
+      release();
     };
 
     const watchBattery = async () => {
@@ -619,12 +619,12 @@ export default function PatientPortal({ embedded = false } = {}) {
       try {
         battery = await navigator.getBattery();
         const check = () => {
-          if (battery.level * 100 < 15 && !battery.charging) release();
-          else if (document.visibilityState === 'visible') void request();
+          if (battery.level * 100 < 15 && !battery.charging) release();else
+          if (document.visibilityState === 'visible') void request();
         };
         battery.addEventListener?.('levelchange', check);
         battery.addEventListener?.('chargingchange', check);
-      } catch { /* battery API optional */ }
+      } catch {/* battery API optional */}
     };
 
     void watchBattery();
@@ -646,13 +646,13 @@ export default function PatientPortal({ embedded = false } = {}) {
   useEffect(() => {
     // Idle measurement lives in the shared tracker (Layout owns the same one;
     // the init is idempotent) so "idle" means the same thing everywhere.
-    try { initInteractionIdleTracker(); } catch { /* non-critical */ }
+    try {initInteractionIdleTracker();} catch {/* non-critical */}
   }, []);
   useEffect(() => {
     if (!hasWebUpdate) return;
     const BACKGROUND_THRESHOLD_MS = 10 * 60 * 1000; // away this long = refresh on return
-    const IDLE_THRESHOLD_MS = 10 * 60 * 1000;       // foreground but untouched this long
-    const IDLE_RESTART_DELAY_MS = 60 * 1000;        // let the balloon be seen first
+    const IDLE_THRESHOLD_MS = 10 * 60 * 1000; // foreground but untouched this long
+    const IDLE_RESTART_DELAY_MS = 60 * 1000; // let the balloon be seen first
     const SHORT_BACKGROUND_THRESHOLD_MS = 45 * 1000; // normal short gap resume
 
     const applyUpdate = applyPortalUpdate;
@@ -667,7 +667,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       }, IDLE_RESTART_DELAY_MS);
     };
     const disarmIdleRestart = () => {
-      if (idleRestartTimer) { clearTimeout(idleRestartTimer); idleRestartTimer = null; }
+      if (idleRestartTimer) {clearTimeout(idleRestartTimer);idleRestartTimer = null;}
     };
 
     if (!document.hidden && getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
@@ -691,10 +691,10 @@ export default function PatientPortal({ embedded = false } = {}) {
         disarmIdleRestart();
         return;
       }
-      const awayMs = hiddenSince.t ? (Date.now() - hiddenSince.t) : 0;
+      const awayMs = hiddenSince.t ? Date.now() - hiddenSince.t : 0;
       hiddenSince.t = null;
       backgroundedAt = null;
-      if (awayMs >= SHORT_BACKGROUND_THRESHOLD_MS) { void applyUpdate(); return; }
+      if (awayMs >= SHORT_BACKGROUND_THRESHOLD_MS) {void applyUpdate();return;}
       if (getIdleMs() >= IDLE_THRESHOLD_MS) armIdleRestart();
     };
     const onActivity = () => disarmIdleRestart();
@@ -744,8 +744,8 @@ export default function PatientPortal({ embedded = false } = {}) {
         try {
           const results = await Promise.all(
             uniquePuids.map((puid) =>
-              base44.entities.Delivery.filter({ puid }, '-delivery_date', 50)
-                .catch(() => [])
+            base44.entities.Delivery.filter({ puid }, '-delivery_date', 50).
+            catch(() => [])
             )
           );
           const groups = {};
@@ -775,7 +775,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         try {
           const routeDeliveries = await base44.entities.Delivery.filter({
             driver_id: activeToday.driver_id,
-            delivery_date: TODAY,
+            delivery_date: TODAY
           });
           routeDeliveriesRef.current = routeDeliveries;
           setRouteDeliveries(routeDeliveries);
@@ -801,10 +801,10 @@ export default function PatientPortal({ embedded = false } = {}) {
       }
 
       const storeIds = [...new Set([
-        ...allDeliveries.map((d) => d.store_id).filter(Boolean),
-        patient?.store_id,
-        activeToday?.store_id,
-      ].filter(Boolean))];
+      ...allDeliveries.map((d) => d.store_id).filter(Boolean),
+      patient?.store_id,
+      activeToday?.store_id].
+      filter(Boolean))];
       const allStores = await base44.entities.Store.filter({});
       // Keep all stores that match any delivery store OR the patient's home store
       setStores(allStores.filter((s) => storeIds.includes(s.id)));
@@ -821,14 +821,14 @@ export default function PatientPortal({ embedded = false } = {}) {
 
   // Keep a ref to the current todayDelivery's driver_id and stop_order for use in WS closures
   const todayDeliveryRouteRef = useRef(null);
-  todayDeliveryRouteRef.current = todayDelivery
-    ? { driver_id: todayDelivery.driver_id, stop_order: todayDelivery.stop_order, id: todayDelivery.id }
-    : null;
+  todayDeliveryRouteRef.current = todayDelivery ?
+  { driver_id: todayDelivery.driver_id, stop_order: todayDelivery.stop_order, id: todayDelivery.id } :
+  null;
 
   // HH:MM → minutes-past-midnight (regex only — naive strings are never Date-parsed)
   const hhmmToMinutes = (t) => {
     const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
-    return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
   };
 
   // OWNER REQUEST (Sep 29 2026): count PENDING stops in the "stops before you"
@@ -884,11 +884,11 @@ export default function PatientPortal({ embedded = false } = {}) {
           // A delivery that no longer belongs to this route is now REMOVED.
           const belongsNow = updated.driver_id === route.driver_id && updated.delivery_date === TODAY;
           if (belongsNow || idx >= 0) {
-            const next = !belongsNow
-              ? existing.filter((d) => d.id !== updated.id)
-              : (idx >= 0
-                ? existing.map((d) => d.id === updated.id ? { ...d, ...updated } : d)
-                : [...existing, updated]);
+            const next = !belongsNow ?
+            existing.filter((d) => d.id !== updated.id) :
+            idx >= 0 ?
+            existing.map((d) => d.id === updated.id ? { ...d, ...updated } : d) :
+            [...existing, updated];
             routeDeliveriesRef.current = next;
             setRouteDeliveries([...next]);
             // Recount badge using the patient's own delivery as reference
@@ -924,7 +924,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       console.warn('PatientPortal: Delivery WS subscription failed', err);
     }
 
-    return () => { try { unsub?.(); } catch (_) {} };
+    return () => {try {unsub?.();} catch (_) {}};
   }, [patient?.id, recountStopsRemaining]);
 
   // ── WebSocket: AppUser subscription (driver location) ────────────
@@ -956,9 +956,9 @@ export default function PatientPortal({ embedded = false } = {}) {
             lat: updated.current_latitude,
             lng: updated.current_longitude,
             name: updated.user_name,
-            cycling: updated.preferred_travel_mode != null
-              ? updated.preferred_travel_mode === 'cycling'
-              : (prev?.cycling ?? false),
+            cycling: updated.preferred_travel_mode != null ?
+            updated.preferred_travel_mode === 'cycling' :
+            prev?.cycling ?? false
           }));
         }
       });
@@ -966,7 +966,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       console.warn('PatientPortal: AppUser WS subscription failed', err);
     }
 
-    return () => { try { unsub?.(); } catch (_) {} };
+    return () => {try {unsub?.();} catch (_) {}};
   }, [patient?.id]);
 
 
@@ -985,9 +985,9 @@ export default function PatientPortal({ embedded = false } = {}) {
 
   // ── Map markers ───────────────────────────────────────────────────
   const storeMap = {};
-  stores.forEach((s) => { storeMap[s.id] = s; });
+  stores.forEach((s) => {storeMap[s.id] = s;});
 
-  const activeStore   = todayDelivery ? storeMap[todayDelivery.store_id] : (patient?.store_id ? storeMap[patient.store_id] : null);
+  const activeStore = todayDelivery ? storeMap[todayDelivery.store_id] : patient?.store_id ? storeMap[patient.store_id] : null;
 
   // Store marker: green bg when pickup is done (driver has left the store = in_transit/en_route/completed)
   const pickupDone = todayDelivery ? ['in_transit', 'en_route', 'completed'].includes(todayDelivery.status) : false;
@@ -998,9 +998,9 @@ export default function PatientPortal({ embedded = false } = {}) {
   const driverIsCycling = useMemo(() => {
     if (driverLocation?.cycling === true) return true;
     return routeDeliveries.some((d) =>
-      !['completed', 'failed', 'cancelled'].includes(d.status) && d.transport_mode === 'cycling');
+    !['completed', 'failed', 'cancelled'].includes(d.status) && d.transport_mode === 'cycling');
   }, [driverLocation?.cycling, routeDeliveries]);
-  const driverMapIcon = useMemo(() => (driverIsCycling ? cyclingDriverIcon : driverIcon), [driverIsCycling]);
+  const driverMapIcon = useMemo(() => driverIsCycling ? cyclingDriverIcon : driverIcon, [driverIsCycling]);
 
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
   const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsRemaining);
@@ -1018,10 +1018,10 @@ export default function PatientPortal({ embedded = false } = {}) {
   // leg is a GAP (nothing drawn), never a chord.
   const pointGapMeters = (a, b) => {
     if (!a || !b) return Infinity;
-    const lat1 = Number(a[0]), lng1 = Number(a[1]), lat2 = Number(b[0]), lng2 = Number(b[1]);
+    const lat1 = Number(a[0]),lng1 = Number(a[1]),lat2 = Number(b[0]),lng2 = Number(b[1]);
     if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;
     const dy = (lat1 - lat2) * 110540;
-    const dx = (lng1 - lng2) * 111320 * Math.cos(((lat1 + lat2) / 2) * Math.PI / 180);
+    const dx = (lng1 - lng2) * 111320 * Math.cos((lat1 + lat2) / 2 * Math.PI / 180);
     return Math.sqrt(dx * dx + dy * dy);
   };
 
@@ -1030,8 +1030,8 @@ export default function PatientPortal({ embedded = false } = {}) {
   // generous: real generated legs land on the stop.
   const legIsStale = (stop, coords) => {
     if (!Array.isArray(coords) || coords.length < 2) return true;
-    const lat = Number(stop?.lat), lng = Number(stop?.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return false; // can't judge
+    const lat = Number(stop?.lat),lng = Number(stop?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 && lng === 0) return false; // can't judge
     return pointGapMeters(coords[coords.length - 1], [lat, lng]) > 200;
   };
 
@@ -1041,7 +1041,7 @@ export default function PatientPortal({ embedded = false } = {}) {
     let current = null;
     for (const stop of stops) {
       const decoded = decodePolyline(stop.encoded_polyline);
-      if (legIsStale(stop, decoded)) { current = null; continue; } // gap — draw nothing
+      if (legIsStale(stop, decoded)) {current = null;continue;} // gap — draw nothing
       if (current && pointGapMeters(current[current.length - 1], decoded[0]) <= 40) {
         current.push(...decoded.slice(1));
       } else {
@@ -1062,11 +1062,11 @@ export default function PatientPortal({ embedded = false } = {}) {
     const DONE_STATUSES = ['completed', 'failed', 'cancelled'];
 
     const relevantStops = routeDeliveries
-      // DRIVER SCOPE: a stop transferred to another driver is not on this route
-      // any more, no matter what the local snapshot still holds.
-      .filter((d) => !d.driver_id || !todayDelivery.driver_id || d.driver_id === todayDelivery.driver_id)
-      .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status))
-      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+    // DRIVER SCOPE: a stop transferred to another driver is not on this route
+    // any more, no matter what the local snapshot still holds.
+    .filter((d) => !d.driver_id || !todayDelivery.driver_id || d.driver_id === todayDelivery.driver_id).
+    filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status)).
+    sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
 
     if (relevantStops.length === 0) return { staticPolylineSegments: [], firstLegCoords: [], currentLegCoords: [] };
 
@@ -1078,7 +1078,7 @@ export default function PatientPortal({ embedded = false } = {}) {
 
     // Static = everything except first stop leg and current leg
     const staticStops = relevantStops.filter((d) =>
-      Number(d.stop_order) !== minStopOrder && d.isNextDelivery !== true
+    Number(d.stop_order) !== minStopOrder && d.isNextDelivery !== true
     );
 
     // First leg = first stop only (unless it's also the current leg, then it's covered there)
@@ -1086,10 +1086,10 @@ export default function PatientPortal({ embedded = false } = {}) {
 
     return {
       staticPolylineSegments: buildPolylineSegments(staticStops),
-      firstLegCoords: firstLegStop && !legIsStale(firstLegStop, decodePolyline(firstLegStop.encoded_polyline))
-        ? decodePolyline(firstLegStop.encoded_polyline) : [],
-      currentLegCoords: currentLegStop && !legIsStale(currentLegStop, decodePolyline(currentLegStop.encoded_polyline))
-        ? decodePolyline(currentLegStop.encoded_polyline) : [],
+      firstLegCoords: firstLegStop && !legIsStale(firstLegStop, decodePolyline(firstLegStop.encoded_polyline)) ?
+      decodePolyline(firstLegStop.encoded_polyline) : [],
+      currentLegCoords: currentLegStop && !legIsStale(currentLegStop, decodePolyline(currentLegStop.encoded_polyline)) ?
+      decodePolyline(currentLegStop.encoded_polyline) : []
     };
   }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id, todayDelivery?.driver_id]);
 
@@ -1110,13 +1110,13 @@ export default function PatientPortal({ embedded = false } = {}) {
   // so missing ones are looked up here once per route change.
   const [routeStopCoords, setRouteStopCoords] = useState({});
   useEffect(() => {
-    const missing = (routeDeliveries || [])
-      .filter((d) => d?.patient_id
-        && !(Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng)))
-        && !d.encoded_polyline)
-      .map((d) => String(d.patient_id));
+    const missing = (routeDeliveries || []).
+    filter((d) => d?.patient_id &&
+    !(Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng))) &&
+    !d.encoded_polyline).
+    map((d) => String(d.patient_id));
     const ids = [...new Set(missing)];
-    if (ids.length === 0) { setRouteStopCoords({}); return undefined; }
+    if (ids.length === 0) {setRouteStopCoords({});return undefined;}
 
     let alive = true;
     (async () => {
@@ -1132,15 +1132,15 @@ export default function PatientPortal({ embedded = false } = {}) {
       try {
         const rows = await base44.entities.Patient.filter({ id: { $in: ids } }, '-updated_date', ids.length);
         (rows || []).forEach(record);
-      } catch (_) { /* fall through to per-id reads */ }
+      } catch (_) {/* fall through to per-id reads */}
       for (const id of ids) {
         if (map[id]) continue;
-        try { record(await base44.entities.Patient.get(id)); } catch (_) { /* skip */ }
+        try {record(await base44.entities.Patient.get(id));} catch (_) {/* skip */}
       }
       if (alive) setRouteStopCoords(map);
     })();
 
-    return () => { alive = false; };
+    return () => {alive = false;};
   }, [routeDeliveries]);
 
   const visibleRouteCoords = useMemo(() => {
@@ -1176,18 +1176,18 @@ export default function PatientPortal({ embedded = false } = {}) {
     // the view). Only ACTIVE stops between the driver and this patient count, so
     // the leg the driver is on is trimmed at his own position and anything behind
     // him is dropped.
-    const driverPoint = Number.isFinite(Number(driverLocation?.lat)) && Number.isFinite(Number(driverLocation?.lng))
-      ? [Number(driverLocation.lat), Number(driverLocation.lng)]
-      : null;
+    const driverPoint = Number.isFinite(Number(driverLocation?.lat)) && Number.isFinite(Number(driverLocation?.lng)) ?
+    [Number(driverLocation.lat), Number(driverLocation.lng)] :
+    null;
 
     const trimBehindDriver = (leg) => {
       if (!Array.isArray(leg) || leg.length < 2) return [];
-      if (!driverPoint) return [];           // can't tell what is behind him — fit without this leg
+      if (!driverPoint) return []; // can't tell what is behind him — fit without this leg
       let nearest = 0;
       let nearestGap = Infinity;
       for (let i = 0; i < leg.length; i++) {
         const gap = pointGapMeters(leg[i], driverPoint);
-        if (gap < nearestGap) { nearestGap = gap; nearest = i; }
+        if (gap < nearestGap) {nearestGap = gap;nearest = i;}
       }
       return nearest >= leg.length - 1 ? [] : leg.slice(nearest);
     };
@@ -1213,12 +1213,12 @@ export default function PatientPortal({ embedded = false } = {}) {
 
     const DONE = ['completed', 'failed', 'cancelled'];
     for (const d of routeDeliveries || []) {
-      if (DONE.includes(d.status)) continue;                 // finished stop — never a fit point
+      if (DONE.includes(d.status)) continue; // finished stop — never a fit point
       if (Number(d.stop_order) >= patientStopOrder) continue; // patient & later stops excluded
 
       let pt = null;
-      if (Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng))
-        && Number(d.lat) !== 0 && Number(d.lng) !== 0) {
+      if (Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng)) &&
+      Number(d.lat) !== 0 && Number(d.lng) !== 0) {
         pt = [Number(d.lat), Number(d.lng)];
       }
       if (!pt && d.patient_id) pt = routeStopCoords[String(d.patient_id)] || null;
@@ -1231,28 +1231,28 @@ export default function PatientPortal({ embedded = false } = {}) {
     }
     return pts;
   }, [
-    routeDeliveries,
-    todayDelivery?.stop_order,
-    todayDelivery?.id,
-    routeStopCoords,
-    stores,
-    staticPolylineSegments,
-    currentLegCoords,
-    driverLocation?.lat,
-    driverLocation?.lng,
-  ]);
+  routeDeliveries,
+  todayDelivery?.stop_order,
+  todayDelivery?.id,
+  routeStopCoords,
+  stores,
+  staticPolylineSegments,
+  currentLegCoords,
+  driverLocation?.lat,
+  driverLocation?.lng]
+  );
 
-  const storeLatLng = activeStore?.latitude && activeStore?.longitude
-    ? [activeStore.latitude, activeStore.longitude]
-    : null;
+  const storeLatLng = activeStore?.latitude && activeStore?.longitude ?
+  [activeStore.latitude, activeStore.longitude] :
+  null;
 
-  const defaultCenter = patient?.latitude && patient?.longitude
-    ? [patient.latitude, patient.longitude]
-    : [53.5461, -113.4938]; // Edmonton fallback
+  const defaultCenter = patient?.latitude && patient?.longitude ?
+  [patient.latitude, patient.longitude] :
+  [53.5461, -113.4938]; // Edmonton fallback
 
-  const patientLatLng = patient?.latitude && patient?.longitude
-    ? [patient.latitude, patient.longitude]
-    : null;
+  const patientLatLng = patient?.latitude && patient?.longitude ?
+  [patient.latitude, patient.longitude] :
+  null;
 
   // Double-tap: resume tracking immediately (cancels any pending 10s timer).
   const handleDoubleTap = useCallback(() => {
@@ -1275,7 +1275,7 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Live tracking is only visible after 9:30 AM and when driver is on_duty
   const isAfter930am = (() => {
     const now = new Date();
-    return now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() >= 30);
+    return now.getHours() > 9 || now.getHours() === 9 && now.getMinutes() >= 30;
   })();
   // REMAINING STOPS (owner request Nov 3 2026): how many patient stops the
   // driver still has on today's route, shown under the status badge on the
@@ -1304,7 +1304,7 @@ export default function PatientPortal({ embedded = false } = {}) {
   useEffect(() => {
     const tick = () => {
       const next = format(new Date(), 'yyyy-MM-dd');
-      setLiveDay((prev) => (prev === next ? prev : next));
+      setLiveDay((prev) => prev === next ? prev : next);
     };
     const timer = setInterval(tick, 60000);
     document.addEventListener('visibilitychange', tick);
@@ -1339,8 +1339,8 @@ export default function PatientPortal({ embedded = false } = {}) {
     // slipping behind the nav bar on wider screens.
     <div
       className={`relative flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}
-      style={embedded ? undefined : { height: '100dvh' }}
-    >
+      style={embedded ? undefined : { height: '100dvh' }}>
+      
       <PatientPortalGuard />
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
 
@@ -1354,8 +1354,8 @@ export default function PatientPortal({ embedded = false } = {}) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         embedded={embedded}
-        liveRemainingStops={liveRemainingStops}
-      />
+        liveRemainingStops={liveRemainingStops} />
+      
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col md:ml-72 overflow-hidden">
@@ -1363,12 +1363,12 @@ export default function PatientPortal({ embedded = false } = {}) {
         {/* Top Bar */}
         <div
           className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10"
-          style={{ paddingTop: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}
-        >
+          style={{ paddingTop: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}>
+          
           <button
             onClick={() => setSidebarOpen(true)}
-            className="md:hidden w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
-          >
+            className="md:hidden w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+            
             <Menu className="w-5 h-5 text-slate-600 dark:text-slate-400" />
           </button>
           <div className="flex items-center gap-2">
@@ -1380,43 +1380,43 @@ export default function PatientPortal({ embedded = false } = {}) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             {/* EXIT PATIENT VIEW — NARROW SCREENS (owner request Nov 3 2026): the
-                floating card button took up card space on phones, so up here it
-                fills the gap between the title and the icons and shows just the
-                word Exit. md:hidden keeps the card button for wide layouts. */}
-            {canExitPreview && (
-              <button
-                onClick={() => requestExitPatientView()}
-                className="md:hidden shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-white shadow-sm transition-colors"
-                style={{ background: '#1e40af' }}
-                title="Exit Patient View"
-                aria-label="Exit Patient View"
-              >
+                 floating card button took up card space on phones, so up here it
+                 fills the gap between the title and the icons and shows just the
+                 word Exit. md:hidden keeps the card button for wide layouts. */}
+            {canExitPreview &&
+            <button
+              onClick={() => requestExitPatientView()}
+              className="md:hidden shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-white shadow-sm transition-colors"
+              style={{ background: '#1e40af' }}
+              title="Exit Patient View"
+              aria-label="Exit Patient View">
+              
                 Exit
               </button>
-            )}
+            }
             {/* Live connection indicator */}
-            {liveConnected && (
-              <div className="hidden sm:flex items-center gap-1.5 text-xs text-green-600 font-medium">
+            {liveConnected &&
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-green-600 font-medium">
                 <Wifi className="w-3.5 h-3.5" />
                 <span>Live</span>
               </div>
-            )}
+            }
             <button
               onClick={() => setMessagingOpen(true)}
               className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
               title="Messages"
-              aria-label="Messages"
-            >
+              aria-label="Messages">
+              
               <MessageSquare className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-              {unreadMessages > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
+              {unreadMessages > 0 &&
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
                   {unreadMessages > 9 ? '9+' : unreadMessages}
                 </span>
-              )}
+              }
             </button>
             {/* WEB-UPDATE BALLOON (owner request Nov 3 2026) — identical look
-                and rhythm to the staff balloon, anchored to this refresh
-                button. Tapping it reloads onto the new build. */}
+                 and rhythm to the staff balloon, anchored to this refresh
+                 button. Tapping it reloads onto the new build. */}
             <UpdateInfoBalloon
               active={!!hasWebUpdate}
               anchorSelector="[data-patient-update-btn]"
@@ -1426,14 +1426,14 @@ export default function PatientPortal({ embedded = false } = {}) {
               title="Update available"
               message="A new version of the patient portal is ready. Tap here to install it now."
               cta="Tap to install update"
-              onClick={() => { void applyPortalUpdate(); }}
-            />
+              onClick={() => {void applyPortalUpdate();}} />
+            
             {/* REFRESH / UPDATE BUTTON (owner clarification Nov 3 2026): with an
-                update waiting this is a FULL APP RESTART onto the new build
-                (same purge as the staff "Clear Cache & Refresh"), not a data
-                refresh — the live data already arrives over the websocket, so a
-                data-only tap looked like it did nothing. With no update waiting
-                it stays a plain data refresh. */}
+                 update waiting this is a FULL APP RESTART onto the new build
+                 (same purge as the staff "Clear Cache & Refresh"), not a data
+                 refresh — the live data already arrives over the websocket, so a
+                 data-only tap looked like it did nothing. With no update waiting
+                 it stays a plain data refresh. */}
             <button
               data-patient-update-btn
               onClick={() => {
@@ -1442,20 +1442,20 @@ export default function PatientPortal({ embedded = false } = {}) {
                   void applyPortalUpdate();
                   return;
                 }
-                try { setUpdating(true); } catch { /* ignore */ }
+                try {setUpdating(true);} catch {/* ignore */}
                 loadData().finally(() => setUpdating(false));
               }}
               className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
               title={hasWebUpdate ? 'Update available — tap to install' : 'Refresh'}
-              aria-label={hasWebUpdate ? 'Update and restart' : 'Refresh'}
-            >
+              aria-label={hasWebUpdate ? 'Update and restart' : 'Refresh'}>
+              
               <RefreshCw className={`w-4 h-4 text-slate-500 dark:text-slate-400 ${updating ? 'animate-spin' : ''}`} />
               {/* Green update dot (owner request Nov 3 2026): the same cue the
-                  staff update arrow gives, so a patient knows why the balloon
-                  keeps appearing. */}
-              {hasWebUpdate && (
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
-              )}
+                   staff update arrow gives, so a patient knows why the balloon
+                   keeps appearing. */}
+              {hasWebUpdate &&
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+              }
             </button>
           </div>
         </div>
@@ -1464,42 +1464,42 @@ export default function PatientPortal({ embedded = false } = {}) {
 
         {/* Map */}
         <div
-          className="flex-1 px-4 pt-3 overflow-hidden relative"
-          style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}
-        >
+          className="flex-1 overflow-hidden relative px-2 py-2"
+          style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}>
+          
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
-              Only while the sidebar is hidden (phones, or the drawer closed), and
-              only while the delivery date is TODAY: todayDelivery is resolved for
-              TODAY only, so tomorrow this card simply stops rendering and the
-              delivery lives in the sidebar history. */}
-          {showFloatTodayCard && (
-            <div className="absolute top-2 left-2 z-[900] md:hidden">
+               Only while the sidebar is hidden (phones, or the drawer closed), and
+               only while the delivery date is TODAY: todayDelivery is resolved for
+               TODAY only, so tomorrow this card simply stops rendering and the
+               delivery lives in the sidebar history. */}
+          {showFloatTodayCard &&
+          <div className="absolute top-2 left-2 z-[900] md:hidden">
               <PatientTodayFloatingCard
-                delivery={todayDelivery}
-                pickupStops={pickupStops}
-                puidGroups={puidGroups}
-                stores={stores}
-                onCollapsedHeight={setFloatCardHeight}
-                remainingStops={liveRemainingStops?.[todayDelivery.id] ?? null}
-              />
+              delivery={todayDelivery}
+              pickupStops={pickupStops}
+              puidGroups={puidGroups}
+              stores={stores}
+              onCollapsedHeight={setFloatCardHeight}
+              remainingStops={liveRemainingStops?.[todayDelivery.id] ?? null} />
+            
             </div>
-          )}
+          }
 
           {/* Tracking badge — BOTTOM CENTER (owner request Nov 2 2026, moved
-              down from the top centre so it no longer overlaps the floating
-              today card or the header controls). */}
-          {showLiveTracking && driverLocation && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+               down from the top centre so it no longer overlaps the floating
+               today card or the header controls). */}
+          {showLiveTracking && driverLocation &&
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
               <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
                 {trackingMode ? '📍 Tracking driver' : '⏳ Tracking resumes shortly'}
               </div>
             </div>
-          )}
+          }
           <div className="h-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm relative">
             {/* Map centre crosshair — same overlay the main dashboard map uses.
-                Sits at the centre of the SAME padded region the auto-fit uses
-                (left/right 20, top clears the floating today card, bottom 35),
-                so it marks the exact point the fit is centred on. */}
+                 Sits at the centre of the SAME padded region the auto-fit uses
+                 (left/right 20, top clears the floating today card, bottom 35),
+                 so it marks the exact point the fit is centred on. */}
             <MapCrosshair topPadding={mapPad.top} bottomPadding={mapPad.bottom} zClass="z-[600]" />
             <MapContainer
               center={defaultCenter}
@@ -1513,17 +1513,17 @@ export default function PatientPortal({ embedded = false } = {}) {
               // screen, the other way a huge gap appeared at top/bottom. Free
               // zoom: the fit parks at its exact computed level and manual
               // pinch/scroll no longer jumps whole levels either.
-              zoomSnap={0}
-            >
+              zoomSnap={0}>
+              
               <TileLayer
                 key={tileUrl}
                 url={tileUrl}
-                className={hereApiKey ? '' : (isDarkTheme ? 'portal-osm-dark' : '')}
+                className={hereApiKey ? '' : isDarkTheme ? 'portal-osm-dark' : ''}
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://www.here.com/">HERE</a>'
                 tileSize={hereApiKey ? 512 : 256}
                 zoomOffset={hereApiKey ? -1 : 0}
-                maxNativeZoom={17}
-              />
+                maxNativeZoom={17} />
+              
 
               <MapBoundsFitter
                 patientLatLng={patientLatLng}
@@ -1532,8 +1532,8 @@ export default function PatientPortal({ embedded = false } = {}) {
                 showDriver={showLiveTracking && !!driverLocation}
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
                 mapPad={mapPad}
-                settledOnly={settledDelivery}
-              />
+                settledOnly={settledDelivery} />
+              
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
                 driverPaintPos={driverPaintPos}
@@ -1542,58 +1542,58 @@ export default function PatientPortal({ embedded = false } = {}) {
                 onDoubleTap={handleDoubleTap}
                 onUserInteract={handleUserInteract}
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
-                mapPad={mapPad}
-              />
+                mapPad={mapPad} />
+              
 
               {/* Remaining legs (between the driver and the patient) — solid green, always visible */}
-              {staticPolylineSegments.map((segment, segIdx) => (
-                segment.length > 1 && (
-                  <Polyline
-                    key={`static-leg-${segIdx}`}
-                    positions={segment}
-                    pathOptions={{ color: routeLegColor, weight: 4, opacity: 0.85 }}
-                  />
-                )
-              ))}
+              {staticPolylineSegments.map((segment, segIdx) =>
+              segment.length > 1 &&
+              <Polyline
+                key={`static-leg-${segIdx}`}
+                positions={segment}
+                pathOptions={{ color: routeLegColor, weight: 4, opacity: 0.85 }} />
+
+
+              )}
 
               {/* First stop leg (store → first stop) — solid green — hidden when off duty or before 9:30 AM */}
-              {showLiveTracking && firstLegCoords.length > 1 && (
-                <Polyline
-                  positions={firstLegCoords}
-                  pathOptions={{ color: routeLegColor, weight: 4, opacity: 0.85 }}
-                />
-              )}
+              {showLiveTracking && firstLegCoords.length > 1 &&
+              <Polyline
+                positions={firstLegCoords}
+                pathOptions={{ color: routeLegColor, weight: 4, opacity: 0.85 }} />
+
+              }
 
               {/* Current leg (driver → isNextDelivery stop) — solid blue like the driver dashboard */}
-              {showLiveTracking && currentLegCoords.length > 1 && (
-                <Polyline
-                  positions={currentLegCoords}
-                  pathOptions={{ color: currentLegColor, weight: 5, opacity: 0.95 }}
-                />
-              )}
+              {showLiveTracking && currentLegCoords.length > 1 &&
+              <Polyline
+                positions={currentLegCoords}
+                pathOptions={{ color: currentLegColor, weight: 5, opacity: 0.95 }} />
+
+              }
 
               {/* Store marker */}
-              {activeStore?.latitude && activeStore?.longitude && (
-                <Marker position={[activeStore.latitude, activeStore.longitude]} icon={storeIcon}>
+              {activeStore?.latitude && activeStore?.longitude &&
+              <Marker position={[activeStore.latitude, activeStore.longitude]} icon={storeIcon}>
                   <Popup><strong>{activeStore.name}</strong><br />{activeStore.address}</Popup>
                 </Marker>
-              )}
+              }
 
               {/* Patient location marker */}
-              {patient?.latitude && patient?.longitude && (
-                <Marker position={[patient.latitude, patient.longitude]} icon={patientIcon}>
+              {patient?.latitude && patient?.longitude &&
+              <Marker position={[patient.latitude, patient.longitude]} icon={patientIcon}>
                   <Popup><strong>Your Address</strong><br />{patient.address}</Popup>
                 </Marker>
-              )}
+              }
 
               {/* Driver marker — only when live tracking is enabled. Glides smoothly
-                  between 15s location updates (same trail interpolation as the shared
-                  driver dots on dispatcher maps) instead of teleporting. */}
-              {showLiveTracking && driverLocation && (
-                <AnimatedDriverMarker driverLocation={driverLocation} legCoords={currentLegCoords} icon={driverMapIcon} onPaint={handleDriverPaint}>
+                   between 15s location updates (same trail interpolation as the shared
+                   driver dots on dispatcher maps) instead of teleporting. */}
+              {showLiveTracking && driverLocation &&
+              <AnimatedDriverMarker driverLocation={driverLocation} legCoords={currentLegCoords} icon={driverMapIcon} onPaint={handleDriverPaint}>
                   <Popup><strong>Your Driver</strong><br />{driverLocation.name || 'On the way!'}</Popup>
                 </AnimatedDriverMarker>
-              )}
+              }
             </MapContainer>
           </div>
         </div>
@@ -1603,8 +1603,8 @@ export default function PatientPortal({ embedded = false } = {}) {
         patient={patient}
         open={messagingOpen}
         onClose={() => setMessagingOpen(false)}
-        onUnreadChange={setUnreadMessages}
-      />
-    </div>
-  );
+        onUnreadChange={setUnreadMessages} />
+      
+    </div>);
+
 }
