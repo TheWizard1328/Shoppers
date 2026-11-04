@@ -36,6 +36,9 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   const [patientUnread, setPatientUnread] = useState(0);
   const [isBroadcastingUpdate, setIsBroadcastingUpdate] = useState(false);
   const [updateBroadcastSent, setUpdateBroadcastSent] = useState(false);
+  // Search + New Group live in the panel's own toolbar, so their state is owned here.
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [newGroupSignal, setNewGroupSignal] = useState(0);
   const canBroadcastUpdate = isAppOwner(currentUser);
   
   useEffect(() => {
