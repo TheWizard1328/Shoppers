@@ -1065,10 +1065,21 @@ export default function PatientPortal({ embedded = false } = {}) {
 
   // Cycling mode: AppUser preferred_travel_mode flag on the driver location,
   // or any active stop on today's route carrying a cycling transport_mode.
+  // OWNER FIX (Nov 4 2026): Robert was on a cycling START marker whose travel
+  // mode is DRIVING, yet the portal painted a bicycle. Presence of any cycling
+  // stop on the route is not the same as the driver being on a bike right now.
+  // The icon follows the leg the driver is ACTUALLY on: the earliest active
+  // stop's own transport mode. Markers flagged as driving read as truck.
   const driverIsCycling = useMemo(() => {
-    if (driverLocation?.cycling === true) return true;
-    return routeDeliveries.some((d) =>
-    !['completed', 'failed', 'cancelled'].includes(d.status) && d.transport_mode === 'cycling');
+    const active = routeDeliveries
+      .filter((d) => d && !['completed', 'failed', 'cancelled'].includes(d.status))
+      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+    if (active.length === 0) return driverLocation?.cycling === true;
+    const nextStop = active[0];
+    const mode = String(nextStop.transport_mode || '').toLowerCase();
+    if (mode === 'cycling') return true;
+    if (mode === 'driving') return false;
+    return driverLocation?.cycling === true;
   }, [driverLocation?.cycling, routeDeliveries]);
   const driverMapIcon = useMemo(() => driverIsCycling ? cyclingDriverIcon : driverIcon, [driverIsCycling]);
 
@@ -1131,11 +1142,29 @@ export default function PatientPortal({ embedded = false } = {}) {
     const patientStopOrder = Number(todayDelivery.stop_order);
     const DONE_STATUSES = ['completed', 'failed', 'cancelled'];
 
+    // OWNER RULE (Nov 4 2026): while the patient's parcel has not been picked
+    // up, the portal shows NO route beyond their pickup store. Juanita's stop
+    // is PENDING on the Callingwood pickup, yet lines were still painted to
+    // Londonderry and Beverly because the cap used her DELIVERY stop_order
+    // (late in the route) instead of her PICKUP stop_order (first). Those later
+    // stores are collected later in the day, so their legs do not exist yet.
+    // Once she is in transit the cap opens to her own stop again.
+    const notYetPickedUp = String(todayDelivery.status || 'pending').toLowerCase() === 'pending';
+    let capOrder = patientStopOrder;
+    if (notYetPickedUp) {
+      const ownPickup = routeDeliveries.find((d) =>
+        d && (d.is_pickup === true || d.isPickup === true) &&
+        todayDelivery.puid && d.puid === todayDelivery.puid &&
+        Number.isFinite(Number(d.stop_order))
+      );
+      if (ownPickup) capOrder = Math.min(patientStopOrder, Number(ownPickup.stop_order));
+    }
+
     const relevantStops = routeDeliveries
     // DRIVER SCOPE: a stop transferred to another driver is not on this route
     // any more, no matter what the local snapshot still holds.
     .filter((d) => !d.driver_id || !todayDelivery.driver_id || d.driver_id === todayDelivery.driver_id).
-    filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status)).
+    filter((d) => d.encoded_polyline && Number(d.stop_order) <= capOrder && !DONE_STATUSES.includes(d.status)).
     sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
 
     if (relevantStops.length === 0) return { staticPolylineSegments: [], firstLegCoords: [], currentLegCoords: [] };
@@ -1161,7 +1190,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       currentLegCoords: currentLegStop && !legIsStale(currentLegStop, decodePolyline(currentLegStop.encoded_polyline)) ?
       decodePolyline(currentLegStop.encoded_polyline) : []
     };
-  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id, todayDelivery?.driver_id]);
+  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id, todayDelivery?.driver_id, todayDelivery?.status, todayDelivery?.puid]);
 
   // Visible route path (owner spec Oct 23 2026): every leg the patient can
   // see on the map, flattened into one point list for bounds fitting — the
