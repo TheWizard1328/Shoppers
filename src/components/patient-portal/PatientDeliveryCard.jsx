@@ -98,6 +98,30 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
     };
   }
 
+  // STOPS-LEFT PILL (owner request Nov 4 2026): moved out of the stack under
+  // the ETA and onto the SAME ROW as the date and the ETA, sitting between them.
+  // Content rules are unchanged: per-card count of stops prior to this patient's
+  // own stop, plus "you're next" as a status suffix.
+  const stopsPill = (['pending', 'en_route', 'in_transit'].includes(delivery.status) &&
+    (stopsBetween != null || remainingStops != null)) ?
+    (() => {
+      const count = stopsBetween != null ? Number(stopsBetween) : Number(remainingStops);
+      const isNext = delivery.isNextDelivery === true;
+      const countLabel = count === 0 ? 'Direct delivery' : `${count} stop${count === 1 ? '' : 's'}`;
+      const label = isNext ? `${countLabel} \u00b7 you're next` : countLabel;
+      const cls = isNext ?
+        expanded ?
+          'bg-green-900/60 border-green-700 text-green-300' :
+          'bg-green-50 border-green-200 text-green-700 dark:bg-green-950 dark:border-green-800 dark:text-green-300' :
+        expanded ?
+          'bg-slate-700 border-slate-600 text-slate-200' :
+          'bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300';
+      return (
+        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${cls}`}>
+          {label}
+        </span>);
+    })() : null;
+
   const codTotal = delivery.cod_total_amount_required || 0;
   const codPayments = delivery.cod_payments || [];
   const hasCod = codTotal > 0;
@@ -158,48 +182,20 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
               }
             </div>
-            {subBadge && (subBadge.pill ?
-            <span className={`inline-flex items-center justify-center rounded-full border font-semibold leading-tight tabular-nums whitespace-nowrap text-xs px-3 mx-1 my-2 ${subBadge.pillCls}`}>
-                {subBadge.text}
-              </span> :
+            {subBadge || stopsPill ?
+            <div className="flex items-center justify-center gap-1 mt-0.5 flex-wrap">
+              {stopsPill}
+              {subBadge && (subBadge.pill ?
+              <span className={`inline-flex items-center justify-center rounded-full border font-semibold leading-tight tabular-nums whitespace-nowrap text-xs px-3 mx-1 ${subBadge.pillCls}`}>
+                  {subBadge.text}
+                </span> :
 
-            <p className={`text-sm font-medium mt-0.5 leading-tight text-center ${expanded ? 'text-slate-300' : subBadge.color}`}>
-                {subBadge.text}
-              </p>)
-            }
-            {/* REMAINING STOPS (owner requests Nov 3 2026): directly under the
-                            Pending / In Transit badge, CENTRE-aligned with it. This is the
-                            count of stops still PRIOR to the patient's own stop (their own
-                            delivery never counts), matching the red badge on their home
-                            marker. 0 of them reads "You're next". */}
-            {['pending', 'en_route', 'in_transit'].includes(delivery.status) && (stopsBetween != null || remainingStops != null) &&
-            (() => {
-              // PER-CARD COUNT (owner rule Nov 3 2026): the pill shows how many
-              // stops sat between this delivery's pickup and the patient, NOT the
-              // driver's total remaining stops — so every card carries its own
-              // figure and it always matches the "Stops before you" row.
-              // "You're next" is a STATUS, not a count, so it is appended to the
-              // same pill instead of replacing the number (the number staying and
-              // the badge saying "you're next" was the mismatch the owner hit).
-              const count = stopsBetween != null ? Number(stopsBetween) : Number(remainingStops);
-              const isNext = delivery.isNextDelivery === true;
-              const countLabel = count === 0 ?
-              'Direct delivery' :
-              `${count} stop${count === 1 ? '' : 's'}`;
-              const label = isNext ? `${countLabel} · you're next` : countLabel;
-              const cls = isNext ?
-              expanded ?
-              'bg-green-900/60 border-green-700 text-green-300' :
-              'bg-green-50 border-green-200 text-green-700 dark:bg-green-950 dark:border-green-800 dark:text-green-300' :
-              expanded ?
-              'bg-slate-700 border-slate-600 text-slate-200' :
-              'bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300';
-              return (
-                <span className={`inline-flex items-center justify-center mt-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight whitespace-nowrap ${cls}`}>
-                    {label}
-                  </span>);
-
-            })()
+              <p className={`text-sm font-medium leading-tight text-center ${expanded ? 'text-slate-300' : subBadge.color}`}>
+                  {subBadge.text}
+                </p>)
+              }
+            </div> :
+            null
             }
           </div>
         </div>
