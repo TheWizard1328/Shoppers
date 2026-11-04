@@ -267,12 +267,23 @@ Deno.serve(async (req) => {
     const cooldownMs = (Number(cfg.cooldown_minutes) || 120) * 60 * 1000;
     const now = Date.now();
 
-    // ── Owner resolution (pinned platform id + AppUser name lookup).
+    // ── Names come from AppUser, NOT the platform login (owner request
+    // Nov 4 2026: "replace the platform user names, kingsway.shoppers, with the
+    // AppData user names, Kingsway"). RemoteLogEntry.user_name carries the
+    // Base44 platform login, so every id is resolved through AppUser.user_id.
+    const prettyUserName = (raw: string) => {
+      const base = String(raw || '').split('@')[0].split('.')[0].replace(/[_-]+/g, ' ').trim();
+      if (!base) return 'User';
+      return base.charAt(0).toUpperCase() + base.slice(1);
+    };
+    const userNameById = new Map<string, string>();
     let ownerName = 'App Owner';
     try {
       const appUsers = await listAll(base44, 'AppUser', '-updated_date', 2000);
-      const ownerAppUser = (appUsers || []).find((a) => a?.user_id === OWNER_PLATFORM_USER_ID);
-      if (ownerAppUser?.user_name) ownerName = ownerAppUser.user_name;
+      for (const a of appUsers || []) {
+        if (a?.user_id && a?.user_name) userNameById.set(String(a.user_id), String(a.user_name));
+      }
+      if (userNameById.get(OWNER_PLATFORM_USER_ID)) ownerName = userNameById.get(OWNER_PLATFORM_USER_ID) as string;
     } catch (err) {
       console.log('[appIssueMonitor] AppUser lookup failed (non-fatal):', err?.message || String(err));
     }
@@ -299,7 +310,8 @@ Deno.serve(async (req) => {
 
       const uid = row.user_id;
       if (!perUser.has(uid)) {
-        perUser.set(uid, { user_id: uid, user_name: row.user_name || 'Unknown user', appStarts: 0, rateLimits: 0, errors: 0, samples: [], deviceCounts: new Map() });
+        const resolvedName = userNameById.get(String(uid)) || prettyUserName(row.user_name);
+        perUser.set(uid, { user_id: uid, user_name: resolvedName, appStarts: 0, rateLimits: 0, errors: 0, samples: [], deviceCounts: new Map() });
       }
       const u = perUser.get(uid);
       if (row.device_identifier) u.deviceCounts.set(row.device_identifier, (u.deviceCounts.get(row.device_identifier) || 0) + 1);
@@ -387,10 +399,18 @@ Deno.serve(async (req) => {
         alert.type === 'app_restarts' ? `${u.appStarts} app starts within the last ${cfg.window_minutes} minutes.`
         : alert.type === 'rate_limit' ? `${u.rateLimits} rate limit hits within the last ${cfg.window_minutes} minutes.`
         : `${u.errors} app errors within the last ${cfg.window_minutes} minutes.`;
-      const deviceLine = deviceLabel ? `Devices (this window): ${deviceLabel}\n` : '';
-      const ownerContent = isOwner
-        ? `Issue detected: ${meta.label} on your device.\n${deviceLine}${countLine}\nRecent activity:\n${u.samples.map((s) => `- ${s}`).join('\n')}`
-        : `Issue detected: ${meta.label}.\nAffected user: ${u.user_name}\n${deviceLine}${countLine}\nRecent activity:\n${u.samples.map((s) => `- ${s}`).join('\n')}\nThe user has been notified in-app.`;
+      // ONE LINE PER ITEM (owner request Nov 4 2026): no inline runs and no
+      // dash bullets — the user, the device, the count and every recorded event
+      // each stand on their own message line.
+      const lines = isOwner
+        ? [`Issue detected: ${meta.label} on your device.`]
+        : [`Issue detected: ${meta.label}.`, `User: ${u.user_name}`];
+      if (deviceLabel) lines.push(`Devices (this window): ${deviceLabel}`);
+      lines.push(countLine);
+      lines.push('Recent activity:');
+      for (const sample of u.samples) lines.push(String(sample));
+      if (!isOwner) lines.push('The user has been notified in-app.');
+      const ownerContent = lines.join('\n');
 
       // Affected-user message — the issue was detected and the developer notified.
       const userContent =
@@ -459,7 +479,8 @@ Deno.serve(async (req) => {
       const title = pushItems.length === 1
         ? `App Issue — ${shown[0].split(':')[0]}`
         : `App Issues — ${pushItems.length} devices`;
-      const body = shown.join(' · ') + extra;
+      // One device/issue per line so the notification reads as a list.
+      const body = shown.join('\n') + extra;
       // Same tag on every run: a new batch REPLACES the previous batch on the
       // device instead of stacking another notification on the lock screen.
       combinedPush = await sendPushToUser(base44, OWNER_PLATFORM_USER_ID, title, body, pushUrlBest || '/', 'app_issues');
