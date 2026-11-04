@@ -38,6 +38,8 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   const [updateBroadcastSent, setUpdateBroadcastSent] = useState(false);
   // Search + New Group live in the panel's own toolbar, so their state is owned here.
   const [conversationSearch, setConversationSearch] = useState('');
+  const [patientSearch, setPatientSearch] = useState('');
+  const [patientChatOpen, setPatientChatOpen] = useState(false);
   const [newGroupSignal, setNewGroupSignal] = useState(0);
   const canBroadcastUpdate = isAppOwner(currentUser);
   
@@ -186,6 +188,20 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
             )}
           </button>
 
+          {tab === 'patients' && !patientChatOpen && (
+            <div className="ml-auto flex items-center gap-1.5 min-w-0 pl-2">
+              <div className="relative min-w-0 flex-1 sm:flex-none">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                <input
+                  value={patientSearch}
+                  onChange={(e) => setPatientSearch(e.target.value)}
+                  placeholder="Search patients..."
+                  className="h-8 w-full sm:w-56 pl-8 pr-2 rounded-lg bg-slate-100 dark:bg-slate-800 border-0 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+
           {tab === 'staff' && (
             <div className="ml-auto flex items-center gap-1.5 min-w-0 pl-2">
               <div className="relative min-w-0 flex-1 sm:flex-none">
@@ -217,6 +233,9 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
               currentUser={currentUser}
               onUnreadCountChange={onUnreadCountChange}
               initialPatientId={initialPatientId}
+              searchQuery={patientSearch}
+              onSearchChange={setPatientSearch}
+              onSelectionChange={setPatientChatOpen}
             />
           </div>
         ) : (

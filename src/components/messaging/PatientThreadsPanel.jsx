@@ -31,7 +31,11 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
   const [searchResults, setSearchResults] = useState([]);
   const [searchNote, setSearchNote] = useState('');
   const [selected, setSelected] = useState(null);
-  const [search, setSearch] = useState('');
+  // Tell the panel when a chat is open so the tabs-row search can step aside.
+  useEffect(() => { onSelectionChange?.(!!selected); }, [selected, onSelectionChange]);
+  const [localSearch, setLocalSearch] = useState('');
+  const search = controlledSearch !== undefined ? controlledSearch : localSearch;
+  const setSearch = onSearchChange || setLocalSearch;
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -446,7 +450,7 @@ export default function PatientThreadsPanel({ currentUser, stores = [], onUnread
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+      <div className={controlledSearch !== undefined ? 'hidden' : 'p-2 border-b border-slate-200 dark:border-slate-700'}>
         <div className="flex items-center gap-2 px-2 h-9 rounded-lg bg-slate-100 dark:bg-slate-800">
           <Search className="w-4 h-4 text-slate-400" />
           <input
