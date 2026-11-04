@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { base44 } from '@/api/base44Client';
 import ConversationsList from './ConversationsList';
 import ChatWindow from './ChatWindow';
 import PatientThreadsPanel from './PatientThreadsPanel';
 import { loadPatientThreadMessages, isPatientSender } from './patientThreads';
 import { Loader2, RefreshCw, X, Search, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { isAppOwner } from '@/components/utils/userRoles';
 import {
   APP_UPDATE_BROADCAST_MESSAGE,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Loader2, Send, Search, ArrowLeft, User, MessageSquare, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -47,7 +47,7 @@ export default function PatientThreadsPanel({
   // Tell the panel when a chat is open so the tabs-row search can step aside.
   useEffect(() => { onSelectionChange?.(!!selected); }, [selected, onSelectionChange]);
   const [localSearch, setLocalSearch] = useState('');
-  const search = controlledSearch !== undefined ? controlledSearch : localSearch;
+  const search = searchQuery !== undefined ? searchQuery : localSearch;
   const setSearch = onSearchChange || setLocalSearch;
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -487,7 +487,7 @@ export default function PatientThreadsPanel({
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className={controlledSearch !== undefined ? 'hidden' : 'p-2 border-b border-slate-200 dark:border-slate-700'}>
+      <div className={searchQuery !== undefined ? 'hidden' : 'p-2 border-b border-slate-200 dark:border-slate-700'}>
         <div className="flex items-center gap-2 px-2 h-9 rounded-lg bg-slate-100 dark:bg-slate-800">
           <Search className="w-4 h-4 text-slate-400" />
           <input
