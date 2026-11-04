@@ -13,7 +13,7 @@ import { resolveGroupMemberIds, PRESET_LABELS, PRESET_BADGE_STYLES } from './gro
 import NewGroupDialog from './NewGroupDialog';
 
 export default function ConversationsList({
-  currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange, pendingBlinkConversationId,
+  currentUser, users, onSelectConversation, onDeselectConversation, selectedConversationId, onUnreadCountChange, pendingBlinkConversationId,
   // SEARCH LIVES ON THE TABS ROW (owner request Nov 4 2026): the panel owns the
   // query and the New Group trigger, so this list just consumes them.
   searchQuery: controlledSearch, onSearchChange, hideSearchBar = false, openNewGroupSignal = 0,
@@ -393,10 +393,16 @@ export default function ConversationsList({
           return (
             <div
               key={conv.id}
-              onClick={() => onSelectConversation(conv.id, conv.otherUserId, conv.otherUserName, isGroup ? conv.group : undefined)}
-              className={`p-3 cursor-pointer transition-colors group${isBlinking ? ' blink-new-message' : ''}`}
+              onClick={() => {
+                // Second tap on the open thread closes it (owner request Nov 4 2026).
+                if (selectedConversationId === conv.id) { onDeselectConversation?.(); return; }
+                onSelectConversation(conv.id, conv.otherUserId, conv.otherUserName, isGroup ? conv.group : undefined);
+              }}
+              aria-pressed={selectedConversationId === conv.id}
+              className={`p-3 cursor-pointer transition-colors group border-l-2${isBlinking ? ' blink-new-message' : ''}`}
               style={{
                 borderBottom: '1px solid var(--border-slate-200)',
+                borderLeft: selectedConversationId === conv.id ? '2px solid #2563eb' : '2px solid transparent',
                 background: selectedConversationId === conv.id ? 'var(--bg-slate-100)' : 'transparent'
               }}
               onMouseEnter={(e) => { if (selectedConversationId !== conv.id) e.currentTarget.style.background = 'var(--bg-slate-50)'; }}

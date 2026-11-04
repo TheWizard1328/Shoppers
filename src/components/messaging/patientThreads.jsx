@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { loadPatientThreads } from './messageCache';
 
 /**
  * Patient portal messaging conventions (owner build Nov 2 2026).
@@ -47,27 +48,28 @@ export function staffSeesAllStores(user) {
  * Recent patient-thread messages visible to this staff member (newest first).
  * Scoped by store_id so a dispatcher never pulls another store's patient chat.
  */
-// RATE-LIMIT SAFE RETURN (owner report Nov 4 2026): null means "the read
-// FAILED", [] means "this store genuinely has no patient threads". Callers must
-// keep what is on screen on null — an empty array used to wipe the panel.
+// OFFLINE-FIRST (owner directive Nov 4 2026): the panel reads IndexedDB, not the
+// entity API, so switching tabs or threads costs zero reads. A background
+// refresh runs at most once every 5 minutes per scope. The return contract is
+// unchanged: an ARRAY is the thread list ("possibly empty"), null means the
+// cache was cold AND the read failed, and the caller keeps what it shows.
 export async function loadPatientThreadMessages(user, limit = 300) {
-  const storeIds = staffStoreIds(user);
-  try {
-    if (storeIds.length === 0 || staffSeesAllStores(user)) {
-      const all = await base44.entities.Message.filter({}, '-created_date', limit);
-      return (all || []).filter((m) => m?.patient_id);
-    }
-    const batches = await Promise.all(
-      storeIds.map((storeId) =>
-        base44.entities.Message.filter({ store_id: storeId }, '-created_date', limit).then((r) => r).catch(() => null)
-      )
-    );
-    if (batches.every((b) => b === null)) return null;
-    return batches.filter(Boolean).flat().filter((m) => m?.patient_id);
-  } catch {
-    return null;
-  }
+  return loadPatientThreads({
+    user,
+    storeIds: staffStoreIds(user),
+    seeAllStores: staffSeesAllStores(user),
+    limit,
+    driverOnly: false,
+  });
 }
+
+/** A driver only ever sees the patient threads they are part of. */
+export async function loadDriverPatientThreads(user, limit = 300) {
+  if (!authIdOfUser(user)) return [];
+  return loadPatientThreads({ user, limit, driverOnly: true });
+}
+
+const authIdOfUser = (user) => user?.user_id || user?.id || null;
 
 /** Send a staff message to a patient thread and push it to their devices. */
 export async function sendStaffMessageToPatient({ user, patient, content, storeName }) {
@@ -108,17 +110,6 @@ export async function sendStaffMessageToPatient({ user, patient, content, storeN
  * their own driver_id. Patients they have delivered to can start a new thread
  * with them, so the "messageable" list is the patients on their deliveries.
  */
-export async function loadDriverPatientThreads(user, limit = 300) {
-  const authId = user?.user_id || user?.id; // Delivery/Message.driver_id = AUTH user id
-  if (!authId) return [];
-  try {
-    const rows = await base44.entities.Message.filter({ driver_id: authId }, '-created_date', limit);
-    return rows || [];
-  } catch {
-    return null; // failed read, not an empty thread list
-  }
-}
-
 /** Driver → patient reply: writes the driver thread row and pushes to the patient. */
 export async function sendDriverMessageToPatient({ user, patient, content, storeName }) {
   const text = String(content || '').trim();

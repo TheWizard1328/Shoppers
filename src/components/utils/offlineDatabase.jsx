@@ -5,7 +5,7 @@ import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoA
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 26; // v26: Added driver_schedule_overrides store (offline-first boot reads)
+const DB_VERSION = 27; // v27: Added messages store (offline-first chat, zero reads per tab switch)
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 const IDB_OPERATION_TIMEOUT_MS = 8000;
@@ -40,6 +40,7 @@ const STORES = {
   APP_SETTINGS: 'app_settings', // v23: offline-first AppSettings rows keyed by setting_key
   CRYPTO_META: 'crypto_meta', // v25: idbCrypto key-material backup (survives localStorage eviction)
   DRIVER_SCHEDULE_OVERRIDES: 'driver_schedule_overrides', // v26: offline-first DriverScheduleOverride mirror (boot must not burn entity_list reads)
+  MESSAGES: 'messages', // v27: offline-first chat mirror (staff + patient threads)
   PAYROLL_PAGE_CACHE: 'payroll_page_cache' // v24: offline-first DriverPayroll full-year payload snapshot per year+city
 };
 
@@ -52,6 +53,7 @@ const PHI_STORES = new Set([
   STORES.SQUARE_TRANSACTIONS,
   STORES.RX_TEMP_LOGS,
   STORES.PAYROLL_PAGE_CACHE, // contains patient names/addresses from the payroll payload
+  STORES.MESSAGES, // chat bodies + patient names
 ]);
 
 const isPHIStore = (storeName) => PHI_STORES.has(storeName);
@@ -486,6 +488,17 @@ const openDatabase = async () => {
       // straight from the server). Dashboard renders instantly from this store;
       // a throttled background refresh keeps it current and the entity WS
       // subscription mirrors live changes back into it.
+      // v27: messages — every chat row this user may see, mirrored locally so
+      // opening the panel or switching tabs/threads costs ZERO entity reads.
+      if (!db.objectStoreNames.contains(STORES.MESSAGES)) {
+        const msgStore = db.createObjectStore(STORES.MESSAGES, { keyPath: 'id' });
+        msgStore.createIndex('conversation_id', 'conversation_id', { unique: false });
+        msgStore.createIndex('patient_id', 'patient_id', { unique: false });
+        msgStore.createIndex('driver_id', 'driver_id', { unique: false });
+        msgStore.createIndex('store_id', 'store_id', { unique: false });
+        msgStore.createIndex('created_date', 'created_date', { unique: false });
+      }
+
       if (!db.objectStoreNames.contains(STORES.DRIVER_SCHEDULE_OVERRIDES)) {
         const soStore = db.createObjectStore(STORES.DRIVER_SCHEDULE_OVERRIDES, { keyPath: 'id' });
         soStore.createIndex('driver_id', 'driver_id', { unique: false });

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { loadConversationMessages, cacheMessages, notifyMessagesChanged } from './messageCache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, ArrowLeft, Trash2, ImagePlus, X, Info, Loader2 } from 'lucide-react';
@@ -110,11 +111,18 @@ function ChatWindow({
 
     const fetchMessages = async () => {
       try {
-        const allMessages = await base44.entities.Message.filter({ conversation_id: conversationId }, '-created_date');
+        // IDB FIRST (owner directive Nov 4 2026): switching threads must not
+        // spend an entity read. The cache paints instantly; a background read
+        // reconciles at most once every 5 minutes per conversation.
+        const allMessages = await loadConversationMessages({
+          conversationId,
+          otherUserId,
+          force: false,
+        });
         const visibleMessages = (allMessages || []).filter(
           (message) => !isHiddenSystemBroadcastMessageForThisDevice(message?.id)
         );
-        setMessages(visibleMessages.reverse());
+        setMessages(visibleMessages);
 
         // Mark unread messages as read
         const unreadMessages = visibleMessages.filter(
@@ -144,6 +152,7 @@ function ChatWindow({
       const event = payload?.detail || payload;
       if (event.data?.conversation_id !== conversationId || isHiddenSystemBroadcastMessageForThisDevice(event.data?.id)) return;
       if (event.type === 'create' || event.type === 'update') {
+        cacheMessages([event.data]).catch(() => {});
         setMessages((prev) => {
           const exists = prev.some((m) => m.id === event.data.id);
           return exists ? prev.map((m) => m.id === event.data.id ? event.data : m) : [...prev, event.data];
@@ -234,6 +243,13 @@ function ChatWindow({
         attachmentUrl,
         isImage: hasImage
       });
+
+      if (createdMessage?.id) (async () => {
+        let row = createdMessage;
+        if (!row.conversation_id) row = { ...row, conversation_id: conversationId };
+        await cacheMessages([row]).catch(() => {});
+        notifyMessagesChanged({ conversationId });
+      })();
 
       setNewMessage('');
       removePendingImage();

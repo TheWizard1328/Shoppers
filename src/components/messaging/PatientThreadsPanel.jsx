@@ -62,6 +62,7 @@ export default function PatientThreadsPanel({
   const unreadContributedRef = useRef(0);
   const endRef = useRef(null);
   const selectedRef = useRef(null);
+  selectedRef.current = selected;
   const messagesRef = useRef([]);
   messagesRef.current = messages;
   // Helper keeps the deep-link effect dependency-free of the selected state.
@@ -136,7 +137,7 @@ export default function PatientThreadsPanel({
 
   const loadAllRef = useRef(null);
   loadAllRef.current = loadAll;
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { loadAll(); pruneMessageCache().catch(() => {}); }, [loadAll]);
 
   // LOCAL SEARCH ONLY — IndexedDB, zero network calls, so typing never spends
   // the API rate budget.
@@ -160,6 +161,8 @@ export default function PatientThreadsPanel({
       unsub = base44.entities.Message.subscribe((event) => {
         const row = event?.data || event?.payload || event;
         if (!row?.patient_id) return;
+        // WS receipt → IDB write → local repaint. No network read.
+        if (event?.type === 'delete') { /* handled below */ } else cacheMessages([row]).catch(() => {});
         setMessages((prev) => {
           if (event?.type === 'delete') return prev.filter((m) => m.id !== row.id);
           if (prev.some((m) => m.id === row.id)) return prev;
@@ -169,6 +172,20 @@ export default function PatientThreadsPanel({
     } catch { /* realtime optional */ }
     return () => { try { unsub?.(); } catch { /* noop */ } };
   }, []);
+
+  // Local change bus: a WS message, a read flag or a sent row lands here, then
+  // the thread repaints straight from IndexedDB — never from the entity API.
+  useEffect(() => {
+    const off = onMessagesChanged(async (detail) => {
+      const rows = await readCachedPatientThread(selectedRef.current?.id, currentUser).catch(() => []);
+      if (!selectedRef.current || rows.length === 0) { loadAllRef.current?.(); return; }
+      const list = isDriverMode ? rows.filter((m) => String(m.driver_id || '') === String(driverId || '')) : rows;
+      setThread(list);
+      threadCache.set(selectedRef.current.id, { at: Date.now(), rows: list });
+      if (detail?.sent || detail?.read) loadAllRef.current?.();
+    });
+    return off;
+  }, [currentUser, isDriverMode, driverId]);
 
   // Unread per patient, derived from the loaded patient-thread messages.
   const threadStats = useMemo(() => {
@@ -199,40 +216,44 @@ export default function PatientThreadsPanel({
 
   const openThread = useCallback(async (patient) => {
     if (!patient?.id) return;
+    // A second tap on the open thread closes it (owner request Nov 4 2026).
+    if (selectedRef.current?.id === patient.id) { setSelected(null); setInput(''); return; }
     setSelected(patient);
-    const cached = threadCache.get(patient.id);
-    if (cached && Date.now() - cached.at < 30000) {
-      setThread(cached.rows);
-      setThreadLoading(false);
-    } else {
-      setThreadLoading(true);
-    }
     if (!isDriverMode) {
       loadDriverDirectory(patient.id)
         .then((dir) => setDriverDir(dir.drivers || []))
         .catch(() => setDriverDir([]));
     }
+    // IDB FIRST — opening a thread never waits on (or spends) a network read.
+    const cached = await readCachedPatientThread(patient.id, currentUser)
+      .then((rows) => (isDriverMode ? rows.filter((m) => String(m.driver_id || '') === String(driverId || '')) : rows))
+      .catch(() => []);
+    if (cached.length > 0) {
+      setThread(cached);
+      threadCache.set(patient.id, { at: Date.now(), rows: cached });
+      setThreadLoading(false);
+    } else {
+      setThreadLoading(true);
+    }
     try {
-      const query = isDriverMode
-        ? { patient_id: patient.id, driver_id: driverId }
-        : { patient_id: patient.id };
-      const rows = await base44.entities.Message.filter(query, '-created_date', 200);
-      const ordered = (rows || []).slice().reverse();
-      setThread(ordered);
-      threadCache.set(patient.id, { at: Date.now(), rows: ordered });
-      // Opening the thread clears the unread badge for that patient.
-      const unread = (rows || []).filter((m) => !m.read && isPatientSender(m.sender_id));
-      await Promise.all(unread.map((m) => base44.entities.Message.update(m.id, { read: true }).catch(() => {})));
+      const rows = await loadPatientThread({ user: currentUser, patientId: patient.id });
+      const list = (rows || []).filter((m) => (isDriverMode ? String(m.driver_id || '') === String(driverId || '') : true));
+      if (list.length > 0 || cached.length === 0) {
+        setThread(list);
+        threadCache.set(patient.id, { at: Date.now(), rows: list });
+      }
+      // Opening the thread clears the unread badge for that patient (local first).
+      const unread = list.filter((m) => !m.read && isPatientSender(m.sender_id));
       if (unread.length) {
         setMessages((prev) => prev.map((m) => (unread.some((u) => u.id === m.id) ? { ...m, read: true } : m)));
+        markThreadRead(unread).catch(() => {});
       }
     } catch {
-      // Keep the cached/previous rows on a failed read instead of blanking.
-      if (!cached) setThread((prev) => prev);
+      /* keep whatever IDB gave us */
     } finally {
       setThreadLoading(false);
     }
-  }, [isDriverMode, driverId]);
+  }, [isDriverMode, driverId, currentUser]);
 
   useEffect(() => {
     if (selected) endRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -261,6 +282,31 @@ export default function PatientThreadsPanel({
     const text = input.trim();
     if (!text || sending || !selected) return;
     setSending(true);
+    // OPTIMISTIC ROW (owner directive Nov 4 2026): the bubble appears from
+    // IndexedDB the moment the server row returns, and the local copy is what
+    // other devices replace on the WebSocket echo.
+    const localId = tempMessageId();
+    const optimistic = {
+      id: localId,
+      conversation_id: isDriverMode ? driverThreadConversationId(driverId, selected.id) : patientConversationId(selected.id),
+      patient_id: selected.id,
+      driver_id: isDriverMode ? driverId : (replyTargetDriverRef.current || ''),
+      store_id: selected.store_id || '',
+      sender_id: currentUser?.user_id || currentUser?.id || '',
+      sender_name: currentUser?.full_name || currentUser?.user_name || 'Staff',
+      receiver_id: patientSenderId(selected.id),
+      receiver_name: selected.full_name || 'Patient',
+      content: text,
+      read: false,
+      created_date: new Date().toISOString(),
+      _pending: true,
+    };
+    setThread((prev) => {
+      const next = [...prev, optimistic];
+      threadCache.set(selected.id, { at: Date.now(), rows: next });
+      return next;
+    });
+    setInput('');
     try {
       const pickedDriver = replyTargetDriver;
       const created = isDriverMode
@@ -275,9 +321,19 @@ export default function PatientThreadsPanel({
               storeName,
             })
           : await sendStaffMessageToPatient({ user: currentUser, patient: selected, content: text, storeName });
-      setInput('');
-      if (created?.id) setThread((prev) => (prev.some((m) => m.id === created.id) ? prev : [...prev, created]));
-    } catch { /* the thread still shows the error state via input retention */ } finally {
+      if (created?.id) {
+        setThread((prev) => {
+          const next = prev.map((m) => (m.id === localId ? created : m));
+          threadCache.set(selected.id, { at: Date.now(), rows: next });
+          return next;
+        });
+        commitSentMessage(created, localId).catch(() => {});
+      }
+    } catch {
+      // Failed send: drop the optimistic bubble and hand the text back.
+      setThread((prev) => prev.filter((m) => m.id !== localId));
+      setInput(text);
+    } finally {
       setSending(false);
     }
   };
@@ -320,6 +376,9 @@ export default function PatientThreadsPanel({
     return last?.driver_id ? String(last.driver_id) : null;
   }, [visibleThread]);
 
+  const replyTargetDriverRef = useRef(null);
+  useEffect(() => { replyTargetDriverRef.current = replyTargetDriver; }, [replyTargetDriver]);
+
   const labelForRow = useCallback((m) => {
     if (!m?.driver_id) return 'pharmacy team';
     return (driverDir || []).find((d) => String(d.driver_id) === String(m.driver_id))?.driver_name
@@ -328,7 +387,10 @@ export default function PatientThreadsPanel({
       || 'driver';
   }, [driverDir]);
 
-  const activeThreadName = selected?.phone || storeName;
+  // HEADER (owner request Nov 4 2026): no "Your Pharmacy team" subtitle. This is
+  // simply the conversation with the patient; the phone number is the only
+  // secondary detail worth showing.
+  const activeThreadName = selected?.phone || '';
 
   // DELETE (owner request Nov 4 2026): ONLY the AppOwner may remove a patient
   // message or a whole patient thread from the pharmacy side.
@@ -365,7 +427,9 @@ export default function PatientThreadsPanel({
           </button>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold truncate text-slate-900 dark:text-slate-100">{selected.full_name}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{activeThreadName}</p>
+            {activeThreadName && (
+              <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{activeThreadName}</p>
+            )}
           </div>
 
           {canDelete && (
@@ -498,7 +562,10 @@ export default function PatientThreadsPanel({
               <button
                 key={p.id}
                 onClick={() => openThread(p)}
-                className="w-full text-left px-3 py-2.5 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-200 dark:border-slate-700 last:border-b-0"
+                aria-pressed={selected?.id === p.id}
+                className={`w-full text-left px-3 py-2.5 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 last:border-b-0 border-l-2 ${selected?.id === p.id
+                  ? 'bg-blue-50 dark:bg-blue-900/25 border-l-blue-600'
+                  : 'border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800'}`}
               >
                 <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                   <User className="w-4 h-4 text-slate-500 dark:text-slate-300" />

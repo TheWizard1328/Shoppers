@@ -251,6 +251,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
               currentUser={currentUser}
               users={users}
               onSelectConversation={handleSelectConversation}
+              onDeselectConversation={handleBack}
               selectedConversationId={selectedConversation?.conversationId}
               onUnreadCountChange={onUnreadCountChange}
               pendingBlinkConversationId={pendingBlinkConversationId}
