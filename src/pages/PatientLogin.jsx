@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, Phone, HeartPulse, CheckCircle, Mail, ChevronDown } from 'lucide-react';
+import { Loader2, Phone, HeartPulse, CheckCircle, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -164,22 +164,50 @@ export default function PatientLogin() {
                 {showNamePicker && phoneMatches.length > 1 && (
                   <div className="space-y-2">
                     <Label htmlFor="namePicker">Select Your Name</Label>
-                    <div className="relative">
-                      <select
-                        id="namePicker"
-                        value={selectedPatient?.id || ''}
-                        onChange={(e) => {
-                          const found = phoneMatches.find((m) => m.id === e.target.value);
-                          setSelectedPatient(found || null);
-                        }}
-                        className="w-full h-12 pl-4 pr-10 rounded-md border border-input bg-background text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <option value="">— Select your name —</option>
-                        {phoneMatches.map((m) => (
-                          <option key={m.id} value={m.id}>{m.full_name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
+                    {/* OWNER REQUEST Nov 4 2026: each duplicate record identifies
+                        itself, in this order — name, store abbreviation badge,
+                        active/inactive badge, then the address. A native <select>
+                        cannot render badges, so these are real buttons. */}
+                    <div className="space-y-2">
+                      {phoneMatches.map((m) => {
+                        const isSelected = selectedPatient?.id === m.id;
+                        const isInactive = String(m.status || '').toLowerCase() === 'inactive';
+                        const storeLabel = m.store_abbreviation || m.store_name || '';
+                        const addressLine = [m.unit_number ? `Unit ${m.unit_number}` : '', m.address || '']
+                          .filter(Boolean).join(' · ');
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setSelectedPatient(m)}
+                            className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40'
+                                : 'border-input bg-background hover:bg-slate-50 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-sm text-body">{m.full_name}</span>
+                              {storeLabel && (
+                                <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                                  {storeLabel}
+                                </span>
+                              )}
+                              <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide ${
+                                isInactive
+                                  ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                                  : 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                              }`}>
+                                {isInactive ? 'Inactive' : 'Active'}
+                              </span>
+                              {isSelected && <CheckCircle className="w-4 h-4 text-blue-600 shrink-0 ml-auto" />}
+                            </div>
+                            {addressLine && (
+                              <p className="mt-1 text-xs text-soft truncate">{addressLine}</p>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
