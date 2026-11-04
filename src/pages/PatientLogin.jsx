@@ -114,7 +114,7 @@ export default function PatientLogin() {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4"
+      className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 flex items-center justify-center p-4"
       style={{
         paddingTop: 'calc(1rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))',
         paddingBottom: 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))',
@@ -123,14 +123,14 @@ export default function PatientLogin() {
       <div className="w-full max-w-md">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-900 mb-4">
-            <HeartPulse className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-900 dark:bg-slate-100 mb-4 shadow-sm">
+            <HeartPulse className="w-8 h-8 text-white dark:text-slate-900" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Patient Portal</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Track your pharmacy deliveries</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-lg dark:shadow-black/30 border border-slate-200 dark:border-slate-700 p-8">
 
           {/* ── Main login form ── */}
           <>
@@ -138,12 +138,12 @@ export default function PatientLogin() {
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Enter your phone number to get started.</p>
 
               {success && (
-                <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 text-green-700 text-sm flex items-center gap-2">
+                <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 text-green-700 dark:text-green-300 text-sm flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 shrink-0" />
                   Verified! Loading your portal...
                 </div>
               )}
-              {error && <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 text-red-700 text-sm">{error}</div>}
+              {error && <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm">{error}</div>}
 
               <form onSubmit={handleSubmit} className="space-y-4">
 
@@ -216,7 +216,7 @@ export default function PatientLogin() {
 
                 <Button
                   type="submit"
-                  className="w-full h-12 font-medium bg-slate-900 hover:bg-slate-800 text-white"
+                  className="w-full h-12 font-medium bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900"
                   disabled={loading || success || !selectedPatient}
                 >
                   {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</> : 'Access My Deliveries'}
@@ -231,7 +231,7 @@ export default function PatientLogin() {
 
         <p className="text-center text-xs text-slate-400 dark:text-slate-400 mt-6">
           Staff?{' '}
-          <a href="/login" className="text-slate-600 dark:text-slate-400 hover:underline font-medium">Staff Login →</a>
+          <a href="/login" className="text-slate-600 dark:text-slate-300 hover:underline font-medium">Staff Login →</a>
         </p>
       </div>
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
