@@ -34,12 +34,10 @@ export async function loadPatientUnreadCount(patientId) {
 
 export default function PatientMessaging({ patient, open, onClose, onUnreadChange, stores = [] }) {
   const patientId = patient?.id;
-  // SEARCH (owner request Nov 3 2026): the list grows with every driver who has
-  // ever delivered, so both fields filter the list live — one for drivers (by
-  // name, and by duty word like "on duty") and one for the pharmacy/store by
-  // name or abbreviation.
-  const [driverQuery, setDriverQuery] = useState('');
-  const [storeQuery, setStoreQuery] = useState('');
+  // SEARCH (owner request Nov 3 2026): ONE field filters the whole list — it
+  // matches drivers by name or duty word ("on duty") and the pharmacy by store
+  // name or abbreviation, so the patient types once and both sections narrow.
+  const [query, setQuery] = useState('');
   const [messages, setMessages] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [active, setActive] = useState(null); // { kind: 'store' } | { kind: 'driver', driver }
@@ -201,9 +199,10 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   const storeName = patientStore?.name || patientStore?.store_name || '';
   const storeAbbrev = String(patientStore?.abbreviation || patientStore?.store_abbreviation || '').toUpperCase();
   const storeHaystack = `${storeName} ${storeAbbrev} pharmacy team store`.toLowerCase();
-  const storeMatches = !storeQuery.trim() || storeHaystack.includes(storeQuery.trim().toLowerCase());
+  const needle = query.trim().toLowerCase();
+  const storeMatches = !needle || storeHaystack.includes(needle) || 'pharmacy'.includes(needle);
 
-  const driverNeedle = driverQuery.trim().toLowerCase();
+  const driverNeedle = needle;
   const visibleDrivers = driverNeedle
     ? drivers.filter((d) => {
         const hay = `${d.driver_name || ''} ${d.duty_status || ''} ${d.is_current ? 'today' : ''}`.toLowerCase();
@@ -291,39 +290,22 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
         {/* Body */}
         {!active ? (
           <div className="flex-1 overflow-y-auto">
-            {/* SEARCH FIELDS (owner request Nov 3 2026) */}
-            <div className="px-3 pt-3 pb-2 space-y-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-10">
+            {/* SEARCH FIELD (owner request Nov 3 2026): a single field filters
+                drivers and the pharmacy together. */}
+            <div className="px-3 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-10">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
-                  value={driverQuery}
-                  onChange={(e) => setDriverQuery(e.target.value)}
-                  placeholder="Search drivers"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search drivers or pharmacy"
                   className="w-full h-9 pl-8 pr-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500"
                 />
-                {driverQuery && (
+                {query && (
                   <button
-                    onClick={() => setDriverQuery('')}
+                    onClick={() => setQuery('')}
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-                    aria-label="Clear driver search"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={storeQuery}
-                  onChange={(e) => setStoreQuery(e.target.value)}
-                  placeholder="Search pharmacy"
-                  className="w-full h-9 pl-8 pr-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500"
-                />
-                {storeQuery && (
-                  <button
-                    onClick={() => setStoreQuery('')}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-                    aria-label="Clear pharmacy search"
+                    aria-label="Clear search"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -362,7 +344,7 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
                 {/* Driver threads */}
                 {sortedDrivers.length === 0 ? (
                   <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500">
-                    {driverQuery.trim()
+                    {query.trim()
                       ? 'No drivers match that search.'
                       : 'Drivers appear here once you have a delivery with them.'}
                   </p>
