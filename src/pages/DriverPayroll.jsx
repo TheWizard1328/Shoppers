@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2, Download, RefreshCw, User } from "lucide-react";
+import { DollarSign, Share2, Loader2, RefreshCw, User } from "lucide-react";
 import { ProfilePanel, SettingsDialog } from '@/pages/Settings';
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
@@ -11,13 +11,12 @@ import { userHasRole } from '../components/utils/userRoles';
 import { base44 } from '@/api/base44Client';
 import DriverPayrollGrid from '../components/payroll/DriverPayrollGrid';
 import PayrollSummaryCard from '@/components/payroll/PayrollSummaryCard';
-import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { toast } from 'sonner';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 import { offlineDB } from '../components/utils/offlineDatabase';
 import { commitDeliveryUpdatesSilently } from '../components/utils/routeCommitMarker';
-import { mergePagedPayrollData, missingPayrollMonthsFor } from '@/components/utils/payrollPagedMerge';
+import { missingPayrollMonthsFor } from '@/components/utils/payrollPagedMerge';
 import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
 import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
@@ -1219,6 +1218,7 @@ export default function DriverPayroll() {
 
     const run = async () => {
       let ok = 0;
+      let merged = null;
       for (const m of missing) {
         await new Promise((r) => setTimeout(r, 2500));
         try {
@@ -1250,7 +1250,7 @@ export default function DriverPayroll() {
           console.warn(`[DriverPayroll] quiet backfill month ${m} failed:`, e?.message || e);
         }
       }
-      if (ok > 0) {
+      if (ok > 0 && merged) {
         fullYearPayrollDataRef.current = merged;
         lastFetchTimestampRef.current = Date.now();
         setPayrollData(merged);

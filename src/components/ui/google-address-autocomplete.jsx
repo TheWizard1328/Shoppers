@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { Input } from '@/components/ui/input';
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MapPin } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
@@ -103,6 +101,10 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       return;
     }
 
+    // Declared OUTSIDE the try so the catch block can still fall back to them
+    // when the Google call throws.
+    const localItems = [];
+    const localAddressKeys = new Set();
     try {
       requestCount.current++;
       setIsLoading(true);
@@ -116,8 +118,6 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       // (previously a single DB hit suppressed Google entirely). Addresses that
       // are already shown from the patient database are dropped from the
       // Google half so the same street never appears twice.
-      const localItems = [];
-      const localAddressKeys = new Set();
       if (localSearch) {
         try {
           const found = await localSearch(searchText);
@@ -185,7 +185,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       }
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
-      if (typeof localItems !== 'undefined' && localItems.length > 0) {
+      if (localItems.length > 0) {
         setSuggestions(localItems);
         setSelectedIndex(0);
         setOpen(true);
