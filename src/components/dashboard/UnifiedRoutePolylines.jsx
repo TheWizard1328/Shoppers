@@ -24,7 +24,12 @@ import { getPolylineColorForDriver } from "../utils/polylineColors";
 import { getInterStoreLocationSync, isInterStoreDelivery } from "../utils/interStoreDisplayName";
 
 const FINISHED = ["completed", "failed", "cancelled"];
-const CURRENT_LEG_COLOR = "#2563EB";
+// CURRENT LEG (owner request Nov 5 2026): #2563EB read as navy and sat too close
+// to the violet/purple driver palette entries, so the leg being driven right now
+// did not stand out. #00A3FF is a bright, high-luminance azure: distinct from
+// every palette colour on a light basemap, and luminous enough to glow against
+// the dark basemap instead of sinking into it.
+const CURRENT_LEG_COLOR = "#00A3FF";
 const CYCLING_COLOR = "#16A34A";
 
 // ── Geometry helpers ─────────────────────────────────────────────────────────
