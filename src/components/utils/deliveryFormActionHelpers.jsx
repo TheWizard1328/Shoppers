@@ -314,11 +314,37 @@ const executePostDeliveryUpdateSync = async ({ driverId, deliveryDate, hasTimeWi
     try {
       if (hasTimeWindowChanges) {
         const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+        // ── LOCAL ROUTE, NEVER A BACKEND RE-READ (owner report Nov 5 2026) ─────
+        // "did a delivery start time change for the evening Collingwood pickup,
+        // the KITT bar flashed for a split second, no optimization and no
+        // polylines." This deferred run passed NO deliveries, so the coordinator
+        // had to re-read the route from the backend — and 5 seconds after the
+        // save the server write was not visible yet, so the engine received the
+        // PRE-EDIT pickup window, found nothing to change, committed nothing and
+        // the bar vanished with no geometry. The device's own IndexedDB copy is
+        // authoritative here (the form already wrote it), exactly the way Accept
+        // All and Start hand their route to the coordinator.
+        // forceRegenerate: a pickup window drives sequencing and ETAs, so the
+        // legs must always be repainted even when the order comes out the same.
+        let localDeliveries = [];
+        try {
+          const { offlineDB } = await import('@/components/utils/offlineDatabase');
+          localDeliveries = await offlineDB.getByCompoundIndex(
+            offlineDB.STORES.DELIVERIES, 'date_driver', [deliveryDate, driverId]
+          ) || [];
+        } catch (e) {
+          console.warn('[post_delivery_sync] local route read failed, coordinator will fetch:', e?.message || e);
+        }
         const optimizationResponse = await performRouteOptimization({
           driverId,
           deliveryDate,
           source: 'post_delivery_sync',
+          deliveries: localDeliveries.length ? localDeliveries : undefined,
+          forceRegenerate: true,
         });
+        // warn-level so it survives the production console strip and shows up in
+        // the hourly digest if a window edit ever goes quiet again.
+        console.warn(`[post_delivery_sync] window edit run — local stops=${localDeliveries.length} success=${optimizationResponse?.success} optimized=${optimizationResponse?.optimizedCount ?? 'n/a'} skipped=${optimizationResponse?.skipped || 'no'} error=${optimizationResponse?.error || 'none'}`);
       } else {
         const [driverRecords, deliveryRecords] = await Promise.all([
           base44.entities.AppUser.filter({ user_id: driverId }).catch((error) => {
