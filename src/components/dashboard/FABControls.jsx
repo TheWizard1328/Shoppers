@@ -139,7 +139,7 @@ export default function FABControls({
             onClick={handleImmersiveCall}
             title="Call patient"
             aria-label="Call patient"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#34A853] text-white transition-colors hover:bg-[#2D9249]"
             style={{ touchAction: 'manipulation' }}
           >
             <Phone className="w-5 h-5" />
@@ -161,17 +161,11 @@ export default function FABControls({
             onClick={handleImmersiveNavigate}
             title="Open in Google Maps"
             aria-label="Open in Google Maps"
-            className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
-              optimizationEngineMode === 'server'
-                ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
-            }`}
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors bg-[#00A3FF] text-white hover:bg-[#0090E0]"
             style={{ touchAction: 'manipulation' }}
           >
             <Navigation className="w-5 h-5" />
-            <span className={`absolute top-1.5 left-1.5 font-bold text-[10px] pointer-events-none ${
-              optimizationEngineMode === 'server' ? 'text-blue-600' : 'text-emerald-600'
-            }`}>
+            <span className="absolute top-1.5 left-1.5 font-bold text-[10px] pointer-events-none text-white/90">
               {optimizationEngineMode === 'server' ? 'S' : 'C'}
             </span>
           </button>

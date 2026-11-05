@@ -1151,7 +1151,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
                   onClick={(e) => { e.stopPropagation(); dispatchStopCardActionCollapse(); }}
                   aria-label="Call customer"
-                  className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
+                  className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#34A853] text-white transition-colors hover:bg-[#2D9249]">
                   
                         <Phone className="w-6 h-6" />
                       </a>
@@ -1187,15 +1187,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                     window.open(navigationHref, '_blank');
                   }
                   }}
-                  className={`relative inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors ${
-                    optimizationEngineMode === 'server'
-                      ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                      : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
-                  }`}>
+                  className="relative inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-[#00A3FF] text-white hover:bg-[#0090E0]">
                   <Navigation className="w-6 h-6" />
-                  <span className={`absolute top-2 left-2 font-bold text-[10px] pointer-events-none ${
-                    optimizationEngineMode === 'server' ? 'text-blue-600' : 'text-emerald-600'
-                  }`}>
+                  <span className="absolute top-2 left-2 font-bold text-[10px] pointer-events-none text-white/90">
                     {optimizationEngineMode === 'server' ? 'S' : 'C'}
                   </span>
                 </button>)
@@ -1212,7 +1206,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                       href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
                       onClick={(e) => { e.stopPropagation(); dispatchStopCardActionCollapse(); }}
                       aria-label="Call customer"
-                      className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
+                      className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#34A853] text-white transition-colors hover:bg-[#2D9249]">
                         <Phone className="w-6 h-6" />
                       </a>
                   </div>
