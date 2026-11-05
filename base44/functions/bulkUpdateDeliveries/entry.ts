@@ -45,8 +45,32 @@ Deno.serve(async (req) => {
       )
     );
 
-    const succeeded = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
+    let succeeded = results.filter(r => r.status === 'fulfilled').length;
+    let failedIds = updates.filter((_, i) => results[i].status === 'rejected').map(u => u.id);
+
+    // ── SEQUENTIAL RETRY (owner report Nov 5 2026: Accept All of 10 Hamptons
+    // stops committed only 1, then 7 on a second try). The parallel writes above
+    // race each other under load and some are rejected; the caller only saw
+    // HTTP 200 with success:true, so a partial commit looked complete. Failed
+    // ids are now retried ONE AT A TIME with a short gap, and whatever still
+    // fails is reported in failedIds so the caller can verify and retry.
+    if (failedIds.length > 0) {
+      const byId = new Map(updates.map(u => [u.id, u]));
+      const still = [];
+      for (const id of failedIds) {
+        const u = byId.get(id);
+        if (!u) continue;
+        try {
+          await client.entities.Delivery.update(u.id, u.data);
+        } catch (_) {
+          still.push(id);
+        }
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      succeeded = updates.length - still.length;
+      failedIds = still;
+    }
+    const failed = failedIds.length;
 
     if (failed > 0) {
       console.warn(`[bulkUpdateDeliveries] ${failed}/${updates.length} updates failed`);
@@ -57,7 +81,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return Response.json({ success: true, updatedCount: succeeded, failedCount: failed, silent: useSilent });
+    return Response.json({ success: failed === 0, updatedCount: succeeded, failedCount: failed, failedIds, silent: useSilent });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

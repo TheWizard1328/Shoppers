@@ -684,13 +684,42 @@ async function _performRouteOptimizationInner({
           // relevance / refresh logic per event. After a successful silent
           // commit, fire the marker so remote devices fetch the route once.
           optimizationServerCommit = base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch, silent: true })
-            .then(async () => {
+            .then(async (res) => {
+              // ── PARTIAL-COMMIT VERIFICATION (owner report Nov 5 2026) ────────
+              // Accept All of 10 Hamptons stops reported success locally but only
+              // 1 stop actually changed on the server (7 on a second attempt), so
+              // the route stayed mostly pending while the phone showed them all
+              // accepted. bulkUpdateDeliveries answers HTTP 200 even when single
+              // records are rejected, and this handler ignored the body entirely.
+              // The response is now inspected: a failed id is retried one at a
+              // time, and anything still uncommitted is reported loudly and marks
+              // the commit as failed so the caller does not trust local state.
+              const _payload = res?.data || res || {};
+              const _batchById = new Map((optimizeData.writeBatch || []).map((w) => [w.id, w]));
+              let _remaining = Array.isArray(_payload?.failedIds) ? _payload.failedIds.slice() : [];
+              if (_remaining.length > 0) {
+                const _still = [];
+                for (const id of _remaining) {
+                  const w = _batchById.get(id);
+                  if (!w) continue;
+                  try {
+                    await base44.entities.Delivery.update(id, w.data);
+                  } catch (_) {
+                    _still.push(id);
+                  }
+                  await new Promise((r) => setTimeout(r, 150));
+                }
+                if (_still.length > 0) {
+                  console.error(`[RouteOptimization] ${source} — ${_still.length}/${optimizeData.writeBatch.length} stop(s) NEVER committed after retry; server still shows the old state for: ${_still.join(', ')}`);
+                }
+                _remaining = _still;
+              }
               try {
                 const { fireRouteCommitMarker } = await import('./routeCommitMarker');
                 const _markerId = (optimizeData.writeBatch.find((w) => w?.data?.isNextDelivery === true) || optimizeData.writeBatch[0])?.id || null;
                 if (_markerId) await fireRouteCommitMarker(_markerId, optimizeData.writeBatch.length);
               } catch (_) {}
-              return true;
+              return _remaining.length === 0;
             })
             .catch(async (e) => {
               // OWNER DIRECTIVE (Oct 15 2026): a RATE-LIMIT failure must NOT
