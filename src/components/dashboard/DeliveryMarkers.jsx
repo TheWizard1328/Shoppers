@@ -9,6 +9,7 @@ import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
 import { formatCodAmount, clusterLocationAddress } from './mapBalloonHelpers';
 import { portalWatchersStore, usePortalWatcherVersion, isWatcherVisibleForDelivery } from '../utils/portalWatchers';
+import { getCodSymbolColor } from '../utils/SpecialSymbolsBadges';
 import { useAppData } from '../utils/AppDataContext';
 
 // Zoom level at which co-located markers fan out on their own. OWNER REQUEST
@@ -20,6 +21,20 @@ const CLUSTER_FAN_ZOOM_MOBILE = 15;
 const clusterFanZoom = (isMobile) => (isMobile ? CLUSTER_FAN_ZOOM_MOBILE : CLUSTER_FAN_ZOOM_DESKTOP);
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+
+// Marker "$" badge colour — mirrors the stop card special symbols badge exactly
+// (owner correction Nov 5 2026: green = card collected, red = cash collected).
+// getCodSymbolColor returns 'inherit' for a stop with nothing collected yet;
+// on a map pin 'inherit' would be the pin's own text colour, so it is pinned to
+// black for contrast, and stops with no COD at all get no badge (null).
+function cashBadgeColorFor(delivery) {
+  const required = Number(delivery?.cod_total_amount_required || 0);
+  const payments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+  if (required <= 0 && payments.length === 0) return null;
+  const color = getCodSymbolColor(delivery);
+  return color === 'inherit' ? '#000000' : color;
+}
+
 
 function DeliveryMarkers({
   deliveryMarkers,
@@ -389,10 +404,11 @@ function DeliveryMarkers({
           delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade,
           isDeliveryHighlightedFinished, delivery.fridge_item === true,
           delivery.isDriverOnDuty, showWatchHalo, undefined,
-          // Cash badge: any stop carrying a COD amount gets the "$" marker badge
-          // (owner request Nov 5 2026) — cash, card or any other collection type.
-          Number(delivery.cod_total_amount_required || 0) > 0
-            || (Array.isArray(delivery.cod_payments) && delivery.cod_payments.length > 0)
+          // "$" marker badge: same stop that shows the cash symbol on its card.
+          // Colour is the SAME rule as the card badge (getCodSymbolColor):
+          // green = card / direct payment collected, red = cash collected,
+          // blue = archived, black = still to collect.
+          cashBadgeColorFor(delivery)
         );
 
     const handlers = delivery.isOtherDriver ? {
