@@ -324,33 +324,66 @@ export default function MultiDeliveryArrivalDialog({
                     </div>
                   )}
 
-                  {/* Row 6: Action buttons — only for non-finished stops */}
-                  {!isFinished && (
-                    <div className="flex items-center gap-2 pt-1">
-                      <button
-                        type="button"
-                        disabled={!!loadingId}
-                        onClick={() => handleComplete(delivery)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                      >
-                        {isLoading ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <CheckCircle className="w-3.5 h-3.5" />
+                  {/* Row 6: Action buttons — only for non-finished stops.
+                      OWNER SPEC (Nov 5 2026): Fail on the LEFT, Complete on the
+                      RIGHT, with the Square COD button squeezed between them for
+                      any stop that still has cash to collect. All three shrink so
+                      they fit one row on a phone. */}
+                  {!isFinished && (() => {
+                    const codRequired = Number(delivery.cod_total_amount_required || 0);
+                    const codCollected = Number(delivery.cod_confirmed_collected || 0);
+                    const showCodButton = codRequired > 0 && (codRequired - codCollected) > 0.02;
+                    return (
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          disabled={!!loadingId}
+                          onClick={() => handleFailClick(delivery)}
+                          className="flex-1 min-w-0 inline-flex items-center justify-center gap-1 h-10 px-2 rounded-lg text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60 disabled:opacity-50 transition-colors"
+                        >
+                          <XCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          Fail
+                        </button>
+                        {showCodButton && (
+                          <button
+                            type="button"
+                            disabled={!!loadingId}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Fire on the delivery's own StopCard so the Square
+                              // launch keeps its gesture trust and its COD panel.
+                              window.dispatchEvent(new CustomEvent('rxCollectCod', { detail: { deliveryId: delivery.id } }));
+                            }}
+                            style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+                            className="flex-shrink-0 inline-flex items-center justify-center h-10 w-12 rounded-lg border border-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-600 transition-colors"
+                            title="Collect COD with Square POS"
+                            aria-label="Collect COD with Square POS"
+                          >
+                            <img
+                              src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/cc4cb3e37_Screenshot_20260605_155930_OneUIHome.png"
+                              alt="Square POS"
+                              className="w-6 h-6 rounded-md object-cover"
+                            />
+                          </button>
                         )}
-                        {isLoading ? 'Processing…' : 'Complete'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!!loadingId}
-                        onClick={() => handleFailClick(delivery)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-lg text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60 disabled:opacity-50 transition-colors"
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Fail
-                      </button>
-                    </div>
-                  )}
+                        <button
+                          type="button"
+                          disabled={!!loadingId}
+                          onClick={() => handleComplete(delivery)}
+                          className="flex-1 min-w-0 inline-flex items-center justify-center gap-1 h-10 px-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                          ) : (
+                            <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          )}
+                          {isLoading ? 'Processing…' : 'Complete'}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

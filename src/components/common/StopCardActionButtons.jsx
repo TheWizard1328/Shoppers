@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState } from "react";
+import React, { useMemo, useCallback, useEffect, useState } from "react";
 import { isMobileDevice } from '../utils/deviceUtils';
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
@@ -208,6 +208,24 @@ export default function StopCardActionButtons(props) {
     expectedLocationId: currentSquareLocationId,
     driverName: driverNameForPeek,
   });
+
+  // OWNER REQUEST (Nov 5 2026): the clustered-address dialog shows its own
+  // Square COD button. It cannot re-implement the launch (Android gesture trust
+  // must stay inside the original tap), so the dialog fires a synchronous
+  // window event naming the delivery and THIS card performs the same launch it
+  // does for its own Square button. Synchronous DOM dispatch keeps the gesture
+  // chain intact.
+  useEffect(() => {
+    const onRequest = (ev) => {
+      const requestedId = ev?.detail?.deliveryId;
+      if (!requestedId || String(requestedId) !== String(delivery?.id)) return;
+      if (!hasCODRequired || isCODComplete) return;
+      onExpandCard && onExpandCard();
+      handleSquareButtonTap({ stopPropagation() {} });
+    };
+    window.addEventListener('rxCollectCod', onRequest);
+    return () => window.removeEventListener('rxCollectCod', onRequest);
+  }, [delivery?.id, hasCODRequired, isCODComplete, onExpandCard, handleSquareButtonTap]);
 
   // True if this is the first COD delivery the driver has attempted today.
   // "Attempted" = a prior COD stop for the same driver/date already has cod_payments recorded.
