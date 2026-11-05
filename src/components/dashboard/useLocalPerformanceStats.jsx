@@ -55,6 +55,10 @@ const _AUTH_DUTY_TTL_MS = 30000;
 // this instant instead of counting against "now" — the clock stops the moment
 // the break started, even if the break's segment-close write never landed.
 const _lastOnDutyAt = new Map();
+// Warn throttle for the "record exists but has no legs" case (Nov 5 2026): a
+// missing row for a driver who has not started their shift yet is normal and
+// must never warn; a genuinely empty record warns at most every 10 minutes.
+const _dutyWarnAt = new Map();
 // Per driver+date break accounting for an UNCLOSED open leg:
 // { openStart, pausedMs, since } — see the Break pause block below.
 const _dutyPause = new Map();
@@ -596,11 +600,28 @@ export function useLocalPerformanceStats({
             };
             setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) } : null);
           } else {
-            // No activity legs at all (record unreadable this tick). The old
-            // fallback here was first-stop -> now, which counts breaks and is
-            // exactly the tablet's inflated 5h29. Hold the value already on the
-            // card and let the 20s retry land the real record instead.
-            console.warn('[DutyTime] no activity legs readable for', segDriverId, '— holding the current value while retrying');
+            // No activity legs at all. The old fallback here was first-stop ->
+            // now, which counts breaks and is exactly the tablet's inflated
+            // 5h29. Hold the value already on the card and let the 20s retry
+            // land the real record instead.
+            // OWNER REPORT Nov 5 2026 (hourly digest: "DutyTime no activity legs
+            // readable" repeating on Erin's device): in RxDeliver THIS MESSAGE
+            // FIRED ON A PERFECTLY HEALTHY RECORD. Erin's own row for today is
+            // driver_id 6a0530f5..., activity_date 2026-11-05, one OPEN leg from
+            // 13:50 — but before her first duty toggle of the day no row exists
+            // at all, so every 15 s tick before that shift warned. A missing row
+            // is "not started yet", not a fault: stay silent, and only warn when
+            // a record DOES exist and still carries no usable legs, once per
+            // driver+date per 10 minutes so the digest stays readable.
+            const _hasRecord = !!dailyRec;
+            if (_hasRecord) {
+              const _warnKey = `${segDriverId}:${segDate}`;
+              const _lastWarn = _dutyWarnAt.get(_warnKey) || 0;
+              if (Date.now() - _lastWarn > 600000) {
+                _dutyWarnAt.set(_warnKey, Date.now());
+                console.warn('[DutyTime] activity record exists but has no legs for', segDriverId, segDate, '— holding the current value while retrying');
+              }
+            }
           }
         } catch (_err) {
           console.warn('[DutyTime] activity read failed for', segDriverId, '— holding the current value:', _err?.message || _err);
