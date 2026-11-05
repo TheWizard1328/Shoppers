@@ -116,6 +116,11 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
       if (mergedKm !== null && mergedKm !== (Number.isFinite(existingKm) ? existingKm : null)) {
         mergePatch.paid_km_override = mergedKm;
       }
+      // Owner spec Nov 4 2026: fridge / oversized flags also merge — once any
+      // failed delivery folded into this return needs either treatment, the
+      // return stop keeps it (flags are never cleared by a later merge).
+      if (originalDelivery?.fridge_item === true && existingReturn?.fridge_item !== true) mergePatch.fridge_item = true;
+      if (originalDelivery?.oversized === true && existingReturn?.oversized !== true) mergePatch.oversized = true;
       const updated = await updateDeliveryLocal(existingReturn.id, mergePatch, { skipSmartRefresh: true });
 
       invalidate('Delivery');

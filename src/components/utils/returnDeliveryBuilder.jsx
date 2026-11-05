@@ -57,6 +57,11 @@ export function buildReturnDeliveryData({ originalDelivery, originalPatient, ret
     // store when that override is blank. An existing return stop keeps the
     // LARGER of its own override and this value (handled in the merge path).
     paid_km_override: resolveReturnKmOverride({ originalDelivery, patients, originalPatient: null }),
+    // Owner spec Nov 4 2026: fridge and oversized handling follows the item back
+    // to the store, so a failed delivery carrying either flag passes it to the
+    // return stop (temperature chain + handling both apply on the way back).
+    fridge_item: originalDelivery?.fridge_item === true,
+    oversized: originalDelivery?.oversized === true,
     ampm_deliveries: finalAmpm,
     transport_mode: (() => {
       // Prefer original delivery's transport_mode, then infer from route's other stops, then driver preference
