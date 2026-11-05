@@ -402,13 +402,35 @@ Deno.serve(async (req) => {
       // ONE LINE PER ITEM (owner request Nov 4 2026): no inline runs and no
       // dash bullets — the user, the device, the count and every recorded event
       // each stand on their own message line.
-      const lines = isOwner
-        ? [`Issue detected: ${meta.label} on your device.`]
-        : [`Issue detected: ${meta.label}.`, `User: ${u.user_name}`];
-      if (deviceLabel) lines.push(`Devices (this window): ${deviceLabel}`);
+      // ── LINE-PER-ITEM LAYOUT (owner request Nov 5 2026) ──────────────────
+      //   Issue detected:
+      //   Repeated app errors on:
+      //   THE-DESKTOP(Editor) (30).
+      //   The-Laptop (6).
+      //   THE-DESKTOP(PWA) (2).
+      //   24 app errors within the last 30 minutes.
+      //   Recent activity @ 02:01: Realtime broadcast for AdminMetricsSummary ... 
+      // Every device gets its own line with its own hit count and a full stop,
+      // and every recorded event gets its own "Recent activity @ time:" line
+      // instead of a header plus a bullet run.
+      const labelLine = `${String(meta.label || '').charAt(0).toUpperCase()}${String(meta.label || '').slice(1)} on:`;
+      const deviceLines = Array.from(u.deviceCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([ident, hits]) => {
+          const name = deviceNameById.get(ident) || (ident || 'unregistered');
+          return `${name} (${hits}).`;
+        });
+      const lines = ['Issue detected:'];
+      if (!isOwner) lines.push(`User: ${u.user_name}`);
+      lines.push(labelLine);
+      if (deviceLines.length > 0) lines.push(...deviceLines);
       lines.push(countLine);
-      lines.push('Recent activity:');
-      for (const sample of u.samples) lines.push(String(sample));
+      for (const sample of u.samples) {
+        const raw = String(sample || '');
+        const m = raw.match(/^(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*[·:]\s*(.*)$/);
+        lines.push(m ? `Recent activity @ ${m[1]}: ${m[2]}` : `Recent activity: ${raw}`);
+      }
       if (!isOwner) lines.push('The user has been notified in-app.');
       const ownerContent = lines.join('\n');
 
