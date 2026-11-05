@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation, Building2, DollarSign } from 'lucide-react';
+import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation, Building2, DollarSign, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppData } from '../components/utils/AppDataContext';
@@ -32,6 +32,10 @@ export default function DriverSettings() {
   const [editingDriver, setEditingDriver] = useState(null);
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [userEmails, setUserEmails] = useState({});
+  // ACTIVE / INACTIVE SPLIT (owner request Nov 5 2026): inactive driver accounts
+  // live in their own collapsible section so retired drivers never push the
+  // working grid down. Mirrors the Driver Overview split on the Deliveries page.
+  const [showInactiveDrivers, setShowInactiveDrivers] = useState(true);
   let selectedCityId = globalFilters.getSelectedCityId();
 
   // Default to user's assigned city if not set
@@ -298,16 +302,15 @@ export default function DriverSettings() {
       {/* Drivers List */}
       {(() => {
         const isAdmin = currentUser?.app_roles?.includes('admin');
-        return (
-          <div className={`grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(275px,1fr))] ${isAdmin ? '[grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]' : ""}`}>
-            {filteredDrivers.length === 0 ?
-            <Card className="col-span-full bg-surface border-surface">
-                <CardContent className="py-8 text-center text-soft">
-                  {searchQuery ? 'No drivers match your search' : 'No drivers found'}
-                </CardContent>
-              </Card> :
-
-            filteredDrivers.map((driver) => {
+        const _inactiveDriver = (drv) => {
+          const au = mergedAppUsers.find((x) => x?.user_id === drv?.id || x?.id === drv?.id);
+          const status = String(au?.status ?? drv?.status ?? '').toLowerCase();
+          const flag = [au?.is_active, drv?.is_active].find((v) => v !== undefined && v !== null);
+          return status === 'inactive' || flag === false;
+        };
+        const activeDrivers = filteredDrivers.filter((d) => !_inactiveDriver(d));
+        const inactiveDrivers = filteredDrivers.filter((d) => _inactiveDriver(d));
+        const renderDriverCard = (driver) => {
               const latestAppUser = mergedAppUsers.find((au) => au?.user_id === driver.id);
               const dutyStatus = getDriverDutyStatus(driver);
               const avatarColor = driver.app_roles?.includes('admin') ?
@@ -525,9 +528,33 @@ export default function DriverSettings() {
                       </div>
                     </div>
                   </CardContent>
-                </Card>);
+                </Card>
+        );
+        };
+        return (
+          <div className={`grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(275px,1fr))] ${isAdmin ? '[grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]' : ""}`}>
+            {filteredDrivers.length === 0 ?
+            <Card className="col-span-full bg-surface border-surface">
+                <CardContent className="py-8 text-center text-soft">
+                  {searchQuery ? 'No drivers match your search' : 'No drivers found'}
+                </CardContent>
+              </Card> :
 
-            })
+            <>
+            {activeDrivers.map((driver) => renderDriverCard(driver))}
+            {inactiveDrivers.length > 0 && (
+              <div className="col-span-full mt-2 mb-1">
+                <button type="button" onClick={() => setShowInactiveDrivers((v) => !v)}
+                  className="flex items-center gap-2 w-full text-left px-1 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  aria-expanded={showInactiveDrivers}>
+                  {showInactiveDrivers ? <ChevronDown className="w-4 h-4 flex-shrink-0 text-label" /> : <ChevronRight className="w-4 h-4 flex-shrink-0 text-label" />}
+                  <span className="text-sm font-semibold uppercase tracking-wide text-label">Inactive drivers</span>
+                  <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">{inactiveDrivers.length}</span>
+                </button>
+              </div>
+            )}
+            {showInactiveDrivers && inactiveDrivers.map((driver) => renderDriverCard(driver))}
+            </>
             }
           </div>);
 
