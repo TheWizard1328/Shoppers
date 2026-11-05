@@ -672,7 +672,8 @@ Deno.serve(async (req) => {
     const hydrateSummaries = async (records, cityId) => {
       const list = records || [];
       if (!list.length) return list;
-      const needing = list.filter((rec) => rec && (rec.admin_metrics == null || rec.payroll_metrics == null));
+      const isEmptyBlob = (v) => v == null || (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
+      const needing = list.filter((rec) => rec && (isEmptyBlob(rec.admin_metrics) || isEmptyBlob(rec.payroll_metrics)));
       if (!needing.length) return list;
       let chunkRows = [];
       try { chunkRows = await fetchCityChunkRows(cityId); } catch (_) { return list; }
@@ -682,8 +683,8 @@ Deno.serve(async (req) => {
         const rows = chunksFor(chunkRows, rec.year, rec.month);
         if (!rows.length) return rec;
         const out = { ...rec };
-        if (out.admin_metrics == null) { const adm = reassemble(rows, 'admin_metrics'); if (adm != null) out.admin_metrics = adm; }
-        if (out.payroll_metrics == null) { const pm = reassemble(rows, 'payroll_metrics'); if (pm != null) out.payroll_metrics = pm; }
+        if (isEmptyBlob(out.admin_metrics)) { const adm = reassemble(rows, 'admin_metrics'); if (adm != null) out.admin_metrics = adm; }
+        if (isEmptyBlob(out.payroll_metrics)) { const pm = reassemble(rows, 'payroll_metrics'); if (pm != null) out.payroll_metrics = pm; }
         return out;
       });
     };
@@ -729,14 +730,17 @@ Deno.serve(async (req) => {
     // Rows written before Nov 5 2026 still carry the heavy blobs inline, so those
     // specific rows keep broadcasting oversize payloads until they are rewritten.
     // The backfill only rewrites months that actually changed, so migrate lazily:
-    // a few rows per page load, marked with a '-chunked' summary_version so a row
-    // is never migrated twice.
+    // a few rows per page load; a migrated row keeps empty {} stubs, which is the
+    // marker that stops it being picked up again (summary_version stays equal to
+    // SUMMARY_VERSION so the freshness check is untouched).
     const LEGACY_MIGRATION_PER_REQUEST = 3;
     const migrateLegacySummaries = async (rawRecords, hydratedRecords, cityId) => {
       try {
-        const legacy = (rawRecords || []).filter((r) => r
-          && !String(r?.summary_version || '').endsWith('-chunked')
-          && (r?.admin_metrics != null || r?.payroll_metrics != null));
+        // 'Has a non-empty inline blob' IS the legacy marker: a migrated row keeps
+        // empty stubs, so it can never be picked up twice and summary_version stays
+        // exactly SUMMARY_VERSION for the freshness check above.
+        const hasBlob = (v) => v != null && typeof v === 'object' && Object.keys(v).length > 0;
+        const legacy = (rawRecords || []).filter((r) => r && (hasBlob(r?.admin_metrics) || hasBlob(r?.payroll_metrics)));
         if (!legacy.length) return;
         const batch = legacy.slice(0, LEGACY_MIGRATION_PER_REQUEST);
         for (const raw of batch) {
@@ -750,9 +754,9 @@ Deno.serve(async (req) => {
           });
           await base44.asServiceRole.entities.AdminMetricsSummary
             .update(raw.id, {
-              admin_metrics: null,
-              payroll_metrics: null,
-              summary_version: `${SUMMARY_VERSION}-chunked`
+              admin_metrics: {},
+              payroll_metrics: {},
+              summary_version: SUMMARY_VERSION
             })
             .catch((e) => console.warn('[AdminMetricsChunk] header slim failed:', e?.message || e));
         }
@@ -800,6 +804,12 @@ Deno.serve(async (req) => {
         period_end: end,
         summary_version: SUMMARY_VERSION,
         delivery_counts: buildMonthlyDeliveryCounts(deliveries),
+        // Stubs, not nulls: an update leaves untouched fields alone, so a legacy
+        // row would keep its giant inline blobs (and keep broadcasting them)
+        // unless the write explicitly replaces them. Hydration treats an empty
+        // object as 'read the chunks'.
+        admin_metrics: {},
+        payroll_metrics: {},
         last_source_delivery_updated_at: getNewestUpdatedAt(deliveries),
         calculated_at: new Date().toISOString()
       };
