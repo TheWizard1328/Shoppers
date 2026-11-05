@@ -165,6 +165,12 @@ export function useStopCardCompletionActions({
     let pickupNoteData = null;
     try {
       setIsEntityUpdating(true);
+      // STAGE TIMINGS (owner question Nov 5 2026: 'I have had no issues accepting even 15 stops
+      // in under 5 seconds before'). No more guessing: every accept run records elapsed ms at
+      // each stage so the next slow run names the stage instead of blaming the whole pass.
+      const _accT0 = Date.now();
+      const _accMarks = [];
+      const _accMark = (label) => { _accMarks.push(`${label} ${Date.now() - _accT0}ms`); };
 
       // ── Pre-flight: scope to pending stops for this store/driver/date ────────
       const scopedPendingDeliveries = (allDeliveries || []).filter(
@@ -250,6 +256,7 @@ export function useStopCardCompletionActions({
         updateDeliveriesLocally,
         localDeviceTodayStr,
       });
+      _accMark('pipeline');
 
       // ── STEP 2: Confirm transition complete — update UI optimistically ─────────
       const transitionedIds = new Set([
@@ -475,11 +482,13 @@ export function useStopCardCompletionActions({
           skipServerWrite: true, // The caller commits ONE merged update set (Step 5.5) — single broadcast
         }).catch(err => { console.error('❌ [AcceptAll] optimizer threw:', err?.message || err); return null; }),
         new Promise(resolve => setTimeout(() => {
-          console.error('⏱️ [AcceptAll] optimizer timed out after 90s');
+          console.error(`⏱️ [AcceptAll] optimizer timed out after 90s — stages: ${_accMarks.join(' | ')}`);
           resolve(null);
         }, 90000)),
       ]);
 
+      _accMark('optimizer');
+      console.warn(`[AcceptAll][timing] ${_accMarks.join(' | ')}`);
       if (coordResult && coordResult.success === false) {
         toast.error(`Route optimization failed: ${coordResult.error || 'unknown'}. Stop order may not be optimized.`);
       } else if (!coordResult) {
