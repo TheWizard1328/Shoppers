@@ -231,7 +231,13 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           lng: prediction.longitude ?? null,
           place_id: null,
           distance: Number.isFinite(Number(prediction.distance)) ? Number(prediction.distance) : null,
-          unit: prediction.unit || null,
+          // OWNER SPEC (Nov 5 2026): picking a SAVED-PATIENT address row carries
+          // the ADDRESS only. The matched record may belong to a different person
+          // in the same building, so its unit, phone or any other detail must never
+          // ride along. addressOnly tells the form to ignore unit and refuse to
+          // touch any other field.
+          addressOnly: true,
+          unit: null,
           __localPatient: {
             patientId: prediction.patient_id || null,
             patientName: prediction.patient_name || null,

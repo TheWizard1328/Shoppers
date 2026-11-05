@@ -454,7 +454,11 @@ export default function PatientForm({
     `${addressData.street_number} ${addressData.route}` :
     addressData.street_address || addressData.full_address || '';
     const abbreviatedAddress = abbreviateAddress(street);
-    const prefilledUnit = addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number;
+    // OWNER SPEC (Nov 5 2026): a saved-patient address row supplies the ADDRESS
+    // only — never the matched patient's unit number, phone, or anything else.
+    const prefilledUnit = (addressData.addressOnly === true || addressData.__localPatient)
+      ? formData.unit_number
+      : (addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number);
 
     let latitude = toFiniteNumber(addressData.latitude ?? addressData.lat);
     let longitude = toFiniteNumber(addressData.longitude ?? addressData.lng);
