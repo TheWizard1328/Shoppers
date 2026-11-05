@@ -37,7 +37,7 @@ import { notifyDriverCompleted, notifyDriverFailed } from "../utils/deliveryMess
 import { notifyDriverAcceptedStops } from "../deliveries/driverAcceptedStopsNotifier";
 import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
-import { lockDeliveryFields } from '../utils/completionLockout';
+import { lockDeliveryFields, unlockDeliveryFields } from '../utils/completionLockout';
 import { isDriverWithinStoreRange } from './afterHoursProximityCheck';
 import { recordStopCompletionGpsFix } from '../utils/stopCompletionGpsFix';
 import { promptInterStoreDropoff } from './interStoreDropoffPrompt';
@@ -568,6 +568,27 @@ export function useStopCardCompletionActions({
               return okCount === mergedServerUpdates.length;
             })
         : Promise.resolve(true);
+
+      // ── RELEASE THE LOCAL LOCKS AFTER THE COMMIT (owner report Nov 5 2026) ──
+      // "after the route optimization and polyline generation what my phone was
+      // showing is not what my tablet was showing ... I had to hit the manual
+      // refresh spinner". The accepting device pins status / stop_order /
+      // tracking_number / isNextDelivery for 90s (echo + reversion protection).
+      // Those locks also REJECT the authoritative post-commit pull, so the
+      // initiator kept its own optimistic view while every other device took the
+      // server's real one. Once the merged commit resolves, the server is the
+      // source of truth, so release the pins and clear the echo suppression for
+      // exactly the stops this run committed — the deferred refresh can then
+      // land, and nothing is reverted mid-flight any more.
+      try {
+        serverCommitPromise.then((committed) => {
+          if (!committed) return;
+          for (const id of transitionedIds) {
+            try { unlockDeliveryFields(id); } catch (_) {}
+            try { window.__localDeliveryWrites?.delete(id); } catch (_) {}
+          }
+        });
+      } catch (_) {}
 
       // ── STEP 6: In-app message + push notification with updated TR#s ─────────
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
