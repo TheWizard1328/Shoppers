@@ -617,7 +617,149 @@ Deno.serve(async (req) => {
         throw error;
       });
       const wantYear = summaryNum(year);
-      return dedupeById((summaryRecords || []).filter((rec) => summaryNum(rec?.year) === wantYear));
+      const deduped = dedupeById((summaryRecords || []).filter((rec) => summaryNum(rec?.year) === wantYear));
+      // Heavy blobs live in AdminMetricsChunk now; legacy rows still carry them inline.
+      const hydrated = await hydrateSummaries(deduped, cityId);
+      await migrateLegacySummaries(deduped, hydrated, cityId);
+      return hydrated;
+    };
+
+    // ── CHUNKED HEAVY PAYLOADS (owner report Nov 5 2026) ────────────────────────
+    // "how can we fix this admin metrics summary real-time payload oversized
+    // error that keeps popping up". One city-month lived in ONE row, and
+    // admin_metrics carries day-level + driver-level maps plus the whole-year
+    // shape, so every write broadcast a payload the realtime transport refused
+    // ("Realtime broadcast for AdminMetricsSummary#... was oversize") on every
+    // connected device. The two heavy blobs now live in AdminMetricsChunk rows of
+    // 8000 chars (the same PART_SIZE the Square snapshot transport already
+    // proved), and the summary row keeps only the header, the delivery_counts
+    // fingerprint and the timestamps. Readers reassemble the identical object
+    // shape, so composeMetricsFromSummaries and every consumer are unchanged.
+    const CHUNK_PART_SIZE = 8000;
+    const CHUNK_MAX_PARTS = 40;
+    const CHUNK_KEYS = ['admin_metrics', 'payroll_metrics'];
+
+    const splitChunkJson = (value) => {
+      let json = 'null';
+      try { json = JSON.stringify(value ?? null) || 'null'; } catch (_) { json = 'null'; }
+      const parts = [];
+      for (let i = 0; i < json.length; i += CHUNK_PART_SIZE) parts.push(json.slice(i, i + CHUNK_PART_SIZE));
+      if (!parts.length) parts.push('null');
+      return parts;
+    };
+
+    const fetchCityChunkRows = async (cityId) => {
+      const rows = await base44.asServiceRole.entities.AdminMetricsChunk
+        .filter({ city_id: cityId }, '', 4000)
+        .catch(() => []);
+      return rows || [];
+    };
+
+    const chunksFor = (rows, year, month) => {
+      const wantYear = summaryNum(year);
+      const wantMonth = summaryNum(month);
+      return (rows || []).filter((r) => summaryNum(r?.year) === wantYear && summaryNum(r?.month) === wantMonth);
+    };
+
+    const reassemble = (rows, key) => {
+      const parts = (rows || [])
+        .filter((r) => String(r?.chunk_key || '') === key && r?.part_text != null)
+        .sort((a, b) => Number(a.part_index || 0) - Number(b.part_index || 0));
+      if (!parts.length) return null;
+      try { return JSON.parse(parts.map((r) => String(r.part_text || '')).join('')); } catch (_) { return null; }
+    };
+
+    const hydrateSummaries = async (records, cityId) => {
+      const list = records || [];
+      if (!list.length) return list;
+      const needing = list.filter((rec) => rec && (rec.admin_metrics == null || rec.payroll_metrics == null));
+      if (!needing.length) return list;
+      let chunkRows = [];
+      try { chunkRows = await fetchCityChunkRows(cityId); } catch (_) { return list; }
+      if (!chunkRows.length) return list;
+      return list.map((rec) => {
+        if (!rec) return rec;
+        const rows = chunksFor(chunkRows, rec.year, rec.month);
+        if (!rows.length) return rec;
+        const out = { ...rec };
+        if (out.admin_metrics == null) { const adm = reassemble(rows, 'admin_metrics'); if (adm != null) out.admin_metrics = adm; }
+        if (out.payroll_metrics == null) { const pm = reassemble(rows, 'payroll_metrics'); if (pm != null) out.payroll_metrics = pm; }
+        return out;
+      });
+    };
+
+    const writeSummaryChunks = async ({ cityId, year, month, summaryId, blobs }) => {
+      const entity = base44.asServiceRole.entities.AdminMetricsChunk;
+      const existing = chunksFor(await fetchCityChunkRows(cityId), year, month);
+      const bySlot = new Map(existing.map((r) => [`${r.chunk_key}#${Number(r.part_index || 0)}`, r]));
+      const wanted = new Set();
+      const stamp = new Date().toISOString();
+      for (const key of CHUNK_KEYS) {
+        const parts = splitChunkJson(blobs[key]);
+        if (parts.length > CHUNK_MAX_PARTS) console.warn(`[AdminMetricsChunk] ${key} ${year}-${month} needs ${parts.length} parts (cap ${CHUNK_MAX_PARTS})`);
+        for (let i = 0; i < parts.length; i++) {
+          const slot = `${key}#${i}`;
+          wanted.add(slot);
+          const found = bySlot.get(slot);
+          const row = {
+            city_id: cityId, year, month, chunk_key: key, part_index: i, part_count: parts.length,
+            part_text: parts[i], summary_id: summaryId || null, calculated_at: stamp
+          };
+          try {
+            if (found?.id) {
+              const changed = String(found.part_text || '') !== parts[i]
+                || Number(found.part_count || 0) !== parts.length
+                || String(found.summary_id || '') !== String(summaryId || '');
+              if (changed) await entity.update(found.id, row);
+            } else {
+              await entity.create(row);
+            }
+          } catch (e) {
+            console.warn(`[AdminMetricsChunk] write ${key}#${i} failed:`, e?.message || e);
+          }
+        }
+      }
+      // A shorter payload must not leave stale tail slices behind.
+      for (const [slot, row] of bySlot.entries()) {
+        if (!wanted.has(slot) && row?.id) await entity.delete(row.id).catch(() => null);
+      }
+    };
+
+    // ── ONE-TIME LEGACY MIGRATION ───────────────────────────────────────────────
+    // Rows written before Nov 5 2026 still carry the heavy blobs inline, so those
+    // specific rows keep broadcasting oversize payloads until they are rewritten.
+    // The backfill only rewrites months that actually changed, so migrate lazily:
+    // a few rows per page load, marked with a '-chunked' summary_version so a row
+    // is never migrated twice.
+    const LEGACY_MIGRATION_PER_REQUEST = 3;
+    const migrateLegacySummaries = async (rawRecords, hydratedRecords, cityId) => {
+      try {
+        const legacy = (rawRecords || []).filter((r) => r
+          && !String(r?.summary_version || '').endsWith('-chunked')
+          && (r?.admin_metrics != null || r?.payroll_metrics != null));
+        if (!legacy.length) return;
+        const batch = legacy.slice(0, LEGACY_MIGRATION_PER_REQUEST);
+        for (const raw of batch) {
+          const hydrated = (hydratedRecords || []).find((h) => h && h.id === raw.id) || raw;
+          await writeSummaryChunks({
+            cityId,
+            year: raw.year,
+            month: raw.month,
+            summaryId: raw.id,
+            blobs: { admin_metrics: hydrated?.admin_metrics || null, payroll_metrics: hydrated?.payroll_metrics || null }
+          });
+          await base44.asServiceRole.entities.AdminMetricsSummary
+            .update(raw.id, {
+              admin_metrics: null,
+              payroll_metrics: null,
+              summary_version: `${SUMMARY_VERSION}-chunked`
+            })
+            .catch((e) => console.warn('[AdminMetricsChunk] header slim failed:', e?.message || e));
+        }
+        console.log(`[AdminMetricsChunk] migrated ${batch.length} of ${legacy.length} legacy summary rows (city ${cityId})`);
+      } catch (e) {
+        console.warn('[AdminMetricsChunk] legacy migration failed:', e?.message || e);
+      }
     };
 
     // ── SLIM PAYROLL METRICS (perf audit item 6, Oct 22 2026) ────────────────────
@@ -645,6 +787,10 @@ Deno.serve(async (req) => {
     const upsertMonthlySummaryRecord = async ({ year, month, cityId, cityName, adminMetrics, payrollMetrics, deliveries }) => {
       const existingRecord = await fetchMonthlySummaryRecord(year, month, cityId);
       const { start, end } = getMonthDateRange(year, month);
+      // The summary row carries NO heavy blobs any more (Nov 5 2026): writing
+      // admin_metrics here is what made every update broadcast an oversize
+      // payload. They go to AdminMetricsChunk, this row keeps the fingerprint.
+      const slimPayroll = buildSlimPayrollMetrics(payrollMetrics);
       const payload = {
         city_id: cityId,
         city_name: cityName || '',
@@ -654,26 +800,49 @@ Deno.serve(async (req) => {
         period_end: end,
         summary_version: SUMMARY_VERSION,
         delivery_counts: buildMonthlyDeliveryCounts(deliveries),
-        admin_metrics: adminMetrics,
-        payroll_metrics: buildSlimPayrollMetrics(payrollMetrics),
         last_source_delivery_updated_at: getNewestUpdatedAt(deliveries),
         calculated_at: new Date().toISOString()
       };
+      const withBlobs = (rec) => ({
+        ...(rec || {}),
+        city_id: cityId,
+        city_name: cityName || '',
+        year,
+        month,
+        period_start: start,
+        period_end: end,
+        summary_version: SUMMARY_VERSION,
+        delivery_counts: payload.delivery_counts,
+        last_source_delivery_updated_at: payload.last_source_delivery_updated_at,
+        calculated_at: payload.calculated_at,
+        // In-request copy: this run composes metrics without re-reading chunks.
+        admin_metrics: adminMetrics,
+        payroll_metrics: slimPayroll
+      });
 
       const entity = base44.asServiceRole.entities.AdminMetricsSummary;
+      let saved = null;
       if (existingRecord?.id) {
         // Collapse any duplicates that a previous race left behind.
         const allMatches = await fetchMonthlySummaryRecords(year, month, cityId);
-        return await collapseSummaries(entity, allMatches, (keep) => entity.update(keep.id, payload));
+        saved = await collapseSummaries(entity, allMatches, (keep) => entity.update(keep.id, payload));
+      } else {
+        saved = await entity.create(payload);
+        // Two devices computing the same key at the same time both used to create.
+        // Re-read and collapse so the key converges to ONE record.
+        const afterCreate = await fetchMonthlySummaryRecords(year, month, cityId).catch(() => []);
+        if ((afterCreate || []).length > 1) {
+          saved = await collapseSummaries(entity, afterCreate, (keep) => entity.update(keep.id, payload));
+        }
       }
-      const created = await entity.create(payload);
-      // Two devices computing the same key at the same time both used to create.
-      // Re-read and collapse so the key converges to ONE record.
-      const afterCreate = await fetchMonthlySummaryRecords(year, month, cityId).catch(() => []);
-      if ((afterCreate || []).length > 1) {
-        return await collapseSummaries(entity, afterCreate, (keep) => entity.update(keep.id, payload));
-      }
-      return created;
+      // Chunks are written AFTER the header exists so a crash leaves a re-buildable
+      // summary (missing blob = recompute) rather than orphans with no parent.
+      await writeSummaryChunks({
+        cityId, year, month,
+        summaryId: saved?.id || existingRecord?.id || null,
+        blobs: { admin_metrics: adminMetrics, payroll_metrics: slimPayroll }
+      });
+      return withBlobs(saved);
     };
 
     // ── Durable payroll summary (PayrollSummary entity) ──────────────────────────
@@ -1083,7 +1252,10 @@ Deno.serve(async (req) => {
         const existingSummary = await fetchMonthlySummaryRecord(year, month, cityId);
         const existingSummaryIsFresh = summaryRecordIsFresh(existingSummary, year, month);
         if (!options.force && existingSummaryIsFresh && !countSummaryNeedsRefresh(existingSummary, monthDeliveries)) {
-          summaryRecords.push(existingSummary);
+          // A fresh-but-inline-less summary still needs its blobs for the compose
+          // step below, so hydrate just this one record from its chunk rows.
+          const [hydratedExisting] = await hydrateSummaries([existingSummary], cityId);
+          summaryRecords.push(hydratedExisting || existingSummary);
           continue;
         }
 
