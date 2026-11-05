@@ -330,10 +330,44 @@ export default function useModeRouteDialog({
       // The local upsert above updates in-memory + IDB but the backend still has the
       // old transport_mode. Write it now so other devices and reloads see the correct mode.
       // Fire-and-forget — don't block optimization on these writes.
-      const cyclingModeWrites = updatedCyclingStops.map((d) =>
-        base44.entities.Delivery.update(d.id, { transport_mode: 'cycling' }).catch(() => null)
-      );
-      Promise.all(cyclingModeWrites).catch(() => null); // non-blocking
+      // ── OWNER REPORT (Nov 5 2026): selected cycling stops REVERTED to driving ──
+      // "when I had the two marked as cycling they did not stick, they reverted
+      // back to driving". These writes were fire-and-forget with the error swallowed,
+      // so a single rejected update left that stop as driving for everyone, and every
+      // downstream pass (sequencing, polyline mode, payroll) then treated it as a
+      // driving stop — which is what made the loop's polyline look wrong.
+      // Now each write is awaited, retried ONCE (not looped), and the result is
+      // verified with a single read. Anything that still is not cycling is reported
+      // loudly instead of silently reverting.
+      const _modeResults = await Promise.all(updatedCyclingStops.map(async (d) => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            await base44.entities.Delivery.update(d.id, { transport_mode: 'cycling' });
+            return null;
+          } catch (err) {
+            if (attempt === 1) {
+              console.warn(`[useModeRouteDialog] cycling mode write failed for ${d.id}:`, err?.message || err);
+              return d.id;
+            }
+            await new Promise((r) => setTimeout(r, 250));
+          }
+        }
+        return d.id;
+      }));
+      let _stillDriving = _modeResults.filter(Boolean);
+      if (_stillDriving.length > 0) {
+        try {
+          const ids = updatedCyclingStops.map((d) => d.id);
+          const verified = await base44.entities.Delivery.filter({ id: { $in: ids } });
+          _stillDriving = (Array.isArray(verified) ? verified : [])
+            .filter((d) => String(d?.transport_mode || '').toLowerCase() !== 'cycling')
+            .map((d) => d.id);
+        } catch (_) { /* keep the write-failure list when the read fails */ }
+      }
+      if (_stillDriving.length > 0) {
+        console.error(`[useModeRouteDialog] ${_stillDriving.length}/${updatedCyclingStops.length} stop(s) did NOT persist as cycling: ${_stillDriving.join(', ')}`);
+        toast.error('Some cycling stops did not save as cycling. Re-select them before optimizing.');
+      }
 
       // Build the full merged delivery list for the optimizer (replaces stale records)
       const updatedById = new Map(localUpserts.map((d) => [d.id, d]));
