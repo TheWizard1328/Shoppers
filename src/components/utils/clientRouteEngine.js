@@ -1638,6 +1638,68 @@ let _inheritedWindowCount = 0;
         console.warn('[clientRouteEngine] first-leg self-heal skipped (non-fatal):', _firstLegHealErr?.message || _firstLegHealErr);
       }
 
+      // ── ACTIVE LEG GAP SELF-HEAL (owner report Nov 5 2026) ─────────────────
+      // Robert's route: he pressed Start on stop 13, the stops re-sequenced and
+      // the legs regenerated for 13 and for 15 onward, but stop 14 (which had been
+      // the next delivery) kept the geometry it carried from BEFORE the Start, so
+      // the map showed NO leg between 13 and 14. The old heal only ever covered
+      // the FIRST active stop, so any later stop that loses its inbound leg stayed
+      // blank. Now every active stop whose leg is missing in this run AND whose
+      // stored leg is either absent or stamped with a stop_order it no longer
+      // carries is rebuilt from its immediate predecessor. Capped at 5 stops so a
+      // bad run can never spam the routing APIs.
+      try {
+        const _healUsable = (seg) => !!(seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10
+          && !(Array.isArray(seg.coordinates) && seg.coordinates.length <= 2
+            && Number.isFinite(Number(seg.estimatedDistanceKm)) && Number(seg.estimatedDistanceKm) < 0.03));
+        const _orderedActive = routeStops
+          .filter((st) => st?.delivery && ['en_route', 'in_transit'].includes(String(st.delivery.status || '')))
+          .sort((a, b) => (Number(a.delivery.stop_order) || 0) - (Number(b.delivery.stop_order) || 0));
+        let _heals = 0;
+        for (let i = 0; i < _orderedActive.length && _heals < 5; i++) {
+          const st = _orderedActive[i];
+          if (st.lat == null || st.lng == null) continue;
+          const prevRow = i > 0 ? _orderedActive[i - 1] : null;
+          const anchorPoint = prevRow && prevRow.lat != null && prevRow.lng != null
+            ? { lat: prevRow.lat, lon: prevRow.lng }
+            : polylineOrigin;
+          if (!anchorPoint || !Number.isFinite(Number(anchorPoint.lat))) continue;
+          const produced = segmentPolylineByDeliveryId.get(String(st.delivery.id));
+          if (_healUsable(produced)) continue;
+          const _stored = st.delivery.encoded_polyline;
+          const _storedOk = typeof _stored === 'string' && _stored.length > 10;
+          const _stamp = st.delivery.polyline_from_order == null ? null : Number(st.delivery.polyline_from_order);
+          const _order = st.delivery.stop_order == null ? null : Number(st.delivery.stop_order);
+          const _stampStale = !_storedOk || !Number.isFinite(_stamp) || !Number.isFinite(_order) || _stamp !== _order;
+          if (!_stampStale) continue; // already-good leg from a previous run
+          _heals += 1;
+          console.log(`[clientRouteEngine] ${source} — rebuilding missing inbound leg for stop ${_order ?? st.delivery.id} from predecessor ${prevRow ? (prevRow.delivery.stop_order ?? prevRow.delivery.id) : 'origin'}`);
+          try {
+            const _gapMap = await generateRoutePolylines({
+              orderUnchanged: false,
+              forceRegenerate: true,
+              stops: [{ delivery: st.delivery, lat: st.lat, lng: st.lng }],
+              originPoint: anchorPoint,
+              cyclingSegmentOnly: String(st.delivery.transport_mode || '').toLowerCase() === 'cycling',
+              hereApiKey,
+              polylineProvider,
+              polylineApiKey,
+              driverId,
+              userName: _driverUserName,
+              source: `${source}:leg_gap_heal`,
+              fallbackTravelMode: String(st.delivery.transport_mode || '').toLowerCase() === 'cycling' ? 'cycling' : 'driving',
+            });
+            _gapMap.forEach((seg, id) => {
+              if (_healUsable(seg)) segmentPolylineByDeliveryId.set(String(id), seg);
+            });
+          } catch (gapErr) {
+            console.warn(`[clientRouteEngine] leg gap heal failed for stop ${_order ?? st.delivery.id}:`, gapErr?.message || gapErr);
+          }
+        }
+      } catch (_gapHealErr) {
+        console.warn('[clientRouteEngine] leg gap self-heal skipped (non-fatal):', _gapHealErr?.message || _gapHealErr);
+      }
+
       // Safety net only: if both segment passes produced nothing at all (HERE
       // refusal / missing coords), fall back to the single mixed call so the
       // route still gets legs. Never fires on a healthy run.
