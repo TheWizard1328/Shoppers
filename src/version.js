@@ -64,7 +64,7 @@ export const APP_VERSION_MAJOR = resolveAppMajorVersion();
 export const APK_SUCCESS_BASELINE = 316;
 
 
-export const WEB_VERSION = 184;
+export const WEB_VERSION = 185;
 
 
 /** Successful build-apk.yml run count → APK release count under this scheme. */

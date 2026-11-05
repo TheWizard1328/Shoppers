@@ -139,7 +139,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-md z-[10001] max-h-[95vh] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-md z-[10001] max-h-[92dvh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Edit Driver Settings
@@ -565,7 +565,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           )}
         </div>
 
-        <div className="flex gap-2 justify-end p-4 border-t flex-shrink-0 bg-background">
+        <div className="flex gap-2 justify-end px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t flex-shrink-0 bg-background">
           <Button variant="outline" onClick={onCancel} disabled={isSaving}>
             <X className="w-4 h-4 mr-1" />
             Cancel
