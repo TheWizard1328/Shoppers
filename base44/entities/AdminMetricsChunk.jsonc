@@ -1,0 +1,51 @@
+{
+  "name": "AdminMetricsChunk",
+  "type": "object",
+  "properties": {
+    "city_id": {
+      "type": "string",
+      "description": "City the parent monthly summary belongs to"
+    },
+    "year": {
+      "type": "integer",
+      "description": "Summary year"
+    },
+    "month": {
+      "type": "integer",
+      "description": "Summary month (1-12)"
+    },
+    "chunk_key": {
+      "type": "string",
+      "description": "Which payload this slice belongs to: admin_metrics or payroll_metrics"
+    },
+    "part_index": {
+      "type": "integer",
+      "description": "Zero-based slice index"
+    },
+    "part_count": {
+      "type": "integer",
+      "description": "Total slices for this key"
+    },
+    "part_text": {
+      "type": "string",
+      "description": "JSON text slice (8000 chars max)"
+    },
+    "summary_id": {
+      "type": "string",
+      "description": "AdminMetricsSummary record id this slice belongs to"
+    },
+    "calculated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the parent summary was calculated"
+    }
+  },
+  "required": [
+    "city_id",
+    "year",
+    "month",
+    "chunk_key",
+    "part_index",
+    "part_text"
+  ]
+}
