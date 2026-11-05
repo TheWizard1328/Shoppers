@@ -10,6 +10,24 @@ export function resolveFailedPatientName({ originalDelivery, originalPatient, pa
   ].find((value) => typeof value === 'string' && value.trim() && value.trim() !== 'Unknown') || resolvedPatient?.full_name || 'Unknown';
 }
 
+// ── Return km override (owner spec Nov 4 2026) ───────────────────────────────
+// "if the delivery extra kilometer override is blank then we use the patient's
+// distance from store otherwise it's the delivery's extra kilometer override
+// field". The FAILED delivery's patient is the distance source; the store's
+// Return patient only lends its name/phone to the return stop.
+export function resolveReturnKmOverride({ originalDelivery, patients, originalPatient }) {
+  const deliveryOverride = Number(originalDelivery?.paid_km_override);
+  if (Number.isFinite(deliveryOverride) && deliveryOverride > 0) return deliveryOverride;
+  const failedPatientId = originalDelivery?.patient_id || null;
+  const failedPatient = failedPatientId
+    ? ((patients || []).find((p) => p && p.id === failedPatientId)
+        || (originalPatient && originalPatient.id === failedPatientId ? originalPatient : null))
+    : null;
+  const patientKm = Number(failedPatient?.distance_from_store);
+  if (Number.isFinite(patientKm) && patientKm > 0) return patientKm;
+  return null;
+}
+
 export function buildReturnDeliveryData({ originalDelivery, originalPatient, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber, patients, preferredTravelMode }) {
   const puid = originalDelivery?.puid || originalDelivery?.stop_id || null;
   const failedPatientName = resolveFailedPatientName({ originalDelivery, originalPatient, patients });
@@ -34,6 +52,11 @@ export function buildReturnDeliveryData({ originalDelivery, originalPatient, ret
     stop_id: generateUniqueSID(routeDateDeliveries || []),
     puid,
     tracking_number: String(nextTrackingNumber),
+    // Owner spec Nov 4 2026: a brand-new return for this store inherits the
+    // failed delivery's km override, or the failed patient's distance from
+    // store when that override is blank. An existing return stop keeps the
+    // LARGER of its own override and this value (handled in the merge path).
+    paid_km_override: resolveReturnKmOverride({ originalDelivery, patients, originalPatient: null }),
     ampm_deliveries: finalAmpm,
     transport_mode: (() => {
       // Prefer original delivery's transport_mode, then infer from route's other stops, then driver preference

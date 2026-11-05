@@ -7,6 +7,7 @@ import { performRouteOptimization } from '@/components/utils/routeOptimizationCo
 import { broadcastMutation } from '@/components/utils/realtimeSync';
 import { getNextTrackingNumberInGroup } from '@/components/common/stopCardActionHelpers';
 import {
+  resolveReturnKmOverride,
   buildReturnDeliveryData,
   resolveFailedPatientName,
   findExistingReturnDelivery,
@@ -102,7 +103,20 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
     const existingReturn = findExistingReturnDelivery({ allDeliveries: deliveries, originalDelivery, returnPatient, routeDate });
     if (existingReturn) {
       const mergedNotes = buildMergedReturnNotes(existingReturn.delivery_notes, failedPatientName);
-      const updated = await updateDeliveryLocal(existingReturn.id, { delivery_notes: mergedNotes }, { skipSmartRefresh: true });
+      // Owner spec Nov 4 2026: when a return already exists on the route, keep
+      // the LARGER of its current km override and this failed delivery's value
+      // (delivery override, else the failed patient's distance from store), so
+      // one return stop still pays the furthest patient merged into it.
+      const incomingKm = resolveReturnKmOverride({ originalDelivery, patients });
+      const existingKm = Number(existingReturn?.paid_km_override);
+      const mergedKm = Number.isFinite(incomingKm) && incomingKm > 0
+        ? (Number.isFinite(existingKm) && existingKm > 0 ? Math.max(existingKm, incomingKm) : incomingKm)
+        : (Number.isFinite(existingKm) && existingKm > 0 ? existingKm : null);
+      const mergePatch = { delivery_notes: mergedNotes };
+      if (mergedKm !== null && mergedKm !== (Number.isFinite(existingKm) ? existingKm : null)) {
+        mergePatch.paid_km_override = mergedKm;
+      }
+      const updated = await updateDeliveryLocal(existingReturn.id, mergePatch, { skipSmartRefresh: true });
 
       invalidate('Delivery');
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return_merged', driverId: originalDelivery.driver_id, deliveryDate: existingReturn.delivery_date || routeDate } }));
