@@ -270,31 +270,6 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
           ` : ''}
         </svg>
 
-        ${hasCash ? `
-          <!-- Cash collection badge (owner request Nov 5 2026): a "$" sits at
-               the top/left of the status symbol on any stop that carries a COD
-               amount (cash, card or any other collection type). Colour is the
-               collection state, matching the stop-card badges: black = still to
-               collect (pending / in transit / en route), green = collected on a
-               completed stop, red = failed or cancelled. White text-shadow keeps
-               it readable over every pin fill and map background, and the size
-               scales with the pin (pending pins are 25% smaller, so their "$"
-               shrinks with them: "similar relative size for the pending
-               markers too"). -->
-          <span class="cash-badge" style="
-            position: absolute;
-            top: ${-(size * 0.24)}px;
-            left: ${-(size * 0.18)}px;
-            font-family: Arial, sans-serif;
-            font-size: ${Math.max(10, size * 0.62)}px;
-            font-weight: 900;
-            line-height: 1;
-            color: ${cashColor};
-            text-shadow: 0 0 2px #FFFFFF, 0 0 2px #FFFFFF, 0 0 3px #FFFFFF;
-            pointer-events: none;
-            z-index: 5;
-          ">$</span>
-        ` : ''}
         ${hasDuplicates && zBucket >= ZOOM_LEVELS.HIDE_NUMBERS ? `
           <div class="cluster-badge" style="
             position: absolute;
@@ -448,6 +423,31 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
           ` : ''}
         </svg>
 
+        ${hasCash ? `
+          <!-- Cash collection badge (owner request Nov 5 2026): a "$" sits at
+               the top/left of the status symbol on any stop that carries a COD
+               amount (cash, card or any other collection type). Colour is the
+               collection state, matching the stop-card badges: black = still to
+               collect (pending / in transit / en route), green = collected on a
+               completed stop, red = failed or cancelled. White text-shadow keeps
+               it readable over every pin fill and map background, and the size
+               scales with the pin (pending pins are 25% smaller, so their "$"
+               shrinks with them: "similar relative size for the pending
+               markers too"). -->
+          <span class="cash-badge" style="
+            position: absolute;
+            top: ${-(size * 0.24)}px;
+            left: ${-(size * 0.18)}px;
+            font-family: Arial, sans-serif;
+            font-size: ${Math.max(10, size * 0.62)}px;
+            font-weight: 900;
+            line-height: 1;
+            color: ${cashColor};
+            text-shadow: 0 0 2px #FFFFFF, 0 0 2px #FFFFFF, 0 0 3px #FFFFFF;
+            pointer-events: none;
+            z-index: 5;
+          ">$</span>
+        ` : ''}
         ${hasDuplicates && zBucket >= ZOOM_LEVELS.HIDE_NUMBERS ? `
           <div class="cluster-badge" style="
             position: absolute;
