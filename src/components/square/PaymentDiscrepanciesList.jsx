@@ -49,12 +49,32 @@ export default function PaymentDiscrepanciesList({
   };
   const sorted = [...discrepancies].sort((a, b) => deliveryMomentOf(b) - deliveryMomentOf(a));
 
+  // ── REAL DISCREPANCIES ONLY (owner spec Nov 5 2026) ────────────────────────
+  // "only show actual discrepancies where the amount in app is different from
+  // the square recorded type." A card-label swap (app Debit, Square Credit) on
+  // the SAME money is not a discrepancy — it is how the driver's POS reports the
+  // brand — and those rows were the bulk of the section. A row stays only when
+  // the money itself disagrees: app amount vs Square amount differ, cash was
+  // recorded but Square took a card, or Square has no payment at all.
+  const isRealDiscrepancy = (r) => {
+    const kind = String(r.discrepancy_kind || '');
+    if (kind === 'missing_payment') return true;
+    if (kind === 'cash_swiped') return true;
+    const appCents = Math.round(Number(r.amount_cents || 0));
+    const squareCents = Number(r.square_amount_cents);
+    if (!Number.isFinite(squareCents) || squareCents <= 0) return false;
+    return squareCents !== appCents;
+  };
+  const visible = sorted.filter(isRealDiscrepancy);
+  // Nothing but label noise left — hide the whole section instead of an empty box.
+  if (visible.length === 0) return null;
+
   return (
     <details className="group mt-3 rounded-xl border-2 border-red-300 dark:border-red-500/50 bg-red-50/60 dark:bg-red-950/30 p-3">
       <summary className="flex items-center justify-between gap-2 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
         <span className="text-sm font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
           <span className="inline-block text-[10px] transition-transform -rotate-90 group-open:rotate-0">▼</span>
-          Payment discrepancies ({discrepancies.length}) — recorded type vs Square
+          Payment discrepancies ({visible.length}) — amount in app vs Square
         </span>
         <button
           type="button"
@@ -65,7 +85,7 @@ export default function PaymentDiscrepanciesList({
         </button>
       </summary>
       <div className="mt-2 space-y-1.5">
-        {sorted.map((r) => {
+        {visible.map((r) => {
           // 1) Date & time — original delivery date + actual delivery time.
           const dtDate = r.delivery_date ? String(r.delivery_date).slice(0, 10) : null;
           // TZ FIX (owner report Oct 10 00:10: Patricia Dalpe showed 11:13,

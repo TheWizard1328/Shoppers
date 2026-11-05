@@ -669,10 +669,14 @@ async function computeSummary(b44, userId) {
       const tender = brand === 'INTERAC' ? 'debit' : (brand ? 'credit' : null);
       if (r?.delivery_id) {
         const id = String(r.delivery_id);
-        const rec = brandByDelivery.get(id) || { brands: new Set(), squareIds: [], tender: null };
+        const rec = brandByDelivery.get(id) || { brands: new Set(), squareIds: [], tender: null, cents: 0 };
         if (brand) rec.brands.add(brand);
         if (tender) rec.tender = tender;
         if (r?.square_id) rec.squareIds.push(r.square_id);
+        // Square's OWN recorded amount for this delivery (owner spec Nov 5 2026:
+        // the discrepancies list must only show rows where the in-app amount
+        // differs from what Square recorded).
+        rec.cents = Number(rec.cents || 0) + cents;
         brandByDelivery.set(id, rec);
       } else if (day && cents > 0 && tender) {
         const k = `${r?.location_id || ''}|${day}|${cents}`;
@@ -692,26 +696,39 @@ async function computeSummary(b44, userId) {
       const recCardTypes = [...new Set(cardEntries.map((p) => String(p?.type || '').toLowerCase()))];
       const recordedLabel = recordedIsCash ? 'Cash' : (recCardTypes.length > 1 ? 'mixed Debit+Credit' : (recCardTypes[0] === 'debit' ? 'Debit' : 'Credit'));
       // actual Square tender: linked rows first, else exact unlinked match
-      let actual = null; let squareId = null;
+      let actual = null; let squareId = null; let squareCents = null;
       const linked = brandByDelivery.get(String(d.id));
-      if (linked?.tender) { actual = linked.tender; squareId = linked.squareIds[0] || null; }
+      if (linked?.tender) {
+        actual = linked.tender;
+        squareId = linked.squareIds[0] || null;
+        squareCents = Number(linked.cents || 0) || null;
+      }
       if (!actual) {
         const locId = storeToLoc.get(String(d?.store_id || '')) || '';
         const day = String(d?.delivery_date || '').slice(0, 10);
         const tryCents = [...new Set([Math.round(Number(d?.cod_total_amount_required || 0) * 100), ...cardEntries.map((p) => Math.round(Number(p?.amount || 0) * 100))])].filter((c) => c > 0);
         for (const c of tryCents) {
           const hit = (unlinkedIdx.get(`${locId}|${day}|${c}`) || [])[0];
-          if (hit) { actual = hit.tender; squareId = hit.square_id; break; }
+          if (hit) { actual = hit.tender; squareId = hit.square_id; squareCents = c; break; }
         }
       }
+      const appCents = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
+      const amountDiffers = Number.isFinite(squareCents) && squareCents > 0 && squareCents !== appCents;
       const actualLabel = actual === 'debit' ? 'Debit' : (actual === 'credit' ? 'Credit' : null);
       if (recordedIsCash && actual) {
-        detected.set(String(d.id), { kind: 'cash_swiped', recorded: 'cash', actual, detail: `Recorded Cash · Square shows ${actualLabel}`, square_id: squareId });
+        detected.set(String(d.id), { kind: 'cash_swiped', recorded: 'cash', actual, detail: `Recorded Cash · Square shows ${actualLabel}${amountDiffers ? ` · app $${(appCents / 100).toFixed(2)} vs Square $${(squareCents / 100).toFixed(2)}` : ''}`, square_id: squareId, squareCents });
       } else if (!recordedIsCash && actual) {
-        if (recCardTypes.length > 1) {
-          detected.set(String(d.id), { kind: 'mixed_tenders', recorded: 'mixed', actual, detail: `Recorded ${recordedLabel} · Square shows ${actualLabel}`, square_id: squareId });
-        } else if (recCardTypes[0] !== actual) {
-          detected.set(String(d.id), { kind: 'type_mismatch', recorded: recCardTypes[0], actual, detail: `Recorded ${recordedLabel} · Square shows ${actualLabel}`, square_id: squareId });
+        // OWNER SPEC (Nov 5 2026): a card-label swap (app says Debit, Square says
+        // Credit) with the SAME money is not a discrepancy — it only showed up
+        // because the driver's POS reports the brand differently. Those rows now
+        // need a real money difference to be flagged. Cash-vs-card and
+        // no-payment-on-Square still always flag: the money itself moved wrong.
+        const _moneyDiff = amountDiffers;
+        const _amountNote = _moneyDiff ? ` · app $${(appCents / 100).toFixed(2)} vs Square $${(squareCents / 100).toFixed(2)}` : '';
+        if (recCardTypes.length > 1 && _moneyDiff) {
+          detected.set(String(d.id), { kind: 'mixed_tenders', recorded: 'mixed', actual, detail: `Recorded ${recordedLabel} · Square shows ${actualLabel}${_amountNote}`, square_id: squareId, squareCents });
+        } else if (recCardTypes.length === 1 && recCardTypes[0] !== actual && _moneyDiff) {
+          detected.set(String(d.id), { kind: 'type_mismatch', recorded: recCardTypes[0], actual, detail: `Recorded ${recordedLabel} · Square shows ${actualLabel}${_amountNote}`, square_id: squareId, squareCents });
         }
       } else if (!recordedIsCash && !actual) {
         // no Square payment found — only flag once past the ledger-sync lag
@@ -762,6 +779,7 @@ async function computeSummary(b44, userId) {
         store_abbrev: si?.abbreviation || null,
         store_color: si?.color || null,
         amount_cents: cents,
+        square_amount_cents: Number.isFinite(det.squareCents) ? det.squareCents : null,
         discrepancy_kind: det.kind,
         recorded_type: det.recorded || null,
         actual_type: det.actual,
