@@ -427,7 +427,27 @@ export function useStopCardStartActions({
           // Applies to ALL unfinished, non-marker stops (pending included —
           // pending stops joining the route later must not stay cycling).
           let optimizationDeliveries = allDeliveries;
-          if (getCyclingMarkerDisplayInfo(delivery).isCyclingEnd) {
+          // OWNER CHANGE (Nov 5 2026): Start on the cycling END marker must put
+          // every still-active cycling stop back into driving mode BEFORE the
+          // route optimizer runs, so the remaining stops are sequenced and
+          // polylined as driving legs instead of bicycle ones. Hardened here:
+          //  • the end marker is also recognised as the LAST unfinished marker on
+          //    the route, so a marker whose notes/transport_mode no longer say
+          //    'end' still triggers the switch;
+          //  • every flip is verified with a read-back and retried once, so a
+          //    swallowed write cannot leave a cycling stop stranded in the
+          //    driving phase.
+          const _cycMarkerInfo = getCyclingMarkerDisplayInfo(delivery);
+          let _isCyclingEndStart = _cycMarkerInfo.isCyclingEnd;
+          if (!_isCyclingEndStart && _cycMarkerInfo.isCyclingMarker) {
+            const _finishedForMarkerCheck = new Set(FINISHED_STATUSES);
+            const _laterUnfinishedMarkers = routeDeliveries.filter((d) =>
+              d && d.id !== delivery.id && d.is_cycling_marker
+              && !_finishedForMarkerCheck.has(String(d.status || '').toLowerCase())
+            );
+            _isCyclingEndStart = _laterUnfinishedMarkers.length === 0;
+          }
+          if (_isCyclingEndStart) {
             const finishedSetForCycling = new Set(FINISHED_STATUSES);
             const remainingCyclingStops = routeDeliveries.filter((d) =>
               d &&
@@ -440,6 +460,29 @@ export function useStopCardStartActions({
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, convertedCyclingStops);
               updateDeliveriesLocally?.(convertedCyclingStops, false);
               _cyclingSilentUpdates.push(...convertedCyclingStops.map((item) => ({ id: item.id, data: { transport_mode: 'driving' } })));
+              // Verification read-back: confirm the flips actually landed before
+              // the optimizer reads the route. One retry, then report.
+              let _stillCycling = [];
+              try {
+                for (const _c of convertedCyclingStops) {
+                  const _row = await offlineDB.getById(offlineDB.STORES.DELIVERIES, _c.id).catch(() => null);
+                  if (_row && String(_row.transport_mode || '').toLowerCase() === 'cycling') _stillCycling.push(_c);
+                }
+                if (_stillCycling.length > 0) {
+                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, _stillCycling.map((d) => ({ ...d, transport_mode: 'driving' })));
+                  updateDeliveriesLocally?.(_stillCycling.map((d) => ({ ...d, transport_mode: 'driving' })), false);
+                  _stillCycling = [];
+                  for (const _c of convertedCyclingStops) {
+                    const _row = await offlineDB.getById(offlineDB.STORES.DELIVERIES, _c.id).catch(() => null);
+                    if (_row && String(_row.transport_mode || '').toLowerCase() === 'cycling') _stillCycling.push(_c);
+                  }
+                }
+              } catch (_cycVerifyErr) {
+                console.warn('[start_button] cycling->driving verification skipped:', _cycVerifyErr?.message || _cycVerifyErr);
+              }
+              if (_stillCycling.length > 0) {
+                console.warn(`[start_button] ${_stillCycling.length} stop(s) still cycling after the switch — optimizer runs with the corrected in-memory copy anyway`);
+              }
               const convertedIds = new Set(convertedCyclingStops.map((d) => d.id));
               optimizationDeliveries = allDeliveries.map((d) =>
                 convertedIds.has(d?.id) ? { ...d, transport_mode: 'driving' } : d
