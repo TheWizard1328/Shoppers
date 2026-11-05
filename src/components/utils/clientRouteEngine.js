@@ -1656,7 +1656,7 @@ let _inheritedWindowCount = 0;
           .filter((st) => st?.delivery && ['en_route', 'in_transit'].includes(String(st.delivery.status || '')))
           .sort((a, b) => (Number(a.delivery.stop_order) || 0) - (Number(b.delivery.stop_order) || 0));
         let _heals = 0;
-        for (let i = 0; i < _orderedActive.length && _heals < 5; i++) {
+        for (let i = 0; i < _orderedActive.length && _heals < 10; i++) {
           const st = _orderedActive[i];
           if (st.lat == null || st.lng == null) continue;
           const prevRow = i > 0 ? _orderedActive[i - 1] : null;
@@ -1670,8 +1670,13 @@ let _inheritedWindowCount = 0;
           const _storedOk = typeof _stored === 'string' && _stored.length > 10;
           const _stamp = st.delivery.polyline_from_order == null ? null : Number(st.delivery.polyline_from_order);
           const _order = st.delivery.stop_order == null ? null : Number(st.delivery.stop_order);
+          // OWNER DIRECTIVE (Nov 5 2026): Start regenerates ALL remaining legs,
+          // not only the ones whose order changed. A leg is only kept when THIS
+          // run produced a usable segment for it; anything else is rebuilt even
+          // if its stored stamp looks current, so a stale leg can never survive
+          // a Start because nothing about its order moved.
           const _stampStale = !_storedOk || !Number.isFinite(_stamp) || !Number.isFinite(_order) || _stamp !== _order;
-          if (!_stampStale) continue; // already-good leg from a previous run
+          if (!_stampStale && !forceRegenerate) continue;
           _heals += 1;
           console.log(`[clientRouteEngine] ${source} — rebuilding missing inbound leg for stop ${_order ?? st.delivery.id} from predecessor ${prevRow ? (prevRow.delivery.stop_order ?? prevRow.delivery.id) : 'origin'}`);
           try {

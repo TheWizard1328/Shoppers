@@ -29,7 +29,7 @@
  */
 import { useCallback, useEffect, useRef } from 'react';
 import { emitGatedEvent, isUIHidden } from '@/components/utils/uiGate';
-import { deviationFromDeliveryPolylineMeters, getDeviationSettings } from '@/components/utils/routeDeviationDetector';
+import { deviationFromDeliveryPolylineMeters, getDeviationSettings, resolveDeviationThresholdMeters, isCyclingLeg } from '@/components/utils/routeDeviationDetector';
 import { getDeliveryCoords } from '@/components/utils/clientRouteEngine';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { resolvePolylineOrigin } from '@/components/utils/polylineOriginRules';
@@ -393,7 +393,6 @@ export async function checkCurrentLegDeviationOnDuty({
 
   const settings = getDeviationSettings();
   if (!settings.enableRouteDeviationDetection) return { checked: false, reason: 'detection_disabled' };
-  const threshold = Number(settings.routeDeviationThresholdMeters) || 200;
   const cooldownMs = (Number(settings.routeDeviationCooldownMinutes) || 5) * 60 * 1000;
 
   const todayStr = localDateString();
@@ -408,6 +407,9 @@ export async function checkCurrentLegDeviationOnDuty({
   if (!nextStop) return { checked: false, reason: 'no_next_stop' };
   // Cycling markers have their own specialized regen paths — never deviation-regen them.
   if (nextStop.delivery_notes === 'Cycling Route Start') return { checked: false, reason: 'cycling_marker' };
+
+  // Cycling legs use the tighter cycling threshold (default half of driving).
+  const threshold = resolveDeviationThresholdMeters(settings, { cycling: isCyclingLeg(nextStop) });
 
   const distance = deviationFromDeliveryPolylineMeters(Number(lat), Number(lng), nextStop.encoded_polyline);
   if (!Number.isFinite(distance) || distance <= threshold) {
@@ -492,7 +494,6 @@ export function useRouteDeviationMonitor({
 
       const settings = getDeviationSettings();
       if (!settings.enableRouteDeviationDetection) { _diag('gate:disabled_setting'); return; }
-      const threshold = Number(settings.routeDeviationThresholdMeters) || 200;
       const cooldownMs = (Number(settings.routeDeviationCooldownMinutes) || 5) * 60 * 1000;
 
       // Prefer the direct fix (safety interval) over the state value — the
@@ -542,6 +543,9 @@ export function useRouteDeviationMonitor({
       // Cycling markers have their own specialized regen paths (segment-only,
       // hand-picked origins) — never deviation-regen them.
       if (nextStop.delivery_notes === 'Cycling Route Start') { _diag('gate:cycling_marker'); return; }
+
+      // Cycling legs use the tighter cycling threshold (default half of driving).
+      const threshold = resolveDeviationThresholdMeters(settings, { cycling: isCyclingLeg(nextStop) });
 
       // Stored-leg origin sanity (once per leg): a leg anchored to a pending
       // stop is regenerated from the real origin before any deviation math.

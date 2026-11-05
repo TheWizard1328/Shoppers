@@ -36,8 +36,31 @@ const SETTINGS_KEY = 'rxdeliver_route_optimization_settings';
 export const DEFAULT_DEVIATION_SETTINGS = {
   enableRouteDeviationDetection: true,
   routeDeviationThresholdMeters: 200,
+  // OWNER REQUEST (Nov 5 2026): cycling moves slower, so the same lateral drift
+  // means a bigger real detour on a bike. The cycling threshold is a SEPARATE
+  // value derived from the driving one — half of it by default — so a wrong turn
+  // is caught sooner while cycling without changing driving behaviour.
+  routeCyclingDeviationFactor: 0.5,
   routeDeviationCooldownMinutes: 5,
 };
+
+export const isCyclingLeg = (delivery) =>
+  String(delivery?.transport_mode || '').toLowerCase() === 'cycling';
+
+/**
+ * The distance a fix may sit off the painted leg before it counts as a wrong
+ * turn. Cycling gets its own, tighter value (default: half the driving value).
+ */
+export function resolveDeviationThresholdMeters(settings, { cycling = false } = {}) {
+  const resolved = settings || getDeviationSettings();
+  const base = Number(resolved?.routeDeviationThresholdMeters) || DEFAULT_DEVIATION_SETTINGS.routeDeviationThresholdMeters;
+  if (!cycling) return base;
+  const rawFactor = Number(resolved?.routeCyclingDeviationFactor);
+  const factor = Number.isFinite(rawFactor) && rawFactor > 0 && rawFactor <= 1
+    ? rawFactor
+    : DEFAULT_DEVIATION_SETTINGS.routeCyclingDeviationFactor;
+  return Math.max(20, Math.round(base * factor));
+}
 
 export function getDeviationSettings() {
   try {
@@ -55,6 +78,7 @@ export function getDeviationSettings() {
 const SERVER_SYNCED_KEYS = [
   'enableRouteDeviationDetection',
   'routeDeviationThresholdMeters',
+  'routeCyclingDeviationFactor',
   'routeDeviationCooldownMinutes',
   'locationUpdateIntervalSeconds',
   'minMovementDistanceMeters',
