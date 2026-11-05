@@ -45,6 +45,11 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
   // OWNER REQUEST Nov 5 2026: rate-history rows are editable. While an entry is
   // being edited, Save rewrites THAT entry instead of appending a new one.
   const [editingHistoryKey, setEditingHistoryKey] = useState(null);
+  // Full edit dialog for one rate-history entry (owner request Nov 5 2026): the
+  // pencil used to only prefill the main form and show an "editing" label, which
+  // meant scrolling and re-saving the whole driver. Each entry now opens its own
+  // popup with every pay-rate field plus the effective date.
+  const [historyDraft, setHistoryDraft] = useState(null);
 
   // Load Square locations on mount
   useEffect(() => {
@@ -580,16 +585,16 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                             e.preventDefault();
                             e.stopPropagation();
                             setEditingHistoryKey(i);
-                            setFormData(prev => ({
-                              ...prev,
+                            setHistoryDraft({
+                              index: i,
+                              effective_date: String(entry.effective_date || '').slice(0, 10) || format(new Date(), 'yyyy-MM-dd'),
                               pay_rate_per_delivery: formatRate(entry.pay_rate_per_delivery),
                               extra_km_rate: formatRate(entry.extra_km_rate),
                               extra_km_limit: formatRate(entry.extra_km_limit),
                               oversized_item_rate: formatRate(entry.oversized_item_rate),
-                              pay_cycle_type: entry.pay_cycle_type || prev.pay_cycle_type,
-                              gst_hst_enabled: entry.gst_hst_enabled ?? prev.gst_hst_enabled,
-                              effective_date: String(entry.effective_date || '').slice(0, 10) || prev.effective_date
-                            }));
+                              pay_cycle_type: entry.pay_cycle_type || 'monthly',
+                              gst_hst_enabled: entry.gst_hst_enabled === true
+                            });
                           }}
                         >
                           <Pencil className="w-3 h-3" />
@@ -630,6 +635,97 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           </Button>
         </div>
       </DialogContent>
+
+      {/* ── EDIT ONE RATE-HISTORY ENTRY (owner request Nov 5 2026) ─────────────
+          Popup with every pay-rate field plus the effective date. Saving rewrites
+          that entry in place — no new history row, no touching the driver's
+          current rates. */}
+      <Dialog open={!!historyDraft} onOpenChange={(open) => { if (!open) { setHistoryDraft(null); setEditingHistoryKey(null); } }}>
+        <DialogContent className="max-w-sm z-[10005]">
+          <DialogHeader>
+            <DialogTitle className="text-base">Edit rate entry</DialogTitle>
+          </DialogHeader>
+          {historyDraft && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Effective date</Label>
+                <Input
+                  type="date"
+                  value={historyDraft.effective_date || ''}
+                  onChange={(e) => setHistoryDraft((d) => ({ ...d, effective_date: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Per delivery ($)</Label>
+                  <Input type="number" step="0.01" value={historyDraft.pay_rate_per_delivery ?? ''}
+                    onChange={(e) => setHistoryDraft((d) => ({ ...d, pay_rate_per_delivery: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs">Oversized ($)</Label>
+                  <Input type="number" step="0.01" value={historyDraft.oversized_item_rate ?? ''}
+                    onChange={(e) => setHistoryDraft((d) => ({ ...d, oversized_item_rate: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs">Extra KM ($/km)</Label>
+                  <Input type="number" step="0.01" value={historyDraft.extra_km_rate ?? ''}
+                    onChange={(e) => setHistoryDraft((d) => ({ ...d, extra_km_rate: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs">KM limit (km)</Label>
+                  <Input type="number" step="0.01" value={historyDraft.extra_km_limit ?? ''}
+                    onChange={(e) => setHistoryDraft((d) => ({ ...d, extra_km_limit: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Pay cycle</Label>
+                <Select value={historyDraft.pay_cycle_type || 'monthly'}
+                  onValueChange={(v) => setHistoryDraft((d) => ({ ...d, pay_cycle_type: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="z-[10006]">
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="biweekly">Bi-Weekly</SelectItem>
+                    <SelectItem value="semimonthly">Semimonthly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="flex items-center gap-2 text-xs">
+                <Checkbox checked={historyDraft.gst_hst_enabled === true}
+                  onCheckedChange={(v) => setHistoryDraft((d) => ({ ...d, gst_hst_enabled: v === true }))} />
+                GST/HST
+              </label>
+              <div className="flex gap-2 justify-end pt-1">
+                <Button variant="outline" size="sm"
+                  onClick={() => { setHistoryDraft(null); setEditingHistoryKey(null); }}>
+                  Cancel
+                </Button>
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => {
+                    const idx = Number(historyDraft.index);
+                    const nextEntry = {
+                      effective_date: historyDraft.effective_date || format(new Date(), 'yyyy-MM-dd'),
+                      pay_rate_per_delivery: parseFloat(historyDraft.pay_rate_per_delivery) || 0,
+                      extra_km_rate: parseFloat(historyDraft.extra_km_rate) || 0,
+                      extra_km_limit: parseFloat(historyDraft.extra_km_limit) || 0,
+                      oversized_item_rate: parseFloat(historyDraft.oversized_item_rate) || 0,
+                      pay_cycle_type: historyDraft.pay_cycle_type || 'monthly',
+                      gst_hst_enabled: historyDraft.gst_hst_enabled === true
+                    };
+                    setFormData((prev) => ({
+                      ...prev,
+                      pay_rate_history: (prev.pay_rate_history || []).map((entry, i) => (i === idx ? { ...entry, ...nextEntry } : entry))
+                    }));
+                    setHistoryDraft(null);
+                    setEditingHistoryKey(null);
+                  }}>
+                  Save entry
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
