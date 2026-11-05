@@ -27,17 +27,13 @@
  * Square day buckets, and paying wall-clock hours is the intended behaviour.
  */
 
-// WHY 'America/Denver' AND NOT 'America/Edmonton':
-// Alberta observes the ordinary North American Mountain-Time DST rule (2nd Sun
-// Mar 02:00 -> 1st Sun Nov 02:00, -6 MDT / -7 MST) — the rule America/Denver
-// encodes in ICU/tzdata. Some tzdata builds additionally ship an Alberta-only
-// override that skips the Nov 1 2026 fall-back and freezes the province on MDT
-// (-6); that override does not match reality (owner-verified Nov 1 2026: server
-// clock 20:53Z = 13:53 MST, and an override build reports 14:53 for the same
-// instant). Denver carries the standard Mountain rule on every build: identical
-// to Edmonton when the database is right, and still right when it is not.
-// No offset or transition date is hardcoded anywhere.
-const TZ = 'America/Denver';
+// WHY 'America/Edmonton' (corrected Nov 5 2026): this module used to call
+// 'America/Denver' because some tzdata builds were said to carry a bogus
+// Alberta "permanent UTC-6" override. That was backwards — the override is
+// reality: measured at UTC 2026-11-05 23:17, Denver said 16:17 MST while
+// Edmonton, the platform clock and the owner's phone all said 17:17 CST.
+// Offsets now come from the tz database for America/Edmonton directly.
+const TZ = 'America/Edmonton';
 
 // ── PERMANENT UTC-6 FROM NOV 1 2026 (verified again Nov 2 2026) ──────────────
 // Alberta does NOT follow the Nov 1 2026 fall-back: the province stays on

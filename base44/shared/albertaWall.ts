@@ -1,8 +1,9 @@
 // ── Edmonton (America/Edmonton) wall-clock helpers — BACKEND ─────────────────
-// OWNER DIRECTIVE (Nov 1 2026): Alberta did NOT go permanent UTC-6. The Nov 1
-// fall-back happened normally and the province keeps the ordinary DST cycle
-// (-6 MDT / -7 MST). Every hardcoded "permanent UTC-6 from Nov 1 2026" rule in
-// this app was FALSE and shifted everything an hour late from Nov 1 onward.
+// OWNER CORRECTION (Nov 5 2026): Alberta IS on permanent UTC-6. A Nov 1 note
+// claimed the fall-back happened normally; field evidence (owner's phone,
+// platform clock, driver wall clocks, and America/Edmonton in the tz database)
+// all read UTC-6 on Nov 5, while America/Denver read UTC-7. Offsets always come
+// from the tz database for America/Edmonton — never hardcoded.
 //
 // Rule from here on: NEVER hardcode an offset and NEVER hardcode a transition
 // date. Ask the tz database through Intl with timeZone 'America/Edmonton'.
@@ -17,17 +18,19 @@
 // paying wall-clock hours is the intended behaviour and payroll math is
 // unaffected for every other hour of the year.
 
-// WHY 'America/Denver' AND NOT 'America/Edmonton':
-// Alberta observes the ordinary North American Mountain-Time DST rule (2nd Sun
-// Mar 02:00 -> 1st Sun Nov 02:00, -6 MDT / -7 MST) — the rule America/Denver
-// encodes in ICU/tzdata. Some tzdata builds additionally ship an Alberta-only
-// override that skips the Nov 1 2026 fall-back and freezes the province on MDT
-// (-6); that override does not match reality (owner-verified Nov 1 2026: server
-// clock 20:53Z = 13:53 MST, and a tzdata build with the override reports 14:53
-// for the same instant). Denver carries the standard Mountain rule on every
-// build: identical to Edmonton when the database is right, and still right when
-// the database carries the override. No offset or transition date is hardcoded.
-const TZ = 'America/Denver';
+// WHY 'America/Edmonton' (owner report Nov 5 2026, FIXED):
+// This module previously asked for 'America/Denver' on the theory that some
+// tzdata builds carried a bogus Alberta "permanent UTC-6" override and that
+// Denver was the safer, standard-Mountain witness. That theory was wrong and it
+// cost an hour on every backend stamp from Nov 1 2026 on. Measured on the live
+// server at UTC 2026-11-05 23:17:
+//     America/Denver   -> 16:17 MST
+//     America/Edmonton -> 17:17 CST
+// and the owner's phone, the platform clock and the drivers' wall clocks all
+// read 17:17. Alberta really is on permanent UTC-6; the tz database says so and
+// the phones agree. Driving the wall clock off America/Edmonton is therefore the
+// only correct source — no offset and no transition date is hardcoded here.
+const TZ = 'America/Edmonton';
 
 const pad = (v: number) => String(v).padStart(2, '0');
 
