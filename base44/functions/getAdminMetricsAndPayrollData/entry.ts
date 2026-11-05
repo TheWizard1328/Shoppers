@@ -669,29 +669,53 @@ Deno.serve(async (req) => {
       try { return JSON.parse(parts.map((r) => String(r.part_text || '')).join('')); } catch (_) { return null; }
     };
 
+    // ── DAMAGE DETECTION (owner report Nov 5 2026) ──────────────────────────────
+    // "there are multiple missing months. We are missing June August September and
+    // October." Cause: the header row was stubbed (`admin_metrics: {}`) while
+    // AdminMetricsChunk did not exist in this app yet, so every chunk create
+    // failed into a console.warn — the month's payload was replaced by an empty
+    // stub with no slices to read it back from, and the freshness check still
+    // called that row fresh, so it was never recomputed. A stub with NO chunk
+    // rows is data loss, not a cache state: the month is dropped from the summary
+    // list and rebuilt from Deliveries (the real source of truth).
+    const damagedSummaryMonths = new Set();
+    const _cityChunkCache = new Map();
+    const fetchCityChunkRowsCached = async (cityId) => {
+      if (_cityChunkCache.has(cityId)) return _cityChunkCache.get(cityId);
+      const rows = await fetchCityChunkRows(cityId);
+      _cityChunkCache.set(cityId, rows);
+      return rows;
+    };
     const hydrateSummaries = async (records, cityId) => {
       const list = records || [];
       if (!list.length) return list;
       const isEmptyBlob = (v) => v == null || (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
-      const needing = list.filter((rec) => rec && (isEmptyBlob(rec.admin_metrics) || isEmptyBlob(rec.payroll_metrics)));
+      const needing = list.filter((rec) => rec && isEmptyBlob(rec.admin_metrics));
       if (!needing.length) return list;
-      let chunkRows = [];
-      try { chunkRows = await fetchCityChunkRows(cityId); } catch (_) { return list; }
-      if (!chunkRows.length) return list;
-      return list.map((rec) => {
-        if (!rec) return rec;
+      const chunkRows = await fetchCityChunkRowsCached(cityId);
+      const out = [];
+      for (const rec of list) {
+        if (!rec) continue;
+        if (!isEmptyBlob(rec.admin_metrics)) { out.push(rec); continue; }
         const rows = chunksFor(chunkRows, rec.year, rec.month);
-        if (!rows.length) return rec;
-        const out = { ...rec };
-        if (isEmptyBlob(out.admin_metrics)) { const adm = reassemble(rows, 'admin_metrics'); if (adm != null) out.admin_metrics = adm; }
-        if (isEmptyBlob(out.payroll_metrics)) { const pm = reassemble(rows, 'payroll_metrics'); if (pm != null) out.payroll_metrics = pm; }
-        return out;
-      });
+        const adm = rows.length ? reassemble(rows, 'admin_metrics') : null;
+        if (adm == null) {
+          // Nothing to rehydrate — rebuild this month instead of serving blanks.
+          damagedSummaryMonths.add(summaryNum(rec.month));
+          console.warn(`[AdminMetricsSummary] ${rec.year}-${rec.month} has an empty payload and no chunk rows — dropping it from the summary set so it is recomputed`);
+          continue;
+        }
+        const next = { ...rec, admin_metrics: adm };
+        if (isEmptyBlob(next.payroll_metrics)) { const pm = reassemble(rows, 'payroll_metrics'); if (pm != null) next.payroll_metrics = pm; }
+        out.push(next);
+      }
+      return out;
     };
 
     const writeSummaryChunks = async ({ cityId, year, month, summaryId, blobs }) => {
       const entity = base44.asServiceRole.entities.AdminMetricsChunk;
-      const existing = chunksFor(await fetchCityChunkRows(cityId), year, month);
+      let failed = 0;
+      const existing = chunksFor(await fetchCityChunkRowsCached(cityId), year, month);
       const bySlot = new Map(existing.map((r) => [`${r.chunk_key}#${Number(r.part_index || 0)}`, r]));
       const wanted = new Set();
       const stamp = new Date().toISOString();
@@ -716,6 +740,7 @@ Deno.serve(async (req) => {
               await entity.create(row);
             }
           } catch (e) {
+            failed += 1;
             console.warn(`[AdminMetricsChunk] write ${key}#${i} failed:`, e?.message || e);
           }
         }
@@ -724,6 +749,11 @@ Deno.serve(async (req) => {
       for (const [slot, row] of bySlot.entries()) {
         if (!wanted.has(slot) && row?.id) await entity.delete(row.id).catch(() => null);
       }
+      // Callers must know whether every slice actually landed: stubbing the
+      // header after a partial write is exactly how four months were emptied
+      // (Nov 5 2026). A failed slice means 'keep the inline blob'.
+      if (failed > 0) console.warn(`[AdminMetricsChunk] ${year}-${month}: ${failed} slice write(s) failed`);
+      return { ok: failed === 0, failed };
     };
 
     // ── ONE-TIME LEGACY MIGRATION ───────────────────────────────────────────────
@@ -745,13 +775,19 @@ Deno.serve(async (req) => {
         const batch = legacy.slice(0, LEGACY_MIGRATION_PER_REQUEST);
         for (const raw of batch) {
           const hydrated = (hydratedRecords || []).find((h) => h && h.id === raw.id) || raw;
-          await writeSummaryChunks({
+          const writeResult = await writeSummaryChunks({
             cityId,
             year: raw.year,
             month: raw.month,
             summaryId: raw.id,
             blobs: { admin_metrics: hydrated?.admin_metrics || null, payroll_metrics: hydrated?.payroll_metrics || null }
           });
+          if (!writeResult?.ok) {
+            // Slices did not all land: slimming this header would destroy the
+            // only copy of the month. Leave it inline and retry next load.
+            console.warn(`[AdminMetricsChunk] skipped slimming ${raw.year}-${raw.month}: ${writeResult?.failed ?? '?'} slice write(s) failed`);
+            continue;
+          }
           await base44.asServiceRole.entities.AdminMetricsSummary
             .update(raw.id, {
               admin_metrics: {},
@@ -847,11 +883,19 @@ Deno.serve(async (req) => {
       }
       // Chunks are written AFTER the header exists so a crash leaves a re-buildable
       // summary (missing blob = recompute) rather than orphans with no parent.
-      await writeSummaryChunks({
+      const chunkResult = await writeSummaryChunks({
         cityId, year, month,
         summaryId: saved?.id || existingRecord?.id || null,
         blobs: { admin_metrics: adminMetrics, payroll_metrics: slimPayroll }
       });
+      if (!chunkResult?.ok && saved?.id) {
+        // NEVER stub a header the chunks cannot back (Nov 5 2026: four months
+        // went blank this way). Re-inline the payload; an oversize broadcast
+        // warning is far cheaper than an empty month.
+        console.warn(`[AdminMetricsChunk] ${year}-${month}: keeping inline blobs, ${chunkResult?.failed ?? '?'} slice write(s) failed`);
+        await entity.update(saved.id, { admin_metrics: adminMetrics, payroll_metrics: slimPayroll }).catch(() => null);
+      }
+      _cityChunkCache.delete(cityId);
       return withBlobs(saved);
     };
 
@@ -1243,6 +1287,7 @@ Deno.serve(async (req) => {
       const currentMonthNumber = new Date().getMonth() + 1;
 
       for (let month = 1; month <= 12; month++) {
+        if (options.onlyMonths && !options.onlyMonths.includes(month)) continue;
         if (options.refreshCurrentMonthOnly && year === new Date().getFullYear() && month !== currentMonthNumber) continue;
         const { start, end } = getMonthDateRange(year, month);
         const monthData = options.refreshCurrentMonthOnly
@@ -1322,15 +1367,23 @@ Deno.serve(async (req) => {
 
       const shouldManualFullRefresh = forceRefreshCurrentYear === true && adminMetricsYear === currentYear;
       const needsInitialSummaryBuild = !summaryRecords.length;
+      // Months whose payload was emptied (header stub with no chunk slices) are
+      // rebuilt from their deliveries, not served as blanks.
+      const damagedMonths = damagedSummaryMonths.size > 0 ? Array.from(damagedSummaryMonths).sort((a, b) => a - b) : null;
+      const needsDamageRebuild = !!damagedMonths;
+      if (needsDamageRebuild) {
+        console.warn(`[AdminMetricsSummary] rebuilding damaged month(s) ${damagedMonths.join(', ')} for ${adminMetricsYear}`);
+      }
       const needsCurrentMonthRefresh = adminMetricsYear === currentYear && (
         refreshCurrentMonthSummary === true || summaryRecords.length < 12
       );
 
-      if (needsInitialSummaryBuild || shouldManualFullRefresh || needsCurrentMonthRefresh) {
+      if (needsInitialSummaryBuild || shouldManualFullRefresh || needsCurrentMonthRefresh || needsDamageRebuild) {
         const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, {
-          force: shouldManualFullRefresh,
+          force: shouldManualFullRefresh || needsDamageRebuild,
           includePayroll: false,
-          refreshCurrentMonthOnly: !shouldManualFullRefresh && adminMetricsYear === currentYear
+          onlyMonths: needsDamageRebuild && !shouldManualFullRefresh ? damagedMonths : null,
+          refreshCurrentMonthOnly: !shouldManualFullRefresh && !needsDamageRebuild && adminMetricsYear === currentYear
         });
 
         if (shouldManualFullRefresh || needsInitialSummaryBuild) {
