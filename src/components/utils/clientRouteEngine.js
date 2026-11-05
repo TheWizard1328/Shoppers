@@ -1441,7 +1441,7 @@ let _inheritedWindowCount = 0;
       const _isCyclingModeStop = (s) => String(s?.delivery?.transport_mode || '').toLowerCase() === 'cycling';
       const _startM = _liveStops.find((s) => s.delivery.is_cycling_marker && String(s.delivery.delivery_notes || '').toLowerCase().includes('start'));
       const _endM = _liveStops.find((s) => s.delivery.is_cycling_marker && String(s.delivery.delivery_notes || '').toLowerCase().includes('end'));
-      const _cyclingStops = _liveStops.filter(_isCyclingModeStop);
+      let _cyclingStops = _liveStops.filter(_isCyclingModeStop);
 
       // OWNER REPORT (Nov 5 2026): a cycling loop made of ONLY the two markers —
       // no cycling-mode stops — regenerated the leg INTO the start marker and then
@@ -1461,6 +1461,21 @@ let _inheritedWindowCount = 0;
       const _endAny = _markerFrom('end');
       const _startLiveM = _startAny && !_finishedStatuses.includes(String((_startAny.delivery || _startAny).status || '')) ? _startAny : null;
       const _endLiveM = _endAny && !_finishedStatuses.includes(String((_endAny.delivery || _endAny).status || '')) ? _endAny : null;
+
+      // OWNER CORRECTION (Nov 5 2026): the loop is defined by POSITION, not by each
+      // stop's transport_mode flag. The real loop was Start(10) -> Callingwood pickup
+      // (11, flagged DRIVING) -> Hampton delivery (12, flagged cycling) -> End(13), so
+      // the pickup sat inside the loop yet was excluded from the bicycle pass and kept
+      // its pre-cycling driving leg. Any live stop whose stop_order falls between the
+      // two markers now belongs to the loop regardless of its transport_mode.
+      const _startOrderNum = Number(_startAny?.stop_order ?? _startAny?.delivery?.stop_order);
+      const _endOrderNum = Number(_endAny?.stop_order ?? _endAny?.delivery?.stop_order);
+      if (Number.isFinite(_startOrderNum) && Number.isFinite(_endOrderNum) && _endOrderNum > _startOrderNum) {
+        _cyclingStops = _liveStops.filter((s) => !s.delivery.is_cycling_marker
+          && (_isCyclingModeStop(s)
+            || (Number(s.delivery.stop_order) > _startOrderNum && Number(s.delivery.stop_order) <= _endOrderNum)));
+      }
+      const _cyclingStopIds = new Set(_cyclingStops.map((s) => String(s.delivery.id)));
 
       if (_startAny || _endAny) {
         const _coordOf = (row) => row
@@ -1500,7 +1515,7 @@ let _inheritedWindowCount = 0;
         // ── PASS 1B — the driving legs. While a cycling loop is still open the
         // driver re-enters the car at the END marker, so every driving stop is
         // painted from there (not from the last finished stop inside the loop).
-        const _driveTargets = _liveStops.filter((s) => !_isCyclingModeStop(s)
+        const _driveTargets = _liveStops.filter((s) => !_cyclingStopIds.has(String(s.delivery.id))
           && (!_endAny || s.delivery.id !== (_endAny.delivery?.id || _endAny.id)));
         if (_driveTargets.length > 0) {
           const _driveOrigin = (_endLiveM && Number.isFinite(_endCoords?.lat))
