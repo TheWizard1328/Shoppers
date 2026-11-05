@@ -301,6 +301,15 @@ const enqueue = async (level, args, extra = {}) => {
   if (!levels.includes(level)) return;
 
   const message = args.map(stringifyArg).join(' ').slice(0, 5000);
+  // ── EXPECTED 404 NOISE (owner report Nov 5 2026) ──────────────────────────
+  // "SquareBalancesSnapshot with ID … not found" fires whenever a ping event
+  // names a snapshot payload record another device already replaced or the dupe
+  // cleanup removed. The caller (fetchLatestSharedSnapshot) catches it and falls
+  // back to a list pull, so it is a normal race, not a fault — but the SDK's own
+  // console.error wrote TWO rows per hit ("[Base44 SDK Error] 404:…" plus the
+  // "Error data: {…}" echo) and they dominated the hourly digest. Dropped from
+  // the remote buffer; the console line still prints for local debugging.
+  if (/Entity SquareBalancesSnapshot with ID \S+ not found/.test(message)) return;
   // Capture blacklist — repetitive walk/scan messages that vary per iteration
   // (dates, stores) defeat fingerprint dedup and previously grew RemoteLogEntry
   // to 200k+ rows/day. Source-side aggregation is the primary fix; this stops

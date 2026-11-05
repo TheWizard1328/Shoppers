@@ -271,14 +271,37 @@ export const publishSharedSnapshot = async (data, { version, userId, userName, d
 /**
  * Pull the newest shared snapshot record (whole database), or null.
  */
+// A ping can name a payload record another device already replaced or the dupe
+// cleanup deleted; the read then 404s. Remember those ids briefly so every
+// device stops paying for a GET that cannot succeed (owner report Nov 5 2026 —
+// two ids kept 404-ing for minutes because each pull retried them).
+const MISSING_SNAPSHOT_MS = 10 * 60 * 1000;
+const missingSnapshotIds = new Map();
+
 export const fetchLatestSharedSnapshot = async (preferredId = null) => {
   // BY-ID FIRST (Nov 3 2026): a ping tells us exactly which record to read, so
   // the pull is ONE record read instead of a list that drags whole payloads.
   if (preferredId) {
-    try {
-      const rec = await readSnapshotPayload(await base44.entities.SquareBalancesSnapshot.get(preferredId));
-      if (rec?.payload) return rec;
-    } catch { /* fall through to the list */ }
+    const missingAt = missingSnapshotIds.get(String(preferredId));
+    if (missingAt && Date.now() - missingAt < MISSING_SNAPSHOT_MS) {
+      // Known-dead id: skip straight to the list pull.
+    } else {
+      try {
+        const rec = await readSnapshotPayload(await base44.entities.SquareBalancesSnapshot.get(preferredId));
+        missingSnapshotIds.delete(String(preferredId));
+        if (rec?.payload) return rec;
+      } catch (e) {
+        const msg = String(e?.message || e?.detail || e || '');
+        if (/not found|404/i.test(msg)) {
+          missingSnapshotIds.set(String(preferredId), Date.now());
+          if (missingSnapshotIds.size > 50) {
+            const oldest = [...missingSnapshotIds.entries()].sort((a, b) => a[1] - b[1])[0];
+            if (oldest) missingSnapshotIds.delete(oldest[0]);
+          }
+        }
+        /* fall through to the list */
+      }
+    }
   }
   try {
     // Ping / part rows carry no payload — never treat one as the snapshot.
