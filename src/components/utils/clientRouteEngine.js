@@ -1970,7 +1970,17 @@ let _inheritedWindowCount = 0;
       // stored leg NULLED on every pass — and when that stop is the leg the
       // driver is actually on (isNextDelivery), the clear/redraw alternated
       // forever, one API call per round. The current leg is never cleared.
-      ...(isPending && stop.is_cycling_marker !== true && stop.delivery?.isNextDelivery !== true
+      // OWNER REPORT (Nov 5 2026, Sharuk stop 5): after a manual optimize the
+      // current leg vanished from the map while the record still held its
+      // polyline online. Cause: this clear fired for any stop the ENGINE read as
+      // pending, which included an in-hand stop whose snapshot lagged — the IDB
+      // copy lost its geometry, the server copy kept it, and the map had nothing
+      // to draw. The clear now also requires the stop's OWN status to really be
+      // 'pending'; en_route / in_transit / anything in hand always keeps its leg.
+      ...(isPending
+        && String(stop?.status || stop?.delivery?.status || '').toLowerCase() === 'pending'
+        && stop.is_cycling_marker !== true
+        && stop.delivery?.isNextDelivery !== true
         ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
 
