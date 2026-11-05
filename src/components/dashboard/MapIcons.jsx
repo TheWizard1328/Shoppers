@@ -270,6 +270,31 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
           ` : ''}
         </svg>
 
+        ${hasCash ? `
+          <!-- Cash collection badge (owner request Nov 5 2026): a "$" sits at
+               the top/left of the status symbol on any stop that carries a COD
+               amount (cash, card or any other collection type). Colour is the
+               collection state, matching the stop-card badges: black = still to
+               collect (pending / in transit / en route), green = collected on a
+               completed stop, red = failed or cancelled. White text-shadow keeps
+               it readable over every pin fill and map background, and the size
+               scales with the pin (pending pins are 25% smaller, so their "$"
+               shrinks with them: "similar relative size for the pending
+               markers too"). -->
+          <span class="cash-badge" style="
+            position: absolute;
+            top: ${-(size * 0.24)}px;
+            left: ${-(size * 0.18)}px;
+            font-family: Arial, sans-serif;
+            font-size: ${Math.max(10, size * 0.62)}px;
+            font-weight: 900;
+            line-height: 1;
+            color: ${cashColor};
+            text-shadow: 0 0 2px #FFFFFF, 0 0 2px #FFFFFF, 0 0 3px #FFFFFF;
+            pointer-events: none;
+            z-index: 5;
+          ">$</span>
+        ` : ''}
         ${hasDuplicates && zBucket >= ZOOM_LEVELS.HIDE_NUMBERS ? `
           <div class="cluster-badge" style="
             position: absolute;
@@ -303,10 +328,10 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   return icon;
 };
 
-export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false, isDriverOnDuty = true, isPatientWatching = false, isInterStore = false) => {
+export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false, isDriverOnDuty = true, isPatientWatching = false, isInterStore = false, hasCash = false) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
-  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}_${isDriverOnDuty}_${isPatientWatching}_${isInterStore}`;
+  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}_${isDriverOnDuty}_${isPatientWatching}_${isInterStore}_${hasCash ? 'cash' : ''}`;
   if (deliveryIconCache.has(deliveryCacheKey)) return deliveryIconCache.get(deliveryCacheKey);
 
   const isFinished = FINISHED_STATUSES.includes(status);
@@ -325,6 +350,12 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
   const statusColor = (isInterStore && isInTransit && !shouldShowNextYellow) ? '#A78BFA'
     : (isFridgeItem && isInTransit && !shouldShowNextYellow) ? '#A5F3FC'
     : baseStatusColor;
+  // "$" badge colour = collection state, mirroring the stop-card symbols.
+  const cashColor = (status === 'completed' || status === 'delivered')
+    ? '#16A34A' // green: money collected
+    : (status === 'failed' || status === 'cancelled')
+      ? '#DC2626' // red: collection did not happen
+      : '#000000'; // black: still to collect (pending / in transit / en route)
   const hasYellowHalo = isFirstTime && zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
   const hasDuplicates = duplicateCount > 1;
   const showNumber = zBucket >= ZOOM_LEVELS.HIDE_NUMBERS && number;

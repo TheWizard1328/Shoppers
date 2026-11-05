@@ -381,7 +381,19 @@ function DeliveryMarkers({
     const showWatchHalo = isPatientWatching && !isFanned;
     const icon = delivery.useSimpleCircle || delivery.isOtherDriver
       ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, delivery.pinColor, true, 0, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, markerStoreColor, delivery.isDriverOnDuty, showWatchHalo)
-      : createDeliveryIcon(delivery.status, delivery.pinColor, isFanned, delivery.status === 'pending' ? null : delivery.number, delivery.isFirstTime, 0, currentZoom, delivery.isNextInLine, isHighlighted, hasIncompleteStops, delivery.ampm_deliveries === 'PM', delivery.isOtherDriver, delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, delivery.fridge_item === true, delivery.isDriverOnDuty, showWatchHalo);
+      : createDeliveryIcon(
+          delivery.status, delivery.pinColor, isFanned,
+          delivery.status === 'pending' ? null : delivery.number,
+          delivery.isFirstTime, 0, currentZoom, delivery.isNextInLine, isHighlighted,
+          hasIncompleteStops, delivery.ampm_deliveries === 'PM', delivery.isOtherDriver,
+          delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade,
+          isDeliveryHighlightedFinished, delivery.fridge_item === true,
+          delivery.isDriverOnDuty, showWatchHalo, undefined,
+          // Cash badge: any stop carrying a COD amount gets the "$" marker badge
+          // (owner request Nov 5 2026) — cash, card or any other collection type.
+          Number(delivery.cod_total_amount_required || 0) > 0
+            || (Array.isArray(delivery.cod_payments) && delivery.cod_payments.length > 0)
+        );
 
     const handlers = delivery.isOtherDriver ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isDeliveryFaded) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); handleMarkerClickForFanning(delivery, 'delivery'); },
