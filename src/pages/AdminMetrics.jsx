@@ -221,6 +221,15 @@ export default function AdminMetrics() {
         liveWindowApplied: false,
         liveWindowDays: 7
       };
+      // Coverage report (owner request Nov 5 2026: "it's not checking the months
+      // that actually have data to see if they're correct"). The backend now
+      // says which months the response was composed from and which months it
+      // found damaged and rebuilt in this request; warn-level so it survives the
+      // production console strip and lands in the hourly digest.
+      const _coverage = syncStatus?.monthCoverage;
+      if (Array.isArray(_coverage)) {
+        console.warn(`[AdminMetrics] engine=${syncStatus?.engineVersion || '?'} year=${targetYear} months=[${_coverage.join(',')}] rebuilt=[${(syncStatus?.damagedMonths || []).join(',')}] force=${forceRefresh}`);
+      }
       if (!data?.error && latestSelectionRef.current.year === year && latestSelectionRef.current.cityId === cityId) {
         setMetricsData(data);
         setLiveSyncStatus(syncStatus);

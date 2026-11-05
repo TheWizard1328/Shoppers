@@ -1403,7 +1403,14 @@ Deno.serve(async (req) => {
         liveWindowApplied: false,
         liveWindowDays: LIVE_SYNC_WINDOW_DAYS,
         currentMonthSynced: summaryRecords.length > 0,
-        source: 'summary'
+        source: 'summary',
+        // Coverage report (owner request Nov 5 2026: "it's not checking the
+        // months that actually have data to see if they're correct"). The client
+        // can see exactly which months this response was composed from, and
+        // which months were found damaged and rebuilt on this very request.
+        engineVersion: 'wm212',
+        monthCoverage: summaryRecords.map((r) => summaryNum(r?.month)).filter(Boolean).sort((a, b) => a - b),
+        damagedMonths: Array.from(damagedSummaryMonths).sort((a, b) => a - b)
       };
     }
 
