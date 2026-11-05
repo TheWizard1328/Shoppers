@@ -409,6 +409,50 @@ export function useStopCardCompletionActions({
         } catch (_) { return null; }
       })();
 
+      // ── STEP 3c: TRANSITION BEFORE OPTIMIZATION (owner directive Nov 5 2026) ──
+      // "I want to make sure that these stops have transitioned before any
+      // optimization happens." Previously the pending→in_transit write only
+      // travelled inside the optimizer's single merged commit at STEP 5.5, so the
+      // engine, the polyline generator and the pickup notes could all act on a
+      // route the server still had as pending — which is how 10 Hamptons stops
+      // ended up half-transitioned with polylines drawn "sort of". The status
+      // write is now committed FIRST, verified with ONE read, and optimization is
+      // skipped entirely if the transition did not land. Exactly one optimization
+      // run follows; a failure is reported, never retried per stop.
+      if (transitionedIds.size > 0) {
+        const transitionIds = [...transitionedIds];
+        let transitionOk = false;
+        try {
+          const transRes = await base44.functions.invoke('bulkUpdateDeliveries', {
+            updates: transitionIds.map((id) => ({ id, data: { status: 'in_transit' } })),
+            silent: true,
+          });
+          const transPayload = transRes?.data || transRes || {};
+          const failedIds = Array.isArray(transPayload?.failedIds) ? transPayload.failedIds : [];
+          transitionOk = failedIds.length === 0;
+          if (!transitionOk) console.error(`[AcceptAll] transition rejected for ${failedIds.length}/${transitionIds.length} stop(s): ${failedIds.join(', ')}`);
+        } catch (err) {
+          console.error('[AcceptAll] transition commit failed:', err?.message || err);
+        }
+
+        // ONE verification read — no retry loop, no per-stop retries.
+        try {
+          const verified = await base44.entities.Delivery.filter({ id: { $in: transitionIds } });
+          const stillPending = (Array.isArray(verified) ? verified : []).filter((d) => String(d?.status || '').toLowerCase() === 'pending');
+          if (stillPending.length > 0) {
+            console.error(`[AcceptAll] ${stillPending.length} stop(s) still pending on the server — aborting before optimization: ${stillPending.map((d) => d.id).join(', ')}`);
+            transitionOk = false;
+          }
+        } catch (err) {
+          console.warn('[AcceptAll] transition verification read failed:', err?.message || err);
+        }
+
+        if (!transitionOk) {
+          toast.error('Stops did not all transition to Accepted. Nothing was optimized — try Accept All again.');
+          return;
+        }
+      }
+
       // ── STEP 4: Route optimization + polyline generation ─────────────────────
       // Uses same client-side engine as the manual FAB — should be ~same speed.
       const driverLat = Number(driverAppUser?.current_latitude);
