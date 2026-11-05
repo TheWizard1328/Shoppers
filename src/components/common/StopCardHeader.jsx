@@ -339,7 +339,7 @@ export default function StopCardHeader({
             className="px-1 py-0 h-6 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-300 font-bold inline-flex items-center"
             title="Fridge item"
           >
-            <Thermometer className="w-3 h-3.5" />
+            <Thermometer className="w-3 h-3.5 text-cyan-700 dark:text-slate-950" />
           </Badge>
         )}
         </div>
@@ -391,13 +391,13 @@ export default function StopCardHeader({
             const reading = (isToday ? liveTemp : null) || deliveryTemp;
             if (!reading) return (
               <Badge className="mt-1 text-[11px] px-1.5 py-0 h-6 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-300 font-bold inline-flex items-center gap-0.5">
-                <Thermometer className="w-2.5 h-3" />--°C
+                <Thermometer className="w-2.5 h-3 text-cyan-700 dark:text-slate-950" />--°C
               </Badge>
             );
             const isOut = reading.temperature_celsius < _scTempMin || reading.temperature_celsius > _scTempMax;
             return (
               <Badge className={`mt-1 text-[10px] px-1.5 py-0 h-6 rounded-full font-bold inline-flex items-center gap-0.5 ${isOut ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-cyan-100 text-cyan-700 border border-cyan-300'}`}>
-                <Thermometer className="w-2.5 h-3" />{reading.temperature_celsius}°C
+                <Thermometer className="w-2.5 h-3 text-cyan-700 dark:text-slate-950" />{reading.temperature_celsius}°C
               </Badge>
             );
           })()}
