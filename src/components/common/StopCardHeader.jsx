@@ -301,6 +301,9 @@ export default function StopCardHeader({
     <>
       {/* Left badges column */}
       <div className="mt-0 mb-1 my-0.5 py-0.5 flex flex-col items-center gap-1.0 min-w-[50px]">
+        {/* Stop order number + fridge marker on one row (owner request Nov 5 2026:
+            keep only the thermometer icon, no word, moved up beside the number). */}
+        <div className="flex items-center gap-1">
         <Badge
           variant="secondary"
           className={`bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold ${delivery?.ampm_deliveries === 'PM' ? 'rounded-md' : 'rounded-full'} inline-flex items-center border transition-colors justify-center ${bulkSelectionEnabled ? 'gap-1 min-w-[58px]' : 'w-[40px]'}`}
@@ -328,6 +331,18 @@ export default function StopCardHeader({
           )}
           <span className="pointer-events-none">#{delivery?.display_stop_order || delivery?.stop_order || 0}</span>
         </Badge>
+
+        {/* Fridge item marker — icon only, sitting to the right of the stop number.
+            Same store-visibility guard the full badge used. */}
+        {delivery?.fridge_item && !isPickup && !(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !((currentUser?.store_ids || []).includes(delivery?.store_id))) && (
+          <Badge
+            className="px-1 py-0 h-6 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-300 font-bold inline-flex items-center"
+            title="Fridge item"
+          >
+            <Thermometer className="w-3 h-3.5" />
+          </Badge>
+        )}
+        </div>
 
         {isPickup && pendingPickups && pendingPickups.length > 0 &&
         <Badge
@@ -368,14 +383,7 @@ export default function StopCardHeader({
           {/* Fridge temperature badge - uses same source as LiveTempBadge above stop cards */}
           {/* TEMP MONITORING KILL SWITCH (Oct 19 2026): while disabled this badge is a
               STATIC blue-green fridge-item indicator only — no live/stored temps. */}
-          {delivery?.fridge_item && !isPickup && !(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !((currentUser?.store_ids || []).includes(delivery?.store_id))) && (() => {
-            if (TEMP_MONITORING_DISABLED) {
-              return (
-                <Badge className="mt-1 text-[11px] px-1.5 py-0 h-6 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-300 font-bold inline-flex items-center gap-0.5" title="Fridge item">
-                  <Thermometer className="w-2.5 h-3" />Fridge
-                </Badge>
-              );
-            }
+          {delivery?.fridge_item && !TEMP_MONITORING_DISABLED && !isPickup && !(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !((currentUser?.store_ids || []).includes(delivery?.store_id))) && (() => {
             const deliveryTemp = getLatestTempReading(delivery);
             const today = new Date().toISOString().slice(0, 10);
             const isToday = delivery?.delivery_date === today;
