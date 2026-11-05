@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Save, Calendar, Plus, Trash2, DollarSign, CreditCard } from 'lucide-react';
+import { X, Save, Calendar, Plus, Trash2, DollarSign, CreditCard, Pencil } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { format } from 'date-fns';
@@ -42,6 +42,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
   const [newDeductionStartDate, setNewDeductionStartDate] = useState('');
   const [newDeductionEndDate, setNewDeductionEndDate] = useState('');
   const [squareLocations, setSquareLocations] = useState([]);
+  // OWNER REQUEST Nov 5 2026: rate-history rows are editable. While an entry is
+  // being edited, Save rewrites THAT entry instead of appending a new one.
+  const [editingHistoryKey, setEditingHistoryKey] = useState(null);
 
   // Load Square locations on mount
   useEffect(() => {
@@ -114,7 +117,22 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
       const gstChanged = formData.gst_hst_enabled !== (driver.gst_hst_enabled || false);
 
-      if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged || payCycleChanged || gstChanged) {
+      if (editingHistoryKey != null && normalizedHistory[Number(editingHistoryKey)]) {
+        // EDITING AN EXISTING HISTORY ENTRY (owner request Nov 5 2026): rewrite it
+        // in place. Never append — the values were already on the record.
+        const _idx = Number(editingHistoryKey);
+        updates.pay_rate_history = normalizedHistory.map((entry, i) => (i === _idx ? {
+          ...entry,
+          effective_date: formData.effective_date,
+          pay_rate_per_delivery: newPayRate,
+          extra_km_rate: newKmRate,
+          extra_km_limit: newKmLimit,
+          oversized_item_rate: newOversizedRate,
+          pay_cycle_type: formData.pay_cycle_type || 'monthly',
+          gst_hst_enabled: formData.gst_hst_enabled || false
+        } : entry));
+        setEditingHistoryKey(null);
+      } else if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged || payCycleChanged || gstChanged) {
         const historyEntry = {
           effective_date: formData.effective_date,
           pay_rate_per_delivery: newPayRate,
@@ -525,39 +543,75 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               </Label>
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {formData.pay_rate_history
-                  .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
-                  .map((entry, idx) => (
-                    <div key={idx} className="text-xs p-2 bg-surface-2 rounded flex justify-between items-center gap-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-medium text-body-2 whitespace-nowrap">
-                          {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
-                        </span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#475569' }}>
-                          {(() => {
-                            const c = entry.pay_cycle_type || 'monthly';
-                            return c === 'semimonthly' ? 'Semi-Mo' : c === 'biweekly' ? 'Bi-Wk' : c === 'weekly' ? 'Wkly' : c.charAt(0).toUpperCase() + c.slice(1);
-                          })()}
-                        </span>
+                  .map((entry, i) => ({ entry, i }))
+                  .sort((a, b) => new Date(b.entry.effective_date) - new Date(a.entry.effective_date))
+                  .map(({ entry, i }) => (
+                    <div key={i} className={`text-xs p-2 rounded flex items-start justify-between gap-1 ${editingHistoryKey === i ? 'bg-blue-50 dark:bg-blue-950/50 ring-1 ring-blue-300' : 'bg-surface-2'}`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-body-2 whitespace-nowrap">
+                            {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
+                          </span>
+                          {/* FULL pay-cycle text (owner request Nov 5 2026): the badge
+                              used to abbreviate to Semi-Mo / Bi-Wk / Wkly. */}
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#475569' }}>
+                            {(() => {
+                              const c = entry.pay_cycle_type || 'monthly';
+                              return c === 'semimonthly' ? 'Semimonthly' : c === 'biweekly' ? 'Bi-Weekly' : c === 'weekly' ? 'Weekly' : c.charAt(0).toUpperCase() + c.slice(1);
+                            })()}
+                          </span>
+                          {editingHistoryKey === i &&
+                            <span className="text-[9px] font-semibold text-blue-600 dark:text-blue-400">editing</span>
+                          }
+                        </div>
+                        {/* Rate line moved BELOW the date + cycle badge (owner request). */}
+                        <div className="text-label text-[10px] mt-0.5">
+                          ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km / OS: ${formatRate(entry.oversized_item_rate)}
+                        </div>
                       </div>
-                      <div className="text-label text-[10px]">
-                        ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km / OS: ${formatRate(entry.oversized_item_rate)}
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+                          title="Edit this rate entry"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEditingHistoryKey(i);
+                            setFormData(prev => ({
+                              ...prev,
+                              pay_rate_per_delivery: formatRate(entry.pay_rate_per_delivery),
+                              extra_km_rate: formatRate(entry.extra_km_rate),
+                              extra_km_limit: formatRate(entry.extra_km_limit),
+                              oversized_item_rate: formatRate(entry.oversized_item_rate),
+                              pay_cycle_type: entry.pay_cycle_type || prev.pay_cycle_type,
+                              gst_hst_enabled: entry.gst_hst_enabled ?? prev.gst_hst_enabled,
+                              effective_date: String(entry.effective_date || '').slice(0, 10) || prev.effective_date
+                            }));
+                          }}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setFormData(prev => ({
+                              ...prev,
+                              pay_rate_history: prev.pay_rate_history.filter((_, j) => j !== i)
+                            }));
+                            setEditingHistoryKey(prev => (prev === i ? null : (prev != null && prev > i ? prev - 1 : prev)));
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setFormData(prev => ({
-                            ...prev,
-                            pay_rate_history: prev.pay_rate_history.filter((_, i) => i !== idx)
-                          }));
-                        }}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
                     </div>
                   ))}
               </div>
