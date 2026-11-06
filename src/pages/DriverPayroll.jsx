@@ -1306,7 +1306,14 @@ export default function DriverPayroll() {
       return fullYearPayrollDataRef.current;
     }
 
-    if (!forceFresh && fullYearPayrollDataRef.current?.__cacheKey === cacheKey && lastFetchTimestampRef.current > 0) {
+    // OWNER SPEC Nov 6 2026: payroll must stay current without anyone pressing
+    // the spinner. The in-session cache used to be permanent, so every quiet
+    // sync after the first load was swallowed and only a manual refresh could
+    // move the numbers. It is now a short TTL: reuse the in-memory payload for
+    // 90 seconds, then go back to the server.
+    const PAYROLL_CACHE_TTL_MS = 90000;
+    if (!forceFresh && fullYearPayrollDataRef.current?.__cacheKey === cacheKey &&
+        lastFetchTimestampRef.current > 0 && now - lastFetchTimestampRef.current < PAYROLL_CACHE_TTL_MS) {
       return fullYearPayrollDataRef.current;
     }
 
@@ -1726,6 +1733,38 @@ export default function DriverPayroll() {
     })();
     return () => { cancelled = true; };
   }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, payPeriod, fetchPayroll, loadOfflinePayroll]);
+
+  // OWNER SPEC Nov 6 2026: nobody should have to press the refresh spinner.
+  // While the payroll page is open this runs a QUIET sync (no blocking spinner,
+  // no toast) every 5 minutes, and again the moment the tab/window comes back
+  // after being away for a minute or more. Drivers get their own numbers
+  // refreshed; an admin's city payload for their company refreshes the same way.
+  // The fetch itself is TTL-guarded (90s) so refocus + interval never double-fetch,
+  // and it is skipped while the tab is hidden or the device is offline.
+  useEffect(() => {
+    if (!hasInitialized || !isPayrollPageActive || !selectedCityId) return undefined;
+    const runQuietSync = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      fetchPayroll(true, false, { refreshMonths: getCurrentPayrollCycleMonths(selectedYear, payPeriod) }).catch(() => {});
+    };
+    const SYNC_EVERY_MS = 5 * 60 * 1000;
+    const interval = setInterval(runQuietSync, SYNC_EVERY_MS);
+    let awaySince = null;
+    const onReturn = () => {
+      if (typeof document !== 'undefined' && document.hidden) { awaySince = awaySince || Date.now(); return; }
+      const awayFor = awaySince ? Date.now() - awaySince : 0;
+      awaySince = null;
+      if (awayFor > 60000) runQuietSync();
+    };
+    document.addEventListener('visibilitychange', onReturn);
+    window.addEventListener('focus', onReturn);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onReturn);
+      window.removeEventListener('focus', onReturn);
+    };
+  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, payPeriod, fetchPayroll]);
 
   // Kick the quiet history backfill whenever a fresh payload for the current
   // year+city lands on screen (post IDB-render + current-cycle sync).
