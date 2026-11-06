@@ -1,5 +1,6 @@
 import '@/components/utils/storageQuotaGuard'
 import ChunkErrorBoundary from '@/components/utils/ChunkErrorBoundary'
+import { SingleInstanceGate } from '@/components/utils/singleInstanceGuard'
 import '@/components/utils/remoteLoggerInit'
 import '@/components/utils/nativeCrashReporter'
 import './App.css'
