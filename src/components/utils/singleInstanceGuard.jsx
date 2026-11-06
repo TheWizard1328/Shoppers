@@ -35,8 +35,22 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 const LOCK_KEY = 'rxdeliver_single_instance_v1';
 const CHANNEL_NAME = 'rxdeliver_single_instance_channel';
-const HEARTBEAT_MS = 4000;
-const STALE_MS = 14000;
+const HEARTBEAT_MS = 2500;
+const STALE_MS = 8000;
+
+// ── NATIVE (Android APK / iOS) ENTITLEMENT ──────────────────────────────────
+// OWNER REPORT (Nov 6 2026): "the guard for running 2 instances... we need to
+// add a guard for the Android APK. It is incapable of running 2 instances at
+// the same time. But a few times tonight I closed the app and reopened it and
+// it took 5 tries of closing and opening before it would stop showing the
+// multiple instance message." Android never runs two copies of an activity in
+// one task, so the lock has nothing to protect there — but the WebView often
+// dies without a pagehide/beforeunload, leaving the lock held until it goes
+// stale (14s), which is exactly the reopen-fails-five-times loop. A native
+// cold start therefore skips the lock entirely.
+const isNativeShell = () => {
+  try { return !!(typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()); } catch { return false; }
+};
 const BLOCKED_RECHECK_MS = 3000;
 
 const newInstanceId = () => {
@@ -78,6 +92,7 @@ const isFresh = (lock) => !!lock && typeof lock.ts === 'number' && (Date.now() -
  * status: 'checking' | 'leader' | 'blocked'
  */
 export function useSingleInstanceGuard() {
+  const nativeShell = isNativeShell();
   const idRef = useRef(null);
   if (!idRef.current) idRef.current = newInstanceId();
   const [status, setStatus] = useState('checking');
@@ -119,6 +134,16 @@ export function useSingleInstanceGuard() {
   }, [setBoth]);
 
   useEffect(() => {
+    // NATIVE SHELL: Android/iOS cannot host two instances, so skip the lock
+    // completely — a WebView killed without pagehide must never leave the
+    // reopen blocked (owner: "it took 5 tries of closing and opening").
+    if (nativeShell) {
+      const cur = readLock();
+      if (cur && cur.id !== idRef.current) clearLockIfMine(cur.id);
+      setHolderLabel(null);
+      setBoth('leader');
+      return undefined;
+    }
     // First attempt is synchronous and cheap: decides before the app mounts.
     tryClaim();
 
