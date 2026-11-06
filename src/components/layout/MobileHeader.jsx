@@ -172,8 +172,43 @@ export default function MobileHeader({
               type="button"
               aria-label={`${unreadMessageCount} unread messages`}
               onClick={(e) => { e.stopPropagation(); onMessagingClick?.(); }}
-              className="absolute -top-1 -left-1 z-10 inline-flex items-center justify-center w-[18px] h-[18px] min-w-[18px] max-w-[18px] p-0 m-0 leading-none text-[10px] font-bold bg-blue-500 rounded-full border-2 border-white appearance-none touch-manipulation"
-              style={{ color: '#ffffff', lineHeight: 1 }}>
+              className="absolute -top-1 -left-1 z-10 bg-blue-500 appearance-none touch-manipulation"
+              // OWNER REPORT Nov 5 2026: "The notification count badge on the app
+              // icon on the mobile header has been elongated into an oval again."
+              // The badge is a UA <button> inside a flex row, so ANY surviving
+              // global/utility rule (button padding, min-width, aspect ratio,
+              // font metrics on two glyphs) can stretch the box into a pill. The
+              // geometry is now declared inline, which no stylesheet can override:
+              // a hard 18x18 square, border-box so the white ring stays inside
+              // those 18px, 1:1 aspect, overflow hidden and an explicit 9px glyph
+              // so "9+" is narrower than the 14px inner width instead of pushing
+              // the box sideways.
+              style={{
+                width: '18px',
+                height: '18px',
+                minWidth: '18px',
+                maxWidth: '18px',
+                minHeight: '18px',
+                maxHeight: '18px',
+                aspectRatio: '1 / 1',
+                boxSizing: 'border-box',
+                borderRadius: '9999px',
+                border: '2px solid #ffffff',
+                padding: 0,
+                margin: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                flex: '0 0 auto',
+                fontSize: unreadMessageCount > 9 ? '9px' : '10px',
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                lineHeight: 1,
+                color: '#ffffff',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+              }}>
                 {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
               </button>
             }
