@@ -1,5 +1,22 @@
 import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
-import { projectionVisibleInCycle } from '@/components/utils/projectionCycleRule';
+import {
+  projectionVisibleInCycle,
+  missedRotations,
+  MISSED_ROTATION_LIMIT,
+  readRestoredProjectionIds,
+  readRetiredProjectionIds,
+} from '@/components/utils/projectionCycleRule';
+
+// Owner-set projection lists (restored / retired patients) are read once per
+// 5 seconds instead of once per patient — this runs over thousands of rows.
+let _projFlagsCache = { at: 0, restored: new Set(), retired: new Set() };
+const getProjectionFlags = () => {
+  if (Date.now() - _projFlagsCache.at > 5000) {
+    _projFlagsCache = { at: Date.now(), restored: readRestoredProjectionIds(), retired: readRetiredProjectionIds() };
+  }
+  return _projFlagsCache;
+};
+export const invalidateProjectionFlagsCache = () => { _projFlagsCache = { at: 0, restored: new Set(), retired: new Set() }; };
 const RECENT_DELIVERY_LOOKBACK_DAYS = 5; // Check past 5 days for recent deliveries
 
 const userHasRole = (user, role) => {
@@ -186,7 +203,26 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
     // until it is delivered. Owner example: Anne Kit Seto (Hamptons, Weekly x4,
     // 5 days late on a Thursday cycle) is hidden Tue Nov 3, listed Nov 5-7,
     // hidden Nov 8-11, listed again Nov 12-14.
-    if (shouldDeliver && !projectionVisibleInCycle({
+    // ── OWNER RULE (Nov 6 2026): 2 ROTATIONS WITH NO DELIVERY ───────────────
+    // "If a patient has not had a delivery on their projected date for at least
+    // 2 rotations, then we will either remove the recurrence from the patient or
+    // we will ignore the recurrence in the projection list."
+    // Soft ignore: the row is flagged instead of dropped, so the panel can list
+    // it in its own collapsed group with Restore / Retire. A restored patient
+    // (dispatcher override) or a retired one (recurrence removed) is handled
+    // here — retired never comes back, restored always shows normally.
+    const _missed = shouldDeliver ? missedRotations({ daysSinceLast, frequency }) : 0;
+    const _flags = shouldDeliver ? getProjectionFlags() : null;
+    if (shouldDeliver && _flags && _flags.retired.has(String(patient.id))) return null;
+    const _suppressed = Boolean(
+      shouldDeliver
+      && _missed >= MISSED_ROTATION_LIMIT
+      && !(_flags && _flags.restored.has(String(patient.id)))
+    );
+
+    // The cycle-window rule (Nov 3 2026) hides overdue rows for most of the week.
+    // A suppressed row is listed in its own section instead, so it skips this.
+    if (shouldDeliver && !_suppressed && !projectionVisibleInCycle({
       daysSinceLast,
       frequency,
       patient,
@@ -207,7 +243,11 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       last_delivery_date: getLastDeliveryDate(patient) || null,
       cod_total_amount_required: 0,
       prescription_number: '',
-      extra_time: 0
+      extra_time: 0,
+      // Nov 6 2026 — shown in the "No delivery in 2 rotations" group when true.
+      suppressed: _suppressed,
+      missed_rotations: _missed,
+      days_since_last: daysSinceLast
     };
   }).filter(Boolean);
 }
