@@ -1,5 +1,12 @@
 /**
- * resolveAppOwnerIds — return the platform App Owner ids (User.role === 'admin').
+ * resolveAppOwnerIds — return the TRUE App Owner ids.
+ *
+ * OWNER DECISION (Nov 5 2026): the platform User table lists eight
+ * role === 'admin' accounts. Only one of them is the App Owner; the others were
+ * Base44 platform administrators present for testing and must keep ordinary
+ * administrative access, NOT owner access. So role === 'admin' is no longer the
+ * test — the pinned owner account is, and the table is only consulted to
+ * confirm it still exists.
  *
  * HARDENED (owner report Nov 5 2026): this function threw "Request failed with
  * status code 400" on nearly every delivery completion, which surfaced as a
@@ -36,25 +43,21 @@ Deno.serve(async (req) => {
 
     const svc = base44.asServiceRole.entities;
 
-    let owners = (await safe(async () => asArray(await svc.User.filter({ role: 'admin' })), []))
-      .filter((user) => user?.role === 'admin' && user?.id)
-      .map((user) => ({ id: user.id, full_name: user.full_name || null }));
+    // Owner = the pinned platform account only. Never every role === 'admin'.
+    const platformUsers = (await safe(async () => asArray(await svc.User.filter({ role: 'admin' })), []))
+      .filter((user) => user?.id);
+    const pinned = platformUsers.find((user) => user.id === PINNED_OWNER_PLATFORM_USER_ID) || null;
 
-    if (owners.length === 0) {
-      owners = (await safe(async () => asArray(await svc.User.list()), []))
-        .filter((user) => user?.role === 'admin' && user?.id)
-        .map((user) => ({ id: user.id, full_name: user.full_name || null }));
-    }
-
-    let source = 'user_table';
-    if (owners.length === 0) {
+    let source = pinned ? 'pinned_verified' : 'pinned_fallback';
+    let fullName = pinned?.full_name || null;
+    if (!fullName) {
       const appUsers = await safe(
         async () => asArray(await svc.AppUser.filter({ user_id: PINNED_OWNER_PLATFORM_USER_ID, status: 'active' })),
         []
       );
-      source = appUsers.length > 0 ? 'app_user_verified' : 'pinned_fallback';
-      owners = [{ id: PINNED_OWNER_PLATFORM_USER_ID, full_name: appUsers[0]?.user_name || null }];
+      fullName = appUsers[0]?.user_name || null;
     }
+    const owners = [{ id: PINNED_OWNER_PLATFORM_USER_ID, full_name: fullName }];
 
     return Response.json({ owner_ids: owners.map((owner) => owner.id), owners, source }, { status: 200 });
   } catch (error) {

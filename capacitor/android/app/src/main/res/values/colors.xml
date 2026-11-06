@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- System bar colors for light mode -->
+    <!-- System bar colours. TRANSPARENT (owner spec Nov 5 2026): the WebView runs
+         edge to edge with viewport-fit=cover, so anything painted here covers the
+         clock, battery and notification icons. Transparent means the bars are
+         readable whether the app draws over them or under them. -->
     <color name="colorPrimary">#0f172a</color>
     <color name="colorPrimaryDark">#0f172a</color>
     <color name="colorAccent">#3b82f6</color>
-    <color name="status_bar_bg">#cbd5e1</color>
-    <color name="navigation_bar_bg">#cbd5e1</color>
+    <color name="status_bar_bg">@android:color/transparent</color>
+    <color name="navigation_bar_bg">@android:color/transparent</color>
 </resources>

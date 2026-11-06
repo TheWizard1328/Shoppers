@@ -24,10 +24,26 @@ export const userHasRole = (user, role) => {
  * Check if user is an App Owner (Base44 platform admin)
  * This checks PLATFORM admin role via User.role
  */
+/**
+ * The ONE platform account that is the App Owner (owner decision Nov 5 2026).
+ * The platform User table lists eight role === 'admin' accounts; the extras are
+ * Base44 platform administrators kept from testing and hold ordinary
+ * administrative access, never owner access. Mirrors
+ * PINNED_OWNER_PLATFORM_USER_ID in base44/functions/resolveAppOwnerIds.
+ */
+export const APP_OWNER_PLATFORM_USER_ID = '68570f3cd01bfa2d2408a9d7';
+
+/**
+ * Check if user is the App Owner.
+ * Requires BOTH platform admin role and the pinned owner account id, so a
+ * platform administrator who is not the owner no longer gets owner-only UI.
+ */
 export const isAppOwner = (user) => {
   if (!user) return false;
-  // Check platform User.role for App Owner status
-  return user.role === 'admin';
+  if (user.role !== 'admin') return false;
+  const id = user.id || user.user_id || null;
+  if (!id) return false;
+  return id === APP_OWNER_PLATFORM_USER_ID;
 };
 
 /**
