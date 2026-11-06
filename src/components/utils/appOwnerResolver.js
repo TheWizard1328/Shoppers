@@ -20,7 +20,9 @@ import { base44 } from '@/api/base44Client';
 let _ownerIds = null;        // Set<string> of platform User ids with role === 'admin'
 let _loadedAt = 0;
 let _inFlight = null;
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+let _failedAt = 0;           // last backend failure — backs off instead of retrying every delivery
+const CACHE_TTL = 10 * 60 * 1000;       // 10 minutes
+const FAILURE_BACKOFF = 30 * 60 * 1000; // after a failure, do not ask again for 30 minutes
 
 /**
  * Get the set of platform User ids that are App Owners (User.role === 'admin').
@@ -36,6 +38,12 @@ export async function getAppOwnerUserIds(force = false) {
     return _ownerIds;
   }
   if (_inFlight) return _inFlight;
+  // OWNER REPORT (Nov 5 2026): a failing resolve used to be retried on every
+  // single delivery completion, producing a 15-second error toast each time.
+  // One failure now parks the lookup for 30 minutes and notifications keep
+  // working off whatever ids are already known.
+  if (_ownerIds && (now - _failedAt) < FAILURE_BACKOFF) return _ownerIds;
+  if (!_ownerIds && (now - _failedAt) < FAILURE_BACKOFF) return new Set();
 
   _inFlight = (async () => {
     try {
@@ -49,6 +57,7 @@ export async function getAppOwnerUserIds(force = false) {
       _loadedAt = Date.now();
       return ids;
     } catch (e) {
+      _failedAt = Date.now();
       console.warn('[appOwnerResolver] Backend owner resolution failed:', e?.message || e);
       if (_ownerIds) {
         // Keep serving stale data rather than dropping notifications entirely.
