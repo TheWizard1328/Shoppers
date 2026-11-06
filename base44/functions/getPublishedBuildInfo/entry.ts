@@ -7,7 +7,7 @@
 // deployment's own version.json. A browser fetch is blocked by CORS (the live
 // host sends no Access-Control-Allow-Origin), so the read happens server-side.
 //
-// Returns { buildNumber, webVersion, buildId, generatedAt, fetchedAt } or
+// Returns { buildNumber, webVersion, apkDigit, pushCount, buildId, generatedAt, fetchedAt } or
 // { error } — the client falls back to its stamped baseline on any failure.
 
 const LIVE_HOSTS = [
@@ -33,6 +33,11 @@ Deno.serve(async (req) => {
         return Response.json({
           buildNumber,
           webVersion: Number(data?.webVersion) || 0,
+          // APK digit baked into the PUBLISHED bundle (src/version.js
+          // BAKED_APK_DIGIT). Owner report Nov 6 2026: the live row under the
+          // preview version never rendered because this function dropped the
+          // field, so every client received no digit and showed nothing.
+          apkDigit: Number(data?.apkDigit) || 0,
           pushCount: Number(data?.pushCount) || 0,
           buildId: data?.buildId || null,
           generatedAt: data?.generatedAt || null,

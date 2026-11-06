@@ -141,9 +141,12 @@ export async function fetchPublishedVersionDigits({ force = false } = {}) {
     // A live bundle published BEFORE apkDigit existed still has a web digit —
     // report the digits we do know (apkDigit 0 = unknown) instead of nothing.
     const web = Number(c?.webVersion);
-    if (!Number.isFinite(apkDigit) && !Number.isFinite(web)) return null;
-    if ((!Number.isFinite(apkDigit) || apkDigit <= 0) && !(Number.isFinite(web) && web > 0)) return null;
-    return { apkDigit: Number.isFinite(apkDigit) && apkDigit > 0 ? apkDigit : 0, webVersion: Number.isFinite(web) ? web : 0 };
+    const hasApk = Number.isFinite(apkDigit) && apkDigit > 0;
+    const hasWeb = Number.isFinite(web) && web > 0;
+    // A freshly reset publish legitimately has web 000, so an APK digit alone
+    // is a valid answer; only "nothing at all" is null.
+    if (!hasApk && !hasWeb) return null;
+    return { apkDigit: hasApk ? apkDigit : 0, webVersion: Number.isFinite(web) ? web : 0 };
   };
   if (!force && cached && Date.now() - Number(cached.cachedAt || 0) < CACHE_TTL_MS) {
     const digest = readDigits();
