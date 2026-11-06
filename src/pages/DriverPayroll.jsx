@@ -383,6 +383,11 @@ export default function DriverPayroll() {
   // never a dead spinner. Later loads render instantly from IDB.
   const [blockingGraceExpired, setBlockingGraceExpired] = useState(false);
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
+  useEffect(() => {
+    if (!loadedFromOffline) return undefined;
+    const t = setTimeout(() => setLoadedFromOffline(false), 120000);
+    return () => clearTimeout(t);
+  }, [loadedFromOffline]);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Owner Oct 30 2026: bumped after every manual refresh so the summary card runs
@@ -392,6 +397,17 @@ export default function DriverPayroll() {
   // automatic background sync). Drives the header refresh spinner + the
   // "Syncing Payroll" balloon so the owner always sees when a sync is running.
   const [isPayrollSyncing, setIsPayrollSyncing] = useState(false);
+
+  // OWNER REPORT Nov 6 2026: the status text sat on "saved data - syncing" for
+  // minutes. Two guards so it can never lie for long:
+  //  - a fetch that never settles gets its spinner released after 45s (the
+  //    request is left running; only the indicator resets)
+  //  - the "saved data" note is a transient hint, not a permanent label
+  useEffect(() => {
+    if (!isPayrollSyncing) return undefined;
+    const t = setTimeout(() => setIsPayrollSyncing(false), 45000);
+    return () => clearTimeout(t);
+  }, [isPayrollSyncing]);
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
@@ -2135,13 +2151,20 @@ export default function DriverPayroll() {
                 )}
                 </SelectContent>
               </Select>
+              {/* Status note sits to the LEFT of the sync button (owner Nov 6 2026).
+                  It says "Syncing" only while a sync is actually running; otherwise it
+                  says "Saved data" and clears itself. It never claims to be syncing
+                  while sitting still. */}
+              {(isPayrollSyncing || (loadedFromOffline && !isLoadingPayroll)) && (
+                <span
+                  className="text-[10px] italic whitespace-nowrap text-slate-400 dark:text-slate-500"
+                  title={isPayrollSyncing
+                    ? 'Fetching the latest payroll from the server'
+                    : 'Showing the payroll saved on this device; the live sync has not finished'}>
+                  {isPayrollSyncing ? 'Syncing…' : 'Saved data'}
+                </span>
+              )}
               <div className="relative flex items-center">
-                {isPayrollSyncing && (
-                  <span className="absolute right-full mr-2 top-1/2 -translate-y-1/2 whitespace-nowrap bg-emerald-600 text-white text-xs font-medium px-2 py-1 rounded-md shadow-lg z-30 animate-pulse">
-                    Syncing Payroll
-                    <span className="absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent border-l-emerald-600" />
-                  </span>
-                )}
                 <Button
  onClick={handleManualRefresh}
  disabled={isRefreshing || isPayrollSyncing || isLoadingPayroll}
@@ -2154,11 +2177,6 @@ export default function DriverPayroll() {
                 <RefreshCw className={`w-5 h-5 ${isPayrollSyncing ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
-              {loadedFromOffline && !isLoadingPayroll && (
-                <span className="text-xs text-slate-400 dark:text-slate-500 italic whitespace-nowrap" title="Showing your last saved payroll data — live sync running in the background">
-                  saved data • syncing…
-                </span>
-              )}
               <Button
  onClick={handleSharePayroll}
  disabled={isCapturingScreenshot}

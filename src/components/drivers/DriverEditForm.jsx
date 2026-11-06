@@ -163,6 +163,31 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     }
   };
 
+  // ── Changeover helpers (owner request Nov 6 2026) ───────────────────────────
+  // The date on a rate-history entry is the FIRST day the changeover takes
+  // effect. Everything before it keeps the previous entry's rates AND pay cycle;
+  // that day and every day after use this entry's. These helpers make the span
+  // each entry actually governs visible in the editor so there is no guessing.
+  const dayBeforeStr = (dateStr) => {
+    const d = parseDateOnlyLocal(dateStr);
+    if (!d) return '';
+    return toDateOnlyStr(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1));
+  };
+
+  const historySpanEnd = (idx) => {
+    const entries = (formData.pay_rate_history || [])
+      .map((e, i) => ({ e, i }))
+      .filter((x) => toDateOnlyStr(x.e.effective_date))
+      .sort((a, b) => toDateOnlyStr(a.e.effective_date).localeCompare(toDateOnlyStr(b.e.effective_date)));
+    const pos = entries.findIndex((x) => x.i === idx);
+    if (pos < 0 || pos === entries.length - 1) return ''; // open-ended = still in force
+    return dayBeforeStr(entries[pos + 1].e.effective_date);
+  };
+
+  const changeoverDateStr = toDateOnlyStr(formData.effective_date);
+  const changeoverPrevEnd = changeoverDateStr ? dayBeforeStr(changeoverDateStr) : '';
+
+
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="max-w-md z-[10001] max-h-[92dvh] flex flex-col p-0 gap-0 overflow-hidden">
@@ -301,7 +326,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
             <div>
               <Label htmlFor="effective_date" className="text-sm font-medium mb-1.5 block flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
-                Effective Date for Changes
+                First Day of the Changeover
               </Label>
               <Input
                 id="effective_date"
@@ -310,7 +335,22 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 onChange={(e) => setFormData(prev => ({ ...prev, effective_date: e.target.value }))}
                 className="w-full"
               />
-              <p className="text-[11px] text-soft mt-1">Deliveries on or after this date use the new rates/cycle. Earlier deliveries keep the previous rates.</p>
+              <p className="text-[11px] text-soft mt-1">
+                This date is the FIRST day of the changeover, and that day is included.
+                Deliveries before it stay on the previous rates and the previous pay cycle.
+              </p>
+              {changeoverDateStr && (
+                <div className="mt-1.5 rounded-md bg-surface-2 px-2 py-1.5 text-[11px] leading-snug text-body-2">
+                  <div>
+                    <span className="font-semibold">Previous</span> rates + cycle: through{' '}
+                    <span className="font-semibold">{format(parseDateOnlyLocal(changeoverPrevEnd) || new Date(), 'MMM dd, yyyy')}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-emerald-700">New</span> rates + cycle: from{' '}
+                    <span className="font-semibold text-emerald-700">{format(parseDateOnlyLocal(changeoverDateStr) || new Date(), 'MMM dd, yyyy')}</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -558,7 +598,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-body-2 whitespace-nowrap">
-                            {format(parseDateOnlyLocal(entry.effective_date) || new Date(), 'MMM dd, yyyy')}
+                            From {format(parseDateOnlyLocal(entry.effective_date) || new Date(), 'MMM dd, yyyy')}
                           </span>
                           {/* FULL pay-cycle text (owner request Nov 5 2026): the badge
                               used to abbreviate to Semi-Mo / Bi-Wk / Wkly. */}
@@ -571,6 +611,17 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                           {editingHistoryKey === i &&
                             <span className="text-[9px] font-semibold text-blue-600 dark:text-blue-400">editing</span>
                           }
+                        </div>
+                        {/* The span this entry governs, e.g. 'Jul 27 - Nov 01' — makes the
+                            changeover boundary checkable at a glance (owner Nov 6 2026). */}
+                        <div className="text-[10px] text-soft mt-0.5">
+                          {(() => {
+                            const end = historySpanEnd(i);
+                            const from = format(parseDateOnlyLocal(entry.effective_date) || new Date(), 'MMM dd, yyyy');
+                            return end ?
+                              `Applies ${from} to ${format(parseDateOnlyLocal(end) || new Date(), 'MMM dd, yyyy')}` :
+                              `Applies from ${from} to now`;
+                          })()}
                         </div>
                         {/* Rate line moved BELOW the date + cycle badge (owner request). */}
                         <div className="text-label text-[10px] mt-0.5">

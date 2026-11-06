@@ -424,6 +424,13 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
             // Also include company_id which was previously missing entirely.
             const driverAppUser = appUsers?.find((au) => au && (au.user_id === driverId || au.id === driverId));
             const driverPayCycle = getEffectiveRates(driverAppUser, currentPeriod?.start).pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
+            // OWNER REPORT Nov 6 2026: Sharuk carried payroll records for ranges that
+            // belonged to a DIFFERENT cycle (e.g. 2026-10-26..11-01 stored as
+            // semimonthly, 2026-11-01..11-30 stored as weekly) because this auto-create
+            // stamped the driver's cycle onto whatever period the viewer had open. A
+            // record only exists for the cycle that actually governs that period, so
+            // skip any driver whose effective cycle here is not the period's cycle.
+            if (payPeriod && driverPayCycle && driverPayCycle !== payPeriod) return null;
             const driverCompanyId = driverAppUser?.company_id || driverData?.driver?.company_id || null;
 
             const recordData = { driver_id: driverId, company_id: driverCompanyId,
@@ -442,7 +449,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           })
         );
 
-        const allRecords = [...latestRecords, ...newRecords];
+        const allRecords = [...latestRecords, ...newRecords.filter(Boolean)];
         setPayrollRecords(allRecords);
         if (onPayrollRecordsChange) onPayrollRecordsChange(allRecords);
       } catch (error) {console.error('❌ [Payroll] Auto-create failed:', error);} finally
