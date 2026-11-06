@@ -45,16 +45,29 @@ const parseBuildNumbers = (id) => {
   return { buildNumber: Number(m[1]), webVersion: Number(m[2]) };
 };
 
+/**
+ * Is the server build newer than the build this device is running?
+ *
+ * OWNER REPORT (Nov 5 2026): after installing APK v2.18.0 the app claimed a
+ * "new version is ready" on every launch, and reloading or restarting never
+ * cleared it.
+ *
+ * Cause: the comparison used WEB_VERSION as a tie-breaker whenever the build
+ * numbers matched. WEB_VERSION is NOT monotonic — the owner rule resets it to 0
+ * on every successful APK build. An APK baked at 0 therefore sits under a
+ * still-warm /version.json reporting an older publish's digit (212), so
+ * "212 > 0" read as "server is newer" forever, and every reload landed on the
+ * very bundle that had just been declared newer.
+ *
+ * BUILD_NUMBER is the only monotonically increasing counter in the scheme, so
+ * it alone decides now. Equal build numbers means current, no matter what the
+ * resettable web digit says.
+ */
 const serverIsNewer = (server) => {
   if (!server) return false;
   const sBn = Number(server.buildNumber);
-  const sWv = Number(server.webVersion);
-  if (Number.isFinite(sBn) && sBn > BUILD_NUMBER) return true;
-  if (Number.isFinite(sBn) && sBn === BUILD_NUMBER) {
-    if (Number.isFinite(sWv) && sWv > Number(WEB_VERSION)) return true;
-    return false;
-  }
-  return false;
+  if (!Number.isFinite(sBn)) return false;
+  return sBn > BUILD_NUMBER;
 };
 
 export function useWebUpdateCheck() {
