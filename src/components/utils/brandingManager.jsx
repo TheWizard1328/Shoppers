@@ -3,11 +3,15 @@ import { base44 } from '@/api/base44Client';
 const DEFAULT_BRANDING = {
   name: 'RxDeliver',
   // The actual App Logo set via the Base44 dashboard (Dashboard → Edit App Logo).
-  // Served by the platform at /apple-touch-icon.png for every install; used as the
+  // FIRST-PARTY SMALL ICON (Nov 6 2026). Was '/apple-touch-icon.png', which the
+  // host 302-redirects to the 1.4 MB platform app-logo PNG — too heavy for store
+  // Wi-Fi, and when it fails to decode the sidebar falls back to the green Rx box
+  // for the whole session. /icons/app-logo-192.png is bundled (12 KB) and served
+  // same-origin for every install; used as the
   // default so freshly-installed / fully-reset devices show the real logo before
   // any Company branding is fetched. The sidebar explicitly filters out any URL
   // containing "placehold", so placeholder Company logos fall back to this.
-  logo_url: '/apple-touch-icon.png',
+  logo_url: '/icons/app-logo-192.png',
   favicon_url: '',
   primary_color: '#000000',
   secondary_color: '#FFFFFF',
@@ -31,6 +35,12 @@ export function getCachedBranding() {
     const raw = localStorage.getItem(BRANDING_LS_KEY);
     if (raw) {
       cachedBranding = JSON.parse(raw);
+      // Legacy cache held the platform's heavy /apple-touch-icon.png redirect.
+      // Repoint it so an existing dispatcher device stops trying to decode 1.4 MB.
+      if (!cachedBranding?.logo_url || cachedBranding.logo_url === '/apple-touch-icon.png') {
+        cachedBranding = { ...cachedBranding, logo_url: DEFAULT_BRANDING.logo_url };
+        try { localStorage.setItem(BRANDING_LS_KEY, JSON.stringify(cachedBranding)); } catch {}
+      }
       return cachedBranding;
     }
   } catch {}

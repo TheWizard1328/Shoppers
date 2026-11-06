@@ -91,7 +91,17 @@ export default function AppSidebar({
   // swap to the green Rx badge fallback instead of leaving a blank gap. Resets
   // whenever a new logo URL is supplied.
   const [logoFailed, setLogoFailed] = useState(false);
-  useEffect(() => {setLogoFailed(false);}, [branding?.logo_url]);
+  // A single failed decode used to park the green Rx box for the whole session.
+  // Retry twice with a cache-buster (weak store Wi-Fi, CDN blip) before falling back.
+  const [logoAttempt, setLogoAttempt] = useState(0);
+  useEffect(() => {setLogoFailed(false); setLogoAttempt(0);}, [branding?.logo_url]);
+  const logoSrc = branding?.logo_url && logoAttempt > 0
+    ? `${branding.logo_url}${branding.logo_url.includes('?') ? '&' : '?'}logoRetry=${logoAttempt}`
+    : branding?.logo_url;
+  const handleLogoError = () => {
+    if (logoAttempt < 2) setLogoAttempt((n) => n + 1);
+    else setLogoFailed(true);
+  };
 
   // Native Android APK update check — lights up a "New" badge beside the User
   // Settings link when a newer build is available (same check as the Settings
@@ -282,13 +292,14 @@ export default function AppSidebar({
         <div className="relative flex-shrink-0" data-update-logo-btn>
         {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed ?
                 <img
-                  src={branding.logo_url}
+                  key={logoSrc}
+                  src={logoSrc}
                   alt="RxDeliver"
                   onClick={handleLogoClick}
                   title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
                   className={`rounded object-contain w-16 h-16 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
                   style={{ filter: 'var(--image-filter, none)' }}
-                  onError={() => setLogoFailed(true)} /> :
+                  onError={handleLogoError} /> :
 
 
                 <div

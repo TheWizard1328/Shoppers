@@ -245,7 +245,7 @@ export default function Layout({ children, currentPageName }) {
     // Default to the actual App Logo served by the platform so freshly-installed /
     // fully-reset devices render it on first paint, before any Company branding
     // is fetched. A real Company logo (when present) replaces this after fetch.
-    logo_url: '/apple-touch-icon.png',
+    logo_url: '/icons/app-logo-192.png',
     favicon_url: '',
     primary_color: '#000000',
     secondary_color: '#FFFFFF',

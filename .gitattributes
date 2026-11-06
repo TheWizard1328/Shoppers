@@ -81,3 +81,10 @@ public/apple-touch-icon.png !filter !diff !merge binary
 public/favicon-32.png !filter !diff !merge binary
 public/icons/icon-192-v2.png !filter !diff !merge binary
 public/icons/icon-512-v2.png !filter !diff !merge binary
+
+# Bundled UI icons are committed as plain binaries: the git-lfs-s3 transfer
+# agent is misconfigured in this repo, so ANY lfs-tracked png makes every push
+# fail at the upload stage ("s3 uri ... is invalid"). These two files are tiny
+# (16 KB / 82 KB) and belong in the tree, not in LFS.
+public/icons/app-logo-192.png -filter -diff -merge -text
+public/icons/app-logo-512.png -filter -diff -merge -text
