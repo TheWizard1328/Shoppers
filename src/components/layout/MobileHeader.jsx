@@ -52,6 +52,22 @@ export default function MobileHeader({
   // swap to the green Rx badge fallback instead of leaving a blank gap. Resets
   // whenever a new logo URL is supplied.
   const [logoFailed, setLogoFailed] = useState(false);
+  // OWNER REQUEST (Nov 5 2026): "when the user clicks the app icon or the three
+  // dots for the pop-up menu both actions will act as one button." One piece of
+  // state drives BOTH triggers and BOTH role branches, so tapping the logo opens
+  // the very same SettingsMenu the ellipsis does.
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  // Neither menu branch renders for a user with no dispatcher/driver/admin role,
+  // so the logo keeps its old messaging shortcut in that case instead of being
+  // a dead tap.
+  const hasHeaderMenu = !!currentUser && !sidebarOpen && (
+    (!userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') && userHasRole(currentUser, 'dispatcher'))
+    || userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')
+  );
+  const openHeaderMenuOrMessaging = () => {
+    if (hasHeaderMenu) { setHeaderMenuOpen(true); return; }
+    if (unreadMessageCount > 0) onMessagingClick?.();
+  };
   useEffect(() => {setLogoFailed(false);}, [logo]);
 
   useEffect(() => {
@@ -126,9 +142,16 @@ export default function MobileHeader({
           {/* Logo with message badge */}
           <div
             className="flex items-center gap-2 min-w-0 shrink relative cursor-pointer"
-            onClick={() => {
-              if (unreadMessageCount > 0) {
-                onMessagingClick?.();
+            role="button"
+            tabIndex={0}
+            aria-label="Open header menu"
+            aria-haspopup="menu"
+            aria-expanded={headerMenuOpen}
+            onClick={openHeaderMenuOrMessaging}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openHeaderMenuOrMessaging();
               }
             }}>
             {logo && !logo.includes('placehold') && !logoFailed ?
@@ -145,15 +168,20 @@ export default function MobileHeader({
               </div>
             }
             {unreadMessageCount > 0 &&
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
+            <button
+              type="button"
+              aria-label={`${unreadMessageCount} unread messages`}
+              onClick={(e) => { e.stopPropagation(); onMessagingClick?.(); }}
+              className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white touch-manipulation"
+              style={{ color: '#ffffff' }}>
                 {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-              </span>
+              </button>
             }
           </div>
 
           {/* Menu button for dispatchers — left-aligned next to logo */}
           {currentUser && !sidebarOpen && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') &&
-          <DropdownMenu>
+          <DropdownMenu open={headerMenuOpen} onOpenChange={setHeaderMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu" data-update-menu-btn>
                   <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400" />
@@ -178,7 +206,7 @@ export default function MobileHeader({
         {currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
         <div className="flex-none flex items-center justify-center gap-1.5">
             {/* Menu */}
-            <DropdownMenu>
+            <DropdownMenu open={headerMenuOpen} onOpenChange={setHeaderMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu" data-update-menu-btn>
                   <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400" />
