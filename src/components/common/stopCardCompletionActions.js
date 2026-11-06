@@ -466,6 +466,10 @@ export function useStopCardCompletionActions({
       const driverLon = Number(driverAppUser?.current_longitude);
       const currentLocation = Number.isFinite(driverLat) && Number.isFinite(driverLon) ? { lat: driverLat, lon: driverLon } : null;
 
+      // The 90 s watchdog must be CANCELLED when the optimizer wins: it used to
+      // stay armed, so every Accept All logged a false "timed out after 90s"
+      // error 90 s later even with the optimizer finishing in ~3 s.
+      let _accTimeoutHandle = null;
       const coordResult = await Promise.race([
         performRouteOptimization({
           driverId: delivery.driver_id,
@@ -481,11 +485,15 @@ export function useStopCardCompletionActions({
           recalcTrackingStoreId: delivery.store_id,  // Only WRITE TR#s for this store — see all for collision detection
           skipServerWrite: true, // The caller commits ONE merged update set (Step 5.5) — single broadcast
         }).catch(err => { console.error('❌ [AcceptAll] optimizer threw:', err?.message || err); return null; }),
-        new Promise(resolve => setTimeout(() => {
-          console.error(`⏱️ [AcceptAll] optimizer timed out after 90s — stages: ${_accMarks.join(' | ')}`);
-          resolve(null);
-        }, 90000)),
-      ]);
+        new Promise(resolve => {
+          _accTimeoutHandle = setTimeout(() => {
+            console.error(`⏱️ [AcceptAll] optimizer timed out after 90s — stages: ${_accMarks.join(' | ')}`);
+            resolve(null);
+          }, 90000);
+        }),
+      ]).finally(() => {
+        if (_accTimeoutHandle) { clearTimeout(_accTimeoutHandle); _accTimeoutHandle = null; }
+      });
 
       _accMark('optimizer');
       console.warn(`[AcceptAll][timing] ${_accMarks.join(' | ')}`);

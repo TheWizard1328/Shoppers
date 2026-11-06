@@ -290,11 +290,18 @@ const processStore = async (storeId, storeName) => {
   let skipped = 0;
   for (const p of patients) {
     const entries = historyMap.get(p.id) || [];
-    const { history, lastDeliveryDate } = buildCleanHistory(entries);
+    const built = buildCleanHistory(entries);
+    const lastDeliveryDate = built.lastDeliveryDate;
+    // Cap matches appendToHistory's MAX_HISTORY_ENTRIES (20). A long-running
+    // recurring patient otherwise crosses the 10 KB realtime broadcast limit and
+    // every save to them ships an oversize-stub broadcast to every device.
+    const HISTORY_CAP = 20;
+    const history = Array.isArray(built.history) ? built.history.slice(0, HISTORY_CAP) : [];
     const existingHistory = Array.isArray(p.delivery_history) ? p.delivery_history : null;
     const existingLast = p.last_delivery_date ?? null;
     const historyChanged = !existingHistory ||
       existingHistory.length !== history.length ||
+      existingHistory.length > HISTORY_CAP ||
       JSON.stringify(existingHistory) !== JSON.stringify(history);
     if (historyChanged || existingLast !== lastDeliveryDate) {
       changed.push({ patient: p, delivery_history: history, last_delivery_date: lastDeliveryDate });

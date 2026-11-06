@@ -327,19 +327,24 @@ const enqueue = async (level, args, extra = {}) => {
     if (_gpsNoiseNow - lastGpsNoiseSentAt < GPS_NOISE_MIN_INTERVAL_MS) return;
     lastGpsNoiseSentAt = _gpsNoiseNow; // this one ships as the device's traffic heartbeat
   }
+  let _effectiveLevel = level;
   if (NATIVE_PLUGIN_NOISE_RX.test(message)) {
     const _natNoiseNow = Date.now();
     if (_natNoiseNow - lastNativeNoiseSentAt < NATIVE_NOISE_MIN_INTERVAL_MS) return;
     lastNativeNoiseSentAt = _natNoiseNow; // deploy/reload noise heartbeat only
+    // Benign by design (foreground service still running during a reload).
+    // Ship the heartbeat as a warn so it stops counting as an app ERROR while
+    // still being visible in the log trail (owner digest noise, Nov 6 2026).
+    if (_effectiveLevel === 'error') _effectiveLevel = 'warn';
   }
-  if (shouldSkipDuplicateLog(level, message)) return;
+  if (shouldSkipDuplicateLog(_effectiveLevel, message)) return;
 
   const me = await getMe();
   const { deviceType, os } = getUserAgentInfo();
   const currentDevice = me?.id ? await getCurrentDevice(me.id).catch(() => null) : null;
   const current = readBuffer();
   current.push({
-    level,
+    level: _effectiveLevel,
     message,
     ...(extra.eventType ? { event_type: extra.eventType } : {}),
     timestamp: new Date().toISOString(),
