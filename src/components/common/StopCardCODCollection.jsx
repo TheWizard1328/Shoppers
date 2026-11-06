@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,6 +9,7 @@ import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { performSaveAndCompleteCOD } from './stopCardCodSaveComplete';
 import { useAppData } from '../utils/AppDataContext';
 import { getPendingSquarePosLaunch, verifySquareTender, clearPendingSquarePosLaunch } from '../utils/squareTenderVerify';
+import { peekRecordedTender, findUnsavedSelections, VERIFIABLE_TYPES } from '../utils/codTenderPrecheck';
 import { toast } from 'sonner';
 
 export default function StopCardCODCollection({
@@ -83,6 +84,47 @@ export default function StopCardCODCollection({
   const handleRemoveCODPayment = (index) => {
     setCodPayments(codPayments.filter((_, i) => i !== index));
   };
+
+  // ── PRE-SAVE TENDER CHECK (owner spec Nov 5 2026) ─────────────────────────
+  // The background heal fixes a mis-typed collection type from the Square
+  // ledger, but that can take a minute or two. When the driver comes back to
+  // the app with this panel open and a type selected that is not saved yet, we
+  // look the recorded tender up NOW (device ledger first, one Square peek
+  // second) and flag the mismatch before Save. Read-only — the swap below is a
+  // local edit the driver still has to save.
+  const [tenderHint, setTenderHint] = useState(null); // { recorded, selected, index }
+  const tenderPrecheckBusyRef = useRef(false);
+  const runTenderPrecheck = async () => {
+    if (!delivery?.id || !showCODCollection || tenderPrecheckBusyRef.current) return;
+    const candidate = findUnsavedSelections(codPayments, delivery?.cod_payments)
+      .find(({ payment }) => VERIFIABLE_TYPES.includes(payment?.type));
+    if (!candidate) { setTenderHint(null); return; }
+    tenderPrecheckBusyRef.current = true;
+    try {
+      const amountCents = Math.round((Number(candidate.payment.amount) || 0) * 100);
+      const res = await peekRecordedTender({ deliveryId: delivery.id, amountCents });
+      const recorded = res?.tender;
+      if (recorded && recorded !== candidate.payment.type) {
+        setTenderHint({ recorded, selected: candidate.payment.type, index: candidate.index });
+      } else {
+        setTenderHint(null);
+      }
+    } catch (_) {
+      setTenderHint(null);
+    } finally {
+      tenderPrecheckBusyRef.current = false;
+    }
+  };
+  useEffect(() => {
+    if (!showCODCollection) { setTenderHint(null); return; }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void runTenderPrecheck();
+    };
+    void runTenderPrecheck();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCODCollection, delivery?.id, JSON.stringify(codPayments), JSON.stringify(delivery?.cod_payments)]);
 
   // ── AUTO-TENDER FROM THE REAL SQUARE SWIPE (owner spec Oct 9 2026) ────────
   // When the driver comes back from Square POS, ask the backend for the
@@ -220,6 +262,24 @@ export default function StopCardCODCollection({
               </div>
           )}
           </div>
+
+          {tenderHint &&
+          <div className="flex items-center justify-between gap-2 rounded px-2 py-1" style={{ background: '#fef3c7', border: '1px solid #fcd34d' }}>
+            <span className="text-[11px] md:text-[10px] font-semibold leading-tight" style={{ color: '#92400e' }}>
+              Square recorded {tenderHint.recorded}, not {tenderHint.selected}
+            </span>
+            <Button
+              size="sm"
+              className="h-6 px-2 text-[11px] md:text-[10px] font-semibold !text-white bg-amber-600 hover:bg-amber-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCODPaymentChange(tenderHint.index, 'type', tenderHint.recorded);
+                setTenderHint(null);
+              }}>
+              Use {tenderHint.recorded}
+            </Button>
+          </div>
+          }
 
           <Button size="sm" variant="outline" className="w-full h-7 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();handleAddCODPayment();}}>
             <Plus className="w-3 h-3 mr-1" />
