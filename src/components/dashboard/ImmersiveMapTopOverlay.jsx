@@ -68,14 +68,8 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
     return '--';
   })();
 
-  // Unit number parity with the StopCard (same lookup the card's middle
-  // section uses) — appended next to the address on the panel.
-  const unitNumber = (!isCyclingMarker && !isInterStore && !isPickup)
-    ? (delivery?.unit_number || patient?.unit_number || null)
-    : null;
-  const addressWithUnit = unitNumber
-    ? `${resolvedAddress} · #${unitNumber}`
-    : resolvedAddress;
+  // OWNER (Nov 5 2026): the unit number is NOT shown on the immersive panel —
+  // it lives on the stop card only. The address row is the bare address.
 
   // Only show batch tracking for regular deliveries
   const batchTracking = (!isCyclingMarker && !isInterStore) ? formatBatchTracking(delivery, store) : null;
@@ -91,19 +85,19 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-900 dark:text-slate-100 dark:text-white">
           <Badge
             variant="secondary"
-            className="h-6 min-w-[2.25rem] justify-center rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
+            className="h-6 min-w-[2.4rem] justify-center rounded-full border-0 px-2 py-0 text-[13px] font-bold text-white"
             style={{ backgroundColor: storeColor || "#10B981", color: "white" }}
           >
             {formatStopOrder(delivery?.display_stop_order || delivery?.stop_order)}
           </Badge>
 
-          <div className="min-w-0 truncate text-center text-sm font-semibold text-slate-900 dark:text-slate-100 dark:text-white">
+          <div className="min-w-0 truncate text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 dark:text-white">
             {finalDisplayName}
           </div>
 
           <Badge
             variant="secondary"
-            className="h-6 shrink-0 rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
+            className="h-6 shrink-0 rounded-full border-0 px-2 py-0 text-[13px] font-bold text-white"
             style={{ backgroundColor: `${storeColor}`, color: "white" }}
           >
             {formatEta(liveEta)}
@@ -115,7 +109,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             {batchTracking && (
               <Badge
                 variant="secondary"
-                className="h-5 shrink-0 rounded-full border-0 px-2 py-0 text-[11px] font-bold text-white"
+                className="h-5 shrink-0 rounded-full border-0 px-2 py-0 text-[12px] font-bold text-white"
                 style={{ backgroundColor: `${storeColor}`, color: "white" }}
               >
                 {batchTracking}
@@ -126,13 +120,13 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             </div>
           </div>
 
-          <div className="min-w-0 truncate text-center text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-white">
-            {addressWithUnit}
+          <div className="min-w-0 truncate text-center text-[13px] font-medium text-slate-800 dark:text-slate-200 dark:text-white">
+            {resolvedAddress}
           </div>
 
           <Badge
             variant="secondary"
-            className="h-5 shrink-0 rounded-full border-0 px-2 py-0 text-[11px] font-bold text-white"
+            className="h-5 shrink-0 rounded-full border-0 px-2 py-0 text-[12px] font-bold text-white"
             style={{ backgroundColor: `${storeColor}`, color: "white" }}
           >
             {formatDistance(remainingDistanceKm)}

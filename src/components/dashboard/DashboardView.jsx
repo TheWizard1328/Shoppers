@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
+import { remainingPolylineDistanceKm } from '@/components/utils/remainingPolylineDistance';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
@@ -364,7 +365,13 @@ function DashboardView({
     if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) return null;
 
     // Consolidated into geoUtils — identical math, single source of truth.
-    return haversineKm(driverLat, driverLon, stopLat, stopLon);
+    const _crowFliesKm = haversineKm(driverLat, driverLon, stopLat, stopLon);
+    // OWNER REQUEST (Nov 5 2026): the badge must read ROAD distance, not a
+    // straight line — heading along a road away from the target made the number
+    // grow while the driver was actually closing in ("nav says 15 km, badge says
+    // 10 km"). The stop's own leg polyline is already cached, so this is a local
+    // projection + segment sum: no API call, nothing to recalculate on a timer.
+    return remainingPolylineDistanceKm(immersiveOverlayDelivery, driverLat, driverLon, _crowFliesKm);
   }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, immersiveIsInterStore, immersiveInterStoreLocation, immersiveLiveDriverLocation, allDriverLocations, driverLocation, selectedDriverId, currentUser?.id]);
 
   return (
