@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+// APK transparent status/nav bars follow the APP theme, not the OS one
+// (owner report Nov 5 2026: light mode icons were invisible).
+import { syncNativeSystemBarTheme } from './nativeSystemBars';
 
 export default function useAutoThemeSync(themePreference) {
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -34,16 +37,20 @@ export default function useAutoThemeSync(themePreference) {
   themeRef.current = themePreference;
   const applyThemeClasses = useCallback((pref, sysDark) => {
     const root = document.documentElement;
+    // Run the native bar sync AFTER the class flip so it reads the new theme.
+    const syncBars = () => syncNativeSystemBarTheme();
     if (pref === 'dark') {
       root.classList.remove('auto-theme', 'light-theme');
       root.classList.add('dark-theme', 'dark');
       root.setAttribute('data-system-theme', 'dark');
+      syncBars();
       return;
     }
     if (pref === 'light') {
       root.classList.remove('auto-theme', 'dark-theme', 'dark');
       root.classList.add('light-theme');
       root.setAttribute('data-system-theme', 'light');
+      syncBars();
       return;
     }
     root.classList.remove('light-theme', 'dark-theme');
@@ -51,6 +58,7 @@ export default function useAutoThemeSync(themePreference) {
     root.setAttribute('data-system-theme', sysDark ? 'dark' : 'light');
     if (sysDark) root.classList.add('dark');
     else root.classList.remove('dark');
+    syncBars();
   }, []);
 
   // EDITOR GUARD (owner report Nov 1 2026: app set to LIGHT on a Dark-OS PC,
@@ -103,6 +111,7 @@ export default function useAutoThemeSync(themePreference) {
       root.classList.remove('auto-theme', 'light-theme');
       root.classList.add('dark-theme', 'dark');
       root.setAttribute('data-system-theme', 'dark');
+      syncNativeSystemBarTheme();
       return;
     }
 
@@ -110,6 +119,7 @@ export default function useAutoThemeSync(themePreference) {
       root.classList.remove('auto-theme', 'dark-theme', 'dark');
       root.classList.add('light-theme');
       root.setAttribute('data-system-theme', 'light');
+      syncNativeSystemBarTheme();
       return;
     }
 
@@ -122,5 +132,6 @@ export default function useAutoThemeSync(themePreference) {
     } else {
       root.classList.remove('dark');
     }
+    syncNativeSystemBarTheme();
   }, [themePreference, systemPrefersDark]);
 }

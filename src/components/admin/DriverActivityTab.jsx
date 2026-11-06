@@ -366,7 +366,10 @@ function SegmentDialog({ record, onSave, onClose }) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving}>
+          {/* OWNER (Nov 5 2026): this rendered as a solid WHITE button in dark
+              mode — the default variant inherits --primary, which inverts to
+              white in the dark theme. Explicit brand colours both ways. */}
+          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500 shadow-sm">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
             Save
           </Button>
@@ -665,7 +668,9 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
             <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => setShowNewForm(true)}>
+          {/* OWNER (Nov 5 2026): solid white in dark mode — same inverted
+              --primary token. Explicit brand colours both ways. */}
+          <Button size="sm" onClick={() => setShowNewForm(true)} className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500 shadow-sm">
             <Plus className="w-3.5 h-3.5 mr-1" />
             Add Record
           </Button>

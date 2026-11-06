@@ -130,6 +130,33 @@ public class MainActivity extends BridgeActivity {
             runOnUiThread(() -> startApkDownload(url, "RxDeliver WebView"));
         }
 
+        /**
+         * OWNER REPORT (Nov 5 2026): "those transparent header and footer in the
+         * APK ... in dark mode it's working great ... but in light mode I'm
+         * unable to see anything."
+         *
+         * The transparent bars keep the app's own pixels behind them, so the
+         * icon contrast must follow the APP's theme, not the OS night mode that
+         * onCreate() reads. With the app forced to Light on a Dark phone the
+         * status/nav icons stayed WHITE over a white app bar — invisible.
+         * The web layer calls this on every theme change (and on resume), so the
+         * appearance always matches what is actually painted behind the bars.
+         */
+        @JavascriptInterface
+        public void setSystemBarTheme(final boolean isDark) {
+            runOnUiThread(() -> {
+                try {
+                    WindowInsetsControllerCompat c = WindowCompat.getInsetsController(
+                        getWindow(), getWindow().getDecorView());
+                    if (c == null) return;
+                    c.setAppearanceLightStatusBars(!isDark);
+                    c.setAppearanceLightNavigationBars(!isDark);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
         @JavascriptInterface
         public boolean isNative() {
             return true;
