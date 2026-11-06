@@ -191,14 +191,26 @@ const DEVIATION_WAYPOINT_CAP = 3;
 const _stopDeviationVias = (delivery, latestFinished) => {
   const raw = Array.isArray(delivery?.deviation_waypoints) ? delivery.deviation_waypoints : [];
   const originMs = latestFinished?.actual_delivery_time ? new Date(latestFinished.actual_delivery_time).getTime() : null;
-  return raw
+  const valid = raw
     .filter((pt) => pt && Number.isFinite(Number(pt.lat)) && Number.isFinite(Number(pt.lng)))
     .filter((pt) => {
+      // A missing timestamp is NEVER a reason to drop a via (the array is stored
+      // chronologically) — only a timestamp KNOWN to predate this leg's origin
+      // disqualifies a point.
       if (!Number.isFinite(originMs)) return true;
       const t = pt?.timestamp ? new Date(pt.timestamp).getTime() : NaN;
       return !Number.isFinite(t) || t >= originMs;
-    })
-    .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+    });
+  // Re-order by timestamp ONLY when every point carries one; otherwise keep the
+  // stored order (an unstamped point must not jump to the front of the chain).
+  const _allStamped = valid.every((pt) => {
+    const t = pt?.timestamp ? new Date(pt.timestamp).getTime() : NaN;
+    return Number.isFinite(t);
+  });
+  const ordered = _allStamped
+    ? [...valid].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    : valid;
+  return ordered
     .slice(-DEVIATION_WAYPOINT_CAP)
     .map((pt) => ({ lat: Number(pt.lat), lng: Number(pt.lng) }));
 };

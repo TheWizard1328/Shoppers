@@ -143,9 +143,23 @@ function mergeEncodedPolylines(a, b) {
 const DEVIATION_WAYPOINT_CAP = 3;
 function getDeviationWaypoints(delivery) {
   const raw = Array.isArray(delivery?.deviation_waypoints) ? delivery.deviation_waypoints : [];
-  return raw
-    .filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)))
-    .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+  const valid = raw.filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
+  // TIMESTAMP IS OPTIONAL (owner question Nov 5 2026): "if a route deviation
+  // point is missing a time stamp will it be ignored... because if the time
+  // stamps are in order then a time stamp should not be necessary." It is
+  // never a reason to drop a point — items are stored chronologically, so the
+  // stored order is the routes order. Timestamps ONLY re-order the list, and
+  // only when EVERY point has a usable one; a missing timestamp in the middle
+  // must not jump that point to the front of the chain (which would route the
+  // leg backward).
+  const allStamped = valid.every(p => {
+    const t = p?.timestamp ? new Date(p.timestamp).getTime() : NaN;
+    return Number.isFinite(t);
+  });
+  const ordered = allStamped
+    ? [...valid].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    : valid;
+  return ordered
     .map(p => ({ lat: Number(p.lat), lon: Number(p.lng) }))
     .slice(-DEVIATION_WAYPOINT_CAP);
 }
