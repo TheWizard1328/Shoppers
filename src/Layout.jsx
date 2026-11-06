@@ -384,8 +384,13 @@ export default function Layout({ children, currentPageName }) {
   // plus that bundle's own WEB digit. It therefore holds 2.[20].212 until the
   // next web publish even though a newer APK run already bumped the live count.
   const publishedVersionInfo = usePublishedVersionDigits(isOwnerDevice);
+  const _liveApkDigit = publishedVersionInfo
+    ? (publishedVersionInfo.apkDigit > 0
+        ? publishedVersionInfo.apkDigit
+        : apkUpdatesFromSuccessCount(latestBuild?.successCount ?? 0))
+    : 0;
   const liveVersionLabel = isOwnerDevice && publishedVersionInfo
-    ? `live v${APP_VERSION_MAJOR}.${publishedVersionInfo.apkDigit}.${publishedVersionInfo.webVersion}`
+    ? `live v${APP_VERSION_MAJOR}.${_liveApkDigit}.${publishedVersionInfo.webVersion}`
     : null;
 
   // Load the saved audience corrections on the owner device (non-owners never

@@ -115,8 +115,12 @@ export async function fetchPublishedVersionDigits({ force = false } = {}) {
   const readDigits = () => {
     const c = readCache();
     const apkDigit = Number(c?.apkDigit);
-    if (!Number.isFinite(apkDigit) || apkDigit <= 0) return null;
-    return { apkDigit, webVersion: Number(c?.webVersion) || 0 };
+    // A live bundle published BEFORE apkDigit existed still has a web digit —
+    // report the digits we do know (apkDigit 0 = unknown) instead of nothing.
+    const web = Number(c?.webVersion);
+    if (!Number.isFinite(apkDigit) && !Number.isFinite(web)) return null;
+    if ((!Number.isFinite(apkDigit) || apkDigit <= 0) && !(Number.isFinite(web) && web > 0)) return null;
+    return { apkDigit: Number.isFinite(apkDigit) && apkDigit > 0 ? apkDigit : 0, webVersion: Number.isFinite(web) ? web : 0 };
   };
   if (!force && cached && Date.now() - Number(cached.cachedAt || 0) < CACHE_TTL_MS) {
     const digest = readDigits();
@@ -126,7 +130,15 @@ export async function fetchPublishedVersionDigits({ force = false } = {}) {
     const res = await base44.functions.invoke('getPublishedBuildInfo', {});
     const data = res?.data || res;
     const apkDigit = Number(data?.apkDigit);
-    if (!Number.isFinite(apkDigit) || apkDigit <= 0) return readDigits();
+    const webVersion = Number(data?.webVersion);
+    if (!Number.isFinite(apkDigit) || apkDigit <= 0) {
+      // Older live publish (no baked APK digit yet): still surface its WEB digit
+      // so the owner can see the live number before the next publish.
+      if (Number.isFinite(webVersion) && webVersion > 0) {
+        return { apkDigit: 0, webVersion };
+      }
+      return readDigits();
+    }
     writeCache({
       buildNumber: Number(data?.buildNumber) || Number(cached?.buildNumber) || 0,
       webVersion: Number(data?.webVersion) || 0,
@@ -134,7 +146,7 @@ export async function fetchPublishedVersionDigits({ force = false } = {}) {
       buildId: data?.buildId || null,
       pushCount: Number(data?.pushCount) || Number(cached?.pushCount) || undefined,
     });
-    return { apkDigit, webVersion: Number(data?.webVersion) || 0 };
+    return { apkDigit, webVersion: Number.isFinite(webVersion) ? webVersion : 0 };
   } catch (err) {
     console.warn('[publishedBuild] live version digits lookup failed:', err?.message || err);
     return readDigits();
@@ -145,7 +157,10 @@ export function usePublishedVersionDigits(enabled = true) {
   const [digits, setDigits] = useState(() => {
     const c = readCache();
     const apkDigit = Number(c?.apkDigit);
-    return Number.isFinite(apkDigit) && apkDigit > 0 ? { apkDigit, webVersion: Number(c?.webVersion) || 0 } : null;
+    const web = Number(c?.webVersion);
+    const hasApk = Number.isFinite(apkDigit) && apkDigit > 0;
+    if (!hasApk && !(Number.isFinite(web) && web > 0)) return null;
+    return { apkDigit: hasApk ? apkDigit : 0, webVersion: Number.isFinite(web) ? web : 0 };
   });
   useEffect(() => {
     if (!enabled) return;
