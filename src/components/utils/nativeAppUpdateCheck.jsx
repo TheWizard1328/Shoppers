@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { isCapacitorNativeApp, getCapacitorPlatform, isPlayStoreBuild } from '@/components/utils/locationProviders/capacitorRuntime';
+import { getPublishedApkDigitSync } from '@/components/utils/publishedBuildInfo';
+import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
 
 /**
  * useAndroidAppUpdateCheck
@@ -16,6 +18,9 @@ import { isCapacitorNativeApp, getCapacitorPlatform, isPlayStoreBuild } from '@/
  * link so both light up the same "New" badge at the same time.
  */
 export function useAndroidAppUpdateCheck(latestBuildNumber) {
+  // PUBLISH GATE source: the newest APK release's own digit (what this device
+  // could install) — held until the LIVE published bundle advertises it.
+  const latestBuildInfo = useLatestApkBuildInfo();
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [installedVersion, setInstalledVersion] = useState(null);
   const [checked, setChecked] = useState(false);
@@ -48,9 +53,28 @@ export function useAndroidAppUpdateCheck(latestBuildNumber) {
         if (!cancelled) setInstalledVersion({ buildNumber: installedNum, versionStr });
 
         const latestNum = latestBuildNumber != null ? parseInt(latestBuildNumber, 10) : null;
+        // PUBLISH GATE (owner spec Nov 6 2026): do not announce a fresh APK to
+        // LIVE users until the matching WEB version is published. Installing an
+        // APK resets the WEB digit to 0, so announcing first leaves the live path
+        // reporting an APK digit it does not carry. The live deployment's own
+        // version.json carries the APK digit baked into the published bundle; the
+        // notice only opens once that digit has caught up with the release this
+        // device would download. Unknown digits fail OPEN so a driver is never
+        // stranded on an old APK.
+        let publishGateOpen = true;
+        try {
+          const announced = Number(getPublishedApkDigitSync()?.apkDigit) || 0;
+          const releaseMid = Number(String(latestBuildInfo?.releaseVersion || '').split('.')[1]) || 0;
+          if (announced > 0 && releaseMid > 0) {
+            publishGateOpen = announced >= releaseMid;
+            if (!publishGateOpen) {
+              console.log(`[nativeUpdate] holding APK notice: release digit ${releaseMid} not published yet (live advertises ${announced})`);
+            }
+          }
+        } catch { /* fail open */ }
         // New badge shows ONLY when the latest build number is strictly greater than the installed one.
         if (!cancelled) {
-          if (installedNum != null && latestNum != null && latestNum > installedNum) {
+          if (publishGateOpen && installedNum != null && latestNum != null && latestNum > installedNum) {
             setUpdateAvailable(true);
           } else {
             setUpdateAvailable(false);
@@ -64,7 +88,7 @@ export function useAndroidAppUpdateCheck(latestBuildNumber) {
     };
     run();
     return () => { cancelled = true; };
-  }, [latestBuildNumber]);
+  }, [latestBuildNumber, latestBuildInfo?.releaseVersion]);
 
   return { updateAvailable, installedVersion, checked };
 }

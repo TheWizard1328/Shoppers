@@ -57,7 +57,7 @@ import { hardRefreshToNewBuild } from '@/components/utils/updateLoopGuard';
  */
 export default function AppSidebar({
   sidebarOpen, setSidebarOpen,
-  branding, appVersion, buildsAheadCount, onOpenUpdateLog,
+  branding, appVersion, buildsAheadCount, liveVersionLabel, onOpenUpdateLog,
   currentUser, setCurrentUser,
   currentPageName,
   stores, cities, drivers, users, appUsers,
@@ -320,6 +320,9 @@ export default function AppSidebar({
                 <span className="ml-1 font-semibold text-amber-600">(+{buildsAheadCount})</span>
               )}
             </p>
+            {liveVersionLabel && (
+              <p className="text-[11px] text-soft text-left leading-tight">{liveVersionLabel}</p>
+            )}
             {!isMobile && !isTabletPortrait && !isWideScreenMobile && !(deviceType === 'Tablet' && !isTabletPortrait) && <BatteryIndicator />}
           </div>
           {onOpenUpdateLog && (

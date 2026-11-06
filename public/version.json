@@ -1,8 +1,9 @@
 {
-  "buildId": "b118.w15-1b3561f9",
+  "buildId": "b118.w16-db9fbe8b",
   "buildNumber": 118,
-  "webVersion": 15,
-  "pushCount": 5653,
-  "sha": "1b3561f9",
-  "generatedAt": "2026-11-06T07:14:41.680Z"
+  "webVersion": 16,
+  "apkDigit": 21,
+  "pushCount": 5654,
+  "sha": "db9fbe8b",
+  "generatedAt": "2026-11-06T07:25:02.166Z"
 }

@@ -51,7 +51,7 @@ export async function fetchPublishedBuild({ force = false } = {}) {
     const data = res?.data || res;
     const buildNumber = Number(data?.buildNumber);
     if (!Number.isFinite(buildNumber) || buildNumber <= 0) return cached ? Number(cached.buildNumber) : null;
-    writeCache({ buildNumber, webVersion: Number(data?.webVersion) || 0, buildId: data?.buildId || null, pushCount: Number(data?.pushCount) || undefined });
+    writeCache({ buildNumber, webVersion: Number(data?.webVersion) || 0, apkDigit: Number(data?.apkDigit) || 0, buildId: data?.buildId || null, pushCount: Number(data?.pushCount) || undefined });
     return buildNumber;
   } catch (err) {
     console.warn('[publishedBuild] live build lookup failed:', err?.message || err);
@@ -60,6 +60,14 @@ export async function fetchPublishedBuild({ force = false } = {}) {
 }
 
 /** Synchronous best-effort read of the LIVE deployment's push count. */
+export const getPublishedApkDigitSync = () => {
+  const cached = readCache();
+  const d = Number(cached?.apkDigit);
+  const w = Number(cached?.webVersion);
+  if (!Number.isFinite(d) || d <= 0) return null;
+  return { apkDigit: d, webVersion: Number.isFinite(w) ? w : 0 };
+};
+
 export const getPublishedPushSync = () => {
   const cached = readCache();
   const p = Number(cached?.pushCount);
@@ -85,7 +93,7 @@ export async function fetchPublishedPushCount({ force = false } = {}) {
     if (!Number.isFinite(pushCount) || pushCount <= 0) return getPublishedPushSync();
     writeCache({
       buildNumber: Number(data?.buildNumber) || Number(cached?.buildNumber) || 0,
-      webVersion: Number(data?.webVersion) || 0,
+      webVersion: Number(data?.webVersion) || 0, apkDigit: Number(data?.apkDigit) || 0,
       buildId: data?.buildId || null,
       pushCount,
     });
@@ -94,6 +102,60 @@ export async function fetchPublishedPushCount({ force = false } = {}) {
     console.warn('[publishedBuild] live push count lookup failed:', err?.message || err);
     return getPublishedPushSync();
   }
+}
+
+/**
+ * The LIVE deployment's published version digits (owner spec Nov 6 2026).
+ * apkDigit is baked into the bundle that was published (src/version.js
+ * BAKED_APK_DIGIT), so the live site keeps reading 2.[20].212 after a newer APK
+ * run bumps the live build count, until the next web publish.
+ */
+export async function fetchPublishedVersionDigits({ force = false } = {}) {
+  const cached = readCache();
+  const readDigits = () => {
+    const c = readCache();
+    const apkDigit = Number(c?.apkDigit);
+    if (!Number.isFinite(apkDigit) || apkDigit <= 0) return null;
+    return { apkDigit, webVersion: Number(c?.webVersion) || 0 };
+  };
+  if (!force && cached && Date.now() - Number(cached.cachedAt || 0) < CACHE_TTL_MS) {
+    const digest = readDigits();
+    if (digest) return digest;
+  }
+  try {
+    const res = await base44.functions.invoke('getPublishedBuildInfo', {});
+    const data = res?.data || res;
+    const apkDigit = Number(data?.apkDigit);
+    if (!Number.isFinite(apkDigit) || apkDigit <= 0) return readDigits();
+    writeCache({
+      buildNumber: Number(data?.buildNumber) || Number(cached?.buildNumber) || 0,
+      webVersion: Number(data?.webVersion) || 0,
+      apkDigit,
+      buildId: data?.buildId || null,
+      pushCount: Number(data?.pushCount) || Number(cached?.pushCount) || undefined,
+    });
+    return { apkDigit, webVersion: Number(data?.webVersion) || 0 };
+  } catch (err) {
+    console.warn('[publishedBuild] live version digits lookup failed:', err?.message || err);
+    return readDigits();
+  }
+}
+
+export function usePublishedVersionDigits(enabled = true) {
+  const [digits, setDigits] = useState(() => {
+    const c = readCache();
+    const apkDigit = Number(c?.apkDigit);
+    return Number.isFinite(apkDigit) && apkDigit > 0 ? { apkDigit, webVersion: Number(c?.webVersion) || 0 } : null;
+  });
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    fetchPublishedVersionDigits().then((value) => {
+      if (!cancelled && value) setDigits(value);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [enabled]);
+  return digits;
 }
 
 /** React hook — resolves the live deployment's push count once per mount. */

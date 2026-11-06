@@ -150,6 +150,13 @@ jobs:
             exit 0
           fi
           sed -i "s/export const WEB_VERSION = [0-9]\+/export const WEB_VERSION = 0/" src/version.js
+          # OWNER SPEC (Nov 6 2026): the bundle published from now on carries
+          # this APK digit, so the live sidebar reads v2.[APK].[WEB] and holds
+          # the OLD digit until the next web publish.
+          CURRENT_APK=$(grep -oP 'BAKED_APK_DIGIT = \K[0-9]+' src/version.js || echo 0)
+          NEXT_APK=$((CURRENT_APK + 1))
+          sed -i "s/export const BAKED_APK_DIGIT = [0-9]\+/export const BAKED_APK_DIGIT = ${NEXT_APK}/" src/version.js
+          echo "Baked APK digit: ${CURRENT_APK} -> ${NEXT_APK}"
           git add src/version.js
           git commit -m "chore(version): reset web counter to 0 after APK build run ${GITHUB_RUN_NUMBER} (owner rule Oct 21 2026)"
           git pull --rebase origin main || true

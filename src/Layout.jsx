@@ -30,7 +30,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
 import { BUILD_NUMBER, PUSH_COUNT, buildsAhead, entriesSince } from './changeLog';
 import { getChangeLogStateSync, loadChangeLogState, detectPublishAndCollect } from './components/utils/changeLogState';
-import { usePublishedBuildNumber, usePublishedPushCount } from './components/utils/publishedBuildInfo';
+import { usePublishedBuildNumber, usePublishedPushCount, usePublishedVersionDigits } from './components/utils/publishedBuildInfo';
 import { getAudienceOverridesSync, loadAudienceOverrides, saveAudienceOverrides, applyAudienceOverrides, entryAudienceKey } from './components/utils/changeLogAudience';
 import BuildUpdateDialog from './components/common/BuildUpdateDialog';
 import DispatcherLocationGate from './components/common/DispatcherLocationGate';
@@ -94,7 +94,7 @@ import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandle
 import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
 import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
-import { formatAppVersion, apkUpdatesFromSuccessCount } from './version';
+import { formatAppVersion, apkUpdatesFromSuccessCount, APP_VERSION_MAJOR } from './version';
 import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from './components/utils/interactionIdleTracker';
 import { canAttemptUpdate, recordUpdateAttempt, hardRefreshToNewBuild } from './components/utils/updateLoopGuard';
@@ -368,13 +368,25 @@ export default function Layout({ children, currentPageName }) {
   // publish, web-only pushes included. The build-number comparison stays as the
   // fallback when either push count is unavailable.
   const publishedPushCount = usePublishedPushCount(isOwnerDevice);
+  // OWNER DECISION (Nov 6 2026): a WRONG counter is worse than none. Until the
+  // live deployment's version.json carries pushCount there is no honest number
+  // to show (the old build-number fallback read (+1) through dozens of pushes),
+  // so the badge stays hidden and starts working on the first publish of this
+  // build.
   const buildsAheadCount = !isOwnerDevice
     ? 0
     : (PUSH_COUNT > 0 && publishedPushCount > 0
         ? Math.max(0, PUSH_COUNT - publishedPushCount)
-        : (publishedBuildNumber
-            ? Math.max(0, BUILD_NUMBER - publishedBuildNumber)
-            : (changeLogBaseline > 0 ? Math.max(0, buildsAhead(changeLogBaseline)) : 0)));
+        : 0);
+
+  // LIVE VERSION LINE (owner spec Nov 6 2026): v2.[APK].[WEB] as the LIVE site
+  // reports it — the APK digit baked into the bundle that is actually published
+  // plus that bundle's own WEB digit. It therefore holds 2.[20].212 until the
+  // next web publish even though a newer APK run already bumped the live count.
+  const publishedVersionInfo = usePublishedVersionDigits(isOwnerDevice);
+  const liveVersionLabel = isOwnerDevice && publishedVersionInfo
+    ? `live v${APP_VERSION_MAJOR}.${publishedVersionInfo.apkDigit}.${publishedVersionInfo.webVersion}`
+    : null;
 
   // Load the saved audience corrections on the owner device (non-owners never
   // edit them, but they still read the same shared record when they show them).
@@ -1872,6 +1884,7 @@ export default function Layout({ children, currentPageName }) {
                   branding={branding}
                   appVersion={sidebarVersion}
                   buildsAheadCount={buildsAheadCount}
+                  liveVersionLabel={liveVersionLabel}
                   onOpenUpdateLog={isOwnerDevice ? () => setShowUpdateLog(true) : undefined}
                   latestBuildNumber={latestBuild?.buildNumber ?? null}
                   hasWebUpdate={hasWebUpdate}

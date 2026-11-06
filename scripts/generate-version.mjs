@@ -58,6 +58,7 @@ writeFileSync('public/version.json', JSON.stringify({
   buildId,
   buildNumber: BUILD_NUMBER,
   webVersion: WEB_VERSION,
+  apkDigit: Number((/BAKED_APK_DIGIT = (\d+)/.exec(readFileSync('src/version.js', 'utf8')) || [0, 0])[1]) || 0,
   pushCount,
   sha,
   generatedAt: new Date().toISOString(),
