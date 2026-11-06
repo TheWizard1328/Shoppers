@@ -18,6 +18,29 @@ import { base44 } from '@/api/base44Client';
 const CACHE_KEY = 'rxdeliver_live_build_info';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+// LONG-LIVED MIRROR (owner report Nov 6 2026): "The-Desktop(Editor),
+// The-Desktop(PWA) and The-Phone are only showing v2.23.002 (+4)" while the
+// laptop and tablet showed both rows. Same bundle everywhere, so the difference
+// was the live-digits LOOKUP: it has a 5-minute TTL and a single attempt, so a
+// device whose invoke failed (429 / offline blip) rendered NOTHING for the rest
+// of the session. The digits are now mirrored without a TTL and painted on the
+// first render, and a failed lookup is retried before giving up.
+const MIRROR_KEY = 'rxdeliver_live_version_digits';
+const readMirror = () => {
+  try {
+    const raw = localStorage.getItem(MIRROR_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    const apkDigit = Number(parsed?.apkDigit);
+    const webVersion = Number(parsed?.webVersion);
+    if (Number.isFinite(apkDigit) && apkDigit > 0) return { apkDigit, webVersion: Number.isFinite(webVersion) ? webVersion : 0 };
+    if (Number.isFinite(webVersion) && webVersion > 0) return { apkDigit: 0, webVersion };
+    return null;
+  } catch { return null; }
+};
+const writeMirror = (digits) => {
+  try { if (digits) localStorage.setItem(MIRROR_KEY, JSON.stringify(digits)); } catch { /* ignore */ }
+};
+
 const readCache = () => {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -124,7 +147,7 @@ export async function fetchPublishedVersionDigits({ force = false } = {}) {
   };
   if (!force && cached && Date.now() - Number(cached.cachedAt || 0) < CACHE_TTL_MS) {
     const digest = readDigits();
-    if (digest) return digest;
+    if (digest) { writeMirror(digest); return digest; }
   }
   try {
     const res = await base44.functions.invoke('getPublishedBuildInfo', {});
@@ -146,10 +169,29 @@ export async function fetchPublishedVersionDigits({ force = false } = {}) {
       buildId: data?.buildId || null,
       pushCount: Number(data?.pushCount) || Number(cached?.pushCount) || undefined,
     });
-    return { apkDigit, webVersion: Number.isFinite(webVersion) ? webVersion : 0 };
+    const _fresh = { apkDigit, webVersion: Number.isFinite(webVersion) ? webVersion : 0 };
+    writeMirror(_fresh);
+    return _fresh;
   } catch (err) {
     console.warn('[publishedBuild] live version digits lookup failed:', err?.message || err);
-    return readDigits();
+    // Retry: a single failed invoke used to blank the owner's live row for the
+    // whole session on that device.
+    for (const waitMs of [2500, 7000]) {
+      await new Promise((r) => setTimeout(r, waitMs));
+      try {
+        const retry = await base44.functions.invoke('getPublishedBuildInfo', {});
+        const d = retry?.data || retry;
+        const apk = Number(d?.apkDigit);
+        const web = Number(d?.webVersion);
+        if ((Number.isFinite(apk) && apk > 0) || (Number.isFinite(web) && web > 0)) {
+          const digits = { apkDigit: Number.isFinite(apk) && apk > 0 ? apk : 0, webVersion: Number.isFinite(web) ? web : 0 };
+          writeCache({ apkDigit: digits.apkDigit, webVersion: digits.webVersion });
+          writeMirror(digits);
+          return digits;
+        }
+      } catch { /* keep waiting */ }
+    }
+    return readDigits() || readMirror();
   }
 }
 
@@ -159,16 +201,21 @@ export function usePublishedVersionDigits(enabled = true) {
     const apkDigit = Number(c?.apkDigit);
     const web = Number(c?.webVersion);
     const hasApk = Number.isFinite(apkDigit) && apkDigit > 0;
-    if (!hasApk && !(Number.isFinite(web) && web > 0)) return null;
-    return { apkDigit: hasApk ? apkDigit : 0, webVersion: Number.isFinite(web) ? web : 0 };
+    if (hasApk || (Number.isFinite(web) && web > 0)) {
+      return { apkDigit: hasApk ? apkDigit : 0, webVersion: Number.isFinite(web) ? web : 0 };
+    }
+    return readMirror();
   });
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    fetchPublishedVersionDigits().then((value) => {
+    const load = async () => {
+      const value = await fetchPublishedVersionDigits().catch(() => null);
       if (!cancelled && value) setDigits(value);
-    }).catch(() => {});
-    return () => { cancelled = true; };
+    };
+    load();
+    const timer = setInterval(load, 10 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(timer); };
   }, [enabled]);
   return digits;
 }
