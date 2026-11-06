@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck, Share2 } from 'lucide-react';
+import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck, Share2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
@@ -502,6 +502,51 @@ export default function AdminMetrics() {
   }, [metricsData, selectedMonth, selectedStoreMonth, selectedDriverId, feeTotals]);
 
   // Filter driver data based on selected driver
+  // ── Unknown Driver export (owner request Nov 6 2026) ─────────────────────
+  // Every payable delivery whose driver_id has no AppUser record lands in the
+  // "Unknown Driver" bar. This pulls those rows (paged) and downloads them as a
+  // CSV that Excel opens directly: date, actual delivery time, store, driver id,
+  // COD required / collected / method and status.
+  const [isExportingUnknown, setIsExportingUnknown] = useState(false);
+  const exportUnknownDriverRows = useCallback(async () => {
+    setIsExportingUnknown(true);
+    try {
+      const allRows = [];
+      let offset = 0;
+      for (let page = 0; page < 25; page++) {
+        const response = await base44.functions.invoke('unknownDriverReport', {
+          year: parseInt(selectedYear, 10), offset, limit: 300,
+        });
+        const data = response?.data || response;
+        const rows = Array.isArray(data?.rows) ? data.rows : [];
+        allRows.push(...rows);
+        offset = data?.next_offset;
+        if (offset == null || !rows.length) break;
+      }
+      if (!allRows.length) {
+        toast.info(`No unknown-driver deliveries found for ${selectedYear}`);
+        return;
+      }
+      const header = ['Delivery Date', 'Actual Delivery Time', 'Store', 'Driver ID', 'COD Required', 'COD Collected', 'COD Method', 'Status'];
+      const esc = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const csv = [header.map(esc).join(','), ...allRows.map((row) => row.map(esc).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rxdeliver-unknown-driver-${selectedYear}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${allRows.length} unknown-driver deliveries`);
+    } catch (error) {
+      toast.error(`Export failed: ${error?.message || 'unknown error'}`);
+    } finally {
+      setIsExportingUnknown(false);
+    }
+  }, [selectedYear]);
+
   const getFilteredDriverData = useCallback((driverData) => {
     if (selectedDriverId === 'all' || !driverData) return driverData;
     return driverData.filter((d) => d.driverId === selectedDriverId);
@@ -1232,6 +1277,16 @@ export default function AdminMetrics() {
                   `Monthly ${metricsViewMode === 'fees' ? 'App Fees' : metricsViewMode === 'extra_km' ? 'Extra KM' : 'Deliveries'} (${selectedYear})${selectedDriverId !== 'all' ? ` - ${displayMetricsData.driverData?.find((d) => d.driverId === selectedDriverId)?.name}` : ''}`
                   }
               </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 self-start gap-1.5"
+                onClick={exportUnknownDriverRows}
+                disabled={isExportingUnknown}
+              >
+                <Download className="w-3.5 h-3.5" />
+                {isExportingUnknown ? 'Exporting…' : 'Export Unknown Driver (CSV)'}
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">

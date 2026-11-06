@@ -211,6 +211,38 @@ const recordActivitySegment = async (base44, requestClient, driverId, driverName
   return lastSavedActivity;
 };
 
+// ── Transient-failure resilience (owner report Nov 6 2026) ────────────────────
+// Twice in one day an on_break -> on_duty toggle produced a 500 and NO
+// DriverDailyActivity segment: the status transition landed in the middle of a
+// 429 storm, AppUser.update threw, and the whole function aborted BEFORE the
+// payroll-critical segment was written. The client then retried a few times,
+// abandoned the mutation and the driver had to fix his own duty time by hand.
+// Every write below now retries transient failures and the activity segment is
+// recorded BEFORE the cosmetic status write, so a rate limit can no longer cost
+// a driver his duty-time record.
+const isTransientStatusError = (error) => {
+  const status = Number(error?.status || error?.response?.status || 0);
+  const msg = String(error?.message || error || '');
+  return status === 429 || status === 502 || status === 503 || status === 504
+    || status >= 500 || /rate limit|timeout|network error/i.test(msg);
+};
+
+const withTransientRetry = async (fn, label = 'write', attempts = 4) => {
+  let lastError;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientStatusError(error) || i === attempts) break;
+      const delay = 700 * i + Math.floor(Math.random() * 400);
+      console.warn(`⏳ [setDriverStatus] ${label} transient failure (attempt ${i}/${attempts}) — retrying in ${delay}ms:`, error?.message || error);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+};
+
 const clearNextDeliveryFlags = async (base44, driverId, deliveryDate) => {
   const deliveries = await base44.asServiceRole.entities.Delivery.filter({
     driver_id: driverId,
@@ -220,9 +252,16 @@ const clearNextDeliveryFlags = async (base44, driverId, deliveryDate) => {
   const flaggedDeliveries = deliveries.filter((delivery) => delivery?.isNextDelivery === true);
 
   for (const delivery of flaggedDeliveries) {
-    await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+    // A rate limit here must NEVER fail the duty transition (the flag converges
+    // through the next pull / WS echo) — the Nov 6 500s came from this throw.
+    await withTransientRetry(
+      () => base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }),
+      `clear isNextDelivery ${delivery.id}`,
+      2
+    ).catch((error) => {
       if (isNotFoundError(error)) return null;
-      throw error;
+      console.warn(`⚠️ [setDriverStatus] isNextDelivery clear skipped for ${delivery.id}:`, error?.message || error);
+      return null;
     });
   }
 
@@ -285,16 +324,6 @@ Deno.serve(async (req) => {
       // own last known location marker on their devices.
       updateData.location_tracking_enabled = false;
       console.log('📍 [setDriverStatus] Disabling location sharing (coords preserved) for off duty');
-    }
-
-    // CRITICAL: Update with broadcast to ensure all clients receive the change immediately
-    const updatedAppUser = await base44.asServiceRole.entities.AppUser.update(appUser.id, updateData).catch((error) => {
-      if (isNotFoundError(error)) return null;
-      throw error;
-    });
-
-    if (!updatedAppUser) {
-      return Response.json({ success: true, skipped: true, reason: 'app_user_not_found_during_update' });
     }
 
     // Determine anchor time for activity segment boundaries:
@@ -360,8 +389,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Record DriverDailyActivity segment for this status transition
+    // ── 1) PAYROLL-CRITICAL FIRST: record the DriverDailyActivity segment ──────
+    // Ordering matters: if the status write below is rate-limited, the driver's
+    // duty-time record must already be safe.
     const dailyActivityRecord = await recordActivitySegment(base44, base44, subjectUserId, appUser.user_name || '', newStatus, previousStatus, activityAnchorTime);
+
+    // ── 2) Then the AppUser status flag (cosmetic for payroll; the toggling
+    // device already wrote it locally and re-broadcasts on the next sync) ──────
+    let updatedAppUser = null;
+    try {
+      updatedAppUser = await withTransientRetry(
+        () => base44.asServiceRole.entities.AppUser.update(appUser.id, updateData),
+        'AppUser status update'
+      );
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return Response.json({ success: true, skipped: true, reason: 'app_user_not_found_during_update' });
+      }
+      console.warn('⚠️ [setDriverStatus] AppUser status write failed after retries — activity segment already saved:', error?.message || error);
+    }
     
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);

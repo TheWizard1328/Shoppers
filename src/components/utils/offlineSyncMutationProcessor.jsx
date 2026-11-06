@@ -23,9 +23,15 @@ let deferredReplayTimer = null;
 // replay timer re-processed due mutations 100ms after each failure — a
 // tight retry loop hammering the shared API pool and the main thread.
 const MAX_MUTATION_RETRIES = 3;
+// Owner report Nov 6 2026: a duty-status change (on_duty / on_break / off_duty)
+// was abandoned after 3 failed attempts during a 429 storm, so DriverDailyActivity
+// never recorded the break and the time had to be fixed by hand. Duty status is
+// payroll data, so it keeps retrying far longer than ordinary mutations.
+const DRIVER_STATUS_MAX_RETRIES = 10;
 const _recordMutationFailure = async (mutation, isRateLimit = false) => {
   const attempt = (mutation?.retryCount || 0) + 1;
-  if (attempt >= MAX_MUTATION_RETRIES) {
+  const maxAttempts = mutation?.driverStatusTransition ? DRIVER_STATUS_MAX_RETRIES : MAX_MUTATION_RETRIES;
+  if (attempt >= maxAttempts) {
     console.warn(`⚠️ [OfflineSync] abandoning mutation ${mutation?.entity}:${mutation?.recordId} after ${attempt} attempts — user actions will re-apply any still-needed change`);
     await offlineDB.removePendingMutation(mutation.mutationId).catch(() => {});
     return 'abandoned';
