@@ -95,10 +95,11 @@ function ChatWindow({
       if (msg.is_group) {
         const alreadyRead = Array.isArray(msg.read_by) && msg.read_by.includes(currentUser.id);
         if (alreadyRead) return;
-        // Re-fetch to reduce lost-update risk, then append
-        const fresh = await base44.entities.Message.get(msg.id);
-        const readBy = Array.from(new Set([...(fresh?.read_by || []), currentUser.id]));
-        if (readBy.length === (fresh?.read_by || []).length) return;
+        // RATE FIX (owner report Nov 6 2026): this did a GET + an UPDATE per
+        // unread message, so opening a busy thread fired ~2 requests per row.
+        // The thread rows are already fresh from the read that produced this
+        // list, so the append is done straight from the message.
+        const readBy = Array.from(new Set([...(msg.read_by || []), currentUser.id]));
         await base44.entities.Message.update(msg.id, { read_by: readBy });
       } else if (!msg.read && msg.receiver_id === currentUser.id) {
         await base44.entities.Message.update(msg.id, { read: true });
@@ -136,7 +137,14 @@ function ChatWindow({
           m.sender_id !== currentUser?.id || m.receiver_id === currentUser?.id)
         );
         if (unreadMessages.length > 0) {
-          await Promise.allSettled(unreadMessages.map((msg) => markMessageRead(msg)));
+          // BURST CAP (owner report Nov 6 2026): a thread with 50 unread rows
+          // fired 50 receipts at once. For a 1:1 thread only the newest unread
+          // message needs the flag; a group thread keeps per-message "Read by"
+          // for the 10 newest. Older rows are stamped by the next thread open.
+          const toMark = unreadMessages[0]?.is_group
+            ? unreadMessages.slice(0, 10)
+            : [unreadMessages[0]];
+          await Promise.allSettled(toMark.map((msg) => markMessageRead(msg)));
           if (onMessagesRead) onMessagesRead(unreadMessages.length);
         }
       } catch (error) {

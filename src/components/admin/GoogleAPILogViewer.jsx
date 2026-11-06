@@ -534,7 +534,7 @@ export default function GoogleAPILogViewer() {
     loadLogs();
 
     // Auto-refresh every 10 seconds to show new API calls in real-time
-    const interval = setInterval(() => loadLogs(true), 10000);
+    const interval = setInterval(() => loadLogs(true), 60000);
     return () => clearInterval(interval);
   }, []);
 

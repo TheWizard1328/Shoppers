@@ -2388,7 +2388,10 @@ function Dashboard() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
       // Load ALL drivers for the selected date so dashboard state stays complete
-      const freshDeliveries = await loadPriorityDeliveriesForSelection(dateStr, 'all', true);
+      // IDB-FIRST (owner report Nov 6 2026): a driver change re-pulled the whole
+      // date from the server. forceRefresh=false reads the offline slice that is
+      // already on the device and lets the background sync catch up.
+      const freshDeliveries = await loadPriorityDeliveriesForSelection(dateStr, 'all', false);
 
       if (driverChangeRequestIdRef.current !== reqId) return;
       if (driverId && driverId !== 'all') {

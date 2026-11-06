@@ -60,6 +60,17 @@ function daysSince(iso) {
   return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
+// ── ACTIVE CATALOG SWEEP CACHE (owner report Nov 6 2026) ────────────────────
+// computeCatalogUncollected pages SquareCatalogItems 500 at a time (up to 40
+// pages) and then pulls Store.list() + Patient.list() uncached, and it re-ran
+// on app load, on every balances compute and on every catalog/delivery
+// websocket echo — a rate-limit volley that could fire several times a minute
+// while nothing had actually changed. The sweep is now reused for 90s and
+// invalidated by the catalog subscription.
+const CATALOG_SWEEP_TTL_MS = 90 * 1000;
+let _catalogSweep = { at: 0, rows: null };
+const invalidateCatalogSweep = () => { _catalogSweep = { at: 0, rows: null }; };
+
 // Fallback when a SquareCatalogItems row has no patient_id (older rows created
 // by a path that didn't persist it — Oct 2 2026 report: name shows briefly
 // then flips to "COD" once the catalog list loads and replaces the
@@ -1147,19 +1158,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (dd?.id && dd?.driver_name) driverNameByDelivery.set(String(dd.id), String(dd.driver_name));
         });
       } catch {/* fall through — unstamped catalog rows are driver-hidden */}
-      const itemsPages = [];
+      const _cacheWarm = _catalogSweep.rows && (Date.now() - _catalogSweep.at) < CATALOG_SWEEP_TTL_MS;
+      let itemsRaw;
       let anyFetchFailed = false;
-      for (let skip = 0; skip < 20000; skip += 500) {
-        const { rows: list, failed } = await fetchPage(skip, 1);
-        anyFetchFailed = anyFetchFailed || failed;
-        itemsPages.push(...list);
-        if (list.length < 500) break;
+      if (_cacheWarm) {
+        itemsRaw = _catalogSweep.rows;
+        console.log(`⚡ [SquareBalances] active catalog sweep reused (${itemsRaw.length} items, ${Math.round((Date.now() - _catalogSweep.at) / 1000)}s old)`);
+      } else {
+        const itemsPages = [];
+        // HARD PAGE CAP: 12 pages (6000 active items) is far beyond any real
+        // register backlog and stops an unbounded sweep eating the rate budget.
+        for (let page = 0; page < 12; page++) {
+          const { rows: list, failed } = await fetchPage(page * 500, 1);
+          anyFetchFailed = anyFetchFailed || failed;
+          itemsPages.push(...list);
+          if (list.length < 500) break;
+        }
+        itemsRaw = itemsPages;
+        if (!anyFetchFailed) _catalogSweep = { at: Date.now(), rows: itemsPages };
       }
-      const itemsRaw = itemsPages;
       const totalItemsFetched = itemsRaw.length;
+      // OFFLINE FIRST (owner report Nov 6 2026): both lists live in the offline
+      // DB; they were re-pulled from the server on every balances compute.
       const [storesRaw, patientsRaw] = await Promise.all([
-      base44.entities.Store.list().catch(() => []),
-      base44.entities.Patient.list().catch(() => [])]
+      offlineDB.getAll(offlineDB.STORES.STORES).then((r) => (r && r.length ? r : base44.entities.Store.list().catch(() => []))).catch(() => base44.entities.Store.list().catch(() => [])),
+      offlineDB.getAll(offlineDB.STORES.PATIENTS).then((r) => (r && r.length ? r : base44.entities.Patient.list().catch(() => []))).catch(() => base44.entities.Patient.list().catch(() => []))]
       );
       const resolvePatientName = buildPatientResolver(patientsRaw);
       const storeById = new Map();
@@ -2249,6 +2272,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     } catch (e) {console.error('Ledger subscribe failed:', e);}
     try {
       unsubs.push(base44.entities.SquareCatalogItems.subscribe(() => {
+        invalidateCatalogSweep();
         clearTimeout(catalogTimer);
         catalogTimer = setTimeout(() => {computeCatalogUncollectedRef.current?.();}, 5000);
       }));

@@ -87,6 +87,28 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
       .map(s => s?.id)
       .filter(Boolean);
 
+    // ── STEP 3a2: IDB-FIRST GATE (owner report Nov 6 2026) ──────────────────
+    // "There is still something... reading massive amounts of data from the
+    // online entities whenever I change dates." Step 3b pulled up to 1500
+    // delivery rows plus every referenced patient on EVERY date change, even
+    // when the offline DB already held that exact date from a sync seconds
+    // earlier (Dashboard fires this more than once per selection). When the
+    // date+city slice was synced inside the TTL, the offline rows ARE the
+    // answer and the whole online pass is skipped.
+    const FILTER_SYNC_STAMP_TTL = 3 * 60 * 1000;
+    const _idbForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []);
+    let _stampMap = {};
+    try { _stampMap = JSON.parse(localStorage.getItem('rxdeliver_filtersync_stamps') || '{}') || {}; } catch (_) { _stampMap = {}; }
+    const _stampKey = `${selectedDateStr}|${selectedCityId || 'all'}`;
+    const _idbSliceFresh = Date.now() - Number(_stampMap[_stampKey] || 0) < FILTER_SYNC_STAMP_TTL
+      && Array.isArray(_idbForDate) && _idbForDate.length > 0;
+    const _recordStamp = () => {
+      try {
+        _stampMap[_stampKey] = Date.now();
+        localStorage.setItem('rxdeliver_filtersync_stamps', JSON.stringify(_stampMap));
+      } catch (_) { /* non-critical */ }
+    };
+
     // ── STEP 3b: Fetch deliveries for selected date + city ────────────────────
     console.log(`🔄 [FilterSync] Step 3b — fetch deliveries for ${selectedDateStr}`);
     let freshDeliveries = [];
@@ -95,7 +117,13 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
     // be read as "markers gone from server" — that purged live markers from IDB
     // and stripped them from the UI until the next app refresh.
     let _markersConfirmed = cityStoreIds.length === 0; // unscoped date fetch includes markers
-    if (cityStoreIds.length > 0) {
+    let _sliceFromIdb = false;
+    if (_idbSliceFresh) {
+      _sliceFromIdb = true;
+      _markersConfirmed = false; // no positive server confirmation -> never purge
+      freshDeliveries = _idbForDate;
+      console.log(`⚡ [FilterSync] Step 3b skipped — offline DB already holds ${_idbForDate.length} rows for ${_stampKey} (synced ${Math.round((Date.now() - Number(_stampMap[_stampKey])) / 1000)}s ago)`);
+    } else if (cityStoreIds.length > 0) {
       // Fetch city-scoped deliveries AND cycling markers (no store_id) in parallel
       const [cityDeliveries, cyclingMarkers] = await Promise.all([
         queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr, store_id: { $in: cityStoreIds } }, '-updated_date', 1000), 'Delivery.filterChangeSync.city').catch(() => []),
@@ -114,11 +142,25 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
       freshDeliveries = await queueEntityRequest(() => Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 1000), 'Delivery.filterChangeSync.all').catch(() => []);
     }
 
+    if (!_sliceFromIdb) _recordStamp();
+
     // ── STEP 3c: Sync ONLY patients referenced by this date's deliveries ──────
     // Fast path — only what's needed for the current view
-    const patientIds = Array.from(new Set((freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id)));
+    const _allPatientIds = Array.from(new Set((freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id)));
+    // MISSING-ONLY: patients already in the offline DB are not re-fetched on a
+    // date change (they are refreshed by the periodic sync). This used to pull
+    // every referenced patient in 50-id chunks on every date switch.
+    const _idbPatientIds = new Set();
+    if (_allPatientIds.length > 0) {
+      const _idbPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
+      (_idbPatients || []).forEach((pt) => { if (pt?.id) _idbPatientIds.add(pt.id); });
+    }
+    const patientIds = _sliceFromIdb ? [] : _allPatientIds.filter((id) => !_idbPatientIds.has(id));
+    if (_allPatientIds.length > 0 && patientIds.length === 0) {
+      console.log(`⚡ [FilterSync] Step 3c skipped — all ${_allPatientIds.length} referenced patients are already offline`);
+    }
     if (patientIds.length > 0) {
-      console.log(`🔄 [FilterSync] Step 3c — syncing ${patientIds.length} patients for selected date`);
+      console.log(`🔄 [FilterSync] Step 3c — syncing ${patientIds.length} of ${_allPatientIds.length} patients (rest offline)`);
       const { freshPatients = [] } = await syncPatientsByIds(patientIds).catch(() => ({ freshPatients: [] }));
       if (freshPatients.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients).catch(() => {});
