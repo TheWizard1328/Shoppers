@@ -28,7 +28,10 @@ const readCache = () => {
 };
 
 const writeCache = (info) => {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ...info, cachedAt: Date.now() })); } catch { /* ignore */ }
+  // MERGE (Nov 5 2026): the build number and the push count are written by
+  // different callers — a plain overwrite would wipe whichever one the other
+  // caller had just cached.
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ...(readCache() || {}), ...info, cachedAt: Date.now() })); } catch { /* ignore */ }
 };
 
 /** Synchronous best-effort read for first paint. */
@@ -48,12 +51,63 @@ export async function fetchPublishedBuild({ force = false } = {}) {
     const data = res?.data || res;
     const buildNumber = Number(data?.buildNumber);
     if (!Number.isFinite(buildNumber) || buildNumber <= 0) return cached ? Number(cached.buildNumber) : null;
-    writeCache({ buildNumber, webVersion: Number(data?.webVersion) || 0, buildId: data?.buildId || null });
+    writeCache({ buildNumber, webVersion: Number(data?.webVersion) || 0, buildId: data?.buildId || null, pushCount: Number(data?.pushCount) || undefined });
     return buildNumber;
   } catch (err) {
     console.warn('[publishedBuild] live build lookup failed:', err?.message || err);
     return cached ? Number(cached.buildNumber) : null;
   }
+}
+
+/** Synchronous best-effort read of the LIVE deployment's push count. */
+export const getPublishedPushSync = () => {
+  const cached = readCache();
+  const p = Number(cached?.pushCount);
+  return Number.isFinite(p) && p > 0 ? p : null;
+};
+
+/**
+ * The LIVE deployment's git push count — the builds-ahead counter's real anchor
+ * (owner report Nov 5 2026: the badge read (+1) with 34 changes actually pushed
+ * since the last publish). Push count is the only counter that moves on every
+ * push, web-only included; a publish lands it level with this bundle's own.
+ */
+export async function fetchPublishedPushCount({ force = false } = {}) {
+  const cached = readCache();
+  if (!force && cached && Date.now() - Number(cached.cachedAt || 0) < CACHE_TTL_MS) {
+    const p = Number(cached.pushCount);
+    if (Number.isFinite(p) && p > 0) return p;
+  }
+  try {
+    const res = await base44.functions.invoke('getPublishedBuildInfo', {});
+    const data = res?.data || res;
+    const pushCount = Number(data?.pushCount);
+    if (!Number.isFinite(pushCount) || pushCount <= 0) return getPublishedPushSync();
+    writeCache({
+      buildNumber: Number(data?.buildNumber) || Number(cached?.buildNumber) || 0,
+      webVersion: Number(data?.webVersion) || 0,
+      buildId: data?.buildId || null,
+      pushCount,
+    });
+    return pushCount;
+  } catch (err) {
+    console.warn('[publishedBuild] live push count lookup failed:', err?.message || err);
+    return getPublishedPushSync();
+  }
+}
+
+/** React hook — resolves the live deployment's push count once per mount. */
+export function usePublishedPushCount(enabled = true) {
+  const [pushCount, setPushCount] = useState(() => getPublishedPushSync());
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    fetchPublishedPushCount().then((value) => {
+      if (!cancelled && value) setPushCount(value);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [enabled]);
+  return pushCount;
 }
 
 /** React hook — resolves the live build number once per mount (5 min cache). */

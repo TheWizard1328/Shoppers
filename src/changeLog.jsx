@@ -28,6 +28,20 @@
 
 export const BUILD_NUMBER = 118;
 
+/**
+ * PUSH COUNT — the monotonic per-push counter (git commit count), injected by
+ * Vite as __WEB_PUSH_COUNT__ and also carried in version.json.
+ *
+ * OWNER REPORT (Nov 5 2026 23:39): "the (+1) past live version number is wrong
+ * — count 34 actual version changes in the version list since I last published.
+ * There have been many WEB updates and a few APK updates too." BUILD_NUMBER only
+ * moves on APK releases, so it sat still through dozens of web pushes and
+ * `BUILD_NUMBER - live` could never count them. This counter moves on EVERY
+ * push, so the builds-ahead badge is computed from it instead.
+ */
+/* global __WEB_PUSH_COUNT__ */
+export const PUSH_COUNT = typeof __WEB_PUSH_COUNT__ !== 'undefined' ? Number(__WEB_PUSH_COUNT__) || 0 : 0;
+
 // Audience keys found in entries.
 //   all                  → everyone who uses the app
 //   drivers              → drivers only

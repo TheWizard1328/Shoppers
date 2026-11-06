@@ -28,9 +28,9 @@ import TestModeBanner from "./components/layout/TestModeBanner";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
-import { BUILD_NUMBER, buildsAhead, entriesSince } from './changeLog';
+import { BUILD_NUMBER, PUSH_COUNT, buildsAhead, entriesSince } from './changeLog';
 import { getChangeLogStateSync, loadChangeLogState, detectPublishAndCollect } from './components/utils/changeLogState';
-import { usePublishedBuildNumber } from './components/utils/publishedBuildInfo';
+import { usePublishedBuildNumber, usePublishedPushCount } from './components/utils/publishedBuildInfo';
 import { getAudienceOverridesSync, loadAudienceOverrides, saveAudienceOverrides, applyAudienceOverrides, entryAudienceKey } from './components/utils/changeLogAudience';
 import BuildUpdateDialog from './components/common/BuildUpdateDialog';
 import DispatcherLocationGate from './components/common/DispatcherLocationGate';
@@ -360,11 +360,21 @@ export default function Layout({ children, currentPageName }) {
   // the stamped baseline is only a fallback, and with neither resolved the
   // badge shows nothing rather than an invented number.
   const publishedBuildNumber = usePublishedBuildNumber(isOwnerDevice);
+  // OWNER REPORT (Nov 5 2026 23:39): the badge read (+1) while 34 real changes
+  // had been pushed since the last publish. BUILD_NUMBER only moves on APK
+  // releases, so it cannot count web pushes. The git push count moves on every
+  // push and travels in the LIVE deployment's version.json, so (+X) is now this
+  // bundle's push count minus the live one: exactly the changes since the last
+  // publish, web-only pushes included. The build-number comparison stays as the
+  // fallback when either push count is unavailable.
+  const publishedPushCount = usePublishedPushCount(isOwnerDevice);
   const buildsAheadCount = !isOwnerDevice
     ? 0
-    : (publishedBuildNumber
-        ? Math.max(0, BUILD_NUMBER - publishedBuildNumber)
-        : (changeLogBaseline > 0 ? Math.max(0, buildsAhead(changeLogBaseline)) : 0));
+    : (PUSH_COUNT > 0 && publishedPushCount > 0
+        ? Math.max(0, PUSH_COUNT - publishedPushCount)
+        : (publishedBuildNumber
+            ? Math.max(0, BUILD_NUMBER - publishedBuildNumber)
+            : (changeLogBaseline > 0 ? Math.max(0, buildsAhead(changeLogBaseline)) : 0)));
 
   // Load the saved audience corrections on the owner device (non-owners never
   // edit them, but they still read the same shared record when they show them).
