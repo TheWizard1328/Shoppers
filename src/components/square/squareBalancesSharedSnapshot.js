@@ -59,6 +59,8 @@ let pingRecordId = null;
 const pingSharedSnapshot = async ({ version, snapshotId }) => {
   const rec = { payload: null, ping: true, version: Number(version) || Date.now(), snapshot_id: snapshotId || null, computed_at: new Date().toISOString() };
   if (pingRecordId) {
+    // Drop the cached id the moment it misses: a deleted ping record used to be
+    // retried on every publish, logging a GET+PUT 404 pair each time.
     try { await base44.entities.SquareBalancesSnapshot.update(pingRecordId, rec); return; } catch { pingRecordId = null; }
   }
   const rows = await base44.entities.SquareBalancesSnapshot.list('-version', 20, 0).catch(() => []);
@@ -157,8 +159,16 @@ const writeParts = async (anchorId, payload, version) => {
     const row = { snapshot_id: anchorId, part_index: i, part_text: chunks[i], version, ping: false, anchor: false };
     const found = byIndex.get(i);
     try {
-      if (found?.id) await base44.entities.SquareBalancesSnapshot.update(found.id, row);
-      else await base44.entities.SquareBalancesSnapshot.create(row);
+      if (found?.id) {
+        // A shard can be deleted by another device's dupe cleanup between this
+        // list and the write; that 404'd on every publish afterwards. Recreate
+        // instead of repeating the miss (owner report Nov 6 2026, console noise).
+        try {
+          await base44.entities.SquareBalancesSnapshot.update(found.id, row);
+        } catch {
+          await base44.entities.SquareBalancesSnapshot.create(row).catch(() => null);
+        }
+      } else await base44.entities.SquareBalancesSnapshot.create(row);
     } catch { /* a missing part just means this publish is incomplete; next publish rewrites it */ }
     byIndex.delete(i);
   }

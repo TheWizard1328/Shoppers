@@ -90,12 +90,27 @@ Deno.serve(async (req) => {
 
     // Update Delivery with re-encoded polyline + travel distance + timestamp in ONE write.
     // (Skipped when the delivery was deleted — breadcrumb-only save.)
+    // OWNER REPORT (Nov 6 2026 00:30): every save 500'd. The write carried
+    // `polyline_saved_at`, a field nothing in the app reads and that the
+    // Delivery schema does not declare — one unknown field fails the whole
+    // update, so the cleaned breadcrumb polyline was never applied. The
+    // geometry + distance write is now its own attempt: if the extra field is
+    // ever rejected again the polyline still lands, and anything else surfaces
+    // with the real message instead of a bare 500.
     if (delivery) {
-      await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-      encoded_polyline: deliveryEncodedPolyline,
-      travel_dist: travelDist,
-      polyline_saved_at: new Date().toISOString(),
-    });
+      const geometryOnly = {
+        encoded_polyline: deliveryEncodedPolyline,
+        travel_dist: travelDist,
+      };
+      try {
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+          ...geometryOnly,
+          polyline_saved_at: new Date().toISOString(),
+        });
+      } catch (updateErr) {
+        console.warn('[saveCrumbPolylineToDelivery] full update rejected, retrying geometry only:', updateErr?.message || updateErr);
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, geometryOnly);
+      }
     }
 
     // 4. Update DeliveryBreadcrumbs record — save cleaned polyline at breadcrumb precision (1e5)
@@ -130,6 +145,7 @@ Deno.serve(async (req) => {
         : `Stop #${stopOrder}: no matching delivery (deleted/renumbered) — breadcrumb saved only.`,
     });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('[saveCrumbPolylineToDelivery] failed:', error?.message || error);
+    return Response.json({ error: error?.message || String(error) }, { status: 500 });
   }
 });
