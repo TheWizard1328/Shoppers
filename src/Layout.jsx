@@ -94,7 +94,7 @@ import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandle
 import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
 import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
-import { formatAppVersion, apkUpdatesFromSuccessCount, APP_VERSION_MAJOR } from './version';
+import { formatAppVersion, formatVersionDigits, apkUpdatesFromSuccessCount, APP_VERSION_MAJOR } from './version';
 import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from './components/utils/interactionIdleTracker';
 import { canAttemptUpdate, recordUpdateAttempt, hardRefreshToNewBuild } from './components/utils/updateLoopGuard';
@@ -389,8 +389,10 @@ export default function Layout({ children, currentPageName }) {
         ? publishedVersionInfo.apkDigit
         : apkUpdatesFromSuccessCount(latestBuild?.successCount ?? 0))
     : 0;
+  // (v2.[APK].[WEB]) — live site's own digits, 3-digit web tail. Rendered on
+  // its OWN row under the preview version for the owner (owner spec Nov 6 2026).
   const liveVersionLabel = isOwnerDevice && publishedVersionInfo
-    ? `live v${APP_VERSION_MAJOR}.${_liveApkDigit}.${publishedVersionInfo.webVersion}`
+    ? formatVersionDigits(_liveApkDigit, publishedVersionInfo.webVersion)
     : null;
 
   // Load the saved audience corrections on the owner device (non-owners never

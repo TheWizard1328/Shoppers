@@ -64,7 +64,7 @@ export const APP_VERSION_MAJOR = resolveAppMajorVersion();
 export const APK_SUCCESS_BASELINE = 316;
 
 
-export const WEB_VERSION = 0;
+export const WEB_VERSION = 1;
 
 // ── BAKED APK DIGIT (owner spec Nov 6 2026) ─────────────────────────────────
 // The APK digit a WEB BUNDLE was published with. The APK build workflow rewrites
@@ -86,5 +86,21 @@ export const apkUpdatesFromSuccessCount = (successCount) => {
  *  or "v2.0.17" on the new domain / preview. */
 export const formatAppVersion = (apkUpdates = 0) => {
   const apk = Math.max(0, Number(apkUpdates) || 0);
-  return `v${APP_VERSION_MAJOR}.${apk}.${WEB_VERSION}`;
+  return `v${APP_VERSION_MAJOR}.${apk}.${formatWebDigit(WEB_VERSION)}`;
 };
+
+/**
+ * WEB digit is ALWAYS three digits (owner spec Nov 6 2026: "keep the web version
+ * always 3 digits") so 0 reads 000 and 212 reads 212 — the version stops
+ * looking like a different number after every APK reset.
+ */
+export function formatWebDigit(web = 0) {
+  const n = Math.max(0, Math.floor(Number(web) || 0));
+  return String(n).padStart(3, '0');
+}
+
+/** v2.[APK].[WEB] with the 3-digit web tail, for any digit pair. */
+export function formatVersionDigits(apkDigit = 0, webDigit = 0) {
+  const apk = Math.max(0, Math.floor(Number(apkDigit) || 0));
+  return `v${APP_VERSION_MAJOR}.${apk}.${formatWebDigit(webDigit)}`;
+}
