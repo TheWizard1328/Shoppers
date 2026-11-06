@@ -37,16 +37,33 @@ try {
   sha = '';
 }
 
+// PUSH_COUNT — the one number that changes on EVERY published push.
+// OWNER REPORT (Nov 5 2026): "there's been no update notifications for the last
+// two fixes". BUILD_NUMBER only moves on APK releases and WEB_VERSION resets to
+// 0 on every successful APK build, so a plain web push (w5, w6) changed neither
+// value the update check compared — devices had no way to learn a new bundle
+// existed. The git commit count is monotonic by construction (never reset, never
+// reused) and is known at build time on the deploy host, so it travels in
+// version.json AND into the bundle itself.
+let pushCount = 0;
+try {
+  pushCount = Number(execSync('git rev-list --count HEAD').toString().trim()) || 0;
+} catch {
+  pushCount = 0;
+}
+
 const buildId = `b${BUILD_NUMBER}.w${WEB_VERSION}${sha ? `-${sha}` : ''}`;
 
 writeFileSync('public/version.json', JSON.stringify({
   buildId,
   buildNumber: BUILD_NUMBER,
   webVersion: WEB_VERSION,
+  pushCount,
   sha,
   generatedAt: new Date().toISOString(),
 }, null, 2));
 
 writeFileSync('.build-id', buildId);
+writeFileSync('.build-push-count', String(pushCount));
 
-console.log(`[generate-version] buildId=${buildId}`);
+console.log(`[generate-version] buildId=${buildId} pushCount=${pushCount}`);

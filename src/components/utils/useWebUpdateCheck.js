@@ -11,7 +11,7 @@
  *
  * Cache-busting query param ensures the CDN doesn't serve a stale copy.
  */
-/* global __WEB_BUILD_ID__ */
+/* global __WEB_BUILD_ID__, __WEB_PUSH_COUNT__ */
 import { useState, useEffect, useRef } from 'react';
 import { BUILD_NUMBER } from '@/changeLog';
 import { WEB_VERSION } from '@/version';
@@ -22,6 +22,8 @@ const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 // Fallback if the define didn't run (dev mode, etc.)
 const BUILT_BUILD_ID = typeof __WEB_BUILD_ID__ !== 'undefined' ? __WEB_BUILD_ID__ : 'dev';
+// The push this bundle was built from (git commit count at build time).
+const BUILT_PUSH_COUNT = typeof __WEB_PUSH_COUNT__ !== 'undefined' ? Number(__WEB_PUSH_COUNT__) || 0 : 0;
 
 /**
  * Is the server build newer than the build this device is running?
@@ -65,6 +67,20 @@ const parseBuildNumbers = (id) => {
  */
 const serverIsNewer = (server) => {
   if (!server) return false;
+  // OWNER REPORT again (Nov 5 2026): "no update notifications for the last two
+  // fixes" — the immersive-panel push (w5) and the header-icon push (w6). A web
+  // push bumps only WEB_VERSION, and WEB_VERSION cannot be trusted for this
+  // comparison (the APK build resets it to 0, which produced the endless
+  // "update available" loop fixed above). BUILD_NUMBER only moves on APK
+  // releases. So neither counter moved, and no device was ever told.
+  //
+  // The git commit count is monotonic and travels in version.json. When BOTH
+  // sides carry it, it alone decides — any push, web-only included, is newer.
+  const serverPushes = Number(server.pushCount);
+  if (BUILT_PUSH_COUNT > 0 && Number.isFinite(serverPushes) && serverPushes > 0) {
+    return serverPushes > BUILT_PUSH_COUNT;
+  }
+  // Older deploys (or a bundle built without git) fall back to BUILD_NUMBER.
   const sBn = Number(server.buildNumber);
   if (!Number.isFinite(sBn)) return false;
   return sBn > BUILD_NUMBER;
@@ -101,6 +117,7 @@ export function useWebUpdateCheck() {
           buildId: serverBuildId,
           buildNumber: data?.buildNumber ?? parsed?.buildNumber,
           webVersion: data?.webVersion ?? parsed?.webVersion,
+          pushCount: data?.pushCount ?? null,
         };
         // ID strings are NO LONGER part of the decision (owner report Nov 4
         // 2026). They made a device whose reload kept landing on a cached
@@ -138,7 +155,7 @@ export function useWebUpdateCheck() {
         if (cancelled || !mountedRef.current) return;
         if (!data?.buildNumber) return;
         setCurrentBuildId(data.buildId || null);
-        const server = { buildId: data.buildId, buildNumber: data.buildNumber, webVersion: data.webVersion };
+        const server = { buildId: data.buildId, buildNumber: data.buildNumber, webVersion: data.webVersion, pushCount: data.pushCount ?? null };
         if (serverIsNewer(server)) {
           if (isUpdateSuppressed(data.buildId)) {
             setHasUpdate(false);

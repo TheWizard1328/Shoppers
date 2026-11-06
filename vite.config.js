@@ -10,9 +10,17 @@ const webBuildId = existsSync('.build-id')
   ? readFileSync('.build-id', 'utf8').trim()
   : 'dev';
 
+// Monotonic push counter (git commit count) — see scripts/generate-version.mjs.
+// The update check compares this against version.json so ANY push, web-only
+// included, prompts the device.
+const webPushCount = existsSync('.build-push-count')
+  ? Number(readFileSync('.build-push-count', 'utf8').trim()) || 0
+  : 0;
+
 export default defineConfig({
   define: {
     __WEB_BUILD_ID__: JSON.stringify(webBuildId),
+    __WEB_PUSH_COUNT__: JSON.stringify(webPushCount),
   },
   logLevel: 'error', // Suppress warnings, only show errors
   server: {

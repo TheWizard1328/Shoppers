@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
         return Response.json({
           buildNumber,
           webVersion: Number(data?.webVersion) || 0,
+          pushCount: Number(data?.pushCount) || 0,
           buildId: data?.buildId || null,
           generatedAt: data?.generatedAt || null,
           host,
