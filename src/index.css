@@ -560,3 +560,18 @@ html.dark-theme body {
     --input: 213 27% 84%;
   }
 }
+
+
+/* Mobile bottom nav: the row scrolls sideways when there are more tabs than
+   fit, but the scrollbar itself is hidden (owner request Nov 6 2026 - the bar
+   was adding an ugly strip under the icons). `scrollbar-width: none` on the
+   element covers modern browsers; this covers older Android WebViews. */
+[data-mobile-bottom-nav-scroll]::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+[data-mobile-bottom-nav-scroll] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}

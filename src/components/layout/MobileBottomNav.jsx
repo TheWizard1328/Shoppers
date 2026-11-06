@@ -152,7 +152,11 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
           {hasApkUpdate && <UpdateArrow type="apk" />}
         </button>
 
-        <div className="flex-1 flex overflow-x-auto custom-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        {/* OWNER REQUEST Nov 6 2026: keep the horizontal scroll but hide its
+            bar. scrollbar-width alone is ignored by older Android WebViews, so
+            the ::-webkit-scrollbar rule in index.css keyed on this data
+            attribute does the hiding. */}
+        <div data-mobile-bottom-nav-scroll className="flex-1 flex overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overscrollBehaviorX: 'contain' }}>
           {navItems.map((item) => {
             const isMessagingItem = item.action === 'messaging';
             const isActive = !isMessagingItem && activeTab === item.tabKey;
@@ -162,7 +166,11 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
             // crowding — when even the floored tabs don't fit (narrow phones),
             // the row keeps its horizontal scroll instead of squishing.
             const sharedProps = {
-              className: 'flex min-h-14 flex-col items-center justify-center px-2 py-2 transition-colors',
+              // OWNER REQUEST Nov 6 2026: shrink the bar without shrinking the icons
+              // or labels. The active dot is gone (the green icon + label already
+              // mark the tab), so the stack is icon + label only and the vertical
+              // padding drops to a hairline: 56px -> ~46px.
+              className: 'flex min-h-11 flex-col items-center justify-center px-2 py-0.5 transition-colors',
               style: {
                 flex: '1 1 0',
                 minWidth: '76px',
@@ -214,7 +222,6 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
                     {item.name}
                   </span>
                 }
-                {isActive && <div className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />}
               </button>
             );
           })}

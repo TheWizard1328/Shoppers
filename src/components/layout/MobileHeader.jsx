@@ -127,7 +127,13 @@ export default function MobileHeader({
     <header
       data-mobile-header
       className="mobile-header border-b sticky top-0 z-50 overflow-visible border-surface bg-surface">
-      <div className="w-full min-h-[64px] flex items-center justify-between gap-2 px-4 py-1.5">
+      {/* OWNER REQUEST Nov 6 2026: "reduce the height of the mobile header a bit
+          without making any of the items any smaller - there's a lot of extra
+          white space at the top and bottom of the icons and elements."
+          The logo is a fixed 64px square, so the box is now exactly that: the
+          old py-1.5 (6px top + 6px bottom) padding is gone and nothing inside
+          changed size. 76px -> 64px. */}
+      <div className="w-full min-h-[64px] flex items-center justify-between gap-2 px-4 py-0">
         {/* LEFT: Back button + Logo (+ Menu button for dispatchers) */}
         <div className="flex-1 min-w-0 flex items-center justify-start gap-1">
           <button
@@ -189,8 +195,8 @@ export default function MobileHeader({
                 // physical icon, without so much white space in between."
                 // Was -4px/-4px (floating off the corner); now +1px/+1px so the
                 // ring tucks into the icon's corner padding.
-                top: '1px',
-                left: '1px',
+                top: '3px',
+                left: '3px',
                 width: '18px',
                 height: '18px',
                 minWidth: '18px',
