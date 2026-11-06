@@ -464,7 +464,13 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
   --primary-color: ${branding.primary_color};
   --secondary-color: ${branding.secondary_color};
   --accent-color: ${branding.accent_color};
-  --safe-area-bg: #cbd5e1; /* slate-300 grey for system bars in light mode */
+  /* SAFE-AREA BANDS ARE TRANSPARENT (owner test Nov 5 2026): these two bands
+     sit over the system status/navigation bars when the Android WebView runs
+     edge to edge. Painting them opaque slate used to hide the clock, battery
+     and notification icons until the app was backgrounded and resumed. Fully
+     transparent means the bars stay readable whether the app draws over them
+     or under them, and the reserved height keeps the layout unchanged. */
+  --safe-area-bg: transparent;
   --bg-indigo-50: #eef2ff;
   --border-indigo-200: #c7d2fe;
   --text-indigo-700: #4338ca;
@@ -488,7 +494,7 @@ html.dark-theme body {
   --shadow-color: rgba(255, 255, 255, 0.1);
   --image-filter: invert(1) hue-rotate(180deg);
   --menu-border: #e2e8f0;
-  --safe-area-bg: #0f172a; /* dark for system bars in dark mode */
+  --safe-area-bg: transparent;
   --bg-indigo-50: #1e2540;
   --border-indigo-200: #3730a3;
   --text-indigo-700: #c7d2fe;
@@ -532,7 +538,7 @@ html.dark-theme body {
     --shadow-color: rgba(255, 255, 255, 0.1);
     --image-filter: invert(1) hue-rotate(180deg);
     --menu-border: #e2e8f0;
-    --safe-area-bg: #0f172a;
+    --safe-area-bg: transparent;
     --bg-indigo-50: #1e2540;
     --border-indigo-200: #3730a3;
     --text-indigo-700: #c7d2fe;
