@@ -74,7 +74,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MAJOR=$(grep -oP 'APP_VERSION_MAJOR = \K[0-9]+' src/version.js)
+          # MAJOR is host-derived since Oct 30 2026 (resolveAppMajorVersion), so
+          # the old literal grep matched nothing and every AAB build since died
+          # here. The bundle shell loads rxdeliver.wizardworxx.com, so the baked
+          # digit is the NEW_DOMAIN value.
+          MAJOR=$(grep -oP 'APP_VERSION_MAJOR_NEW_DOMAIN = \K[0-9]+' src/version.js || true)
+          if [ -z "$MAJOR" ]; then MAJOR=2; fi
           BASELINE=$(grep -oP 'APK_SUCCESS_BASELINE = \K[0-9]+' src/version.js)
           WEB=$(grep -oP 'WEB_VERSION = \K[0-9]+' src/version.js)
           SUCCESSES=$(gh api "repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1" --jq '.total_count')
