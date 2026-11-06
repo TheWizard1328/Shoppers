@@ -64,7 +64,7 @@ export const APP_VERSION_MAJOR = resolveAppMajorVersion();
 export const APK_SUCCESS_BASELINE = 316;
 
 
-export const WEB_VERSION = 2;
+export const WEB_VERSION = 0;
 
 // ── BAKED APK DIGIT (owner spec Nov 6 2026) ─────────────────────────────────
 // The APK digit a WEB BUNDLE was published with. The APK build workflow rewrites
@@ -72,7 +72,7 @@ export const WEB_VERSION = 2;
 // published bundle is the APK version that existed when it went live. The live
 // site therefore keeps reading v2.[BAKED_APK_DIGIT].[its WEB digit] even after a
 // new APK run bumps the live success count, until the next web publish.
-export const BAKED_APK_DIGIT = 21;
+export const BAKED_APK_DIGIT = 23;
 
 
 /** Successful build-apk.yml run count → APK release count under this scheme. */
