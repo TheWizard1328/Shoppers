@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Trash2, Settings } from 'lucide-react';
 import { ColumnVisibilityControl, ResizableColumnHeader } from './AdminTableControls';
+import { useDevice } from '@/components/utils/DeviceContext';
 
 const USER_SETTINGS_COLUMNS = [
   { id: 'user_name', label: 'User', defaultVisible: true, alwaysVisible: true },
@@ -38,6 +39,9 @@ const useColumnVisibility = () => {
 };
 
 export default function UserSettingsTable({ appUsers, mergedUsers }) {
+  // Same treatment as the App Users table: a 10-column table on a 390px phone is
+  // horizontal-scroll soup, so phones get stacked cards (owner report Nov 6 2026).
+  const { isMobile } = useDevice();
   const [userSettings, setUserSettings] = useState([]);
   const [localUserSettings, setLocalUserSettings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,6 +150,41 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
           <div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-emerald-500" /><span className="ml-2 text-label">Loading user settings...</span></div>
         ) : displayedSettings.length === 0 ? (
           <div className="text-center py-8 text-soft">No {viewMode} user settings found.</div>
+        ) : isMobile ? (
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            {[...displayedSettings].sort((a, b) => {
+              const aUpdated = a.updated ? new Date(a.updated).getTime() : 0;
+              const bUpdated = b.updated ? new Date(b.updated).getTime() : 0;
+              if (aUpdated !== bUpdated) return bUpdated - aUpdated;
+              return (b.created ? new Date(b.created).getTime() : 0) - (a.created ? new Date(a.created).getTime() : 0);
+            }).map((setting) => {
+              const driverLabel = setting.selected_driver_id
+                ? (setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id))
+                : '-';
+              return (
+                <div key={setting.id} className="rounded-md border border-surface p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-body truncate">{getUserName(setting.user_id)}</p>
+                    <Button variant="destructive" size="sm" className="shrink-0" onClick={() => handleDeleteSetting(setting.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant={setting.device_type === 'Mobile' ? 'default' : 'secondary'}>{setting.device_type || 'Unknown'}</Badge>
+                    <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
+                    <Badge variant={setting.show_all_driver_markers ? 'default' : 'secondary'}>
+                      {setting.show_all_driver_markers ? 'All markers' : 'Selected only'}
+                    </Badge>
+                  </div>
+                  <div className="space-y-0.5 text-xs text-soft">
+                    <p className="truncate">Driver: {driverLabel}</p>
+                    <p className="truncate">Date: {setting.selected_date || '-'}</p>
+                    <p className="truncate">Sidebar: {setting.sidebar_width || 240}px</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="border rounded-md overflow-hidden border-surface">
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
