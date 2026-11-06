@@ -9,6 +9,7 @@ import { X, Save, Calendar, Plus, Trash2, DollarSign, CreditCard, Pencil } from 
 import { Checkbox } from "@/components/ui/checkbox";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { format } from 'date-fns';
+import { toDateOnlyStr, parseDateOnlyLocal } from '@/components/utils/dateOnly';
 import { base44 } from '@/api/base44Client';
 import { normalizeDate } from '@/components/utils/deductionHelpers';
 
@@ -128,7 +129,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         const _idx = Number(editingHistoryKey);
         updates.pay_rate_history = normalizedHistory.map((entry, i) => (i === _idx ? {
           ...entry,
-          effective_date: formData.effective_date,
+          // Stored as a bare calendar day: the FIRST day this rate applies (owner rule).
+          effective_date: toDateOnlyStr(formData.effective_date),
           pay_rate_per_delivery: newPayRate,
           extra_km_rate: newKmRate,
           extra_km_limit: newKmLimit,
@@ -139,7 +141,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         setEditingHistoryKey(null);
       } else if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged || payCycleChanged || gstChanged) {
         const historyEntry = {
-          effective_date: formData.effective_date,
+          // FIRST day this rate applies, inclusive (owner rule Nov 6 2026).
+          effective_date: toDateOnlyStr(formData.effective_date),
           pay_rate_per_delivery: newPayRate,
           extra_km_rate: newKmRate,
           extra_km_limit: newKmLimit,
@@ -549,13 +552,13 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {formData.pay_rate_history
                   .map((entry, i) => ({ entry, i }))
-                  .sort((a, b) => new Date(b.entry.effective_date) - new Date(a.entry.effective_date))
+                  .sort((a, b) => toDateOnlyStr(b.entry.effective_date).localeCompare(toDateOnlyStr(a.entry.effective_date)))
                   .map(({ entry, i }) => (
                     <div key={i} className={`text-xs p-2 rounded flex items-start justify-between gap-1 ${editingHistoryKey === i ? 'bg-blue-50 dark:bg-blue-950/50 ring-1 ring-blue-300' : 'bg-surface-2'}`}>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-body-2 whitespace-nowrap">
-                            {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
+                            {format(parseDateOnlyLocal(entry.effective_date) || new Date(), 'MMM dd, yyyy')}
                           </span>
                           {/* FULL pay-cycle text (owner request Nov 5 2026): the badge
                               used to abbreviate to Semi-Mo / Bi-Wk / Wkly. */}
@@ -704,7 +707,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                   onClick={() => {
                     const idx = Number(historyDraft.index);
                     const nextEntry = {
-                      effective_date: historyDraft.effective_date || format(new Date(), 'yyyy-MM-dd'),
+                      effective_date: toDateOnlyStr(historyDraft.effective_date) || format(new Date(), 'yyyy-MM-dd'),
                       pay_rate_per_delivery: parseFloat(historyDraft.pay_rate_per_delivery) || 0,
                       extra_km_rate: parseFloat(historyDraft.extra_km_rate) || 0,
                       extra_km_limit: parseFloat(historyDraft.extra_km_limit) || 0,

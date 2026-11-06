@@ -18,6 +18,7 @@ import { offlineDB } from '../components/utils/offlineDatabase';
 import { commitDeliveryUpdatesSilently } from '../components/utils/routeCommitMarker';
 import { missingPayrollMonthsFor } from '@/components/utils/payrollPagedMerge';
 import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
+import { toDateOnlyStr } from '@/components/utils/dateOnly';
 import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
 // Local date helper (device timezone, no UTC offset)
@@ -322,12 +323,13 @@ const getDriverCycleForDate = (appUser, date) => {
 
   // Find the most recent history entry whose effective_date is on or before the given date.
   // That entry's pay_cycle_type was the active cycle on that date.
+  // Compare as calendar dates, INCLUSIVE of the effective day. The old
+  // new Date('2026-10-31') parse lands at 00:00 UTC = the previous evening in
+  // Edmonton, which shifted the switch a day either way (owner bug Nov 6 2026).
+  const compareStr = toDateOnlyStr(date);
   for (const entry of sorted) {
-    const entryDate = new Date(entry.effective_date);
-    entryDate.setHours(0, 0, 0, 0);
-    const compareDate = new Date(date);
-    compareDate.setHours(0, 0, 0, 0);
-    if (entryDate <= compareDate && entry.pay_cycle_type) {
+    const entryStr = toDateOnlyStr(entry.effective_date);
+    if (entryStr && compareStr && entryStr <= compareStr && entry.pay_cycle_type) {
       return entry.pay_cycle_type;
     }
   }

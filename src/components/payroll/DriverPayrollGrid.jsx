@@ -10,6 +10,7 @@ import { createPageUrl } from '../../utils';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { isAfterHoursPickup } from '@/components/dashboard/legendStopCounter';
+import { toDateOnlyStr } from '@/components/utils/dateOnly';
 import { loadStatHolidays, getStatHoliday } from '@/components/utils/statHolidayResolver';
 
 /**
@@ -177,14 +178,13 @@ export default function DriverPayrollGrid({
     const history = appUser.pay_rate_history;
     if (!history || !Array.isArray(history) || history.length === 0) return current;
 
-    const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+    const sorted = [...history].sort((a, b) => toDateOnlyStr(b.effective_date).localeCompare(toDateOnlyStr(a.effective_date)));
 
+    // Calendar-date compare, INCLUSIVE of the effective day (owner rule).
+    const compareStr = toDateOnlyStr(date);
     for (const entry of sorted) {
-      const entryDate = new Date(entry.effective_date);
-      entryDate.setHours(0, 0, 0, 0);
-      const compareDate = new Date(date);
-      compareDate.setHours(0, 0, 0, 0);
-      if (entryDate <= compareDate && entry.pay_cycle_type) {
+      const entryStr = toDateOnlyStr(entry.effective_date);
+      if (entryStr && compareStr && entryStr <= compareStr && entry.pay_cycle_type) {
         return entry.pay_cycle_type;
       }
     }

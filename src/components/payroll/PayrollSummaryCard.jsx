@@ -29,6 +29,7 @@ import { freezePayrollKmOverrides } from './freezePayrollKmOverrides';
 import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts, roundCurrency } from './payrollSummaryCalculations';
 import { applyStillOwedToNotes } from './stillOwedNote';
+import { toDateOnlyStr } from '@/components/utils/dateOnly';
 import { getActiveDeductionsForPeriod, formatDeductionDateRange, normalizeDate, recurringDeductionKey, applyRecurringOverrides } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
@@ -42,14 +43,20 @@ const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON
 const getEffectiveRates = (appUser, date) => {
   const history = Array.isArray(appUser?.pay_rate_history) ? appUser.pay_rate_history : [];
   if (history.length > 0 && date) {
-    const dateStr = date instanceof Date ?
-    date.toISOString().split('T')[0] :
-    String(date);
+    // Calendar-date comparison, INCLUSIVE of the effective day (owner rule).
+    // `date.toISOString()` was used here before, which is the UTC day — for an
+    // Edmonton evening it reported tomorrow, and a stored effective_date with a
+    // time tail ('2026-10-31T00:00:00.000Z' <= '2026-10-31') never matched its
+    // own start day. Both are fixed by normalizing to local date-only strings.
+    const dateStr = toDateOnlyStr(date);
     // Sort descending so we pick the most-recent entry that is still <= date
     const sorted = [...history].sort((a, b) =>
-    new Date(b.effective_date) - new Date(a.effective_date)
+    toDateOnlyStr(b.effective_date).localeCompare(toDateOnlyStr(a.effective_date))
     );
-    const match = sorted.find((e) => e.effective_date <= dateStr);
+    const match = sorted.find((e) => {
+      const eStr = toDateOnlyStr(e.effective_date);
+      return !eStr || eStr <= dateStr;
+    });
     if (match) {
       return {
         pay_rate_per_delivery: match.pay_rate_per_delivery ?? appUser?.pay_rate_per_delivery ?? 0,

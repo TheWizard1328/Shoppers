@@ -9,6 +9,7 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { useAppData } from '../utils/AppDataContext';
 import { format } from 'date-fns';
+import { toDateOnlyStr, parseDateOnlyLocal } from '@/components/utils/dateOnly';
 
 const ROLE_LABELS = {
   admin: 'Admin',
@@ -338,12 +339,12 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                 </Label>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
                   {formData.pay_rate_history
-                    .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
+                    .sort((a, b) => toDateOnlyStr(b.effective_date).localeCompare(toDateOnlyStr(a.effective_date)))
                     .map((entry, idx) => (
                       <div key={idx} className="text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded flex justify-between items-center gap-2">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                            {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
+                            {format(parseDateOnlyLocal(entry.effective_date) || new Date(), 'MMM dd, yyyy')}
                           </span>
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 whitespace-nowrap font-medium">
                             {(() => {
