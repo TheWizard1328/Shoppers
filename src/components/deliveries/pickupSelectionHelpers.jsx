@@ -3,7 +3,28 @@ const FINISHED_PICKUP_STATUSES = ['completed', 'failed', 'cancelled'];
 const isSameStore = (pickup, storeId) => pickup && pickup.store_id === storeId;
 const isSameDriver = (pickup, driverId) => pickup && pickup.driver_id === driverId;
 const isSameDate = (pickup, deliveryDate) => pickup && pickup.delivery_date === deliveryDate;
-const isPickup = (delivery) => delivery && !delivery.patient_id;
+// A REAL store pickup stop is a Delivery with no patient. Two other kinds of
+// stop are also patient-less but are NOT store pickups:
+//   • InterStore transfers (ISP pickup / ISD drop) — they carry the store's id
+//     and date, so they used to be offered as pickup targets.
+//   • cycling route start/end markers.
+// Owner report Nov 6 2026: the Meadows store dropdown in Edit Delivery (and in
+// Bulk Edit) showed a phantom second slot — "Meadows [PM]" plus "Meadows [PM]
+// (14:28)" and "Meadows [PM] (14:42)" — because that afternoon's Meadows
+// InterStore pickup (14:28) sat beside the real Meadows pickup (14:42). Neither
+// is a pickup target: only the genuine pickup record is.
+const isInterStoreStop = (delivery) => {
+  if (!delivery) return false;
+  const deliveryId = String(delivery.delivery_id || '');
+  if (/^IS[PD]/i.test(deliveryId)) return true;
+  if (delivery._interstore_source_id || delivery._interstore_dest_id) return true;
+  const firstLine = String(delivery.delivery_notes || '').split('\n')[0];
+  return /interstore/i.test(`${delivery.patient_name || ''} ${firstLine}`);
+};
+
+const isPickup = (delivery) => !!delivery && !delivery.patient_id
+  && delivery.is_cycling_marker !== true
+  && !isInterStoreStop(delivery);
 const normalizeTimeSlot = (pickup) => pickup?.ampm_deliveries || 'AM';
 const buildPickupOptionId = (pickup) => pickup?.id || pickup?.stop_id || pickup?.puid || pickup?._tempId || '';
 
