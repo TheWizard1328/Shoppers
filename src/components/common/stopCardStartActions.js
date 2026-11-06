@@ -15,6 +15,7 @@ import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } 
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 import { setDriverStatus } from "@/functions/setDriverStatus";
+import { reopenDutyOnRestart } from "@/components/utils/reopenDutyOnRestart";
 import { locationTracker } from "../utils/locationTracker";
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
@@ -266,6 +267,16 @@ export function useStopCardStartActions({
             return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true });
           }));
           await Promise.all(_restartServerWrites);
+
+          // OWNER DIRECTIVE (Nov 5 2026): restarting a stop for TODAY while the
+          // driver is off duty must clear the clock-out time on the final
+          // activity leg — the route is live again, so the day cannot stay
+          // closed. Fire-and-forget: a duty-record failure must never block or
+          // fail the restart itself. Applies to a driver restarting their own
+          // stop AND an administrator restarting it for them, because it acts
+          // on the delivery's driver, not the current user.
+          reopenDutyOnRestart({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date })
+            .catch((err) => console.warn('[Restart] Duty reopen skipped:', err?.message || err));
 
           if (updateDeliveriesLocally) {
             const restartedMap = new Map(restartedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
