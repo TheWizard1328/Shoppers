@@ -942,27 +942,52 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
   }, [config]);
 
-  const confirmDiscrepancy = useCallback(async (rec) => {
+  const confirmDiscrepancy = useCallback(async (rec, linkedDeliveryIds = []) => {
     if (!rec?.delivery_id || discrepancyBusy) return;
     setDiscrepancyBusy(true);
     try {
+      const wanted = String(rec.actual_type || '').toLowerCase();
+      const tender = wanted === 'debit' ? 'Debit' : 'Credit';
+      // LINK AS ONE SWIPE (owner request Nov 5 2026): the Confirm Debit/Credit
+      // button takes the other discrepancies the owner ticked, and the whole set
+      // is applied as ONE card swipe — exactly the Cash badge popup flow on the
+      // store cards. `cashToCard` already accepts extra delivery ids and splits
+      // ONE swipe's fee/folder/loan cents across them.
+      const extras = (Array.isArray(linkedDeliveryIds) ? linkedDeliveryIds : [])
+        .map((x) => String(x || ''))
+        .filter((x) => x && x !== String(rec.delivery_id));
       let ok = false;
       if (rec.discrepancy_kind === 'cash_swiped') {
-        ok = await cashToCard(rec.delivery_id, String(rec.actual_type || '').toLowerCase() === 'debit' ? 'Debit' : 'Credit');
+        ok = await cashToCard(rec.delivery_id, tender, extras);
       } else if (rec.discrepancy_kind === 'type_mismatch') {
         ok = await fixTenderType(rec.delivery_id, rec.actual_type);
+        if (ok && extras.length) {
+          for (const id of extras) {
+            const also = await fixTenderType(id, rec.actual_type).catch(() => false);
+            if (!also) toast.error('One linked discrepancy could not be applied — check it again');
+          }
+        }
       } else {
         toast.error('This discrepancy type is review-only — dismiss it once checked');
         return;
       }
       if (!ok) return;
-      await base44.entities.CodBadgeChangeLog.update(String(rec.id), {
-        status: 'confirmed',
-        confirmed_at: new Date().toISOString(),
-        confirmed_by_name: currentUser?.full_name || currentUser?.email || null
-      }).catch(() => {});
-      setPaymentDiscrepancies((prev) => prev.filter((x) => x.id !== rec.id));
-      toast.success('Discrepancy confirmed and applied');
+      const nowIso = new Date().toISOString();
+      const byName = currentUser?.full_name || currentUser?.email || null;
+      const touched = [String(rec.id), ...extras];
+      await Promise.all(touched.map((chgId) =>
+        base44.entities.CodBadgeChangeLog.update(String(chgId), {
+          status: 'confirmed', confirmed_at: nowIso, confirmed_by_name: byName
+        }).catch(() => {})));
+      const linkedSet = new Set(extras);
+      setPaymentDiscrepancies((prev) => prev.filter((x) => {
+        if (String(x.id) === String(rec.id)) return false;
+        // linked rows clear too when they point at one of the linked deliveries
+        return !linkedSet.has(String(x.delivery_id || ''));
+      }));
+      toast.success(extras.length ?
+        `Confirmed as one ${tender.toLowerCase()} swipe — ${extras.length + 1} discrepancies` :
+        'Discrepancy confirmed and applied');
     } finally {
       setDiscrepancyBusy(false);
     }
@@ -1433,6 +1458,42 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         return; // both sources failed — keep previous rows
       }
 
+      // ── CASH-SWIPED COLLECTIONS (owner report Nov 5 2026, Bonnie Doon card) ──
+      // "There is at least 1 multi swipe collection today for $44.83 that
+      // includes 3 Cash collected CODs from yesterday and today. These should be
+      // getting shown on the Collected section of the Bonnie Doon card as a
+      // single collection."
+      // The Oct 8 rule drops every non-card row from Collected today, so a COD
+      // recorded Cash whose money was actually taken on ONE card swipe showed
+      // NOWHERE on the card. A COMPLETED cod_collection ledger entry with a card
+      // brand that landed TODAY is proof the cash was collected on the card: the
+      // row joins Collected today, carries the swipe's REAL fee/folder/loan and
+      // settled cents, and the existing transaction grouping (same square_id
+      // prefix) merges the whole swipe into ONE collection card.
+      const swipedTodayByDelivery = new Map(); // delivery_id -> ledger entry
+      try {
+        const swStartIso = `${yesterdayEdm}T00:00:00Z`;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          let rows = await base44.entities.SquareLedgerEntry.filter(
+            { sale_class: 'cod_collection', occurred_at: { $gte: swStartIso } },
+            '-occurred_at', 500, 0
+          ).catch(() => null);
+          if (rows === null) {
+            if (attempt === 0) { await new Promise((r) => setTimeout(r, 2500)); continue; }
+            console.warn('[SquareBalances] cash-swiped ledger read failed — Collected today keeps card rows only this pass');
+            break;
+          }
+          for (const e of rows || []) {
+            if (!e?.delivery_id || !String(e?.card_brand || '')) continue;
+            if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
+            if (edmontonBusinessDayKey(parseAnyTimestamp(e.occurred_at)) !== today) continue;
+            const k = String(e.delivery_id);
+            if (!swipedTodayByDelivery.has(k)) swipedTodayByDelivery.set(k, e);
+          }
+          break;
+        }
+      } catch (e) { console.warn('[SquareBalances] cash-swiped ledger pass skipped:', e?.message || e); }
+
       for (const d of deliveryList) {
         if (d?.status !== 'completed') continue;
         const doneAt = String(d.actual_delivery_time || '');
@@ -1483,11 +1544,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // lists with their CLICKABLE 'Cash' badge (CardCodList) until the
         // tender is corrected to Debit/Credit, which moves the row here with
         // real fee math.
-        if (!isCard) continue;
+        const swipedEntry = swipedTodayByDelivery.get(String(d.id)) || null;
+        // A cash-recorded COD whose money landed on a card TODAY is collected
+        // card money — never dropped by the cash rule above.
+        if (!isCard && !swipedEntry) continue;
+        const effLabel = isCard ? label :
+          (String(swipedEntry?.card_brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit');
 
         const gross = (required > 0 ? required : paidSum) / 100;
         const mark = manualSpendMarksRef.current?.[String(d.id)];
-        aggFor(locId).push({
+        const rowObj = {
           key: `d-${d.id}`,
           delivery_id: String(d.id),
           // driver scoping (owner rule Oct 9 2026): drivers only see rows
@@ -1518,7 +1584,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             (markAt == null || !Number.isFinite(markAt) || spendAt >= markAt)) return false;
             return true;
           })(),
-          collectedLabel: label,
+          collectedLabel: effLabel,
           // Cash / Cheque never touch the card — no fee/loan/folder math.
           // COMBINED-SWIPE (Oct 9 2026): conversions store the per-item
           // fee/folder/loan/settled cents on the payment (fee_c etc.) —
@@ -1529,7 +1595,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           netAmount: isCard ?
           payments.some((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(pm?.settled_c)) ?
           Math.max(0, payments.filter((pm) => ['debit', 'credit'].includes(String(pm?.type || '').toLowerCase()) && Number.isFinite(pm?.settled_c)).reduce((sum2, pm) => sum2 + Math.round(Number(pm.settled_c)), 0)) / 100 :
-          computeNetCollected(gross, { cardType: label, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }) :
+          computeNetCollected(gross, { cardType: effLabel, loanRate: loanRateByLoc.get(locId), folderRate: folderRateNow }) :
           null,
           // FEE BREAKDOWN (owner spec Oct 7 2026): second row shows
           // "HH:MM | S:fee F:folder L:loan | net Type" for card payments —
@@ -1545,12 +1611,41 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             // gross − net exactly.
             const grossC = Math.round(gross * 100);
             return {
-              fee: estimateCardFeeCents(grossC, label) / 100,
+              fee: estimateCardFeeCents(grossC, effLabel) / 100,
               folder: folderCentsFor(grossC, folderRateNow) / 100,
               loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100
             };
           }() : null
-        });
+        };
+        // SWIPED-CASH OVERRIDE (owner report Nov 5 2026): the swipe's own ledger
+        // entry owns the money story — real brand, real fee/folder/loan split and
+        // the authoritative settled cents. The moment shown is the SWIPE time, so
+        // a yesterday-dated COD reads as collected today.
+        if (!isCard && swipedEntry) {
+          rowObj.collected = true;
+          rowObj.hasCardSpend = true;
+          rowObj.swipedCash = true;
+          const swCents = Math.round(Number(swipedEntry.amount_cents || 0));
+          if (swCents > 0) rowObj.amount = swCents / 100;
+          const swFee = Number(swipedEntry.fee_cents);
+          const swFolder = Number(swipedEntry.folder_cents);
+          const swLoan = Number(swipedEntry.loan_cents);
+          const swSettled = Number(swipedEntry.settled_cents);
+          const sumSplit = (Number.isFinite(swFee) ? swFee : 0) + (Number.isFinite(swFolder) ? swFolder : 0) + (Number.isFinite(swLoan) ? swLoan : 0);
+          rowObj.netAmount = Number.isFinite(swSettled) && swSettled > 0 ?
+            swSettled / 100 :
+            Math.max(0, Math.round(rowObj.amount * 100) - sumSplit) / 100;
+          rowObj.feeParts = Number.isFinite(swFee) || Number.isFinite(swFolder) || Number.isFinite(swLoan) ?
+            { fee: (Number(swFee) || 0) / 100, folder: (Number(swFolder) || 0) / 100, loan: (Number(swLoan) || 0) / 100 } :
+            estimateCardFeeCents(Math.round(rowObj.amount * 100), effLabel) != null ?
+              { fee: estimateCardFeeCents(Math.round(rowObj.amount * 100), effLabel) / 100, folder: folderCentsFor(Math.round(rowObj.amount * 100), folderRateNow) / 100, loan: Math.round(rowObj.amount * 100 * Number(loanRateByLoc.get(locId) || 0)) / 100 } :
+              null;
+          try {
+            const swMoment = edmontonWallString(parseAnyTimestamp(swipedEntry.occurred_at));
+            if (swMoment) rowObj.sub = String(swMoment).slice(11, 16);
+          } catch (_) { /* keep the completion time */ }
+        }
+        aggFor(locId).push(rowObj);
       }
 
       // ─── COMBINED TRANSACTION DETECTION (owner feature, Oct 22 2026) ─────────

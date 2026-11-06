@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
 
 /**
@@ -25,6 +25,11 @@ export default function PaymentDiscrepanciesList({
   onDismiss,
   onRefresh,
 }) {
+  // LINK-AS-ONE-SWIPE state (owner request Nov 5 2026). Declared before any
+  // early return so the hook order never changes between renders.
+  const [linkFor, setLinkFor] = useState(null); // row id being confirmed with links
+  const [linkSel, setLinkSel] = useState({});   // { [discrepancyId]: true }
+
   if (!discrepancies || discrepancies.length === 0) return null;
 
   // MOST RECENT FIRST (owner request Oct 24 2026): the loader sorts by
@@ -68,6 +73,18 @@ export default function PaymentDiscrepanciesList({
   const visible = sorted.filter(isRealDiscrepancy);
   // Nothing but label noise left — hide the whole section instead of an empty box.
   if (visible.length === 0) return null;
+
+  // ── LINK OTHER DISCREPANCIES INTO ONE SWIPE (owner request Nov 5 2026) ─────
+  // "If I click a Confirm [Debit/Credit] button I should be able to link other
+  // discrepancies to it as a single swipe like we do with the Cash button on
+  // the Store cards." Same flow as the Cash badge popup: pick the sibling
+  // discrepancies that went through on the SAME card swipe, and confirming
+  // applies the tender to all of them as ONE collection.
+  const confirmable = visible.filter((r) => ["cash_swiped", "type_mismatch"].includes(r.discrepancy_kind));
+  const linkCandidatesOf = (r) => confirmable.filter((o) =>
+    String(o.id) !== String(r.id) &&
+    String(o.actual_type || "").toLowerCase() === String(r.actual_type || "").toLowerCase());
+
 
   return (
     <details className="group mt-3 rounded-xl border-2 border-red-300 dark:border-red-500/50 bg-red-50/60 dark:bg-red-950/30 p-3">
@@ -146,10 +163,18 @@ export default function PaymentDiscrepanciesList({
                 <button
                   type="button"
                   disabled={discrepancyBusy}
-                  onClick={() => onConfirm(r)}
-                  className="ml-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50"
+                  onClick={() => {
+                    const open = String(linkFor) === String(r.id);
+                    setLinkFor(open ? null : (r.id || r.delivery_id));
+                    setLinkSel({});
+                  }}
+                  className={`ml-1 rounded-full text-white px-2.5 py-0.5 text-[11px] font-medium disabled:opacity-50 ${String(linkFor) === String(r.id) ? "bg-emerald-700" : "bg-emerald-600 hover:bg-emerald-500"}`}
                 >
                   Confirm {r.actual_type === "debit" ? "Debit" : "Credit"}
+                  {(() => {
+                    const n = linkCandidatesOf(r).length;
+                    return n > 0 ? ` +link (${n})` : "";
+                  })()}
                 </button>
               )}
 
@@ -175,6 +200,68 @@ export default function PaymentDiscrepanciesList({
           );
         })}
       </div>
+      {/* LINK PANEL — one card swipe covering several discrepancies */}
+      {(() => {
+        const row = visible.find((x) => String(x.id || x.delivery_id) === String(linkFor));
+        if (!row) return null;
+        const cands = linkCandidatesOf(row);
+        const picked = Object.keys(linkSel).filter((k) => linkSel[k]);
+        return (
+          <div className="mt-2 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 p-2">
+            <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+              One swipe covers {picked.length + 1} discrepanc{picked.length === 0 ? "y" : "ies"} — select the others that went through on the same card
+            </div>
+            {cands.length === 0 ? (
+              <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                No other {String(row.actual_type || "card")} discrepancies to link right now.
+              </div>
+            ) : (
+              <div className="mt-1 space-y-0.5">
+                {cands.map((o) => {
+                  const key = String(o.id || o.delivery_id);
+                  return (
+                    <label key={key} className="flex items-center gap-2 text-[11px] text-slate-700 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={!!linkSel[key]}
+                        onChange={(e) => setLinkSel((prev) => ({ ...prev, [key]: e.target.checked }))}
+                      />
+                      <span className="tabular-nums">${(Number(o.amount_cents || 0) / 100).toFixed(2)}</span>
+                      {o.store_abbrev && <span className="text-slate-400">{o.store_abbrev}</span>}
+                      <span className="truncate">{o.patient_names || ""}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <div className="mt-2 flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={discrepancyBusy}
+                onClick={async () => {
+                  const linked = cands
+                    .filter((o) => linkSel[String(o.id || o.delivery_id)])
+                    .map((o) => o.delivery_id)
+                    .filter(Boolean);
+                  setLinkFor(null);
+                  setLinkSel({});
+                  await onConfirm(row, linked);
+                }}
+                className="rounded-full bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 text-[11px] font-semibold disabled:opacity-50"
+              >
+                Confirm {row.actual_type === "debit" ? "Debit" : "Credit"} as one swipe
+              </button>
+              <button
+                type="button"
+                onClick={() => { setLinkFor(null); setLinkSel({}); }}
+                className="rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-2.5 py-1 text-[11px]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </details>
   );
 }
