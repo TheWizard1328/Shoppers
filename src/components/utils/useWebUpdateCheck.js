@@ -20,6 +20,34 @@ import { isUpdateSuppressed, clearUpdateAttempts } from '@/components/utils/upda
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * PLATFORM-SERVED HOST (owner report Nov 5 2026 23:20): "the Base44 PWA editor
+ * is constantly telling me there is a new update when there is not one. The PWA
+ * running the Preview path is not doing this. Both are running 2.21.9."
+ *
+ * The app's own platform host (`<slug>-<appId>.base44.app`, no `preview--`
+ * prefix) does NOT serve the bundle we publish: Base44 rebuilds it from the
+ * app's files on its own schedule. Our update check compares this bundle's
+ * baked git push count with `pushCount` from /version.json, so the moment the
+ * published deploy is one push ahead of the platform's last rebuild — which is
+ * exactly what happens for a while after every push — this host reports
+ * "update available" and a reload NEVER clears it, because reloading does not
+ * rebuild the platform bundle. That is a build-lag artifact, not an update the
+ * owner can act on, so the check simply does not run there.
+ *
+ * Preview (`preview--…`) and the real deployment origins keep polling.
+ */
+const isPlatformServedHost = () => {
+  try {
+    const host = String(window?.location?.hostname || '').toLowerCase();
+    if (!host) return false;
+    if (/^preview--/.test(host)) return false;
+    return /\.base44\.(app|com)$/.test(host);
+  } catch (_) {
+    return false;
+  }
+};
+
 // Fallback if the define didn't run (dev mode, etc.)
 const BUILT_BUILD_ID = typeof __WEB_BUILD_ID__ !== 'undefined' ? __WEB_BUILD_ID__ : 'dev';
 // The push this bundle was built from (git commit count at build time).
@@ -94,6 +122,14 @@ export function useWebUpdateCheck() {
 
   useEffect(() => {
     mountedRef.current = true;
+    // Platform-served host: the browser bundle is rebuilt by Base44, not served
+    // from our deploy — a push-count difference there is build lag, not an
+    // actionable update (see isPlatformServedHost). No polling, no badge.
+    if (isPlatformServedHost()) {
+      console.info('[Update] platform-served host — update check disabled (build lag, not an update)');
+      setHasUpdate(false);
+      return () => { mountedRef.current = false; };
+    }
     let timer = null;
     let cancelled = false;
 
