@@ -90,14 +90,19 @@ export default function AppSidebar({
   // Tracks a logo image that failed to load (expired/signed URL, CDN blip) so we
   // swap to the green Rx badge fallback instead of leaving a blank gap. Resets
   // whenever a new logo URL is supplied.
+  // The sidebar mark is the RxDeliver APP logo, always. It is NOT company
+  // branding: Wizard Worxx and RGistics are Company records whose logos belong
+  // in company contexts, and neither should ever replace this icon (owner rule,
+  // Nov 6 2026). Bundled at 16 KB so it renders on weak store Wi-Fi.
+  const APP_LOGO_URL = '/icons/app-logo-192.png';
   const [logoFailed, setLogoFailed] = useState(false);
   // A single failed decode used to park the green Rx box for the whole session.
   // Retry twice with a cache-buster (weak store Wi-Fi, CDN blip) before falling back.
   const [logoAttempt, setLogoAttempt] = useState(0);
-  useEffect(() => {setLogoFailed(false); setLogoAttempt(0);}, [branding?.logo_url]);
-  const logoSrc = branding?.logo_url && logoAttempt > 0
-    ? `${branding.logo_url}${branding.logo_url.includes('?') ? '&' : '?'}logoRetry=${logoAttempt}`
-    : branding?.logo_url;
+  useEffect(() => {setLogoFailed(false); setLogoAttempt(0);}, [APP_LOGO_URL]);
+  const logoSrc = logoAttempt > 0
+    ? `${APP_LOGO_URL}?logoRetry=${logoAttempt}`
+    : APP_LOGO_URL;
   const handleLogoError = () => {
     if (logoAttempt < 2) setLogoAttempt((n) => n + 1);
     else setLogoFailed(true);
@@ -290,7 +295,7 @@ export default function AppSidebar({
                                  for ALL roles (dispatchers get the static version; drivers/admins
                                  get the standard repeating balloon). */}
         <div className="relative flex-shrink-0" data-update-logo-btn>
-        {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed ?
+        {!logoFailed ?
                 <img
                   key={logoSrc}
                   src={logoSrc}
