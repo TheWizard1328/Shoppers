@@ -150,6 +150,45 @@ function getDeviationWaypoints(delivery) {
     .slice(-DEVIATION_WAYPOINT_CAP);
 }
 
+/** Perpendicular distance (km) from a point to a line SEGMENT. */
+function pointToSegmentKm(lat, lng, a, b) {
+  const toRad = Math.PI / 180;
+  const kmPerLat = 111.32;
+  const kmPerLng = 111.32 * Math.max(Math.cos(lat * toRad), 0.01);
+  const ax = (a[1] - lng) * kmPerLng, ay = (a[0] - lat) * kmPerLat;
+  const bx = (b[1] - lng) * kmPerLng, by = (b[0] - lat) * kmPerLat;
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (!len2) return Math.hypot(ax, ay);
+  let t = -(ax * dx + ay * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(ax + t * dx, ay + t * dy);
+}
+
+/** Nearest distance (km) from a via point to a decoded polyline. */
+function pointToPolylineKm(lat, lng, pts) {
+  if (!Array.isArray(pts) || pts.length === 0) return Infinity;
+  if (pts.length === 1) return pointToSegmentKm(lat, lng, pts[0], pts[0]);
+  let best = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = pointToSegmentKm(lat, lng, pts[i], pts[i + 1]);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+// OWNER REPORT Nov 5 2026: "when I click the regenerate polylines FAB it is
+// supposed to be also inserting the route deviation points as waypoints when
+// regenerating the entire routes polyline legs." The vias ARE sent on the ONE
+// multi-stop chain call, but a single call carrying every stop of a long route
+// can come back with a leg that does not actually honour its `via` (HERE may
+// absorb or drop a waypoint, and any leg whose section index shifts after a
+// dropped via silently gets the wrong geometry). So the result is VERIFIED:
+// each stop with deviation points is measured against its own drawn leg, and a
+// leg that misses a via by more than this budget is rebuilt on its own with a
+// dedicated origin -> vias -> stop call.
+const DEVIATION_VERIFY_KM = 0.15;
+
 /** Build a routing point list with per-stop deviation via chains. */
 function buildPointChain(fromPoint, stops) {
   const points = [{ lat: fromPoint.lat, lon: fromPoint.lon }];
@@ -252,6 +291,9 @@ async function callHereMultiStop(points, transportMode, hereApiKey, logCtx = {},
     };
   });
 }
+
+// Pure geometry helpers, exported for verification tests.
+export const __polylineTestKit = { pointToSegmentKm, pointToPolylineKm, buildPointChain, getDeviationWaypoints };
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -687,6 +729,8 @@ export default function ResetPolylinesButton({
     // (Pass 3) always stay client-side — they own client-only data the server
     // engine has no part of. Any server failure falls back to the full client
     // chain.
+    const deviationMisses = [];  // legs the router drew without their deviation (report only)
+    let deviationViasTotal = 0;   // deviation via points handed to the router
     let serverBaseline = null;
     if (!allStopsSealed) {
       try {
@@ -754,11 +798,14 @@ export default function ResetPolylinesButton({
           ? buildPointChain(originPoint, stopPoints)
           : buildPointChain(stopPoints[0], stopPoints.slice(1));
         const deviaTotal = chain.info.viaCounts.reduce((sum, n) => sum + n, 0);
+        deviationViasTotal += deviaTotal;
         console.log(`[ResetPolylinesButton] Pass 1 — ${chain.points.length} routing points (${deviaTotal} deviation via(s))`);
         try {
           const results = await callHereMultiStop(chain.points, 'driving', hereApiKey, polylineLogCtx, chain.info);
-          results.forEach(r => {
+          const drawnByStop = [];
+          results.forEach((r, j) => {
             if (!r?.deliveryId || !r?.encoded_polyline) return;
+            drawnByStop[j] = { deliveryId: r.deliveryId, polyline: r.encoded_polyline, dist: r.estimated_distance_km, dur: r.estimated_duration_minutes };
             mergeUpdate(r.deliveryId, {
               encoded_polyline: r.encoded_polyline,
               transport_mode: 'driving',
@@ -766,6 +813,41 @@ export default function ResetPolylinesButton({
               ...(r.estimated_duration_minutes != null ? { estimated_duration_minutes: r.estimated_duration_minutes } : {}),
             });
           });
+
+          // ── DEVIATION VIA VERIFICATION (no extra API calls) ───────────────
+          // The vias ride the SAME single chain call that draws the route. This
+          // pass only MEASURES the result: every stop with recorded deviation
+          // points is compared against its own drawn leg, and a leg that misses
+          // a point by more than DEVIATION_VERIFY_KM is reported. Nothing here
+          // re-requests a leg, so the button stays at ONE driving call (+ ONE
+          // cycling call when the route has a loop), which is the owner's API
+          // budget for a completed route.
+          const offenders = [];
+          // Indexed by stopPoints (the array the chain was actually built from) —
+          // _clientChainStops can be LONGER when a stop's coords could not be
+          // resolved, so pairing them by position would verify the wrong leg.
+          stopPoints.forEach((sp, j) => {
+            const d = sp.delivery;
+            const vias = getDeviationWaypoints(d);
+            if (!vias.length) return;
+            const drawn = drawnByStop[j];
+            if (!drawn?.polyline) return;
+            const pts = decodeGooglePolyline(drawn.polyline);
+            if (pts.length < 2) return;
+            const worst = vias.reduce((max, v) => Math.max(max, pointToPolylineKm(v.lat, v.lon, pts)), 0);
+            if (worst > DEVIATION_VERIFY_KM) offenders.push({ deliveryId: d.id, vias, worst, idx: j });
+          });
+          // OWNER DIRECTIVE Nov 5 2026: "Roberts route today should only hit the
+          // API 2x, once for the entire route (Driving) then a second time just
+          // for the cycling route." So the verification never spends an extra
+          // HERE call — a leg that misses its via is REPORTED (console + toast),
+          // not re-requested. The vias were handed to the router in the SAME
+          // single call that drew the route: zero additional API hits.
+          if (offenders.length) {
+            offenders.sort((a, b) => b.worst - a.worst);
+            deviationMisses.push(...offenders.map(o => ({ deliveryId: o.deliveryId, worstKm: Number(o.worst.toFixed(2)) })));
+            console.warn(`[ResetPolylinesButton] ${offenders.length} leg(s) drawn without their deviation point (worst ${offenders[0].worst.toFixed(2)}km) — reported only, no extra API call`);
+          }
         } catch (err) {
           console.warn(`[ResetPolylinesButton] Pass 1 multi-stop HERE call failed:`, err?.message || err);
         }
@@ -924,6 +1006,8 @@ export default function ResetPolylinesButton({
     return {
       deliveriesUpdated: updateEntries.length,
       breadcrumbsSealed: breadcrumbsToSeal.length,
+      deviationVias: deviationViasTotal,
+      deviationMisses: deviationMisses.length,
     };
   };
 
@@ -937,6 +1021,7 @@ export default function ResetPolylinesButton({
 
     const isBreadcrumbMode = selectedPolylineOption === 'breadcrumbs';
     const breadcrumbResults = [];
+    const polylineResults = [];
 
     try {
       for (const driverId of driverIds) {
@@ -954,6 +1039,7 @@ export default function ResetPolylinesButton({
           } else {
             // ── Mode A: Three-pass polyline regeneration ─────────────────
             const result = await runPolylineMode(driverId);
+            polylineResults.push(result || {});
             console.log(`[ResetPolylinesButton] Mode A complete for ${driverId}:`, result);
           }
         } catch (err) {
@@ -980,9 +1066,17 @@ export default function ResetPolylinesButton({
             : `${totalSliced} stop${totalSliced === 1 ? '' : 's'} resegmented • ${totalSkipped} skipped`,
         });
       } else {
+        // OWNER REPORT Nov 5 2026: the FAB is expected to route the recorded
+        // deviation points, so it now REPORTS what it did with them instead of
+        // silently swallowing the count.
+        const viasUsed = polylineResults.reduce((sum, r) => sum + (Number(r?.deviationVias) || 0), 0);
+        const missed = polylineResults.reduce((sum, r) => sum + (Number(r?.deviationMisses) || 0), 0);
+        const legs = polylineResults.reduce((sum, r) => sum + (Number(r?.deliveriesUpdated) || 0), 0);
         toast({
           title: 'Polylines regenerated',
-          description: `Route polylines updated for ${driverIds.length} driver${driverIds.length === 1 ? '' : 's'}.`,
+          description: `${legs} leg${legs === 1 ? '' : 's'} updated`
+            + (viasUsed ? ` • ${viasUsed} deviation waypoint${viasUsed === 1 ? '' : 's'} routed` : ' • no deviation points recorded')
+            + (missed ? ` • ${missed} leg${missed === 1 ? '' : 's'} did not follow its deviation` : ''),
         });
       }
     } finally {
