@@ -71,7 +71,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MAJOR=$(grep -oP 'APP_VERSION_MAJOR = \K[0-9]+' src/version.js)
+          # MAJOR became HOST-DERIVED on Oct 30 2026 (resolveAppMajorVersion),
+          # so the old 'APP_VERSION_MAJOR = <digit>' grep matched nothing and
+          # every build since failed right here. The APK shell loads
+          # rxdeliver.wizardworxx.com — an app subdomain of the new domain — so
+          # the digit baked into the APK is the NEW_DOMAIN value.
+          MAJOR=$(grep -oP 'APP_VERSION_MAJOR_NEW_DOMAIN = \K[0-9]+' src/version.js || true)
+          if [ -z "$MAJOR" ]; then MAJOR=2; fi
           BASELINE=$(grep -oP 'APK_SUCCESS_BASELINE = \K[0-9]+' src/version.js)
           # Count SUCCESSFUL builds only; this run is still in progress so it
           # is not counted — if this build succeeds it becomes the +1.
