@@ -1541,8 +1541,8 @@ export default function DeliveryFormView({
                                     {delivery && selectedPatient && handleNewAddressPatient && (() => {
                                     const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                     return isLocked ?
-                                    <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
-                                         Change Address
+                                    <span title="The address is locked once a stop is completed, failed or cancelled" className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
+                                         Change
                                        </span> :
 
                                     <span
@@ -1550,9 +1550,10 @@ export default function DeliveryFormView({
                                       tabIndex={0}
                                       onClick={() => handleNewAddressPatient(selectedPatient)}
                                       onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                      title="Change the address on this stop and its patient record"
                                       className="absolute right-0 top-0 cursor-pointer select-none">
                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
-                                           Change Address
+                                           Change
                                          </span>
                                        </span>;
 
@@ -1765,8 +1766,8 @@ export default function DeliveryFormView({
                                   {delivery && selectedPatient && handleNewAddressPatient && (() => {
                                   const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                   return isLocked ?
-                                  <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
-                                        Change Address
+                                  <span title="The address is locked once a stop is completed, failed or cancelled" className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
+                                        Change
                                       </span> :
 
                                   <span
@@ -1774,9 +1775,10 @@ export default function DeliveryFormView({
                                     tabIndex={0}
                                     onClick={() => handleNewAddressPatient(selectedPatient)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                    title="Change the address on this stop and its patient record"
                                     className="absolute right-0 top-0 cursor-pointer select-none">
                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
-                                          Change Address
+                                          Change
                                         </span>
                                       </span>;
 
