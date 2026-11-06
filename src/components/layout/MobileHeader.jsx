@@ -111,7 +111,7 @@ export default function MobileHeader({
     <header
       data-mobile-header
       className="mobile-header border-b sticky top-0 z-50 overflow-visible border-surface bg-surface">
-      <div className="w-full min-h-[56px] flex items-center justify-between gap-2 px-4 py-2">
+      <div className="w-full min-h-[64px] flex items-center justify-between gap-2 px-4 py-1.5">
         {/* LEFT: Back button + Logo (+ Menu button for dispatchers) */}
         <div className="flex-1 min-w-0 flex items-center justify-start gap-1">
           <button
@@ -135,13 +135,13 @@ export default function MobileHeader({
             <img
               src={logo}
               alt="RxDeliver"
-              className="rounded object-contain h-14 w-auto max-w-full"
+              className="rounded object-contain h-16 w-auto max-w-full shrink-0"
               style={{ filter: 'var(--image-filter, none)' }}
               onError={() => setLogoFailed(true)} /> :
 
 
-            <div className="w-8 h-8 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-xs">Rx</span>
+            <div className="w-11 h-11 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm">Rx</span>
               </div>
             }
             {unreadMessageCount > 0 &&
