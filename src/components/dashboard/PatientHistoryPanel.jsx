@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Package, BarChart3, Calendar, ChevronDown, Eye, Pencil, Loader2 } from "lucide-react";
+import { X, Package, BarChart3, Calendar, ChevronDown, Eye, Pencil, Loader2, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -113,6 +113,23 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                 <p className="text-xs truncate text-soft">
                   {patient.address}
                 </p>
+                {(patient.phone || patient.phone_secondary) && (
+                  // Click-to-dial (owner request Nov 5 2026): the number dials
+                  // straight from the panel instead of being copied by hand.
+                  // Digits only in the href so a formatted number like
+                  // "(780) 555-1234" still resolves; the visible text keeps
+                  // whatever the patient record stores.
+                  <a
+                    href={`tel:${String(patient.phone || patient.phone_secondary).replace(/[^\d+]/g, '')}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-0.5 inline-flex items-center gap-1 max-w-full text-xs font-medium hover:underline"
+                    style={{ color: '#00A3FF' }}
+                    aria-label={`Call ${patient.full_name}`}
+                  >
+                    <Phone className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{patient.phone || patient.phone_secondary}</span>
+                  </a>
+                )}
               </div>
               <button
  aria-label="Close patient history"              onClick={onClose}
