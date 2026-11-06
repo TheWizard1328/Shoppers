@@ -26,7 +26,7 @@ import SquareLowBalanceAlert from '../square/SquareLowBalanceAlert';
 import { edmontonWallString } from '../utils/albertaTime';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
-import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock, Activity, Wallet, CreditCard, FileText } from 'lucide-react';
+import { MoreVertical, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock, Activity, Wallet, CreditCard, FileText } from 'lucide-react';
 import { isMobileDevice as isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import SettingsMenu from './SettingsMenu';
@@ -284,18 +284,14 @@ export default function AppSidebar({
       gap, which read as dead space around the 64px icon. Padding is now 8px
       horizontally / 10px vertically and the icon-to-text gap is 8px. Nothing
       inside changed size. */}
-  <div className="border-b px-2 py-2.5 flex-shrink-0 border-surface">
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        {/* Close button - show when sidebar is open (always on mobile, on desktop when expanded) */}
-        {sidebarOpen &&
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-2 rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700">
-            <X className="w-5 h-5 text-body-2" />
-          </button>
-              }
-
+  <div className="border-b px-1.5 py-2.5 flex-shrink-0 border-surface">
+    <div className="flex items-center justify-between gap-1">
+      {/* min-w-0 + flex-1 lets this column shrink; the controls on the right are
+          shrink-0 so the text can never ride underneath the ⋮ menu button. */}
+      <div className="flex items-center gap-1 min-w-0 flex-1">
+        {/* OWNER REQUEST Nov 6 2026: the X close button is gone. Tapping outside
+            the panel already closes the sidebar, and the X ate horizontal room
+            next to the logo. */}
         {/* App icon — anchors the desktop web-update arrow + info balloon
                                  for ALL roles (dispatchers get the static version; drivers/admins
                                  get the standard repeating balloon). */}
@@ -326,10 +322,10 @@ export default function AppSidebar({
             break onto a second line when the panel was narrow, which pushed the
             version rows and Change Logs down and looked ragged. */}
         <div className="flex flex-col min-w-0 leading-tight">
-          <h2 className="font-bold text-lg text-body leading-tight">
+          <h2 className="font-bold text-lg text-body leading-tight truncate">
             {'RxDeliver'}
           </h2>
-          <p className="text-xs text-soft whitespace-nowrap leading-tight">Pharmacy Logistics</p>
+          <p className="text-xs text-soft whitespace-nowrap leading-tight truncate">Pharmacy Logistics</p>
           <div className="flex items-start gap-1">
             {/* OWNER LAYOUT (Nov 6 2026): TWO rows, always stacked — the preview
                 version on top and the live version in parentheses underneath.
@@ -397,7 +393,7 @@ export default function AppSidebar({
 
             }
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 shrink-0">
         {/* Show controls in navigation panel when tablet landscape OR landscape mobile */}
         {deviceType === 'Tablet' && !isTabletPortrait || !isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0 ?
               <>
