@@ -284,11 +284,17 @@ export default function AppSidebar({
       gap, which read as dead space around the 64px icon. Padding is now 8px
       horizontally / 10px vertically and the icon-to-text gap is 8px. Nothing
       inside changed size. */}
-  <div className="border-b px-1.5 py-2.5 flex-shrink-0 border-surface">
-    <div className="flex items-center justify-between gap-1">
+  {/* OWNER Nov 6 2026 (2nd pass): "I didn't want the logistics part to get
+      truncated - reduce the space between the logo column and the text column so
+      the text moves left and gets more room." So the gaps and side padding are
+      squeezed instead of the label: px-1.5 -> px-1, logo/text gap 4px -> 2px,
+      column gap 4px -> 2px. "Pharmacy Logistics" is back to its full width with
+      no ellipsis. */}
+  <div className="border-b px-1 py-2.5 flex-shrink-0 border-surface">
+    <div className="flex items-center justify-between gap-0.5">
       {/* min-w-0 + flex-1 lets this column shrink; the controls on the right are
           shrink-0 so the text can never ride underneath the ⋮ menu button. */}
-      <div className="flex items-center gap-1 min-w-0 flex-1">
+      <div className="flex items-center gap-0.5 min-w-0 flex-1 overflow-hidden">
         {/* OWNER REQUEST Nov 6 2026: the X close button is gone. Tapping outside
             the panel already closes the sidebar, and the X ate horizontal room
             next to the logo. */}
@@ -322,10 +328,10 @@ export default function AppSidebar({
             break onto a second line when the panel was narrow, which pushed the
             version rows and Change Logs down and looked ragged. */}
         <div className="flex flex-col min-w-0 leading-tight">
-          <h2 className="font-bold text-lg text-body leading-tight truncate">
+          <h2 className="font-bold text-lg text-body leading-tight whitespace-nowrap">
             {'RxDeliver'}
           </h2>
-          <p className="text-xs text-soft whitespace-nowrap leading-tight truncate">Pharmacy Logistics</p>
+          <p className="text-xs text-soft whitespace-nowrap leading-tight">Pharmacy Logistics</p>
           <div className="flex items-start gap-1">
             {/* OWNER LAYOUT (Nov 6 2026): TWO rows, always stacked — the preview
                 version on top and the live version in parentheses underneath.
@@ -393,7 +399,7 @@ export default function AppSidebar({
 
             }
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
         {/* Show controls in navigation panel when tablet landscape OR landscape mobile */}
         {deviceType === 'Tablet' && !isTabletPortrait || !isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0 ?
               <>
