@@ -279,9 +279,14 @@ export default function AppSidebar({
     <>
 {/* Sidebar */}
 <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200] bg-surface border-surface`}>
-  <div className="border-b p-4 flex-shrink-0 border-surface">
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
+  {/* OWNER CLEANUP Nov 6 2026: "clean up the extra white space on both sides of
+      the app logo". The header carried a full p-4 (16px) frame plus a 12px row
+      gap, which read as dead space around the 64px icon. Padding is now 8px
+      horizontally / 10px vertically and the icon-to-text gap is 8px. Nothing
+      inside changed size. */}
+  <div className="border-b px-2 py-2.5 flex-shrink-0 border-surface">
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
         {/* Close button - show when sidebar is open (always on mobile, on desktop when expanded) */}
         {sidebarOpen &&
               <button
@@ -317,11 +322,14 @@ export default function AppSidebar({
           {!isMobile && !isTabletPortrait && hasWebUpdate && !menuBtnVisible && <UpdateArrow type="web" size={12} />}
         </div>
 
-        <div>
-          <h2 className="font-bold text-lg text-body">
+        {/* Text block: tight leading, no wrapping. "Pharmacy Logistics" used to
+            break onto a second line when the panel was narrow, which pushed the
+            version rows and Change Logs down and looked ragged. */}
+        <div className="flex flex-col min-w-0 leading-tight">
+          <h2 className="font-bold text-lg text-body leading-tight">
             {'RxDeliver'}
           </h2>
-          <p className="text-xs text-soft">Pharmacy Logistics</p>
+          <p className="text-xs text-soft whitespace-nowrap leading-tight">Pharmacy Logistics</p>
           <div className="flex items-start gap-1">
             {/* OWNER LAYOUT (Nov 6 2026): TWO rows, always stacked — the preview
                 version on top and the live version in parentheses underneath.
@@ -346,7 +354,9 @@ export default function AppSidebar({
               type="button"
               onClick={onOpenUpdateLog}
               title="View the change log"
-              className="-mt-1 leading-none text-[11px] font-semibold text-emerald-700 text-left hover:text-emerald-800 hover:underline cursor-pointer"
+              /* No gap above or below: the -mt-1 pull is gone and leading-none
+                 keeps the link flush to the version rows (owner Nov 6 2026). */
+              className="mt-0 leading-none text-[11px] font-semibold text-emerald-700 text-left hover:text-emerald-800 hover:underline cursor-pointer"
             >
               Change Logs
             </button>
