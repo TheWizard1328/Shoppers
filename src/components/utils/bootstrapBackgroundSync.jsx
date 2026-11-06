@@ -39,6 +39,11 @@ const markSynced = () => {
  * @param {function} callbacks.setSquareLocationConfigs
  */
 export const runBootstrapBackgroundSync = async (callbacks = {}) => {
+  // AppUser mirror check (owner spec Nov 6 2026) runs BEFORE the staleness early
+  // returns: it is one small AppSettings read, and a device must see a bumped
+  // force-mirror stamp on its next boot even if the rest of the data is fresh.
+  import('./appUserMirror').then(({ maybeRunAppUserMirror }) => maybeRunAppUserMirror()).catch(() => {});
+
   if (!isStale()) {
     console.log('⏭️ [BootstrapSync] Skipped — data is fresh (< 4h old)');
     return;

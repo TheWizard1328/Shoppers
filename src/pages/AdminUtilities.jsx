@@ -39,6 +39,7 @@ import { ResizableColumnHeader, ColumnVisibilityControl } from '../components/ad
 import AdminDeliveriesTable from '../components/admin/AdminDeliveriesTable';
 import { matchesDeliveryCodFilter } from '../components/admin/deliveryCodFilter';
 import UserSettingsTable from '../components/admin/UserSettingsTable';
+import AppUserMirrorPanel from '../components/admin/AppUserMirrorPanel';
 import InkbirdRawDiagnostic from '../components/admin/InkbirdRawDiagnostic';
 import InkbirdBleLog from '../components/devices/InkbirdBleLog';
 import { useDevice } from '../components/utils/DeviceContext';
@@ -1918,7 +1919,8 @@ export default function AdminUtilities() {
             <StoreMetricsPanel />
           </TabsContent>
 
-          <TabsContent value="user-settings">
+          <TabsContent value="user-settings" className="space-y-4">
+            <AppUserMirrorPanel />
             <UserSettingsTable
               appUsers={appUsers || []}
               mergedUsers={mergedUsers} />

@@ -348,6 +348,9 @@ export const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isL
 
 // ── UserDataTable ─────────────────────────────────────────────────────────────
 export const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
+  // Phones get a stacked card list: the 12-column table needs ~1500px of width
+  // and horizontal scrolling on a 390px screen is unusable (owner report Nov 6 2026).
+  const { isMobile } = useDevice();
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('users');
   const [columnWidths, setColumnWidths] = useState(() => {
     const saved = localStorage.getItem('admin_user_column_widths');
@@ -364,9 +367,9 @@ export const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoa
   return (
     <Card className="bg-surface border-surface">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between text-body">
-          <span>App Users</span>
-          <div className="flex gap-2">
+        <CardTitle className="flex flex-col gap-3 text-body sm:flex-row sm:items-center sm:justify-between">
+          <span className="min-w-0 truncate">App Users</span>
+          <div className="flex flex-wrap items-center gap-2">
             <ColumnVisibilityControl config={config} visibleColumns={visibleColumns} onToggle={toggleColumn} />
             {selectedUsers.size > 0 && <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={isLoadingData}>Delete Selected ({selectedUsers.size})</Button>}
           </div>
@@ -374,6 +377,41 @@ export const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoa
         <CardDescription className="text-soft">List of all application users.</CardDescription>
       </CardHeader>
       <CardContent>
+        {isMobile ? (
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            {isLoadingData ? (
+              <p className="p-3 text-center text-soft"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</p>
+            ) : (users || []).length === 0 ? (
+              <p className="p-3 text-center text-soft">No app users found.</p>
+            ) : users.map((user) => (
+              <div key={user.id} className="rounded-md border border-surface p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-body truncate">{user.user_name || 'Unnamed'}</p>
+                    <p className="text-xs text-soft truncate">{user.phone || 'No phone'}</p>
+                  </div>
+                  <Checkbox checked={selectedUsers.has(user.id)} onCheckedChange={(c) => handleSelectUser(user.id, c)} className="mt-1 shrink-0" />
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {user.status && <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>{user.status}</Badge>}
+                  {user.app_roles?.length > 0 && <Badge variant="secondary">{user.app_roles.join(', ')}</Badge>}
+                  <Badge variant={user.location_tracking_enabled ? 'default' : 'secondary'}>
+                    {user.location_tracking_enabled ? 'GPS on' : 'GPS off'}
+                  </Badge>
+                </div>
+                <div className="space-y-0.5 text-xs text-soft">
+                  <p className="truncate">City: {user.city_id || '-'}</p>
+                  <p className="truncate">Stores: {user.store_ids?.length ? user.store_ids.map((id) => id.substring(0, 4)).join(', ') + '...' : '-'}</p>
+                  <p className="truncate font-mono">{user.id?.substring(0, 8)}...</p>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" size="sm" onClick={() => onEdit(user)} className="flex-1 text-body bg-surface border-surface">Edit</Button>
+                  <Button variant="destructive" size="sm" className="flex-1" onClick={() => onDelete(user)}>Delete</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="border rounded-md overflow-hidden border-surface">
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
@@ -416,6 +454,7 @@ export const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoa
             </table>
           </div>
         </div>
+        )}
       </CardContent>
     </Card>
   );

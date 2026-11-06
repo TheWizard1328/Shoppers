@@ -583,9 +583,21 @@ const _guardDeliveryRecord = async (storeName, record) => {
   try { return guard(out) || out; } catch (_) { return out; }
 };
 
+// WRITE GATEWAY GUARD (owner spec Nov 6 2026): a partial AppUser write (no
+// user_id / user_name) is exactly how thousands of junk rows accumulated in the
+// app_users store. 38 files write AppUser rows, so the gateway is the only place
+// that covers every writer. Nothing legitimate is lost: the server table is the
+// source of truth and carries both fields on every record.
+const _isJunkAppUser = (r) =>
+  !(r && r.id && r.user_id && r.user_id !== 'undefined' && r.user_name && r.user_name !== 'undefined');
+
 const save = async (storeName, record) => {
   if (!record) {
     return { success: false, error: 'No record provided' };
+  }
+  if (storeName === STORES.APP_USERS && _isJunkAppUser(record)) {
+    console.warn('[offlineDB] rejected partial AppUser write', record?.id || '(no id)');
+    return { success: false, error: 'partial-app-user-rejected' };
   }
   record = await _guardDeliveryRecord(storeName, record);
 
@@ -635,6 +647,16 @@ const BULK_SAVE_CHUNK_SIZE = 300;
 const bulkSave = async (storeName, records) => {
   if (!records || records.length === 0) {
     return { success: true, count: 0 };
+  }
+  if (storeName === STORES.APP_USERS) {
+    const before = records.length;
+    records = records.filter((r) => !_isJunkAppUser(r));
+    if (records.length !== before) {
+      console.warn(`[offlineDB] dropped ${before - records.length} partial AppUser record(s) from bulk write`);
+    }
+    if (records.length === 0) {
+      return { success: true, count: 0, rejected: before };
+    }
   }
 
   // Apply the locked next-delivery flag to every record in this batch BEFORE the

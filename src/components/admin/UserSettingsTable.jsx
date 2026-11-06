@@ -125,15 +125,15 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
   return (
     <Card className="bg-surface border-surface">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between text-body">
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            User Settings
+        <CardTitle className="flex flex-col gap-3 text-body sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Settings className="w-5 h-5 shrink-0" />
+            <span className="truncate">User Settings</span>
             <Badge variant={viewMode === 'cloud' ? 'default' : 'secondary'}>
               {viewMode === 'cloud' ? 'Cloud' : 'Local'} ({displayedSettings.length})
             </Badge>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant={viewMode === 'cloud' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('cloud')} style={viewMode !== 'cloud' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}>Cloud ({userSettings.length})</Button>
             <Button variant={viewMode === 'local' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('local')} style={viewMode !== 'local' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}>Local ({localUserSettings.length})</Button>
             <ColumnVisibilityControl config={config} visibleColumns={visibleColumns} onToggle={toggleColumn} />
