@@ -187,6 +187,7 @@ const AuthenticatedApp = () => {
 function App() {
 
   return (
+    <SingleInstanceGate>
     <ChunkErrorBoundary>
       <AuthProvider>
         <QueryClientProvider client={queryClientInstance}>
@@ -202,6 +203,7 @@ function App() {
         </QueryClientProvider>
       </AuthProvider>
     </ChunkErrorBoundary>
+    </SingleInstanceGate>
   )
 }
 

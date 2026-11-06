@@ -456,16 +456,26 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
         const r = el?.getBoundingClientRect();
         if (r && r.width > 40 && r.left > -2) sidebar = Math.round(r.right);
       } catch (_) { sidebar = 0; }
-      const avail = Math.max(320, (window.innerWidth || 1280) - sidebar - 48);
-      const fit = Math.max(1, Math.floor((avail + GRID_GAP_PX) / (CARD_MIN_PX + GRID_GAP_PX)));
+      const vw = window.innerWidth || 1280;
+      // OWNER REPORT Nov 5 2026: the Devices dialog "does not quite fit on a
+      // mobile device screen width for narrower screens". The panel width was
+      // computed from a 352px card minimum and a 560px single-column panel, both
+      // wider than a phone, so the dialog overflowed the viewport horizontally.
+      // Narrow screens now get a smaller card minimum and every width is capped
+      // to the viewport itself.
+      const minCardPx = vw < 400 ? 220 : (vw < 480 ? 250 : CARD_MIN_PX);
+      const viewportCapPx = Math.max(260, vw - 16);
+      const avail = Math.max(240, Math.min(viewportCapPx, vw - sidebar - 48));
+      const fit = Math.max(1, Math.floor((avail + GRID_GAP_PX) / (minCardPx + GRID_GAP_PX)));
       const wanted = Math.min(3, fit, Math.max(1, devices.length || 1));
       // Exact dialog width for those columns: one card keeps the old
       // single-card panel width, two and three get CARD_TARGET_PX cards plus the
       // gaps and panel padding, never wider than the main content area.
+      const targetCardPx = vw < 480 ? Math.max(minCardPx, Math.min(CARD_TARGET_PX, avail - 40)) : CARD_TARGET_PX;
       const basePx = wanted === 1
-        ? SINGLE_COLUMN_PANEL_PX
-        : wanted * CARD_TARGET_PX + (wanted - 1) * GRID_GAP_PX + 40;
-      const widthPx = Math.min(avail, basePx);
+        ? Math.min(SINGLE_COLUMN_PANEL_PX, targetCardPx + 40)
+        : wanted * targetCardPx + (wanted - 1) * GRID_GAP_PX + 40;
+      const widthPx = Math.min(avail, basePx, viewportCapPx);
       setColumns(wanted);
       layoutRef.current = { columns: wanted, widthPx: Math.round(widthPx) };
     };
@@ -644,15 +654,15 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
         return (
           <Card key={device.id} className={`border border-l-4 ${deviceStyle.card}`}>
             <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  {getDeviceIcon(device.device_info?.device_type)}
-                  <div>
-                    <p className="text-base font-semibold text-body">
+              <div className="flex items-start justify-between gap-2 min-w-0">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <span className="shrink-0">{getDeviceIcon(device.device_info?.device_type)}</span>
+                  <div className="min-w-0">
+                    <p className="text-base font-semibold text-body break-words">
                       {device.device_name}
                       {isCurrent && <Badge className="ml-2 bg-blue-500 text-white text-xs">Current</Badge>}
                     </p>
-                    <p className="text-sm text-soft">{displayOS} · {lastActive}</p>
+                    <p className="text-sm text-soft break-words">{displayOS} · {lastActive}</p>
                     {/* Owner request Oct 30 2026: one line, "Domain: <badge>" —
                         the status badge lives here instead of beside the name.
                         The raw host stays available as a hover title. */}
@@ -667,7 +677,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                   </div>
                 </div>
                 {device.is_primary_tracker && (
-                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200 dark:border dark:border-green-700/60 gap-1 text-xs">
+                  <Badge className="shrink-0 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200 dark:border dark:border-green-700/60 gap-1 text-xs">
                     <CheckCircle className="w-3 h-3" /> Primary
                   </Badge>
                 )}
@@ -724,30 +734,30 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                     {/* Owner spec Oct 29 2026: the four action buttons share ONE row
                         and stretch evenly to fill the card; Delete keeps its own
                         row, aligned bottom-right. */}
-                    <div className="flex items-stretch gap-1.5 w-full">
-                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
+                    <div className="flex flex-wrap items-stretch gap-1.5 w-full">
+                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
                         <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Edit</span>
                       </Button>
                       {isOwnDevices && !isCurrent && device.status !== 'inactive' && (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleSwitchToDeviceProfile(device)}>
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => handleSwitchToDeviceProfile(device)}>
                           <CheckCircle className="w-3 h-3 shrink-0" /> <span className="truncate">Use Here</span>
                         </Button>
                       )}
                       {isOwnDevices && isCurrent && devices.length > 1 && (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => setShowChangeSettings(true)}>
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => setShowChangeSettings(true)}>
                           <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Copy From...</span>
                         </Button>
                       )}
                       {canSetPrimary && (device.is_primary_tracker ? (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleClearPrimary(device)}>
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => handleClearPrimary(device)}>
                           <span className="truncate">Remove Primary</span>
                         </Button>
                       ) : (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleSetPrimary(device)}>
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => handleSetPrimary(device)}>
                           <span className="truncate">Set Primary</span>
                         </Button>
                       ))}
-                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-2" onClick={() => handleToggleDeviceStatus(device)}>
+                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => handleToggleDeviceStatus(device)}>
                         <span className="truncate">{device.status === 'inactive' ? 'Enable' : 'Disable'}</span>
                       </Button>
                     </div>

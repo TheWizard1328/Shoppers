@@ -482,7 +482,7 @@ export function SettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={`w-full max-h-[85vh] overflow-y-auto px-4 py-4 ${contentClassName}`}
+        className={`w-full max-w-[calc(100vw-1rem)] max-h-[85vh] overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 ${contentClassName}`}
         style={{
           ...(mainAreaCentered && leftInset > 0
             ? { left: `calc(${leftInset}px + (100vw - ${leftInset}px) / 2)` }
@@ -1066,7 +1066,7 @@ export default function Settings() {
         icon={Smartphone}
         mainAreaCentered
         contentClassName="max-w-[96rem]"
-        contentStyle={{ maxWidth: `${devicesLayout.widthPx || 576}px` }}
+        contentStyle={{ maxWidth: `min(${devicesLayout.widthPx || 576}px, calc(100vw - 1rem))` }}
       >
         {currentUser && (
           <DevicesPanel currentUser={currentUser} onColumnCountChange={setDevicesLayout} />
