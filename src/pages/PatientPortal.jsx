@@ -812,12 +812,23 @@ export default function PatientPortal({ embedded = false } = {}) {
       const uniquePuids = [...new Set(allDeliveries.map((d) => d.puid).filter(Boolean))].slice(0, 40);
       if (uniquePuids.length > 0) {
         try {
-          const results = await Promise.all(
-            uniquePuids.map((puid) =>
-            base44.entities.Delivery.filter({ puid }, '-delivery_date', 50).
-            catch(() => [])
-            )
-          );
+          // ONE read for the whole page (owner report Nov 6 2026): a portal
+          // open fired up to 40 parallel per-puid Delivery queries. A single
+          // $in on the same field returns the identical set; the per-puid path
+          // is kept only as a fallback if the operator is rejected.
+          let results = null;
+          try {
+            const bulk = await base44.entities.Delivery.filter({ puid: { $in: uniquePuids } }, '-delivery_date', 500);
+            results = Array.isArray(bulk) ? [bulk] : [];
+          } catch { results = null; }
+          if (!results) {
+            results = await Promise.all(
+              uniquePuids.map((puid) =>
+              base44.entities.Delivery.filter({ puid }, '-delivery_date', 50).
+              catch(() => [])
+              )
+            );
+          }
           const groups = {};
           const pickups = [];
           results.flat().forEach((rec) => {

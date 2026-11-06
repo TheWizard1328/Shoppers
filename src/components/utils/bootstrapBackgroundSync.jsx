@@ -46,7 +46,23 @@ export const runBootstrapBackgroundSync = async (callbacks = {}) => {
 
   console.log('🔄 [BootstrapSync] Starting background sync for bootstrap entities...');
 
+  // ONCE PER DEVICE WINDOW (owner report Nov 6 2026: rate limits at critical
+  // points). This ran SIX full entity reads on every app open even though
+  // smartRefreshManager already keeps cities, stores and app users fresh every
+  // 5 minutes. It now no-ops when the same device synced within the last 15
+  // minutes; a cold start after that still pulls everything.
+  const BOOTSTRAP_STAMP_KEY = 'rxdeliver_bootstrap_sync_at';
+  const BOOTSTRAP_MIN_GAP_MS = 15 * 60 * 1000;
   try {
+    const last = Number(localStorage.getItem(BOOTSTRAP_STAMP_KEY) || 0);
+    if (last > 0 && Date.now() - last < BOOTSTRAP_MIN_GAP_MS) {
+      console.log('[BootstrapSync] skipped - synced', Math.round((Date.now() - last) / 1000), 's ago');
+      return;
+    }
+  } catch { /* localStorage unavailable - sync anyway */ }
+
+  try {
+    try { localStorage.setItem(BOOTSTRAP_STAMP_KEY, String(Date.now())); } catch { /* ignore */ }
     // Fetch all bootstrap entities in parallel — this is the ONE consolidated backend call
     const [cities, stores, appUsers, appSettings, squareLocationConfigs, interStoreLocations] = await Promise.all([
       base44.entities.City.list().catch(() => null),
