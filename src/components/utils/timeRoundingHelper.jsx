@@ -32,6 +32,27 @@ export const roundInstantToFiveMin = (ms, direction = 'floor') => {
     : Math.floor(truncated / FIVE_MIN) * FIVE_MIN;
 };
 
+/**
+ * The ACTUAL start time for a stop transitioning pending -> in_transit/en_route.
+ *
+ * OWNER BUG (Nov 5 2026): "delivery start times are going too far into the
+ * future with that plus 5 minutes. I finished my last Collingwood pickup at
+ * 19:08 but the delivery I picked up got a 19:20 start instead of 19:10 or at
+ * least 19:13." The Start paths stamped now+5 (and, when an ETA was already on
+ * the record, the future ETA itself), so a stop the driver was physically
+ * starting at 19:08 could be stamped 19:20 — a completion time earlier than its
+ * own start.
+ *
+ * A start time is an OBSERVATION of the clock, not a projection: it is now,
+ * rounded UP to the next 5-minute mark (19:08 -> 19:10) by the standing
+ * rounding rule. Never now+5, never an ETA.
+ */
+export const currentStartTimeString = (now = Date.now()) => {
+  const rounded = roundInstantToFiveMin(now, 'ceil');
+  const d = new Date(rounded);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 export function getFirstLastFinished(delivery, allDeliveries, FINISHED_STATUSES) {
   const allDriverDeliveries = allDeliveries.filter(d =>
     d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date

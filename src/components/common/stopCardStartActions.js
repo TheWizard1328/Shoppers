@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 import { setDriverStatus } from "@/functions/setDriverStatus";
 import { reopenDutyOnRestart } from "@/components/utils/reopenDutyOnRestart";
+import { currentStartTimeString } from "@/components/utils/timeRoundingHelper";
 import { locationTracker } from "../utils/locationTracker";
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
@@ -607,7 +608,9 @@ export function useStopCardStartActions({
       pauseOfflineSync('delivery_actions');
       try {
         const now = new Date();
-        const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        // OWNER FIX (Nov 5 2026): a start time is the real clock rounded UP to
+        // the next 5-minute mark — never a future ETA or a now+5 projection.
+        const currentLocalTime = currentStartTimeString(now.getTime());
         const isValidObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
         if (!isValidObjectId(delivery.id) || !isValidObjectId(delivery.driver_id)) throw new Error('This stop is still syncing. Please try again in a moment.');
 

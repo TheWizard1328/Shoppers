@@ -122,6 +122,12 @@ export async function handleStartDelivery({
   const newStatus = isPickup ? 'en_route' : 'in_transit';
   // Alberta wall clock (device-local getHours() misreports on stale tz data).
   const etaString = formatAlbertaMinutes(edmontonNowMinutes() + 5);
+  // OWNER FIX (Nov 5 2026): the START time is the real clock rounded UP to the
+  // next 5-minute mark (19:08 -> 19:10). It used to be now+5, which pushed a
+  // start into the future and produced stops whose completion time preceded
+  // their own start. delivery_time_eta keeps the now+5 projection.
+  // Alberta wall clock, rounded UP to the next 5-minute mark (19:08 -> 19:10).
+  const startString = formatAlbertaMinutes(Math.ceil(edmontonNowMinutes() / 5) * 5);
 
   // Track which delivery IDs were mutated locally so we can batch-sync them
   const transitionedIds = new Set();
@@ -207,7 +213,7 @@ export async function handleStartDelivery({
           isNextDelivery: true,
           status: newStatus,
           stop_order: nextOrder,
-          delivery_time_start: etaString,
+          delivery_time_start: startString,
           delivery_time_eta: etaString,
           updated_date: new Date().toISOString(),
         };
@@ -380,7 +386,7 @@ export async function handleStartDelivery({
           ...(id === deliveryId
             ? {
                 status: newStatus,
-                delivery_time_start: etaString,
+                delivery_time_start: startString,
                 delivery_time_eta: existing.delivery_time_eta || etaString,
                 stop_order: existing.stop_order != null ? existing.stop_order : newTargetStopOrder,
                 isNextDelivery: true,
