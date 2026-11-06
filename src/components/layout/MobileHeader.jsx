@@ -172,8 +172,8 @@ export default function MobileHeader({
               type="button"
               aria-label={`${unreadMessageCount} unread messages`}
               onClick={(e) => { e.stopPropagation(); onMessagingClick?.(); }}
-              className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white touch-manipulation"
-              style={{ color: '#ffffff' }}>
+              className="absolute -top-1 -left-1 z-10 inline-flex items-center justify-center w-[18px] h-[18px] min-w-[18px] max-w-[18px] p-0 m-0 leading-none text-[10px] font-bold bg-blue-500 rounded-full border-2 border-white appearance-none touch-manipulation"
+              style={{ color: '#ffffff', lineHeight: 1 }}>
                 {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
               </button>
             }
