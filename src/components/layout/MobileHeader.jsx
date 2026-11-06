@@ -172,7 +172,7 @@ export default function MobileHeader({
               type="button"
               aria-label={`${unreadMessageCount} unread messages`}
               onClick={(e) => { e.stopPropagation(); onMessagingClick?.(); }}
-              className="absolute -top-1 -left-1 z-10 bg-blue-500 appearance-none touch-manipulation"
+              className="absolute z-10 bg-blue-500 appearance-none touch-manipulation"
               // OWNER REPORT Nov 5 2026: "The notification count badge on the app
               // icon on the mobile header has been elongated into an oval again."
               // The badge is a UA <button> inside a flex row, so ANY surviving
@@ -184,6 +184,13 @@ export default function MobileHeader({
               // so "9+" is narrower than the 14px inner width instead of pushing
               // the box sideways.
               style={{
+                // OWNER REQUEST Nov 6 2026: "tighten it up by moving it slightly
+                // down a few pixels and slightly to the right, closer to the
+                // physical icon, without so much white space in between."
+                // Was -4px/-4px (floating off the corner); now +1px/+1px so the
+                // ring tucks into the icon's corner padding.
+                top: '1px',
+                left: '1px',
                 width: '18px',
                 height: '18px',
                 minWidth: '18px',

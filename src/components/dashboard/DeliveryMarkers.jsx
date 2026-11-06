@@ -333,8 +333,14 @@ function DeliveryMarkers({
     const isSelectedDriverMarker = !delivery.isOtherDriver;
     const driverRouteStops = deliveryMarkers.filter((item) => item && item.driver_id === delivery.driver_id);
     const routeHasIncompleteStops = driverRouteStops.some((item) => item && !FINISHED_STATUSES.includes(item.status));
-    const isSelectedRouteComplete = isSelectedDriverMarker && !routeHasIncompleteStops;
-    const isRouteInProgress = isSelectedDriverMarker && routeHasIncompleteStops;
+    // The driver's route also contains PICKUP stops, which are not in this
+    // delivery list. DeliveryMap already reconciles deliveries + pickups per
+    // driver (driversWithCompleteRoute), so use it as the completion gate too —
+    // otherwise a finished delivery refused to fade while an en-route pickup
+    // was still open on that driver's route (owner report Nov 6 2026).
+    const isSelectedRouteComplete = isSelectedDriverMarker && driversWithCompleteRoute.has(delivery.driver_id);
+    const isRouteInProgress = isSelectedDriverMarker && !isSelectedRouteComplete
+      && (routeHasIncompleteStops || hasIncompleteStops);
     const isUserHoveringFaded = fadedMarkerHighlights.has(delivery.id);
     // CRITICAL: isOtherDriver markers never fade (always visible even when route is complete)
     const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedDriverMarker && !delivery.isOtherDriver;

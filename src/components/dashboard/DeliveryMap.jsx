@@ -1203,8 +1203,14 @@ function DeliveryMap({
     [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
       if (!stop?.driver_id) return;
       if (!byDriver.has(stop.driver_id)) byDriver.set(stop.driver_id, { complete: 0, incomplete: 0 });
+      // OWNER REPORT Nov 6 2026: finished markers stayed FULL opacity while the
+      // driver still had work left. `pending` stops were skipped entirely, so a
+      // route whose only remaining stops were still pending (the normal mid-route
+      // state) was counted as COMPLETE — the fade gate then said "route finished"
+      // and every completed marker rendered at full strength. A pending stop is
+      // unfinished work, so it counts now.
       if (FINISHED_STATUSES.includes(stop.status)) byDriver.get(stop.driver_id).complete += 1;
-      else if (stop.status !== "pending") byDriver.get(stop.driver_id).incomplete += 1;
+      else byDriver.get(stop.driver_id).incomplete += 1;
     });
     // Normalize BOTH id forms into the set: Delivery.driver_id stores the
     // platform user id (AppUser.user_id — verified live: Sharuk's deliveries
