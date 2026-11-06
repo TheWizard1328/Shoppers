@@ -207,15 +207,70 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
 const PRIORITY_SYNC_KEY = 'rxdeliver_priority_sync_ts';
 const PRIORITY_SYNC_FRESHNESS_MS = 5 * 60 * 1000; // 5 minutes
 
+// ── Boot gates (owner spec Nov 6 2026) ────────────────────────────────────────
+// A publish restarts every preview device within seconds, and a weak link makes
+// the boot pass fail slowly. One boot used to fire City.list + AppUser deltas +
+// deliveries + patients + Square configs/balances at once, which is how the
+// 140/60s entity_list budget got blown on the owner's own devices.
+const PRIORITY_SYNC_DEFER_MS = 90 * 1000;      // short hold after a gate skip
+const PRIORITY_SYNC_LOCK_KEY = 'rxdeliver_priority_sync_lock';
+const PRIORITY_SYNC_LOCK_TTL_MS = 3 * 60 * 1000;
+const PRIORITY_SYNC_LOCK_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 const isPrioritySyncFresh = (selectedDateStr) => {
   try {
     const raw = localStorage.getItem(PRIORITY_SYNC_KEY);
     if (!raw) return false;
-    const { ts, date } = JSON.parse(raw);
+    const { ts, date, short } = JSON.parse(raw);
     // Also invalidate if the selected date changed (e.g. day rolled over)
     if (date !== selectedDateStr) return false;
-    return Date.now() - ts < PRIORITY_SYNC_FRESHNESS_MS;
+    // A deferred pass only holds off the reload storm; it must not make the
+    // dashboard believe it has 5-minute-old data it never fetched.
+    return Date.now() - ts < (short ? PRIORITY_SYNC_DEFER_MS : PRIORITY_SYNC_FRESHNESS_MS);
   } catch (_) { return false; }
+};
+
+/** GATE 3: record a skipped boot pass so the next restart does not re-pull. */
+const markPrioritySyncDeferred = (selectedDateStr) => {
+  try { localStorage.setItem(PRIORITY_SYNC_KEY, JSON.stringify({ ts: Date.now(), date: selectedDateStr, short: true })); } catch (_) {}
+};
+
+/** GATE 2: one boot pass at a time, across tabs and back-to-back restarts. */
+const acquirePrioritySyncLock = () => {
+  try {
+    const raw = localStorage.getItem(PRIORITY_SYNC_LOCK_KEY);
+    if (raw) {
+      const held = JSON.parse(raw);
+      if (held && held.id !== PRIORITY_SYNC_LOCK_ID && Date.now() - (held.ts || 0) < PRIORITY_SYNC_LOCK_TTL_MS) {
+        return false;
+      }
+    }
+    localStorage.setItem(PRIORITY_SYNC_LOCK_KEY, JSON.stringify({ id: PRIORITY_SYNC_LOCK_ID, ts: Date.now() }));
+    return true;
+  } catch (_) {
+    return true; // localStorage unavailable - never block the sync
+  }
+};
+
+const releasePrioritySyncLock = () => {
+  try {
+    const raw = localStorage.getItem(PRIORITY_SYNC_LOCK_KEY);
+    if (!raw) return;
+    const held = JSON.parse(raw);
+    if (!held || held.id === PRIORITY_SYNC_LOCK_ID) localStorage.removeItem(PRIORITY_SYNC_LOCK_KEY);
+  } catch (_) { /* ignore */ }
+};
+
+/** GATE 1: offline, poor link, or an active rate-limit backoff defers the pass. */
+const networkAllowsPrioritySync = async () => {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  try {
+    const mod = await import('./connectionMonitor');
+    const cm = mod?.connectionMonitor;
+    if (cm?.canAttemptNetwork) return !!cm.canAttemptNetwork();
+    if (cm?.quality === 'offline' || cm?.quality === 'poor') return false;
+  } catch (_) { /* monitor unavailable - trust navigator */ }
+  return true;
 };
 
 const markPrioritySyncComplete = (selectedDateStr) => {
@@ -260,6 +315,23 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
   if (isPrioritySyncFresh(selectedDateStr)) {
     console.log('⏭️ [PrioritySync] Skipped — data is fresh (< 5min old). Relying on SmartRefresh.');
     return { skipped: true, fresh: true };
+  }
+
+  // ── GATE 1: network health — the dashboard is already rendered from IDB, so a
+  // boot on a dead or poor link waits for the reconnect/background sync instead
+  // of burning the request budget on calls that will time out anyway.
+  if (!(await networkAllowsPrioritySync())) {
+    markPrioritySyncDeferred(selectedDateStr);
+    console.log('⏭️ [PrioritySync] Deferred — offline, poor network, or rate-limit backoff');
+    return { skipped: true, deferred: 'network' };
+  }
+
+  // ── GATE 2: single flight — two app_start events 9s apart (publish restart)
+  // must not both run the full pass.
+  if (!acquirePrioritySyncLock()) {
+    markPrioritySyncDeferred(selectedDateStr);
+    console.log('⏭️ [PrioritySync] Deferred — another boot pass is already running');
+    return { skipped: true, deferred: 'in-flight' };
   }
 
   setSyncInProgress(true);
@@ -484,6 +556,7 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };
   } finally {
+    releasePrioritySyncLock();
     setSyncInProgress(false);
   }
 };
@@ -1393,6 +1466,23 @@ if (typeof window !== 'undefined' && !window.__rxdeliverReconnectSyncRegistered)
       await performBackgroundSync(getLocalDateString()).catch(() => {});
     }, 1500);
   };
+
+  // ── RECONNECT CATCH-UP (gates Nov 6 2026) ──────────────────────────────────
+  // A boot pass deferred for network reasons must retry the moment the link is
+  // back; otherwise the dashboard sits on the boot IDB snapshot (Oct 13 class).
+  const retryDeferredPrioritySync = async () => {
+    try {
+      const raw = localStorage.getItem(PRIORITY_SYNC_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.short || !parsed.date) return;
+      localStorage.removeItem(PRIORITY_SYNC_KEY);
+      console.log('🔄 [PrioritySync] Link restored — retrying the deferred boot pass for', parsed.date);
+      const res = await loadPriorityDataWithRetry(parsed.date);
+      await applyPrioritySyncResultToUI(parsed.date, res, 'reconnectDeferredSync');
+    } catch (_) { /* ignore */ }
+  };
+  window.addEventListener('online', retryDeferredPrioritySync);
 
   window.addEventListener('online', triggerOfflineBackgroundSync);
   window.addEventListener('offlineSyncResumed', triggerOfflineBackgroundSync);
