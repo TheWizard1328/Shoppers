@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { Clock, Home, MapPin, Truck } from 'lucide-react';
 import DeliveryPopup from './DeliveryPopup';
 import MarkerInfoBalloon from './MarkerInfoBalloon';
-import { createSimpleCircleIcon, createDeliveryIcon, createCyclingStartIcon, createCyclingEndIcon, createCyclingSplitIcon } from './MapIcons';
+import { createSimpleCircleIcon, createDeliveryIcon, createCyclingStartIcon, createCyclingEndIcon, createCyclingSplitIcon, createCodBadgeIcon, resolveDeliveryPinSize } from './MapIcons';
 import { getStoreColor } from '../utils/colorGenerator';
 import { getMarkerStopLabel } from './markerStopLabel';
 import { formatCodAmount, clusterLocationAddress } from './mapBalloonHelpers';
@@ -410,12 +410,16 @@ function DeliveryMarkers({
           delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade,
           isDeliveryHighlightedFinished, delivery.fridge_item === true,
           delivery.isDriverOnDuty, showWatchHalo, undefined,
-          // "$" marker badge: same stop that shows the cash symbol on its card.
-          // Colour is the SAME rule as the card badge (getCodSymbolColor):
-          // green = card / direct payment collected, red = cash collected,
-          // blue = archived, black = still to collect.
-          cashBadgeColorFor(delivery)
+          // "$" moved OUT of the pin icon on Nov 7 2026 — see the standalone
+          // codBadgePane marker below: inside the icon it was painted under any
+          // neighbouring pin that Leaflet stacked higher.
+          null
         );
+
+    // "$" COD badge colour (same rule as the stop card symbol: green = card or
+    // other direct payment collected, red = cash, blue = archived, black = not
+    // collected yet).
+    const codBadgeColor = cashBadgeColorFor(delivery);
 
     const handlers = delivery.isOtherDriver ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isDeliveryFaded) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); handleMarkerClickForFanning(delivery, 'delivery'); },
@@ -446,6 +450,16 @@ function DeliveryMarkers({
         if (!deliveryStore?.latitude || !deliveryStore?.longitude) return null;
         return <Circle key={`delivery-store-halo-${delivery.id}`} center={[deliveryStore.latitude, deliveryStore.longitude]} radius={haloRadius} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />;
       })(),
+      codBadgeColor && !delivery.useSimpleCircle && !delivery.isOtherDriver && (
+        <Marker
+          key={`cod-badge-${delivery.id}`}
+          pane="codBadgePane"
+          position={markerPosition}
+          icon={createCodBadgeIcon(codBadgeColor, resolveDeliveryPinSize(delivery.status, currentZoom, isFanned))}
+          interactive={false}
+          zIndexOffset={0}
+        />
+      ),
       <Marker
         key={`delivery-${delivery.id}`}
         position={markerPosition}

@@ -303,6 +303,56 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   return icon;
 };
 
+/**
+ * Pin size for a delivery marker — ONE definition, shared by the pin builder and
+ * the standalone COD "$" badge so the two can never drift apart.
+ */
+export const resolveDeliveryPinSize = (status, zoomLevel, isActive = false, isOtherDriver = false) => {
+  const zBucket = bucketZoom(zoomLevel);
+  const isMobile = isMobileDevice();
+  let baseSize = 24 * 0.75;
+  if (zBucket >= ZOOM_LEVELS.FULL_DETAIL) {
+    baseSize = 28 * 0.75;
+  } else if (zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+    baseSize = 24 * 0.75;
+  } else if (zBucket >= ZOOM_LEVELS.HIDE_NUMBERS) {
+    baseSize = 20 * 0.75;
+  } else {
+    baseSize = 17 * 0.75;
+  }
+  if (status === 'pending') baseSize *= 0.75;
+  if (isOtherDriver) baseSize *= 0.86;
+  if (isMobile) baseSize *= 1.25;
+  return isActive ? baseSize * 1.15 : baseSize;
+};
+
+/**
+ * COD "$" badge as its OWN marker (owner report Nov 7 2026: the badge lived
+ * inside the pin's icon element, and Leaflet gives every marker its own z-index,
+ * so any neighbouring pin in a higher tier painted over it — "slightly behind the
+ * marker pins and partially hidden at different zoom levels"). It is now rendered
+ * into a dedicated pane above every marker, so no pin can cover it.
+ *
+ * The icon anchor reproduces the old in-pin position exactly: inside the pin the
+ * span sat at (-0.18·size, -0.24·size) from the pin box whose tip is at
+ * (0.5·size, 1.4·size), i.e. (-0.68·size, -1.64·size) from the tip.
+ */
+export const createCodBadgeIcon = (color, size) => L.divIcon({
+  html: `<div style="
+    font-family: Arial, sans-serif;
+    font-size: ${Math.max(10, size * 0.62)}px;
+    font-weight: 900;
+    line-height: 1;
+    color: ${color};
+    text-shadow: 0 0 2px #FFFFFF, 0 0 2px #FFFFFF, 0 0 3px #FFFFFF;
+    white-space: nowrap;
+    pointer-events: none;
+  ">$</div>`,
+  className: 'cod-badge-icon',
+  iconSize: [16, 16],
+  iconAnchor: [size * 0.68, size * 1.64],
+});
+
 export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false, isDriverOnDuty = true, isPatientWatching = false, isInterStore = false, cashBadgeColor = null) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
@@ -329,25 +379,7 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
   const hasDuplicates = duplicateCount > 1;
   const showNumber = zBucket >= ZOOM_LEVELS.HIDE_NUMBERS && number;
 
-  let baseSize = 24 * 0.75;
-  if (zBucket >= ZOOM_LEVELS.FULL_DETAIL) {
-    baseSize = 28 * 0.75;
-  } else if (zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES) {
-    baseSize = 24 * 0.75;
-  } else if (zBucket >= ZOOM_LEVELS.HIDE_NUMBERS) {
-    baseSize = 20 * 0.75;
-  } else {
-    // Zoomed out past HIDE_NUMBERS — stop-order numbers are gone here, so
-    // shrink the pins a bit more (15px→12.75px base) so markers clustered
-    // close together separate visually instead of fusing into a blob.
-    baseSize = 17 * 0.75;
-  }
-
-  if (status === 'pending') baseSize *= 0.75;
-  if (isOtherDriver) baseSize *= 0.86;
-  if (isMobile) baseSize *= 1.25;
-
-  const size = isActive ? baseSize * 1.15 : baseSize;
+  const size = resolveDeliveryPinSize(status, zoomLevel, isActive, isOtherDriver);
   const numberColor = shouldShowNextYellow ? '#000000' : 'black';
   const deliveryOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
 

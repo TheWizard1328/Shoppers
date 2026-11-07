@@ -2210,6 +2210,9 @@ function DeliveryMap({
             balloons and driver popups always paint ON TOP of the live/shared dots.
             630 keeps driver dots above every marker & polyline while letting any
             open Popup (which lives in popupPane=700) correctly cover the dot. */}
+        {/* COD "$" badges live above every marker so no pin can paint over them
+            (owner report Nov 7 2026). */}
+        <Pane name="codBadgePane" style={{ zIndex: 690 }} />
         <Pane name="driverMarkerPane" style={{ zIndex: 630 }}>
           {currentDriverMarker && (
             <LiveDriverLocationMarker
