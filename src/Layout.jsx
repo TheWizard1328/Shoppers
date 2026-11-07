@@ -95,7 +95,7 @@ import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandle
 import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
 import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
-import { formatAppVersion, formatVersionDigits, apkUpdatesFromSuccessCount, APP_VERSION_MAJOR } from './version';
+import { formatAppVersion, formatVersionDigits, apkUpdatesFromSuccessCount, APP_VERSION_MAJOR, WEB_VERSION, BAKED_APK_DIGIT } from './version';
 import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from './components/utils/interactionIdleTracker';
 import { canAttemptUpdate, recordUpdateAttempt, hardRefreshToNewBuild } from './components/utils/updateLoopGuard';
@@ -369,16 +369,12 @@ export default function Layout({ children, currentPageName }) {
   // publish, web-only pushes included. The build-number comparison stays as the
   // fallback when either push count is unavailable.
   const publishedPushCount = usePublishedPushCount(isOwnerDevice);
-  // OWNER DECISION (Nov 6 2026): a WRONG counter is worse than none. Until the
-  // live deployment's version.json carries pushCount there is no honest number
-  // to show (the old build-number fallback read (+1) through dozens of pushes),
-  // so the badge stays hidden and starts working on the first publish of this
-  // build.
-  const buildsAheadCount = !isOwnerDevice
-    ? 0
-    : (PUSH_COUNT > 0 && publishedPushCount > 0
-        ? Math.max(0, PUSH_COUNT - publishedPushCount)
-        : 0);
+  // OWNER DECISION (Nov 6 2026): a WRONG counter is worse than none. The badge
+  // stays hidden when nothing honest can be computed. Since Nov 7 2026 the
+  // primary source is the WEB_VERSION difference (see buildsAheadCount below),
+  // and these two values are only the fallback.
+  // (the computation lives further down, after the live version digits are
+  // resolved — see buildsAheadCount below)
 
   // LIVE VERSION LINE (owner spec Nov 6 2026): v2.[APK].[WEB] as the LIVE site
   // reports it — the APK digit baked into the bundle that is actually published
@@ -395,6 +391,33 @@ export default function Layout({ children, currentPageName }) {
   const liveVersionLabel = isOwnerDevice && publishedVersionInfo
     ? formatVersionDigits(_liveApkDigit, publishedVersionInfo.webVersion)
     : null;
+
+  // BUILDS-AHEAD COUNTER — VERSION DIGITS, NOT COMMITS (owner report Nov 7 2026)
+  // ─────────────────────────────────────────────────────────────────────────
+  // The same pair of builds showed (+13) on the desktop Editor and (+15) on the
+  // PWA while 010 -> 024 is exactly 14 pushes. The counter was git COMMITS
+  // (git rev-list --count HEAD), which is not a push count: merge commits and CI
+  // commits inflate it, and two bundles built from different HEADs disagree.
+  // The version digits cannot drift: this bundle's WEB_VERSION minus the LIVE
+  // deployment's own webVersion is exactly the number of web pushes since the
+  // last publish, so every device shows the same number (24 - 10 = 14).
+  // Commit/push counts stay only as the fallback for a bundle that cannot line
+  // up its digits (an APK build resets WEB to 0 and moves the APK digit).
+  const buildsAheadCount = (() => {
+    if (!isOwnerDevice) return 0;
+    const liveWeb = Number(publishedVersionInfo?.webVersion) || 0;
+    const liveApk = Number(_liveApkDigit) || 0;
+    const bundleApk = BAKED_APK_DIGIT > 0
+      ? BAKED_APK_DIGIT
+      : apkUpdatesFromSuccessCount(latestBuild?.successCount ?? 0);
+    if (liveWeb > 0 && liveApk > 0 && bundleApk === liveApk && WEB_VERSION >= liveWeb) {
+      return WEB_VERSION - liveWeb;
+    }
+    if (PUSH_COUNT > 0 && publishedPushCount > 0) {
+      return Math.max(0, PUSH_COUNT - publishedPushCount);
+    }
+    return 0;
+  })();
 
   // Load the saved audience corrections on the owner device (non-owners never
   // edit them, but they still read the same shared record when they show them).
