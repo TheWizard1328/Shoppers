@@ -1242,11 +1242,14 @@ export default function PatientForm({
               <div className="rounded-[10px] space-y-2 pr-2 pb-2 pl-2 pt-2" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
                 <div className="grid grid-cols-12 gap-x-2 gap-y-0">
                   {/* Label row — + New Address is absolute so it adds zero height */}
-                  <div className="col-span-8 relative pb-3" style={{ height: '2rem' }}>
-                    <Label htmlFor="address" className="text-sm font-medium leading-none text-body">Address *</Label>
+                  <div className="col-span-8 pb-3" style={{ height: '2rem' }}>
                     {/* Round refresh + map badges sit LEFT of the Change badge
-                        (owner spec Nov 6 2026). */}
-                    <div className="absolute right-0 top-[-2px] flex items-center gap-1" style={{ lineHeight: '1.25rem', height: '1.5rem' }}>
+                        (owner spec Nov 6 2026). The label and the chips share one
+                        flex row so they always land on the same centre line —
+                        absolute offsets drifted as soon as a chip changed height. */}
+                    <div className="flex items-center justify-between gap-1">
+                      <Label htmlFor="address" className="text-sm font-medium leading-none text-body">Address *</Label>
+                      <div className="flex items-center gap-1 shrink-0">
                       <AddressActionBadges
                         patient={patient || { ...formData, id: formData.id }}
                         store={assignedStoreForBadges}
@@ -1260,12 +1263,13 @@ export default function PatientForm({
                         onClick={() => onCreateDuplicate(patient)}
                         onKeyDown={(e) => e.key === 'Enter' && onCreateDuplicate(patient)}
                         title="Open a new-patient form pre-filled from this patient so you can change the address"
-                        className="cursor-pointer select-none">
-                        <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70">
+                        className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
+                        <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70">
                           Change
                         </span>
                       </span>
                       }
+                      </div>
                     </div>
                   </div>
                   <div className="col-span-4 pb-3" style={{ height: '2rem' }}>

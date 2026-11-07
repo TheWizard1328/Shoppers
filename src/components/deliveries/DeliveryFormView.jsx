@@ -1547,9 +1547,9 @@ export default function DeliveryFormView({
                             <div className="px-3 rounded-lg space-y-2 border py-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                               <div className="flex gap-3">
                                 <div className="flex-[65] space-y-1">
-                                  <div className="relative" style={{ height: '1.5rem' }}>
+                                  <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
                                     <Label className="text-sm font-semibold text-body">Patient Address</Label>
-                                    <div className="absolute right-0 top-0 flex items-center gap-1">
+                                    <div className="flex items-center gap-1 shrink-0">
                                       <AddressActionBadges
                                         patient={selectedPatient}
                                         store={badgeStore}
@@ -1561,7 +1561,7 @@ export default function DeliveryFormView({
                                       {delivery && selectedPatient && handleNewAddressPatient && (() => {
                                       const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                       return isLocked ?
-                                      <span title="The address is locked once a stop is completed, failed or cancelled" className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
+                                      <span title="The address is locked once a stop is completed, failed or cancelled" style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
                                       Change
                                       </span> :
 
@@ -1571,8 +1571,8 @@ export default function DeliveryFormView({
                                       onClick={() => handleNewAddressPatient(selectedPatient)}
                                       onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
                                       title="Change the address on this stop and its patient record"
-                                      className="cursor-pointer select-none">
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                      className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
+                                      <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
                                       Change
                                       </span>
                                       </span>;
@@ -1783,9 +1783,9 @@ export default function DeliveryFormView({
                             </div>
                             <div className="flex gap-3">
                               <div className="flex-[65] space-y-1">
-                                <div className="relative" style={{ height: '1.5rem' }}>
+                                <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
                                   <Label className="text-sm font-semibold text-body">Patient Address</Label>
-                                  <div className="absolute right-0 top-0 flex items-center gap-1">
+                                  <div className="flex items-center gap-1 shrink-0">
                                     <AddressActionBadges
                                       patient={selectedPatient}
                                       store={badgeStore}
@@ -1797,7 +1797,7 @@ export default function DeliveryFormView({
                                     {delivery && selectedPatient && handleNewAddressPatient && (() => {
                                     const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                     return isLocked ?
-                                    <span title="The address is locked once a stop is completed, failed or cancelled" className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
+                                    <span title="The address is locked once a stop is completed, failed or cancelled" style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
                                     Change
                                     </span> :
 
@@ -1807,8 +1807,8 @@ export default function DeliveryFormView({
                                     onClick={() => handleNewAddressPatient(selectedPatient)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
                                     title="Change the address on this stop and its patient record"
-                                    className="cursor-pointer select-none">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                    className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
+                                    <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
                                     Change
                                     </span>
                                     </span>;
