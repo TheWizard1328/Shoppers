@@ -672,6 +672,29 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
+  // ─── Auto break / off-duty answers (owner spec Nov 6 2026) ────────────────
+  // Pure client-side: the detector owns the state machine, so just hand the
+  // answer back to any open window and focus nothing (the driver tapped a button,
+  // they don't want the app yanked open).
+  if (action === 'auto_idle_yes' || action === 'auto_idle_no') {
+    event.notification.close();
+    event.waitUntil((async () => {
+      const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const data = event.notification.data || {};
+      for (const client of clientList) {
+        if (client.url.startsWith(self.registration.scope)) {
+          client.postMessage({
+            type: 'notification_action',
+            action,
+            auto_idle_kind: data.auto_idle_kind,
+            request_id: data.request_id,
+          });
+        }
+      }
+    })());
+    return;
+  }
+
   if (action === 'mark_read' || action === 'acknowledge' || action === 'reply' || action === 'update_now' || action === 'availability_yes' || action === 'availability_no') {
     event.notification.close();
 

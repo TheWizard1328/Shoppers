@@ -74,6 +74,7 @@ import { getCompanyBranding, applyBrandingStyles } from './components/utils/bran
 import PatientViewOverlay from './components/patient-portal/PatientViewOverlay';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import GuideAssistant from './components/guide/GuideAssistant';
+import AutoIdleDetector from './components/utils/autoIdleDetector';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
 import AdminNavigationSection from './components/layout/AdminNavigationSection';
 import AppLoadingScreen from './components/layout/AppLoadingScreen';
@@ -1990,6 +1991,8 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </div>
             <GuideAssistant />
+            {/* Automatic break / off-duty detector — App Owner only for testing (Nov 6 2026) */}
+            <AutoIdleDetector currentUser={currentUser} />
             <TestModeBanner />
             {/* Dispatcher geo-fence — mobile-only, full-screen block when off-site (Sep 15, 2026) */}
             <DispatcherLocationGate />
