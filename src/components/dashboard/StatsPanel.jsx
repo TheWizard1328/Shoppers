@@ -286,8 +286,9 @@ export default function StatsPanel({
       const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
       const driverListUser = driversList.find((driver) => driver?.id === driverId);
       const driverName = route?.driverName || driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || 'Unknown';
-      // After-hours deliveries/pickups are paid separately — exclude from legend totals.
-      const totalStops = countLegendStops(driverDeliveries, { excludeAfterHours: true });
+      // Owner rule Nov 7 2026: after-hours pickups ARE deliveries (paid 1x base),
+      // so they count in the legend and the per-driver cards like everything else.
+      const totalStops = countLegendStops(driverDeliveries);
       const status = driverAppUser?.driver_status || 'offline';
       const heartbeatAgeMs = driverAppUser?.location_updated_at ? Date.now() - new Date(driverAppUser.location_updated_at).getTime() : Infinity;
       const hasHeartbeat = heartbeatAgeMs <= 120000;

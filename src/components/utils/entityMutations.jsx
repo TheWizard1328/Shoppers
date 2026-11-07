@@ -12,6 +12,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { ensureDeliveryIdentity } from './deliveryIdentity';
 import { offlineDB } from './offlineDatabase';
 import { connectionMonitor } from './connectionMonitor';
 import { hasPendingEntityMutation } from './pendingEntityMutations';
@@ -513,10 +514,10 @@ export const createDelivery = async (deliveryData, options = {}) => {
     // CRITICAL: Sanitize actual_delivery_time before saving
     const sanitizedData = sanitizeDeliveryData(deliveryData);
     const creatorAppUserId = await getCurrentCreatorAppUserId();
-    const payloadWithCreator = {
+    const payloadWithCreator = ensureDeliveryIdentity({
       ...sanitizedData,
       created_by_app_user_id: sanitizedData.created_by_app_user_id || creatorAppUserId || ''
-    };
+    });
     
     const tempId = `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const localDelivery = {

@@ -1,4 +1,5 @@
 import { isFirstDeliveryPatient } from '@/components/utils/patientHistoryUtils';
+import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
 export const resolveDistanceFromStore = ({ patient, store, calculateDistance }) => {
   let distanceFromStore = patient?.distance_from_store;
 
@@ -46,6 +47,7 @@ export const buildPickupStagedDelivery = ({ formData, codAmount, store, timeSlot
     cod_total_amount_required: codAmount,
     delivery_date: formData.delivery_date,
     delivery_id: `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+    company_id: resolveDeliveryCompanyId(),
     driver_id: formData.driver_id,
     driver_name: formData.driver_name,
     store_id: store.id,

@@ -47,6 +47,7 @@ import {
   hasDebitOrCreditCod,
   resolveTravelDistFallback,
 } from './stopCardActionStatusHelpers';
+import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
 
 export function useStopCardCompletionActions({
   // ── Route / context ──
@@ -1497,6 +1498,7 @@ export function useStopCardCompletionActions({
           puid: newPuid,
           store_id: storeId,
           delivery_id: `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+          company_id: resolveDeliveryCompanyId(currentUser),
           delivery_date: deliveryDate,
           driver_id: driverId,
           driver_name: driverName,

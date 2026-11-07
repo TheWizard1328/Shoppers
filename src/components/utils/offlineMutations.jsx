@@ -14,6 +14,7 @@ import { Store } from '@/entities/Store';
 import { Company } from '@/entities/Company';
 import { getOfflineStoreName } from './offlineEntityRegistry';
 import { sanitizeDeliveryPayload, sanitizeDeliveryPayloads } from './deliveryPayloadSanitizer';
+import { ensureDeliveryIdentity } from './deliveryIdentity';
 import {
   createGenericEntityLocal,
   updateGenericEntityLocal,
@@ -411,7 +412,10 @@ export const createDeliveryLocal = async (deliveryData) => {
       throw new Error('Missing delivery_date');
     }
 
-    const normalizedDeliveryData = await sanitizeDeliveryPayload(sourceDelivery);
+    const sanitizedDeliveryData = await sanitizeDeliveryPayload(sourceDelivery);
+    // Identity guard: never let a stop reach IDB/server with a blank
+    // delivery_id or company_id (owner report Nov 7 2026).
+    const normalizedDeliveryData = ensureDeliveryIdentity(sanitizedDeliveryData);
 
     // Generate temporary ID if not provided
     const tempId = normalizedDeliveryData.id || `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

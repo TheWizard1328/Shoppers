@@ -3,10 +3,14 @@
 // A stop counts in the Driver Legend when ALL of the following are true:
 //   1. It is in a "finished" status (completed / failed / cancelled) — primary gate.
 //   2. It is a real delivered stop, i.e. one of:
-//        - an actual patient delivery: delivery_id starts with "DID" AND a patient_id is present
+//        - a patient delivery: a patient_id is present (never test the DID prefix —
+//          27 historical rows had a blank delivery_id and were silently dropped)
 //        - an inter-store transfer: delivery_id starts with "ISD" or "ISP"
+//        - an after-hours store pickup: paid 1x base, so it counts (owner rule
+//          Nov 7 2026 — the old excludeAfterHours option dropped it here while the
+//          stats card counted it, which is why Anna read 12 instead of 13 on Nov 2)
 //
-// This whitelist implicitly excludes pickups, cycling markers, and any
+// This whitelist implicitly excludes regular pickups, cycling markers, and any
 // in-progress / pending stops without needing a long exclusion list.
 
 export const FINISHED_LEGEND_STATUSES = ['completed', 'failed', 'cancelled'];
@@ -33,9 +37,11 @@ export function isCountableLegendStop(item, { requireMarkerTypeDelivery = false,
   // After-hours PICKUPS are excluded (paid separately); after-hours DELIVERIES still count.
   if (excludeAfterHours && isAfterHoursPickup(item)) return false;
   const did = item.delivery_id || '';
-  const isActualDelivery = did.startsWith('DID') && !!item.patient_id;
+  const isActualDelivery = !!item.patient_id;
   const isInterStore = did.startsWith('ISD') || did.startsWith('ISP');
-  return isActualDelivery || isInterStore;
+  if (isActualDelivery || isInterStore) return true;
+  // After-hours pickups are payable deliveries in their own right.
+  return isAfterHoursPickup(item);
 }
 
 /**

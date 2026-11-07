@@ -4,6 +4,7 @@ import { batchCreateDeliveriesLocal, updateDeliveryLocal, enterBatchSilentMode, 
 import { base44 } from "@/api/base44Client";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
 import { calculateDistanceKmSafe as calculateDistance } from '@/components/utils/geoUtils';
+import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
 
 export const handleBatchSaveDelivery = async ({
   deliveryData,
@@ -402,7 +403,7 @@ export const handleBatchSaveDelivery = async ({
 
       const payload = {
         delivery_id: deliveryId,
-        company_id: currentUser?.company_id || null,
+        company_id: resolveDeliveryCompanyId(currentUser),
         dispatcher_id: dispatcherId,
         created_by_app_user_id: createdByAppUserId,
         patient_id: stop.patient_id || null,
