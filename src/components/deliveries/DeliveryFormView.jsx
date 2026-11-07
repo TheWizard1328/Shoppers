@@ -50,8 +50,8 @@ import CyclingLocationSearch from './CyclingLocationSearch';
 const CheckboxField = ({ id, label, checked, onChange, disabled, tooltip }) =>
 <div className="flex items-center space-x-2">
     {/* Coerce to a real boolean so the underlying Radix checkbox stays
-     controlled for its entire lifetime (avoids React's
-     "controlled -> uncontrolled" warning when formData fields are undefined). */}
+    controlled for its entire lifetime (avoids React's
+    "controlled -> uncontrolled" warning when formData fields are undefined). */}
     <Checkbox id={id} checked={Boolean(checked)} onCheckedChange={onChange} disabled={disabled} />
     <Label htmlFor={id} title={tooltip} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
   </div>;
@@ -1601,7 +1601,7 @@ export default function DeliveryFormView({
 
                               <div className="flex gap-3">
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-sm font-semibold text-body">Patient Name *</Label>
+                                  <Label className="text-sm font-semibold text-body">Primary Name *</Label>
                                   <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                                 <div className="flex-1 space-y-1">
