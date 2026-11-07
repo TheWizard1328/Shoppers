@@ -120,7 +120,11 @@ export default function AddressActionBadges({
   };
 
   const roundBase =
-    'inline-flex items-center justify-center h-6 w-6 rounded-full border transition-colors select-none';
+    'inline-flex items-center justify-center h-6 w-6 shrink-0 rounded-full border transition-colors select-none';
+  // index.css gives EVERY button a 44px min-height (touch targets). These are
+  // meant to be 24px round chips, so the rule is neutralised inline — an inline
+  // style is the only thing that beats it without !important games elsewhere.
+  const roundStyle = { minHeight: 0, minWidth: 0, padding: 0, height: 24, width: 24, flex: '0 0 auto' };
   const enabledCls =
     'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70';
   const disabledCls =
@@ -136,6 +140,7 @@ export default function AddressActionBadges({
           ? 'Re-measure the real driving distance between the store and this patient, then save it'
           : 'Patient GPS missing — the distance cannot be measured yet')}
         aria-label="Refresh distance from store"
+        style={roundStyle}
         className={`${roundBase} ${disabled || busy || !hasBothSides ? disabledCls : enabledCls} ${problem ? 'ring-1 ring-red-400 border-red-300 dark:ring-red-600' : ''}`}>
         {busy
           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -148,6 +153,7 @@ export default function AddressActionBadges({
         disabled={disabled}
         title="Show the patient, the store and this driver on a map"
         aria-label="Show map"
+        style={roundStyle}
         className={`${roundBase} ${disabled ? disabledCls : enabledCls}`}>
         <MapPin className="w-3.5 h-3.5" />
       </button>
