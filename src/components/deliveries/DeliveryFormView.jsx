@@ -1553,7 +1553,11 @@ export default function DeliveryFormView({
                                       <AddressActionBadges
                                       patient={selectedPatient}
                                       store={badgeStore}
-                                      delivery={delivery ? { paid_km_override: formData.paid_km_override } : null}
+                                      delivery={delivery ? {
+                                        id: delivery.id,
+                                        delivery_date: formData.delivery_date || delivery.delivery_date,
+                                        paid_km_override: formData.paid_km_override,
+                                      } : null}
                                       currentUser={currentUser}
                                       disabled={isSaving}
                                       onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))} />
@@ -1789,7 +1793,11 @@ export default function DeliveryFormView({
                                     <AddressActionBadges
                                     patient={selectedPatient}
                                     store={badgeStore}
-                                    delivery={delivery ? { paid_km_override: formData.paid_km_override } : null}
+                                    delivery={delivery ? {
+                                        id: delivery.id,
+                                        delivery_date: formData.delivery_date || delivery.delivery_date,
+                                        paid_km_override: formData.paid_km_override,
+                                      } : null}
                                     currentUser={currentUser}
                                     disabled={isSaving}
                                     onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))} />

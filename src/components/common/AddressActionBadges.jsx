@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Loader2, RefreshCw, MapPin } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { updatePatientLocal } from '@/components/utils/entityMutations';
 import { isCurrentDevicePrimary } from '@/components/utils/deviceManager';
+import { isDriver, isAdmin } from '@/components/utils/userRoles';
 import PatientStoreMapDialog from './PatientStoreMapDialog';
 
 /**
@@ -20,6 +21,12 @@ import PatientStoreMapDialog from './PatientStoreMapDialog';
  *
  *  2. Show map — square route-editor style map with the patient and store pins,
  *     plus the driver's live position when this device is the driver's primary.
+ *
+ * LIMIT (owner spec Nov 7 2026): a DRIVER may refresh a given delivery + delivery
+ * date only ONCE. Every refresh writes a KmRefreshLog row (delivery_id +
+ * delivery_date + who + old/new km), and a driver is blocked as soon as a row
+ * exists for that pair, on any device. Owner / admin / dispatcher are unlimited —
+ * the log is still written so the owner can audit who moved a distance.
  */
 
 const num = (v) => {
@@ -40,8 +47,30 @@ export default function AddressActionBadges({
 }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
+  const [usedHere, setUsedHere] = useState(false);   // used in THIS session
+  const [usedBefore, setUsedBefore] = useState(false); // already logged on the server
+  const refreshLimitApplies = !!delivery?.id && isDriver(currentUser) && !isAdmin(currentUser);
+  const refreshLocked = refreshLimitApplies && (usedHere || usedBefore);
   const [mapOpen, setMapOpen] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!delivery?.id || !refreshLimitApplies) { setUsedBefore(false); return undefined; }
+    (async () => {
+      try {
+        const rows = await base44.entities.KmRefreshLog.filter({
+          delivery_id: String(delivery.id),
+          delivery_date: String(delivery.delivery_date || ''),
+        });
+        if (!cancelled) setUsedBefore(Array.isArray(rows) && rows.length > 0);
+      } catch {
+        // A failed lookup must never block a legitimate refresh.
+        if (!cancelled) setUsedBefore(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [delivery?.id, delivery?.delivery_date, refreshLimitApplies]);
 
   const patientLat = num(patient?.latitude);
   const patientLng = num(patient?.longitude);
@@ -51,6 +80,12 @@ export default function AddressActionBadges({
 
   const handleRefresh = async () => {
     if (disabled || busy) return;
+    if (refreshLocked) {
+      setProblem('Distance already updated for this delivery');
+      onError?.('This delivery already had its distance updated. One refresh per delivery per date.');
+      return;
+    }
+    const previousKm = num(patient?.distance_from_store);
     if (!hasBothSides) {
       setProblem('No patient or store GPS yet — set the address first');
       onError?.('This patient has no GPS coordinates yet — set the address first.');
@@ -86,6 +121,24 @@ export default function AddressActionBadges({
         await updatePatientLocal(patient.id, { distance_from_store: rounded });
       }
       onDistanceUpdated?.(rounded);
+
+      // 3. Log the refresh (one per delivery + date for drivers; audit trail for
+      // everyone else). Never blocks the save if the log write fails.
+      try {
+        await base44.entities.KmRefreshLog.create({
+          delivery_id: delivery?.id ? String(delivery.id) : '',
+          delivery_date: String(delivery?.delivery_date || ''),
+          patient_id: patient?.id ? String(patient.id) : '',
+          user_id: currentUser?.id ? String(currentUser.id) : '',
+          user_name: currentUser?.full_name || currentUser?.user_name || '',
+          old_km: previousKm === null ? undefined : previousKm,
+          new_km: rounded,
+          refreshed_at: new Date().toISOString(),
+        });
+        if (refreshLimitApplies) setUsedHere(true);
+      } catch (logErr) {
+        console.warn('[AddressActionBadges] refresh log failed:', logErr?.message);
+      }
 
       // 2. Extra km override: clear only when the new distance is BIGGER.
       if (delivery) {
@@ -135,13 +188,15 @@ export default function AddressActionBadges({
       <button
         type="button"
         onClick={handleRefresh}
-        disabled={disabled || busy}
-        title={problem || (hasBothSides
-          ? 'Re-measure the real driving distance between the store and this patient, then save it'
-          : 'Patient GPS missing — the distance cannot be measured yet')}
+        disabled={disabled || busy || refreshLocked}
+        title={problem || (refreshLocked
+          ? 'Distance already updated for this delivery — one refresh per delivery per date'
+          : hasBothSides
+            ? 'Re-measure the real driving distance between the store and this patient, then save it'
+            : 'Patient GPS missing — the distance cannot be measured yet')}
         aria-label="Refresh distance from store"
         style={roundStyle}
-        className={`${roundBase} ${disabled || busy || !hasBothSides ? disabledCls : enabledCls} ${problem ? 'ring-1 ring-red-400 border-red-300 dark:ring-red-600' : ''}`}>
+        className={`${roundBase} ${disabled || busy || !hasBothSides || refreshLocked ? disabledCls : enabledCls} ${problem ? 'ring-1 ring-red-400 border-red-300 dark:ring-red-600' : ''}`}>
         {busy
           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
           : <RefreshCw className="w-3.5 h-3.5" />}
