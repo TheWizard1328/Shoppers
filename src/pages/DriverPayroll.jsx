@@ -19,6 +19,7 @@ import { commitDeliveryUpdatesSilently } from '../components/utils/routeCommitMa
 import { missingPayrollMonthsFor } from '@/components/utils/payrollPagedMerge';
 import MobilePayrollSummary from '@/components/payroll/MobilePayrollSummary';
 import { toDateOnlyStr } from '@/components/utils/dateOnly';
+import { countDeliveryUnits } from '@/components/payroll/payrollDeliveryUnits';
 import MobileBottomActions from '@/components/payroll/MobileBottomActions';
 
 // Local date helper (device timezone, no UTC offset)
@@ -906,41 +907,22 @@ export default function DriverPayroll() {
     for (const r of seen.values()) sum += Number(r.net_pay) || 0;
     return sum;
   }, [filteredPayrollRecords]);
-  // DELIVERIES BADGE (owner report Nov 7 2026: it read 0 for every period). The old
-  // memo treated payrollData as an ARRAY of per-driver rows carrying
-  // graphDeliveryCount, but payrollData is an object ({ deliveries, appUsers,
-  // payrollRecords, ... }), so Array.isArray() was always false and it returned
-  // 0. It now counts the period's real deliveries for the SELECTED driver(s):
-  // every driver when 'All Drivers' is chosen, one driver otherwise. Completed
-  // and failed stops count as 1 each, and so do cancelled returns, interstore
-  // pickups/drops and after-hours pickups (the admin metrics / payroll rule).
+  // DELIVERIES BADGE — same rule and same UNIT weighting as the payroll cards
+  // (owner reports Nov 7 2026: it read 0, then it counted after-hours pickups
+  // once while the cards paid them differently). Uses the shared
+  // payrollDeliveryUnits helper so the headline, the store/day grid and the
+  // driver summaries can never disagree again.
   const totalDeliveries = useMemo(() => {
     const rows = Array.isArray(cityFilteredDeliveries) ? cityFilteredDeliveries : [];
     if (rows.length === 0) return 0;
-    // Same rule set as calculateDriverPayroll / getDriverPayrollStats so this
-    // badge always agrees with the payroll it sits above.
     const patientById = new Map((payrollData?.patients || []).map((p) => [p.id, p]));
-    const isInterStore = (d) => {
-      const id = String(d?.delivery_id || '').toUpperCase();
-      return id.startsWith('ISD-') || id.startsWith('ISP-');
-    };
-    const isPatientReturn = (d) => {
-      if (!d?.patient_id) return false;
-      return String(patientById.get(d.patient_id)?.address || '').toUpperCase().includes('(RTN)');
-    };
-    const isCountable = (d) => {
-      if (!d) return false;
-      if (d.patient_id || isInterStore(d)) {
-        return d.status === 'completed' || d.status === 'failed' ||
-          (d.status === 'cancelled' && isPatientReturn(d));
-      }
-      // after-hours pickups (no patient, not interstore)
-      return d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled');
-    };
+    const isPatientReturn = (d) => d?.patient_id
+      ? String(patientById.get(d.patient_id)?.address || '').toUpperCase().includes('(RTN)')
+      : false;
     const inScope = selectedDriverId === 'all'
       ? rows
       : rows.filter((d) => d?.driver_id === selectedDriverId);
-    return inScope.filter(isCountable).length;
+    return countDeliveryUnits(inScope, isPatientReturn);
   }, [cityFilteredDeliveries, selectedDriverId, payrollData?.patients]);
   const periodLabel = useMemo(() => currentPeriod ? currentPeriod.label : '', [currentPeriod]);
   const needsCitySelection = !!currentUser && sortedCities.length > 0 && !selectedCityId;

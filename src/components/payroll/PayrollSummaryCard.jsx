@@ -30,6 +30,7 @@ import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts, roundCurrency } from './payrollSummaryCalculations';
 import { applyStillOwedToNotes } from './stillOwedNote';
 import { toDateOnlyStr } from '@/components/utils/dateOnly';
+import { isAfterHours, isAfterHoursPickupStop, isAfterHoursDeliveryStop } from './payrollDeliveryUnits';
 import { getActiveDeductionsForPeriod, formatDeductionDateRange, normalizeDate, recurringDeductionKey, applyRecurringOverrides } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
@@ -259,8 +260,8 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
       }
       const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
-      const afterHoursPickupCount = periodDeliveries.filter((d) => d.after_hours_pickup && !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS')).length;
-      const afterHoursDeliveryCount = periodDeliveries.filter((d) => d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS'))).length;
+      const afterHoursPickupCount = periodDeliveries.filter((d) => isAfterHoursPickupStop(d)).length;
+      const afterHoursDeliveryCount = periodDeliveries.filter((d) => isAfterHoursDeliveryStop(d)).length;
       const afterHoursCount = afterHoursPickupCount + afterHoursDeliveryCount;
       // OWNER RULE Nov 3 2026 — DELIVERY UNITS: every payable delivery counts as
       // one; an AFTER-HOURS DELIVERY adds one extra unit (2x base pay = 2

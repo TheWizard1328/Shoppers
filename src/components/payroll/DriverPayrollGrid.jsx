@@ -10,6 +10,7 @@ import { createPageUrl } from '../../utils';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { isAfterHoursPickup } from '@/components/dashboard/legendStopCounter';
+import { isAfterHoursPickupStop, isAfterHoursDeliveryStop } from '@/components/payroll/payrollDeliveryUnits';
 import { toDateOnlyStr } from '@/components/utils/dateOnly';
 import { loadStatHolidays, getStatHoliday } from '@/components/utils/statHolidayResolver';
 
@@ -333,7 +334,7 @@ export default function DriverPayrollGrid({
         // as ONE delivery (owner rule Nov 3 2026) so the day totals and the grand
         // total match the delivery count on the payroll summary cards. The '-'
         // marker still flags the after-hours rate.
-        if (isAfterHoursPickup(d)) {
+        if (isAfterHoursPickupStop(d)) {
           afterHoursCountMap[dateKey][storeId]++;
           deliveryMap[dateKey][storeId]++;
           kmMap[dateKey][storeId] += calculateExtraKm(d);
@@ -343,7 +344,7 @@ export default function DriverPayrollGrid({
           oversizedCountMap[dateKey][storeId]++;
         }
         deliveryMap[dateKey][storeId]++;
-        if (d.after_hours_pickup) {
+        if (isAfterHoursDeliveryStop(d)) {
           // After-hours DELIVERY (patient/ISD) — '-' marker (2× base pay) and TWO
           // deliveries (owner rule Nov 3 2026): the delivery itself plus one extra
           // unit, matching the payroll summary card total.
