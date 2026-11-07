@@ -1,3 +1,4 @@
+import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { useDevice } from '@/components/utils/DeviceContext';
@@ -1035,8 +1036,10 @@ export default function PatientForm({
 
   const isPIDValid = formData.patient_id ? validateId(formData.patient_id, 5) : null;
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50 dark:bg-red-950';
-  const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
-  const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
+  // Live chrome heights (owner report Nov 7 2026: the app header covered the form
+  // title and the footer buttons sat behind the bottom nav). Measured in a hook
+  // after layout and re-measured on resize instead of read once during render.
+  const { header: mobileHeaderHeight, bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
 
   // KEYBOARD-AWARE BOTTOM INSET (take 3): see DeliveryFormView.jsx for the full history —
   // take 1 (viewport diff) never fired, take 2 (focus tracking) got stuck missing after a
@@ -1075,6 +1078,17 @@ export default function PatientForm({
   // safe-area inset added on top of the nav's own height to actually land
   // flush with the nav's real top edge (the nav itself already sits above
   // that inset via .app-container's own padding-bottom).
+  const desktopFillStyle = !isMobile && contentArea && contentArea.width > 0 ? {
+    position: 'fixed',
+    left: `${contentArea.left}px`,
+    top: `${contentArea.top}px`,
+    width: `${contentArea.width}px`,
+    height: `${contentArea.height}px`,
+    right: 'auto',
+    bottom: 'auto',
+    padding: 0,
+  } : undefined;
+
   const mobileFormInsetStyle = isMobile ? {
     top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
     bottom: isKeyboardLikelyOpen ?
@@ -1090,13 +1104,13 @@ export default function PatientForm({
     // adding padding-bottom too would double-count the safe area.
     role="dialog"
     ref={patientFormContainerRef}
-    className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 items-start' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
-    style={mobileFormInsetStyle}>
+    className={`fixed inset-0 bg-black/60 flex z-[10020] ${isMobile ? 'p-0 items-start' : desktopFillStyle ? '' : 'items-center justify-center p-4 pt-20 lg:pt-4 lg:pl-64'}`}
+    style={mobileFormInsetStyle || desktopFillStyle}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`flex flex-col ${isMobile ? 'w-screen rounded-none h-full max-h-full' : 'w-full max-w-[30rem] max-h-[90vh] rounded-lg'}`}>
+        className={`flex flex-col min-w-0 ${isMobile ? 'w-full rounded-none h-full max-h-full' : desktopFillStyle ? 'w-full rounded-none h-full max-h-full' : 'w-full max-w-[30rem] max-h-[90vh] rounded-lg'}`}>
 
         <Card className="shadow-xl flex flex-col overflow-hidden text-body bg-surface border-surface" style={{ height: '100%', maxHeight: '100%' }}>
           <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0 bg-surface border-surface">

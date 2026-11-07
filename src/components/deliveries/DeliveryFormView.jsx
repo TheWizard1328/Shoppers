@@ -2,6 +2,7 @@
  * DeliveryFormView - The pure render/JSX layer for DeliveryForm.
  * All logic remains in DeliveryForm.jsx; this file just renders it.
  */
+import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -546,8 +547,10 @@ export default function DeliveryFormView({
 
   );
 
-  const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
-  const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
+  // Live chrome heights (owner report Nov 7 2026: the app header covered the form
+  // title and the footer buttons sat behind the bottom nav). Measured in a hook
+  // after layout and re-measured on resize instead of read once during render.
+  const { header: mobileHeaderHeight, bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
 
   // KEYBOARD-AWARE BOTTOM INSET (Android APK fix, take 3):
   // Take 1 compared window.innerHeight vs visualViewport.height — doesn't work because this
@@ -698,6 +701,20 @@ export default function DeliveryFormView({
   // real top edge by exactly the safe-area amount, leaving a blank strip that
   // neither this overlay nor the nav render into. Add the safe-area inset to
   // close that gap (same formula already proven for BulkEditStopsPanel).
+  // DESKTOP-CLASS (tablet landscape + PC): the form fills the measured content
+  // box - right of the (user-resizable) sidebar, below any top chrome - instead
+  // of floating as a capped 468-1050px card with dead margins around it.
+  const desktopFillStyle = !(useMobileLayout && isMobileDevice) && contentArea && contentArea.width > 0 ? {
+    position: 'fixed',
+    left: `${contentArea.left}px`,
+    top: `${contentArea.top}px`,
+    width: `${contentArea.width}px`,
+    height: `${contentArea.height}px`,
+    right: 'auto',
+    bottom: 'auto',
+    padding: 0,
+  } : undefined;
+
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice ? {
     // `position: fixed` measures `top` from the TRUE viewport edge, ignoring
     // ancestor padding. The mobile header sits BELOW the phone's safe-area
@@ -895,15 +912,15 @@ export default function DeliveryFormView({
     // mobileFormInsetStyle above, so letting the catch-all also add
     // padding-bottom here just double-counts the safe-area gap.
     role="dialog"
-    className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : 'bg-black/60 flex items-center justify-center p-4'}`}
-    style={mobileFormInsetStyle}>
+    className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : desktopFillStyle ? 'bg-black/60 flex' : 'bg-black/60 flex items-center justify-center p-4'}`}
+    style={mobileFormInsetStyle || desktopFillStyle}>
       
       <motion.div
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-auto max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
-        style={useMobileLayout && isMobileDevice ? { height: '100%', maxHeight: '100%' } : undefined}>
+        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : desktopFillStyle ? 'h-full max-h-full overflow-hidden' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-auto max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
+        style={(useMobileLayout && isMobileDevice) || desktopFillStyle ? { height: '100%', maxHeight: '100%', maxWidth: '100%' } : undefined}>
         <Card
           onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl overflow-hidden'} text-body bg-surface border-surface`}>
