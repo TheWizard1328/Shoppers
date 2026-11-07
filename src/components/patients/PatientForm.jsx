@@ -21,6 +21,8 @@ import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autoco
 import { realtimeSync } from "@/components/utils/realtimeSync";
 import { base44 } from "@/api/base44Client";
 import { createPatientLocal, updatePatientLocal } from '../utils/entityMutations';
+import AddressActionBadges from '../common/AddressActionBadges';
+import DistanceFromStoreBadge from '../common/DistanceFromStoreBadge';
 import { offlineDB } from '../utils/offlineDatabase';
 import { canAutoFocusFormFields } from '@/components/utils/deviceUtils';
 import { globalFilters } from '@/components/utils/globalFilters';
@@ -1000,6 +1002,13 @@ export default function PatientForm({
     return sortedStores;
   }, [currentUser, sortedStores, isAdmin, isDriver, isDispatcher, dispatcherStoreIds]);
 
+  // Store object for the two address action badges (needs latitude/longitude
+  // to measure the driving distance and to pin the store on the map).
+  const assignedStoreForBadges = useMemo(
+    () => (availableStores || []).find((st) => st && st.id === formData.store_id) || null,
+    [availableStores, formData.store_id]
+  );
+
   const getWeeklyLabel = () => {
     if (frequency === 'weekly' && weeklyDays.length > 0) {
       const daysStr = weeklyDays.map((d) => dayAbbrevs[d] || d.charAt(0).toUpperCase() + d.slice(1)).join(', ');
@@ -1187,7 +1196,10 @@ export default function PatientForm({
               <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-6 space-y-1">
-                    <Label htmlFor="store_id" className="text-sm font-medium text-body">Assigned Store *</Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="store_id" className="text-sm font-medium text-body">Store *</Label>
+                      <DistanceFromStoreBadge distanceKm={formData.distance_from_store} />
+                    </div>
                     <Select
                       value={formData.store_id}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
@@ -1232,19 +1244,29 @@ export default function PatientForm({
                   {/* Label row — + New Address is absolute so it adds zero height */}
                   <div className="col-span-8 relative pb-3" style={{ height: '2rem' }}>
                     <Label htmlFor="address" className="text-sm font-medium leading-none text-body">Address *</Label>
-                    {patient && !duplicateMode && onCreateDuplicate &&
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onCreateDuplicate(patient)}
-                      onKeyDown={(e) => e.key === 'Enter' && onCreateDuplicate(patient)}
-                      className="absolute right-0 top-0 cursor-pointer select-none"
-                      style={{ lineHeight: '1.25rem' }}>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
-                        Change Address
+                    {/* Round refresh + map badges sit LEFT of the Change badge
+                        (owner spec Nov 6 2026). */}
+                    <div className="absolute right-0 top-0 flex items-center gap-1" style={{ lineHeight: '1.25rem' }}>
+                      <AddressActionBadges
+                        patient={patient || { ...formData, id: formData.id }}
+                        store={assignedStoreForBadges}
+                        currentUser={currentUser}
+                        onDistanceUpdated={(km) => setFormData((prev) => ({ ...prev, distance_from_store: km }))}
+                      />
+                      {patient && !duplicateMode && onCreateDuplicate &&
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onCreateDuplicate(patient)}
+                        onKeyDown={(e) => e.key === 'Enter' && onCreateDuplicate(patient)}
+                        title="Open a new-patient form pre-filled from this patient so you can change the address"
+                        className="cursor-pointer select-none">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70">
+                          Change
+                        </span>
                       </span>
-                    </span>
-                    }
+                      }
+                    </div>
                   </div>
                   <div className="col-span-4 pb-3" style={{ height: '2rem' }}>
                     <div className="flex items-center justify-between">

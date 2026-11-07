@@ -27,6 +27,8 @@ import DeliveryRecurringOptions from './DeliveryRecurringOptions';
 import { getAddButtonStatus } from './Add2RouteStatusHelper';
 import LargeBarcodePreview from './LargeBarcodePreview';
 import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
+import AddressActionBadges from '../common/AddressActionBadges';
+import DistanceFromStoreBadge from '../common/DistanceFromStoreBadge';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
 import { runPostDeliveryUpdateSync, closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
@@ -175,6 +177,13 @@ export default function DeliveryFormView({
     };
   }, []);
   // Multi-select pickup store IDs (local to view)
+
+  // Store object behind the two address action badges (needs latitude/longitude).
+  const badgeStore = useMemo(() => {
+    const list = (stores && stores.length ? stores : availableStores) || [];
+    return list.find((st) => st && st.id === formData.store_id) || null;
+  }, [stores, availableStores, formData.store_id]);
+
   const [selectedPickupStoreIds, setSelectedPickupStoreIds] = React.useState(new Set());
   // Cycling location library selection
   const [selectedCyclingLocation, setSelectedCyclingLocation] = React.useState(null);
@@ -1138,6 +1147,7 @@ export default function DeliveryFormView({
                   isCompletionStatus={isCompletionStatus}
                   completionTime={completionTime} setCompletionTime={setCompletionTime}
                   availableStores={availableStores} allDeliveries={allDeliveries}
+                              patientDistanceKm={selectedPatient?.distance_from_store}
                   currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                   isCyclingMarker={true} />
                 </div>
@@ -1528,6 +1538,7 @@ export default function DeliveryFormView({
                               isCompletionStatus={isCompletionStatus}
                               completionTime={completionTime} setCompletionTime={setCompletionTime}
                               availableStores={availableStores} allDeliveries={allDeliveries}
+                              patientDistanceKm={selectedPatient?.distance_from_store}
                               currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                               isCyclingMarker={!!delivery?.is_cycling_marker} />
                           
@@ -1538,26 +1549,36 @@ export default function DeliveryFormView({
                                 <div className="flex-[65] space-y-1">
                                   <div className="relative" style={{ height: '1.5rem' }}>
                                     <Label className="text-sm font-semibold text-body">Patient Address</Label>
-                                    {delivery && selectedPatient && handleNewAddressPatient && (() => {
-                                    const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
-                                    return isLocked ?
-                                    <span title="The address is locked once a stop is completed, failed or cancelled" className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
-                                         Change
-                                       </span> :
+                                    <div className="absolute right-0 top-0 flex items-center gap-1">
+                                      <AddressActionBadges
+                                        patient={selectedPatient}
+                                        store={badgeStore}
+                                        delivery={delivery ? { paid_km_override: formData.paid_km_override } : null}
+                                        currentUser={currentUser}
+                                        disabled={isSaving}
+                                        onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))}
+                                      />
+                                      {delivery && selectedPatient && handleNewAddressPatient && (() => {
+                                      const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
+                                      return isLocked ?
+                                      <span title="The address is locked once a stop is completed, failed or cancelled" className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
+                                      Change
+                                      </span> :
 
-                                    <span
+                                      <span
                                       role="button"
                                       tabIndex={0}
                                       onClick={() => handleNewAddressPatient(selectedPatient)}
                                       onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
                                       title="Change the address on this stop and its patient record"
-                                      className="absolute right-0 top-0 cursor-pointer select-none">
-                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
-                                           Change
-                                         </span>
-                                       </span>;
+                                      className="cursor-pointer select-none">
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                      Change
+                                      </span>
+                                      </span>;
 
-                                  })()}
+                                      })()}
+                                    </div>
                                   </div>
                                   <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white dark:bg-slate-900 h-9 text-sm" />
                                 </div>
@@ -1732,6 +1753,7 @@ export default function DeliveryFormView({
                             isCompletionStatus={isCompletionStatus}
                             completionTime={completionTime} setCompletionTime={setCompletionTime}
                             availableStores={availableStores} allDeliveries={allDeliveries}
+                              patientDistanceKm={selectedPatient?.distance_from_store}
                             currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                             isCyclingMarker={!!delivery?.is_cycling_marker} />
                         
@@ -1763,26 +1785,36 @@ export default function DeliveryFormView({
                               <div className="flex-[65] space-y-1">
                                 <div className="relative" style={{ height: '1.5rem' }}>
                                   <Label className="text-sm font-semibold text-body">Patient Address</Label>
-                                  {delivery && selectedPatient && handleNewAddressPatient && (() => {
-                                  const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
-                                  return isLocked ?
-                                  <span title="The address is locked once a stop is completed, failed or cancelled" className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
-                                        Change
-                                      </span> :
+                                  <div className="absolute right-0 top-0 flex items-center gap-1">
+                                    <AddressActionBadges
+                                      patient={selectedPatient}
+                                      store={badgeStore}
+                                      delivery={delivery ? { paid_km_override: formData.paid_km_override } : null}
+                                      currentUser={currentUser}
+                                      disabled={isSaving}
+                                      onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))}
+                                    />
+                                    {delivery && selectedPatient && handleNewAddressPatient && (() => {
+                                    const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
+                                    return isLocked ?
+                                    <span title="The address is locked once a stop is completed, failed or cancelled" className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
+                                    Change
+                                    </span> :
 
-                                  <span
+                                    <span
                                     role="button"
                                     tabIndex={0}
                                     onClick={() => handleNewAddressPatient(selectedPatient)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
                                     title="Change the address on this stop and its patient record"
-                                    className="absolute right-0 top-0 cursor-pointer select-none">
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
-                                          Change
-                                        </span>
-                                      </span>;
+                                    className="cursor-pointer select-none">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                    Change
+                                    </span>
+                                    </span>;
 
-                                })()}
+                                    })()}
+                                  </div>
                                 </div>
                                 <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white dark:bg-slate-900 h-9 text-sm" />
                               </div>
@@ -1842,6 +1874,7 @@ export default function DeliveryFormView({
                         isCompletionStatus={isCompletionStatus}
                         completionTime={completionTime} setCompletionTime={setCompletionTime}
                         availableStores={availableStores} allDeliveries={allDeliveries}
+                              patientDistanceKm={selectedPatient?.distance_from_store}
                         currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                         isCyclingMarker={!!delivery?.is_cycling_marker} />
                     

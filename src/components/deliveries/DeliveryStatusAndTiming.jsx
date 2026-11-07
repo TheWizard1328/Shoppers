@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { Label } from "@/components/ui/label";
+import DistanceFromStoreBadge from '@/components/common/DistanceFromStoreBadge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { edmontonNowHHmm, edmontonTodayKey } from '../utils/albertaTime';
@@ -48,7 +49,8 @@ export default function DeliveryStatusAndTiming({
   allDeliveries,
   currentUser,
   setSelectedPickupOption,
-  isCyclingMarker = false
+  isCyclingMarker = false,
+  patientDistanceKm = null
 }) {
   const completionTimeRef = useRef(null);
 
@@ -184,7 +186,12 @@ export default function DeliveryStatusAndTiming({
 
   const storeSelect =
   <div className="flex-1 space-y-1">
-      <Label className="text-sm font-semibold text-body">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
+      {/* Store + the selected patient's distance from that store, right-justified
+          on the same row (owner spec Nov 6 2026). */}
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-sm font-semibold text-body">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
+        <DistanceFromStoreBadge distanceKm={patientDistanceKm} />
+      </div>
       <Select value={storeSelectValue} onValueChange={handleStoreChange} disabled={isSaving || isPickupMode && !!delivery}>
         <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
         <SelectContent className="z-[10030]">{storeOptions}</SelectContent>
