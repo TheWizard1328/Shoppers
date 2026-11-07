@@ -2366,7 +2366,9 @@ export default function DriverPayroll() {
       
 
         {/* Content Area for Screenshot */}
-        <div ref={payrollScrollRef} className="pb- min-h-0 flex-1 overflow-y-auto overflow-x-hidden md:pb-1 overscroll-contain">
+        {/* pb-[76px]: room for the fixed MobileBottomActions bar (which itself sits above the
+            bottom nav), so the last row of the grid is never hidden behind it. */}
+        <div ref={payrollScrollRef} className="pb-[76px] min-h-0 flex-1 overflow-y-auto overflow-x-hidden md:pb-1 overscroll-contain">
           {/* Grid (mobile collapsible) */}
           <div className="lg:hidden mb-3">
             <Button size="sm" variant="outline" className="bg-background px-2 text-xs font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
