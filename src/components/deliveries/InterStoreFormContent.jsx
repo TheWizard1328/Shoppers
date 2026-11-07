@@ -99,8 +99,8 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
 
   const isFrom = color === 'emerald';
   const selectedStyle = isFrom ?
-  { bg: 'bg-emerald-50', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', header: 'text-emerald-700', highlight: 'bg-yellow-50 dark:bg-yellow-950 ring-1 ring-yellow-300' } :
-  { bg: 'bg-blue-50 dark:bg-blue-950', badge: 'bg-blue-100 text-blue-700 border-blue-200', header: 'text-blue-700', highlight: 'bg-yellow-50 dark:bg-yellow-950 ring-1 ring-yellow-300' };
+  { bg: 'bg-emerald-50 dark:bg-emerald-950', header: 'text-emerald-700 dark:text-emerald-300', highlight: 'bg-yellow-50 dark:bg-yellow-950 ring-1 ring-yellow-300' } :
+  { bg: 'bg-blue-50 dark:bg-blue-950', header: 'text-blue-700 dark:text-blue-300', highlight: 'bg-yellow-50 dark:bg-yellow-950 ring-1 ring-yellow-300' };
 
   return (
     <div className="flex flex-col gap-2 flex-1 min-w-0">
@@ -166,7 +166,6 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
                       {crowFliesKm(userLat, userLng, loc.store_latitude, loc.store_longitude).toFixed(1)} km
                     </span>
                   }
-                  {isSelected && <Badge className={`text-[10px] px-1.5 py-0 ${selectedStyle.badge} ml-auto`}>{isFrom ? 'From' : 'To'}</Badge>}
                 </div>
                 <div className="flex items-center gap-1 mt-0.5">
                   <MapPin className="w-2.5 h-2.5 text-slate-400 dark:text-slate-400 shrink-0" />
