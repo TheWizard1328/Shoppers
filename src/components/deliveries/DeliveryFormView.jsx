@@ -50,8 +50,8 @@ import CyclingLocationSearch from './CyclingLocationSearch';
 const CheckboxField = ({ id, label, checked, onChange, disabled, tooltip }) =>
 <div className="flex items-center space-x-2">
     {/* Coerce to a real boolean so the underlying Radix checkbox stays
-      controlled for its entire lifetime (avoids React's
-      "controlled -> uncontrolled" warning when formData fields are undefined). */}
+     controlled for its entire lifetime (avoids React's
+     "controlled -> uncontrolled" warning when formData fields are undefined). */}
     <Checkbox id={id} checked={Boolean(checked)} onCheckedChange={onChange} disabled={disabled} />
     <Label htmlFor={id} title={tooltip} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
   </div>;
@@ -242,23 +242,23 @@ export default function DeliveryFormView({
     // 2) Fallback: any pickup for the same store/date/AM-PM slot is after hours
     const storeId = formData.store_id || selectedPatient?.store_id;
     const date = formData.delivery_date;
-    const slot = formData.ampm_deliveries
-      || (selectedPatient ? determineDeliveryAMPM(selectedPatient) : '')
-      || 'AM';
+    const slot = formData.ampm_deliveries || (
+    selectedPatient ? determineDeliveryAMPM(selectedPatient) : '') ||
+    'AM';
     if (storeId && date) {
       const slotAfterHours = deliveries.some(
         (d) => d && !d.patient_id &&
-          d.store_id === storeId &&
-          d.delivery_date === date &&
-          (d.ampm_deliveries || 'AM') === (slot || 'AM') &&
-          d.after_hours_pickup
+        d.store_id === storeId &&
+        d.delivery_date === date &&
+        (d.ampm_deliveries || 'AM') === (slot || 'AM') &&
+        d.after_hours_pickup
       );
       if (slotAfterHours) return true;
     }
 
     return false;
   }, [isPickupMode, isInterStoreMode, formData.puid, formData.store_id,
-      formData.delivery_date, formData.ampm_deliveries, allDeliveries, selectedPatient]);
+  formData.delivery_date, formData.ampm_deliveries, allDeliveries, selectedPatient]);
 
   // InterStore: tracks whether both From + To are selected (gates the Add/Done button)
   const [interStoreReady, setInterStoreReady] = React.useState(false);
@@ -309,10 +309,10 @@ export default function DeliveryFormView({
   // delivery keeps the default buttonState. In pickup mode with stores checked,
   // keep 'add' active so user can add more pickups.
   const hasInterStoreFormInput = !!(formData._interstore_source_id || formData._interstore_dest_id || formData.driver_id);
-  const effectiveButtonState = isInterStoreMode && !delivery
-    ? (hasInterStoreFormInput ? 'add' : 'done')
-    : isPickupMode && !delivery && selectedPickupStoreIds.size > 0 ? 'add'
-    : buttonState;
+  const effectiveButtonState = isInterStoreMode && !delivery ?
+  hasInterStoreFormInput ? 'add' : 'done' :
+  isPickupMode && !delivery && selectedPickupStoreIds.size > 0 ? 'add' :
+  buttonState;
 
   // Clear selectedPickupStoreIds when form is cleared (selectedPickupOption reset to '')
   React.useEffect(() => {
@@ -415,7 +415,7 @@ export default function DeliveryFormView({
     // update) can leave isKeyboardLikelyOpen stuck true, collapsing the
     // safe-area/nav-bar bottom padding to 0px and hiding the form footer
     // behind the phone's navigation bar.
-    try { document.activeElement?.blur?.(); } catch (_) {}
+    try {document.activeElement?.blur?.();} catch (_) {}
     setIsKeyboardLikelyOpen(false);
 
     try {
@@ -707,9 +707,9 @@ export default function DeliveryFormView({
     // to land flush below the header's real bottom edge (mirrors the `bottom`
     // formula which already accounts for --native-safe-bottom).
     top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
-    bottom: isKeyboardLikelyOpen
-      ? '0px'
-      : `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
+    bottom: isKeyboardLikelyOpen ?
+    '0px' :
+    `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
     background: 'var(--bg-white)'
   } : undefined;
 
@@ -886,17 +886,17 @@ export default function DeliveryFormView({
 
   return (
     <div
-      // role="dialog" (without data-state) deliberately opts this wrapper OUT
-      // of every native-APK ".fixed.inset-0" safe-area catch-all rule in
-      // layoutStyles.jsx — those all either exclude role="dialog" outright or
-      // require it paired with data-state="open" (which we don't set). Those
-      // catch-all rules exist for overlays that DON'T already compute their
-      // own insets (camera/barcode scanners) — this form already does via
-      // mobileFormInsetStyle above, so letting the catch-all also add
-      // padding-bottom here just double-counts the safe-area gap.
-      role="dialog"
-      className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : 'bg-black/60 flex items-center justify-center p-4'}`}
-      style={mobileFormInsetStyle}>
+    // role="dialog" (without data-state) deliberately opts this wrapper OUT
+    // of every native-APK ".fixed.inset-0" safe-area catch-all rule in
+    // layoutStyles.jsx — those all either exclude role="dialog" outright or
+    // require it paired with data-state="open" (which we don't set). Those
+    // catch-all rules exist for overlays that DON'T already compute their
+    // own insets (camera/barcode scanners) — this form already does via
+    // mobileFormInsetStyle above, so letting the catch-all also add
+    // padding-bottom here just double-counts the safe-area gap.
+    role="dialog"
+    className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : 'bg-black/60 flex items-center justify-center p-4'}`}
+    style={mobileFormInsetStyle}>
       
       <motion.div
         ref={formRef}
@@ -910,11 +910,11 @@ export default function DeliveryFormView({
           
           {/* PAST-DATE ADD WARNING (owner spec Oct 28 2026) */}
           {pastDateTarget &&
-            <div className={`px-4 py-1.5 text-xs font-medium flex items-center gap-2 flex-shrink-0 ${pastDateAddBlocked ? 'bg-red-50 text-red-700 border-b border-red-200' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
+          <div className={`px-4 py-1.5 text-xs font-medium flex items-center gap-2 flex-shrink-0 ${pastDateAddBlocked ? 'bg-red-50 text-red-700 border-b border-red-200' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
               <span className="text-base leading-none">{pastDateAddBlocked ? '🚫' : '⚠️'}</span>
-              {pastDateAddBlocked
-                ? 'This is a past date. Only an admin can add a delivery to a past date.'
-                : 'Adding to a PAST date. This will reopen/alter that past route.'}
+              {pastDateAddBlocked ?
+            'This is a past date. Only an admin can add a delivery to a past date.' :
+            'Adding to a PAST date. This will reopen/alter that past route.'}
             </div>
           }
 
@@ -958,24 +958,24 @@ export default function DeliveryFormView({
                     <div
                       className="flex items-center gap-1.5 select-none cursor-pointer"
                       title={`Auto-save in ${timeTitle} — tap to reset`}
-                      onClick={() => { if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant(); else window.dispatchEvent(new CustomEvent('openGuideAssistant')); }}
-                    >
+                      onClick={() => {if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant();else window.dispatchEvent(new CustomEvent('openGuideAssistant'));}}>
+                      
                       <div className="relative" style={{ width: 28, height: 28 }}>
                         <svg width={28} height={28} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
                           <circle cx={14} cy={14} r={12} fill="none" stroke="currentColor" strokeWidth={2} className="opacity-10" />
                           <circle cx={14} cy={14} r={12} fill="none" stroke={ringColor} strokeWidth={2}
-                            strokeDasharray={`${2 * Math.PI * 12 * pct} ${2 * Math.PI * 12 * (1 - pct)}`}
-                            strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s linear, stroke 0.3s ease' }} />
+                          strokeDasharray={`${2 * Math.PI * 12 * pct} ${2 * Math.PI * 12 * (1 - pct)}`}
+                          strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s linear, stroke 0.3s ease' }} />
                         </svg>
                         <Sparkles className="w-3 h-3 text-emerald-600 absolute inset-0 m-auto pointer-events-none" />
                       </div>
-                      {!useMobileLayout || !isMobileDevice ? (
-                        <span className="text-xs font-medium tabular-nums" style={{ color: ringColor }}>
+                      {!useMobileLayout || !isMobileDevice ?
+                      <span className="text-xs font-medium tabular-nums" style={{ color: ringColor }}>
                           {timeLabel}
-                        </span>
-                      ) : null}
-                    </div>
-                  );
+                        </span> :
+                      null}
+                    </div>);
+
                 })()}
                 <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving} aria-label="Close form"><X className="w-4 h-4" /></Button>
               </div>
@@ -1147,7 +1147,7 @@ export default function DeliveryFormView({
                   isCompletionStatus={isCompletionStatus}
                   completionTime={completionTime} setCompletionTime={setCompletionTime}
                   availableStores={availableStores} allDeliveries={allDeliveries}
-                              patientDistanceKm={selectedPatient?.distance_from_store}
+                  patientDistanceKm={selectedPatient?.distance_from_store}
                   currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                   isCyclingMarker={true} />
                 </div>
@@ -1548,16 +1548,16 @@ export default function DeliveryFormView({
                               <div className="flex gap-3">
                                 <div className="flex-[65] space-y-1">
                                   <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
-                                    <Label className="text-sm font-semibold text-body">Patient Address</Label>
+                                    <Label className="text-sm font-semibold text-body">Address</Label>
                                     <div className="flex items-center gap-1 shrink-0">
                                       <AddressActionBadges
-                                        patient={selectedPatient}
-                                        store={badgeStore}
-                                        delivery={delivery ? { paid_km_override: formData.paid_km_override } : null}
-                                        currentUser={currentUser}
-                                        disabled={isSaving}
-                                        onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))}
-                                      />
+                                      patient={selectedPatient}
+                                      store={badgeStore}
+                                      delivery={delivery ? { paid_km_override: formData.paid_km_override } : null}
+                                      currentUser={currentUser}
+                                      disabled={isSaving}
+                                      onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))} />
+                                    
                                       {delivery && selectedPatient && handleNewAddressPatient && (() => {
                                       const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                       return isLocked ?
@@ -1566,18 +1566,18 @@ export default function DeliveryFormView({
                                       </span> :
 
                                       <span
-                                      role="button"
-                                      tabIndex={0}
-                                      onClick={() => handleNewAddressPatient(selectedPatient)}
-                                      onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
-                                      title="Change the address on this stop and its patient record"
-                                      className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => handleNewAddressPatient(selectedPatient)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                        title="Change the address on this stop and its patient record"
+                                        className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
                                       <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
                                       Change
                                       </span>
                                       </span>;
 
-                                      })()}
+                                    })()}
                                     </div>
                                   </div>
                                   <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white dark:bg-slate-900 h-9 text-sm" />
@@ -1753,7 +1753,7 @@ export default function DeliveryFormView({
                             isCompletionStatus={isCompletionStatus}
                             completionTime={completionTime} setCompletionTime={setCompletionTime}
                             availableStores={availableStores} allDeliveries={allDeliveries}
-                              patientDistanceKm={selectedPatient?.distance_from_store}
+                            patientDistanceKm={selectedPatient?.distance_from_store}
                             currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                             isCyclingMarker={!!delivery?.is_cycling_marker} />
                         
@@ -1787,13 +1787,13 @@ export default function DeliveryFormView({
                                   <Label className="text-sm font-semibold text-body">Patient Address</Label>
                                   <div className="flex items-center gap-1 shrink-0">
                                     <AddressActionBadges
-                                      patient={selectedPatient}
-                                      store={badgeStore}
-                                      delivery={delivery ? { paid_km_override: formData.paid_km_override } : null}
-                                      currentUser={currentUser}
-                                      disabled={isSaving}
-                                      onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))}
-                                    />
+                                    patient={selectedPatient}
+                                    store={badgeStore}
+                                    delivery={delivery ? { paid_km_override: formData.paid_km_override } : null}
+                                    currentUser={currentUser}
+                                    disabled={isSaving}
+                                    onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))} />
+                                  
                                     {delivery && selectedPatient && handleNewAddressPatient && (() => {
                                     const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                     return isLocked ?
@@ -1802,18 +1802,18 @@ export default function DeliveryFormView({
                                     </span> :
 
                                     <span
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => handleNewAddressPatient(selectedPatient)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
-                                    title="Change the address on this stop and its patient record"
-                                    className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => handleNewAddressPatient(selectedPatient)}
+                                      onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                      title="Change the address on this stop and its patient record"
+                                      className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
                                     <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
                                     Change
                                     </span>
                                     </span>;
 
-                                    })()}
+                                  })()}
                                   </div>
                                 </div>
                                 <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white dark:bg-slate-900 h-9 text-sm" />
@@ -1823,11 +1823,11 @@ export default function DeliveryFormView({
                                  <div className="flex items-center justify-between" style={{ height: '1.5rem' }}>
                                    <Label className="text-sm font-semibold text-body">Unit #</Label>
                                    <button
-                                   type="button"
-                                   disabled={!formData.unit_number || isSaving}
-                                   onClick={handleBuzzerOpen}
-                                   style={{ minHeight: 0 }}
-                                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${formData.unit_number ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
+                                  type="button"
+                                  disabled={!formData.unit_number || isSaving}
+                                  onClick={handleBuzzerOpen}
+                                  style={{ minHeight: 0 }}
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${formData.unit_number ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
                                      Buzzer #
                                    </button>
                                  </div>
@@ -1874,7 +1874,7 @@ export default function DeliveryFormView({
                         isCompletionStatus={isCompletionStatus}
                         completionTime={completionTime} setCompletionTime={setCompletionTime}
                         availableStores={availableStores} allDeliveries={allDeliveries}
-                              patientDistanceKm={selectedPatient?.distance_from_store}
+                        patientDistanceKm={selectedPatient?.distance_from_store}
                         currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                         isCyclingMarker={!!delivery?.is_cycling_marker} />
                     
@@ -1946,7 +1946,7 @@ export default function DeliveryFormView({
                 <Button type="button" variant="outline" size="sm" onClick={() => {
                   // Same defensive keyboard-space reset as runLockedAction — Clear/Cancel
                   // isn't routed through that wrapper, so it needs its own blur + reset.
-                  try { document.activeElement?.blur?.(); } catch (_) {}
+                  try {document.activeElement?.blur?.();} catch (_) {}
                   setIsKeyboardLikelyOpen(false);
                   const shouldClear = cancelButtonState === 'clear' || !!editingStagedId;
                   if (delivery) {handleCancelClick();return;}
@@ -2275,11 +2275,11 @@ export default function DeliveryFormView({
                           const { computeNextDeliveryState } = await import('../utils/clientNextDelivery');
                           const { offlineDB } = await import('../utils/offlineDatabase');
                           const allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, routeDate);
-                          const driverDeliveries = (allDateDeliveries || []).filter(d => d?.driver_id === routeDriverId);
+                          const driverDeliveries = (allDateDeliveries || []).filter((d) => d?.driver_id === routeDriverId);
                           const result = computeNextDeliveryState({
                             deliveries: driverDeliveries,
                             driverStatus: 'on_duty',
-                            targetDeliveryId: null,
+                            targetDeliveryId: null
                           });
                           if (result.changedDeliveries.length > 0) {
                             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
@@ -2307,11 +2307,11 @@ export default function DeliveryFormView({
                           const { computeNextDeliveryState } = await import('../utils/clientNextDelivery');
                           const { offlineDB } = await import('../utils/offlineDatabase');
                           const prevDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, _previousDeliveryDate);
-                          const prevDriverDeliveries = (prevDeliveries || []).filter(d => d?.driver_id === _previousDriverId);
+                          const prevDriverDeliveries = (prevDeliveries || []).filter((d) => d?.driver_id === _previousDriverId);
                           const prevResult = computeNextDeliveryState({
                             deliveries: prevDriverDeliveries,
                             driverStatus: 'on_duty',
-                            targetDeliveryId: null,
+                            targetDeliveryId: null
                           });
                           if (prevResult.changedDeliveries.length > 0) {
                             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, prevResult.changedDeliveries).catch(() => null);
