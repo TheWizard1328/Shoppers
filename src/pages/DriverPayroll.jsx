@@ -906,15 +906,42 @@ export default function DriverPayroll() {
     for (const r of seen.values()) sum += Number(r.net_pay) || 0;
     return sum;
   }, [filteredPayrollRecords]);
+  // DELIVERIES BADGE (owner report Nov 7 2026: it read 0 for every period). The old
+  // memo treated payrollData as an ARRAY of per-driver rows carrying
+  // graphDeliveryCount, but payrollData is an object ({ deliveries, appUsers,
+  // payrollRecords, ... }), so Array.isArray() was always false and it returned
+  // 0. It now counts the period's real deliveries for the SELECTED driver(s):
+  // every driver when 'All Drivers' is chosen, one driver otherwise. Completed
+  // and failed stops count as 1 each, and so do cancelled returns, interstore
+  // pickups/drops and after-hours pickups (the admin metrics / payroll rule).
   const totalDeliveries = useMemo(() => {
-    const payrollRows = Array.isArray(payrollData) ? payrollData : [];
-    if (payrollRows.length === 0) return 0;
-    if (selectedDriverId === 'all') {
-      return payrollRows.reduce((sum, driverData) => sum + (Number(driverData?.graphDeliveryCount) || 0), 0);
-    }
-    const selectedDriverData = payrollRows.find((driverData) => driverData?.driver?.id === selectedDriverId);
-    return Number(selectedDriverData?.graphDeliveryCount) || 0;
-  }, [payrollData, selectedDriverId]);
+    const rows = Array.isArray(cityFilteredDeliveries) ? cityFilteredDeliveries : [];
+    if (rows.length === 0) return 0;
+    // Same rule set as calculateDriverPayroll / getDriverPayrollStats so this
+    // badge always agrees with the payroll it sits above.
+    const patientById = new Map((payrollData?.patients || []).map((p) => [p.id, p]));
+    const isInterStore = (d) => {
+      const id = String(d?.delivery_id || '').toUpperCase();
+      return id.startsWith('ISD-') || id.startsWith('ISP-');
+    };
+    const isPatientReturn = (d) => {
+      if (!d?.patient_id) return false;
+      return String(patientById.get(d.patient_id)?.address || '').toUpperCase().includes('(RTN)');
+    };
+    const isCountable = (d) => {
+      if (!d) return false;
+      if (d.patient_id || isInterStore(d)) {
+        return d.status === 'completed' || d.status === 'failed' ||
+          (d.status === 'cancelled' && isPatientReturn(d));
+      }
+      // after-hours pickups (no patient, not interstore)
+      return d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled');
+    };
+    const inScope = selectedDriverId === 'all'
+      ? rows
+      : rows.filter((d) => d?.driver_id === selectedDriverId);
+    return inScope.filter(isCountable).length;
+  }, [cityFilteredDeliveries, selectedDriverId, payrollData?.patients]);
   const periodLabel = useMemo(() => currentPeriod ? currentPeriod.label : '', [currentPeriod]);
   const needsCitySelection = !!currentUser && sortedCities.length > 0 && !selectedCityId;
 
