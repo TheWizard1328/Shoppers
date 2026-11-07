@@ -55,7 +55,7 @@ const capitalizeName = (name) => {
     const isAllCaps = word.length >= 2 && word === word.toUpperCase() && UPPER_RX.test(word);
     if (isAllCaps) {
       return word.split(/([-'.])/g).map((seg) =>
-        SEG_RX.test(seg) ? seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase() : seg
+      SEG_RX.test(seg) ? seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase() : seg
       ).join('');
     }
     return word.charAt(0).toUpperCase() + word.slice(1);
@@ -327,12 +327,12 @@ export default function PatientForm({
         care_pros: patient.care_pros || false,
         cp_name: patient.cp_name || "",
         cp_envelopes: patient.cp_envelopes || 0,
-        last_delivery_date: (duplicateMode === 'newAddress' || duplicateMode === 'duplicate')
-          ? "" // Clear for duplicate/new-address so first-time delivery checkbox works
-          : (patient.last_delivery_date || (Array.isArray(patient.delivery_history) && patient.delivery_history[0]?.delivery_date) || ""),
-        delivery_history: (duplicateMode === 'newAddress' || duplicateMode === 'duplicate')
-          ? []
-          : (Array.isArray(patient.delivery_history) ? patient.delivery_history : [])
+        last_delivery_date: duplicateMode === 'newAddress' || duplicateMode === 'duplicate' ?
+        "" // Clear for duplicate/new-address so first-time delivery checkbox works
+        : patient.last_delivery_date || Array.isArray(patient.delivery_history) && patient.delivery_history[0]?.delivery_date || "",
+        delivery_history: duplicateMode === 'newAddress' || duplicateMode === 'duplicate' ?
+        [] :
+        Array.isArray(patient.delivery_history) ? patient.delivery_history : []
       });
 
       setIsRecurring(hasRecurring);
@@ -411,11 +411,11 @@ export default function PatientForm({
     // OWNER SPEC (Oct 31 2026): group identical places into ONE row. Two
     // patients at the same street address, or the same GPS rounded to ~10 m,
     // are the same pickup point — the list showed a row per patient before.
-    const _addrKey = (v) => String(v || '')
-      .toLowerCase()
-      .replace(/\b(street|st|avenue|ave|boulevard|blvd|drive|dr|road|rd|lane|ln|court|ct|place|pl|terrace|ter|northwest|nw|northeast|ne|southwest|sw|southeast|se)\b\.?/g, '')
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim();
+    const _addrKey = (v) => String(v || '').
+    toLowerCase().
+    replace(/\b(street|st|avenue|ave|boulevard|blvd|drive|dr|road|rd|lane|ln|court|ct|place|pl|terrace|ter|northwest|nw|northeast|ne|southwest|sw|southeast|se)\b\.?/g, '').
+    replace(/[^a-z0-9]+/g, ' ').
+    trim();
     const _gpsKey = (pt) => {
       const la = Number(pt?.latitude ?? pt?.lat);
       const lo = Number(pt?.longitude ?? pt?.lng);
@@ -458,9 +458,9 @@ export default function PatientForm({
     const abbreviatedAddress = abbreviateAddress(street);
     // OWNER SPEC (Nov 5 2026): a saved-patient address row supplies the ADDRESS
     // only — never the matched patient's unit number, phone, or anything else.
-    const prefilledUnit = (addressData.addressOnly === true || addressData.__localPatient)
-      ? formData.unit_number
-      : (addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number);
+    const prefilledUnit = addressData.addressOnly === true || addressData.__localPatient ?
+    formData.unit_number :
+    addressData.unit ? String(addressData.unit).replace(/^#\s*/, '') : formData.unit_number;
 
     let latitude = toFiniteNumber(addressData.latitude ?? addressData.lat);
     let longitude = toFiniteNumber(addressData.longitude ?? addressData.lng);
@@ -823,7 +823,7 @@ export default function PatientForm({
             const freshPatient = await base44.entities.Patient.get(savedPatientId);
             const { offlineDB } = await import('../utils/offlineDatabase');
             await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [freshPatient]);
-          } catch (_) { /* non-critical background refresh */ }
+          } catch (_) {/* non-critical background refresh */}
           try {
             const { invalidate } = await import('../utils/dataManager');
             invalidate('Patient');
@@ -956,7 +956,7 @@ export default function PatientForm({
       };
       const t1 = setTimeout(focusAddress, 100);
       const t2 = setTimeout(focusAddress, 350);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      return () => {clearTimeout(t1);clearTimeout(t2);};
     }
   }, [formData.store_id, shouldAutoFocusFields]);
 
@@ -1077,20 +1077,20 @@ export default function PatientForm({
   // that inset via .app-container's own padding-bottom).
   const mobileFormInsetStyle = isMobile ? {
     top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
-    bottom: isKeyboardLikelyOpen
-      ? '0px'
-      : `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
+    bottom: isKeyboardLikelyOpen ?
+    '0px' :
+    `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
   } : undefined;
 
   return (
     <div
-      // role="dialog" opts this wrapper out of the native-APK generic
-      // ".fixed.inset-0" safe-area catch-all rules (layoutStyles.jsx) — this
-      // form already computes its own bottom inset above, so the catch-all
-      // adding padding-bottom too would double-count the safe area.
-      role="dialog"
-      ref={patientFormContainerRef}
-      className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 items-start' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
+    // role="dialog" opts this wrapper out of the native-APK generic
+    // ".fixed.inset-0" safe-area catch-all rules (layoutStyles.jsx) — this
+    // form already computes its own bottom inset above, so the catch-all
+    // adding padding-bottom too would double-count the safe area.
+    role="dialog"
+    ref={patientFormContainerRef}
+    className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 items-start' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
     style={mobileFormInsetStyle}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
@@ -1244,31 +1244,31 @@ export default function PatientForm({
                   {/* Label row — + New Address is absolute so it adds zero height */}
                   <div className="col-span-8 pb-3" style={{ height: '2rem' }}>
                     {/* Round refresh + map badges sit LEFT of the Change badge
-                        (owner spec Nov 6 2026). The label and the chips share one
-                        flex row so they always land on the same centre line —
-                        absolute offsets drifted as soon as a chip changed height. */}
+                         (owner spec Nov 6 2026). The label and the chips share one
+                         flex row so they always land on the same centre line —
+                         absolute offsets drifted as soon as a chip changed height. */}
                     <div className="flex items-center justify-between gap-1">
                       <Label htmlFor="address" className="text-sm font-medium leading-none text-body">Address *</Label>
                       <div className="flex items-center gap-1 shrink-0">
                       <AddressActionBadges
-                        patient={patient || { ...formData, id: formData.id }}
-                        store={assignedStoreForBadges}
-                        currentUser={currentUser}
-                        onDistanceUpdated={(km) => setFormData((prev) => ({ ...prev, distance_from_store: km }))}
-                      />
+                          patient={patient || { ...formData, id: formData.id }}
+                          store={assignedStoreForBadges}
+                          currentUser={currentUser}
+                          onDistanceUpdated={(km) => setFormData((prev) => ({ ...prev, distance_from_store: km }))} />
+                        
                       {patient && !duplicateMode && onCreateDuplicate &&
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => onCreateDuplicate(patient)}
-                        onKeyDown={(e) => e.key === 'Enter' && onCreateDuplicate(patient)}
-                        title="Open a new-patient form pre-filled from this patient so you can change the address"
-                        className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => onCreateDuplicate(patient)}
+                          onKeyDown={(e) => e.key === 'Enter' && onCreateDuplicate(patient)}
+                          title="Open a new-patient form pre-filled from this patient so you can change the address"
+                          className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
                         <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70">
                           Change
                         </span>
                       </span>
-                      }
+                        }
                       </div>
                     </div>
                   </div>
@@ -1338,7 +1338,7 @@ export default function PatientForm({
                 {/* Row 1: Full Name + Email (50/50) */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label htmlFor="full_name" className="text-sm font-medium text-body">Full Name *</Label>
+                    <Label htmlFor="full_name" className="text-sm font-medium text-body">Name *</Label>
                     <Input
                       id="full_name"
                       value={formData.full_name}
@@ -1363,7 +1363,7 @@ export default function PatientForm({
                 {/* Row 2: Phone + Alt. Phone (50/50) */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
-                    <Label htmlFor="phone" className="text-sm font-medium text-body">Phone Number</Label>
+                    <Label htmlFor="phone" className="text-sm font-medium text-body">Prim. Phone</Label>
                     <PhoneInput
                       id="phone"
                       value={formData.phone}
