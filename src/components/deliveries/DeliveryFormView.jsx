@@ -1612,11 +1612,11 @@ export default function DeliveryFormView({
 
                               <div className="flex gap-3">
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-sm font-semibold text-body">Primary Phone</Label>
+                                  <Label className="text-sm font-semibold text-body">Prim. Phone</Label>
                                   <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-sm font-semibold text-body">Alternate Phone</Label>
+                                  <Label className="text-sm font-semibold text-body">Alt. Phone</Label>
                                   <PhoneInput value={formData.patient_phone_secondary || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone_secondary: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                               </div>
