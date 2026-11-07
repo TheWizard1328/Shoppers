@@ -550,7 +550,9 @@ export default function DeliveryFormView({
   // Live chrome heights (owner report Nov 7 2026: the app header covered the form
   // title and the footer buttons sat behind the bottom nav). Measured in a hook
   // after layout and re-measured on resize instead of read once during render.
-  const { header: mobileHeaderHeight, bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
+  // header height is intentionally NOT used on phones any more: the form covers
+  // the app header (owner spec Nov 7 2026). `area` drives the desktop fill.
+  const { bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
 
   // KEYBOARD-AWARE BOTTOM INSET (Android APK fix, take 3):
   // Take 1 compared window.innerHeight vs visualViewport.height — doesn't work because this
@@ -716,14 +718,13 @@ export default function DeliveryFormView({
   } : undefined;
 
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice ? {
-    // `position: fixed` measures `top` from the TRUE viewport edge, ignoring
-    // ancestor padding. The mobile header sits BELOW the phone's safe-area
-    // top inset (that inset is .app-container's own padding-top, above the
-    // header) — so `top: headerHeight` alone is short by exactly the safe-area
-    // amount, causing the form to overlap the header. Add the safe-area inset
-    // to land flush below the header's real bottom edge (mirrors the `bottom`
-    // formula which already accounts for --native-safe-bottom).
-    top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
+    // OWNER SPEC (Nov 7 2026): on a phone this form fills from the STATUS BAR down
+    // to the TOP OF THE BOTTOM NAV and COVERS the app's mobile header. The top
+    // inset is therefore the status-bar safe area alone - adding the header
+    // height here is what used to park the form below the header instead of over
+    // it. `bottom` still carries the nav height + safe-area bottom so the footer
+    // buttons stay clear of the nav (mirrors --native-safe-bottom).
+    top: 'var(--native-safe-top, env(safe-area-inset-top, 0px))',
     bottom: isKeyboardLikelyOpen ?
     '0px' :
     `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,

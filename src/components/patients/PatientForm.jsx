@@ -1039,7 +1039,9 @@ export default function PatientForm({
   // Live chrome heights (owner report Nov 7 2026: the app header covered the form
   // title and the footer buttons sat behind the bottom nav). Measured in a hook
   // after layout and re-measured on resize instead of read once during render.
-  const { header: mobileHeaderHeight, bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
+  // header height is intentionally NOT used on phones any more: the form covers
+  // the app header (owner spec Nov 7 2026). `area` drives the desktop fill.
+  const { bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
 
   // KEYBOARD-AWARE BOTTOM INSET (take 3): see DeliveryFormView.jsx for the full history —
   // take 1 (viewport diff) never fired, take 2 (focus tracking) got stuck missing after a
@@ -1089,8 +1091,13 @@ export default function PatientForm({
     padding: 0,
   } : undefined;
 
+  // OWNER SPEC (Nov 7 2026): on a phone the form fills from the STATUS BAR down to
+  // the TOP OF THE BOTTOM NAV - it deliberately COVERS the app's mobile header.
+  // So the top inset is the status-bar safe area only; the header height is NOT
+  // added any more (that stopped the form below the header). The bottom keeps the
+  // nav height + safe-area bottom so the footer buttons never sit under the nav.
   const mobileFormInsetStyle = isMobile ? {
-    top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
+    top: 'var(--native-safe-top, env(safe-area-inset-top, 0px))',
     bottom: isKeyboardLikelyOpen ?
     '0px' :
     `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
