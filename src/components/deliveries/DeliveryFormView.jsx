@@ -1601,7 +1601,7 @@ export default function DeliveryFormView({
 
                               <div className="flex gap-3">
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-sm font-semibold text-body">Primary Name *</Label>
+                                  <Label className="text-sm font-semibold text-body">Name *</Label>
                                   <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                                 <div className="flex-1 space-y-1">
@@ -1612,7 +1612,7 @@ export default function DeliveryFormView({
 
                               <div className="flex gap-3">
                                 <div className="flex-1 space-y-1">
-                                  <Label className="text-sm font-semibold text-body">Phone</Label>
+                                  <Label className="text-sm font-semibold text-body">Primary Phone</Label>
                                   <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                                 <div className="flex-1 space-y-1">
