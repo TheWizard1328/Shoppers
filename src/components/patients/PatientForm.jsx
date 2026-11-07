@@ -1246,7 +1246,7 @@ export default function PatientForm({
                     <Label htmlFor="address" className="text-sm font-medium leading-none text-body">Address *</Label>
                     {/* Round refresh + map badges sit LEFT of the Change badge
                         (owner spec Nov 6 2026). */}
-                    <div className="absolute right-0 top-0 flex items-center gap-1" style={{ lineHeight: '1.25rem' }}>
+                    <div className="absolute right-0 top-[-2px] flex items-center gap-1" style={{ lineHeight: '1.25rem', height: '1.5rem' }}>
                       <AddressActionBadges
                         patient={patient || { ...formData, id: formData.id }}
                         store={assignedStoreForBadges}
@@ -1261,7 +1261,7 @@ export default function PatientForm({
                         onKeyDown={(e) => e.key === 'Enter' && onCreateDuplicate(patient)}
                         title="Open a new-patient form pre-filled from this patient so you can change the address"
                         className="cursor-pointer select-none">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70">
+                        <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70">
                           Change
                         </span>
                       </span>

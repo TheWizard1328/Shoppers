@@ -94,7 +94,12 @@ export default function PatientStoreMapDialog({ open, onClose, patient, store, d
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose?.(); }}>
-      <DialogContent className="p-0 overflow-hidden w-[92vw] max-w-[620px] rounded-xl">
+      {/* The three forms render at z-[10020]..[10031]; the dialog primitive sits at
+          10000/10001, so the map used to open BEHIND the active form. Overlay and
+          content are both raised above the forms. */}
+      <DialogContent
+        overlayClassName="z-[10099] bg-black/60"
+        className="p-0 overflow-hidden w-[92vw] max-w-[620px] rounded-xl z-[10100]">
         <DialogHeader className="px-3 pt-3 pb-1">
           <DialogTitle className="text-sm font-semibold text-body">
             {patient?.full_name || patient?.patient_name || 'Patient'} · {store?.name || 'Store'}

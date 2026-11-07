@@ -19,7 +19,7 @@ export default function DistanceFromStoreBadge({ distanceKm, className = '', tit
         bg-sky-100 text-sky-800 border-sky-200
         dark:bg-sky-900/40 dark:text-sky-200 dark:border-sky-800
         select-none whitespace-nowrap ${className}`}>
-      {km.toFixed(1)} km
+      {km.toFixed(2)} km
     </span>
   );
 }

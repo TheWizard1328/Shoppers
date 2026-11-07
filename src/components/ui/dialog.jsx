@@ -26,9 +26,12 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => (
+// overlayClassName lets a caller that opens FROM another full-screen layer (the
+// patient/delivery forms sit at z-[10020]) raise the dimmer together with the
+// content. Every existing dialog omits it and keeps the 10000/10001 stacking.
+const DialogContent = React.forwardRef(({ className, overlayClassName, children, ...props }, ref) => (
   <DialogPortal>
-    <DialogOverlay />
+    <DialogOverlay className={overlayClassName} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
