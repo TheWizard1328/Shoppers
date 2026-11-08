@@ -1,12 +1,32 @@
 import { getPickupStopIdForDelivery, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
 
-export const filterPendingDeliveriesForUser = ({ allDeliveries, suggestedDate, currentUser, userHasRole }) => {
+export const filterPendingDeliveriesForUser = ({
+  allDeliveries,
+  selectedDate,
+  suggestedDate,
+  selectedDriverId,
+  currentUser,
+  userHasRole,
+}) => {
+  // OWNER FIX (Nov 8 2026): this list was pinned to the DASHBOARD date and only
+  // ever that one day, so a posted pending stop dated ahead (e.g. Nov 12 while the
+  // dashboard sat on Nov 8) was invisible, and the list never refreshed when the
+  // form's own Delivery Date changed. It now follows the form date and includes
+  // that date and every future date (ISO yyyy-mm-dd compares lexicographically).
+  const anchorDate = selectedDate || suggestedDate || '';
   let pendingDeliveries = (allDeliveries || []).filter((delivery) =>
     delivery &&
     delivery.status === 'pending' &&
-    delivery.delivery_date === suggestedDate &&
-    delivery.patient_id
+    delivery.patient_id &&
+    delivery.delivery_date &&
+    (!anchorDate || delivery.delivery_date >= anchorDate)
   );
+
+  // A driver chosen on the form narrows the list to that driver for everyone.
+  if (selectedDriverId) {
+    pendingDeliveries = pendingDeliveries.filter((delivery) => delivery.driver_id === selectedDriverId);
+    return pendingDeliveries;
+  }
 
   const isAdminLike = userHasRole(currentUser, 'admin') || currentUser?.role === 'App Owner';
   if (isAdminLike) {

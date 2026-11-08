@@ -1545,17 +1545,27 @@ export default function DeliveryForm({
     }
   }, [allDeliveries, stagedDeliveries.length, delivery]);
 
+  // Pending panel follows the FORM's Delivery Date + Driver, not the dashboard date,
+  // and reloads whenever either changes (owner fix Nov 8 2026). The old guard
+  // (hasLoadedPending) fired once per form-open, so switching the form date kept the
+  // previous date's rows, complete with their old date section headers.
+  const pendingLoadKeyRef = useRef('');
   useEffect(() => {
-    if (delivery || hasLoadedPending.current) return;
-    if (!allDeliveries || !suggestedDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
-    if (stagedDeliveries.length > 0) { hasLoadedPending.current = true; return; }
-    const pendingDeliveries = filterPendingDeliveriesForUser({ allDeliveries, suggestedDate, currentUser, userHasRole });
-    if (pendingDeliveries.length === 0) { hasLoadedPending.current = true; return; }
+    if (delivery) return;
+    const formDate = formData.delivery_date || suggestedDate || '';
+    const formDriverId = formData.driver_id || '';
+    if (!allDeliveries || !formDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
+    const loadKey = `${formDate}|${formDriverId}`;
+    if (pendingLoadKeyRef.current === loadKey) return;
+    const pendingDeliveries = filterPendingDeliveriesForUser({
+      allDeliveries, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
+    });
+    pendingLoadKeyRef.current = loadKey;
+    hasLoadedPending.current = true;
+    if (pendingDeliveries.length === 0) { setStagedDeliveries([]); setHasChanges(false); return; }
     const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries, calculateDistance });
-    const mappedPendingIds = new Set(newStagedItems.map((item) => item?.id).filter(Boolean));
-    const unresolvedPendingCount = pendingDeliveries.filter((item) => item?.id && !mappedPendingIds.has(item.id)).length;
-    setTimeout(() => { setStagedDeliveries(newStagedItems); setHasChanges(false); if (unresolvedPendingCount === 0) hasLoadedPending.current = true; }, 100);
-  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, stagedDeliveries.length]);
+    setTimeout(() => { setStagedDeliveries(newStagedItems); setHasChanges(false); }, 80);
+  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id]);
 
   // Resolve InterStore From/To locations from delivery_id phone numbers when editing
   useEffect(() => {
