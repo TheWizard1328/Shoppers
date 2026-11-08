@@ -107,14 +107,15 @@ export default function SettingsMenu({
          shadow so it reads as a separate surface. */
       /* The app's dark signal is html.dark-theme, which the dark: utility variant
          here does not match, so a dark:border never applied and the menu kept a
-         near-black edge on a dark panel (owner report Nov 8 2026). Use the theme's
-         own --menu-border instead: #000000 in light, #e2e8f0 in dark. */
+         near-black edge on a dark panel (owner report Nov 8 2026). The border now
+         uses one theme-independent slate colour that reads on white AND on
+         near-black, so no variable, variant or utility merge can make it vanish. */
       className="w-60 z-[99999] text-body bg-surface shadow-2xl"
       style={{
         fontSize: isMobileDeviceForUI ? '16px' : '15px',
         borderWidth: '1px',
         borderStyle: 'solid',
-        borderColor: 'var(--menu-border)',
+        borderColor: 'rgba(148, 163, 184, 0.9)', // slate-400, visible on both surfaces
       }}
     >
       {/* Settings header and Admin Import toggle - only for admins/app owners */}
