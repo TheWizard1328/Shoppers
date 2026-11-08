@@ -2366,7 +2366,6 @@ export default function DriverPayroll() {
  title="Refresh payroll data"
  >
                 <RefreshCw className={`w-4 h-4 ${isPayrollSyncing ? 'animate-spin' : ''}`} />
-                <span className="ml-1">Refresh</span>
                 </Button>
               </div>
               <Button
@@ -2382,7 +2381,6 @@ export default function DriverPayroll() {
 
               <Share2 className="w-4 h-4" />
               }
-                <span className="ml-1">Share</span>
               </Button>
             </div>
           </div>
