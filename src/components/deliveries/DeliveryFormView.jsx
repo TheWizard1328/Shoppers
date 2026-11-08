@@ -912,7 +912,7 @@ export default function DeliveryFormView({
           
           {/* PAST-DATE ADD WARNING (owner spec Oct 28 2026) */}
           {pastDateTarget &&
-          <div className={`px-4 py-1.5 text-xs font-medium flex items-center gap-2 flex-shrink-0 ${pastDateAddBlocked ? 'bg-red-50 text-red-700 border-b border-red-200' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
+          <div className={`px-4 py-1.5 text-xs font-medium flex items-center gap-2 flex-shrink-0 ${pastDateAddBlocked ? 'bg-red-50 text-red-700 border-b border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800' : 'bg-amber-50 text-amber-800 border-b border-amber-200 dark:bg-amber-950 dark:text-amber-100 dark:border-amber-800'}`}>
               <span className="text-base leading-none">{pastDateAddBlocked ? '🚫' : '⚠️'}</span>
               {pastDateAddBlocked ?
             'This is a past date. Only an admin can add a delivery to a past date.' :
@@ -1253,7 +1253,7 @@ export default function DeliveryFormView({
                       <Label className="text-sm font-semibold text-body">Delivery Date *</Label>
                       <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                     </div>
-                    <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-colors ${forceOpenDriverSelect ? 'border-red-400 ring-2 ring-red-300' : ''}`} style={forceOpenDriverSelect ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                    <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-colors ${forceOpenDriverSelect ? 'border-red-400 ring-2 ring-red-300' : ''}`} style={forceOpenDriverSelect ? { background: 'var(--form-error-bg, #fef2f2)', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                       <Label className="text-sm font-semibold text-body">Driver</Label>
                       <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                         const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1307,7 +1307,7 @@ export default function DeliveryFormView({
                             <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                           </div>
 
-                          <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                          <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: 'var(--form-error-bg, #fef2f2)', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                             <Label className="text-sm font-semibold text-body">Driver {delivery ? '*' : ''}</Label>
                             <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                             const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1358,7 +1358,7 @@ export default function DeliveryFormView({
                           <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                         </div>
 
-                        <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                        <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: 'var(--form-error-bg, #fef2f2)', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                           <Label className="text-sm font-semibold text-body">Driver {delivery ? '*' : ''}</Label>
                           <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1391,7 +1391,7 @@ export default function DeliveryFormView({
                         <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="px-3 py-1 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9 [&::-webkit-calendar-picker-indicator]:mr-1 [&::-webkit-calendar-picker-indicator]:scale-100" />
                       </div>
 
-                      <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border" style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                      <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border" style={requiresDriverSelection ? { background: 'var(--form-error-bg, #fef2f2)', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Driver {delivery ? '*' : ''}</Label>
                         <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
