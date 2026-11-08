@@ -3,7 +3,6 @@
  * Rendering is delegated to DeliveryFormView.jsx.
  */
 import { useDevice } from '@/components/utils/DeviceContext';
-import { offlineDB } from '@/components/utils/offlineDatabase';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { buildInTransitDirectSaveData } from './inTransitDirectSave';
 import { format } from "date-fns";
@@ -1557,56 +1556,16 @@ export default function DeliveryForm({
     const formDriverId = formData.driver_id || '';
     if (!allDeliveries || !formDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
     const loadKey = `${formDate}|${formDriverId}`;
-    // Reload when the date/driver changes OR when the list has been emptied out from
-    // under us (a reset effect clearing staged rows used to leave the panel permanently
-    // empty because the key said "already loaded"). Owner report Nov 8 2026.
-    const needsLoad = pendingLoadKeyRef.current !== loadKey || stagedDeliveries.length === 0;
-    if (!needsLoad) return;
+    if (pendingLoadKeyRef.current === loadKey) return;
+    const pendingDeliveries = filterPendingDeliveriesForUser({
+      allDeliveries, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
+    });
+    pendingLoadKeyRef.current = loadKey;
     hasLoadedPending.current = true;
-    let cancelled = false;
-    (async () => {
-      // ROOT CAUSE (Nov 8 2026): the prop allDeliveries is the DASHBOARD's day slice,
-      // so pending stops dated ahead of it simply are not in the array. Widen the pool
-      // from the offline cache (every synced delivery) and union by id before filtering.
-      let pool = allDeliveries || [];
-      try {
-        const cached = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        if (Array.isArray(cached) && cached.length) {
-          const byId = new Map();
-          [...cached, ...pool].forEach((row) => { if (row && (row.id || row.delivery_id)) byId.set(row.id || row.delivery_id, row); });
-          pool = Array.from(byId.values());
-        }
-      } catch { /* cache unavailable, fall back to the prop */ }
-      if (cancelled) return;
-      let pendingDeliveries = filterPendingDeliveriesForUser({
-        allDeliveries: pool, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
-      });
-      if (pendingDeliveries.length === 0) {
-        // Last resort: the offline cache and the dashboard prop both only cover the days
-        // that were synced. Ask the server directly for posted pending stops so the panel
-        // can never come up empty just because a future date was never cached.
-        try {
-          const serverPending = await base44.entities.Delivery.filter({ status: 'pending' }, '-delivery_date', 300).catch(() => []);
-          if (Array.isArray(serverPending) && serverPending.length) {
-            pendingDeliveries = filterPendingDeliveriesForUser({
-              allDeliveries: serverPending, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
-            });
-            if (pendingDeliveries.length) pool = [...serverPending, ...pool];
-          }
-        } catch { /* offline: keep the cached result */ }
-      }
-      if (cancelled) return;
-      if (pendingDeliveries.length === 0) { pendingLoadKeyRef.current = loadKey; return; }
-      const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries: pool, calculateDistance });
-      setTimeout(() => {
-        if (cancelled) return;
-        pendingLoadKeyRef.current = loadKey;
-        setStagedDeliveries(newStagedItems);
-        setHasChanges(false);
-      }, 80);
-    })();
-    return () => { cancelled = true; };
-  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id, stagedDeliveries.length]);
+    if (pendingDeliveries.length === 0) { setStagedDeliveries([]); setHasChanges(false); return; }
+    const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries, calculateDistance });
+    setTimeout(() => { setStagedDeliveries(newStagedItems); setHasChanges(false); }, 80);
+  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id]);
 
   // Resolve InterStore From/To locations from delivery_id phone numbers when editing
   useEffect(() => {
