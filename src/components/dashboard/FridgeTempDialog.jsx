@@ -39,12 +39,12 @@ function getLastReadingFromDeliveries(fridgeDeliveries) {
 }
 
 function formatLocalTime(isoStr) {
-  if (!isoStr) return '--:--';
+  if (!isoStr) return '00:00';
   try {
     const d = new Date(isoStr);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   } catch {
-    return '--:--';
+    return '00:00';
   }
 }
 
