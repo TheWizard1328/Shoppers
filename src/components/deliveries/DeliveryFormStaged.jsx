@@ -478,7 +478,7 @@ export default function DeliveryFormStaged({
           <button
             type="button"
             onClick={() => setShowSuppressedProjections((v) => !v)}
-            className="flex w-full items-center gap-1 px-1 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-700"
+            className="flex w-full items-center gap-1 px-1 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           >
             {showSuppressedProjections ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             No delivery in 2 rotations ({suppressedProjectedDeliveries.length})
@@ -488,7 +488,7 @@ export default function DeliveryFormStaged({
             const rotations = projected.missed_rotations || 2;
             const days = projected.days_since_last;
             return (
-              <div key={`suppressed-${projected.patient_id}`} className="mx-1 mb-1 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
+              <div key={`suppressed-${projected.patient_id}`} className="mx-1 mb-1 rounded border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800 px-2 py-1.5">
                 <div className="text-xs font-medium text-body truncate">{projected.patient_name || rowPatient?.full_name || 'Patient'}</div>
                 <div className="text-[10px] text-soft">
                   {projected.frequency || projected.reason} · {rotations} rotations missed
