@@ -27,16 +27,16 @@ function extractStoredTime(value) {
 }
 
 function fmt(t) {
-  if (!t || ["--:--", "null", "undefined", "NaN:NaN"].includes(String(t))) return "--:--";
+  if (!t || ["00:00", "null", "undefined", "NaN:NaN"].includes(String(t))) return "00:00";
   try {
     const norm = extractStoredTime(t) || String(t);
     const [h, m] = norm.split(":");
     const hh = parseInt(h, 10);
     const mm = parseInt(m, 10);
-    if (isNaN(hh) || isNaN(mm)) return "--:--";
+    if (isNaN(hh) || isNaN(mm)) return "00:00";
     return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
   } catch {
-    return "--:--";
+    return "00:00";
   }
 }
 
@@ -86,8 +86,8 @@ export default function RouteManagementMobileCard({
     if (isFinished) {
       const actual = fmt(delivery.actual_delivery_time);
       const arrival = fmt(delivery.arrival_time);
-      const hasActual = actual !== "--:--";
-      const hasArrival = arrival !== "--:--";
+      const hasActual = actual !== "00:00";
+      const hasArrival = arrival !== "00:00";
       if (hasArrival || hasActual) {
         return hasArrival && hasActual ? `${arrival}→${actual}` : hasArrival ? arrival : actual;
       }
@@ -98,7 +98,7 @@ export default function RouteManagementMobileCard({
       delivery.delivery_time_eta || delivery.delivery_time_start || null
     );
     const etaFmt = fmt(eta);
-    return etaFmt !== "--:--" ? `ETA ${etaFmt}` : null;
+    return etaFmt !== "00:00" ? `ETA ${etaFmt}` : null;
   })();
 
   // ── Row 2 data ──────────────────────────────────────────────────────────
@@ -146,18 +146,18 @@ export default function RouteManagementMobileCard({
   const hasCODRow = codRequired > 0 || codPayments.length > 0;
 
   const arrivalTime = fmt(delivery.arrival_time);
-  const hasArrival = arrivalTime !== "--:--";
+  const hasArrival = arrivalTime !== "00:00";
   const timeAtLocation = (() => {
     if (hasArrival) return arrivalTime;
     if (delivery.status === "in_transit" || delivery.status === "en_route") {
       const eta = fmt(getCurrentEtaForDelivery(delivery.id, delivery.delivery_time_eta || delivery.delivery_time_start || null));
-      return eta !== "--:--" ? `ETA ${eta}` : null;
+      return eta !== "00:00" ? `ETA ${eta}` : null;
     }
     return null;
   })();
 
   const actualTime = fmt(delivery.actual_delivery_time);
-  const statusLabel = isFinished && actualTime !== "--:--" ? `${statusInfo.label} ${actualTime}` : statusInfo.label;
+  const statusLabel = isFinished && actualTime !== "00:00" ? `${statusInfo.label} ${actualTime}` : statusInfo.label;
 
   // Address (with unit for patients)
   const addrLine = isPickup
