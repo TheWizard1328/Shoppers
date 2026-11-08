@@ -1434,6 +1434,41 @@ export default function PatientForm({
                 </div>
               </div>
 
+              {/* Patient Preferences (owner spec Nov 8 2026): same six preference
+                  checkboxes as the Edit Delivery form, so they can be set on the
+                  patient record instead of only per delivery. */}
+              <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
+                <div className="px-2 py-2 space-y-2">
+                  <Label className="text-sm font-medium text-body">Patient Preferences</Label>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="pref_mailbox_ok" checked={formData.mailbox_ok} disabled={disableOtherFieldsDuringAddressLookup} onCheckedChange={(c) => setFormData((prev) => ({ ...prev, mailbox_ok: c }))} />
+                      <Label htmlFor="pref_mailbox_ok" className="text-sm font-medium text-body">MailBox OK</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="pref_ring_bell" checked={formData.ring_bell} disabled={disableOtherFieldsDuringAddressLookup} onCheckedChange={(c) => setFormData((prev) => ({ ...prev, ring_bell: c }))} />
+                      <Label htmlFor="pref_ring_bell" className="text-sm font-medium text-body">Ring Bell</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="pref_call_upon_arrival" checked={formData.call_upon_arrival} disabled={disableOtherFieldsDuringAddressLookup} onCheckedChange={(c) => setFormData((prev) => ({ ...prev, call_upon_arrival: c }))} />
+                      <Label htmlFor="pref_call_upon_arrival" className="text-sm font-medium text-body">Call Upon Arrival</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="pref_dont_ring_bell" checked={formData.dont_ring_bell} disabled={disableOtherFieldsDuringAddressLookup} onCheckedChange={(c) => setFormData((prev) => ({ ...prev, dont_ring_bell: c }))} />
+                      <Label htmlFor="pref_dont_ring_bell" className="text-sm font-medium text-body">Don't Ring Bell</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="pref_back_door" checked={formData.back_door} disabled={disableOtherFieldsDuringAddressLookup} onCheckedChange={(c) => setFormData((prev) => ({ ...prev, back_door: c }))} />
+                      <Label htmlFor="pref_back_door" className="text-sm font-medium text-body">Back Door</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="pref_care_pros" checked={formData.care_pros} disabled={disableOtherFieldsDuringAddressLookup} onCheckedChange={(c) => setFormData((prev) => ({ ...prev, care_pros: c }))} />
+                      <Label htmlFor="pref_care_pros" className="text-sm font-medium text-body">Care Pro's</Label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Container 4: Patient Notes + Care Pro's */}
               <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                 <div className="px-2 py-2 space-y-1">

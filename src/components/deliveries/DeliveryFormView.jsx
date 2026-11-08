@@ -1673,7 +1673,7 @@ export default function DeliveryFormView({
                           <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px] border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             {/* desktop SmartBarcodeScanner barcodeInputRef is wired via shared ref */}
                             <Label className="text-sm font-semibold text-body">Patient Preferences</Label>
-                            <div className="flex-1 flex flex-col justify-around">
+                            <div className="flex-1 flex flex-col justify-center gap-1">
                               <CheckboxField id="care_pros" label="Care Pro's" checked={formData.care_pros} onChange={(c) => setFormData((p) => ({ ...p, care_pros: c }))} disabled={isSaving} />
                               <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
                               <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={(c) => setFormData((p) => ({ ...p, ring_bell: c }))} disabled={isSaving} />
@@ -1870,7 +1870,7 @@ export default function DeliveryFormView({
                           <div className="grid grid-cols-2 gap-3 items-start">
                             <div className="space-y-2 p-3 rounded-lg border h-full border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                               <Label className="text-sm font-semibold text-body">Patient Preferences</Label>
-                              <div className={`${useMobileLayout ? 'space-y-5' : 'space-y-3'}`}>
+                              <div className={`${useMobileLayout ? 'space-y-2.5' : 'space-y-1.5'}`}>
                                 <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
                                 <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={(c) => setFormData((p) => ({ ...p, ring_bell: c }))} disabled={isSaving} />
                                 <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={(c) => setFormData((p) => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
