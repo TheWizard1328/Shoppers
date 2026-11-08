@@ -229,14 +229,14 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     if (hasError) return 'bg-red-500';
     if (isPaused) return 'bg-yellow-100';
     if (!isOnline) return 'bg-red-500';
-    if (isPollingOnly) return 'bg-slate-200 hover:bg-slate-300';
+    if (isPollingOnly) return 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600';
 
     switch (activeManager) {
       case 'smart':return 'bg-emerald-500'; // Green for smart refresh
       case 'historical':return 'bg-blue-900'; // Dark blue for historical bi-hourly sync
       case 'offline':return 'bg-purple-500'; // Purple for offline sync
       case 'polling':return 'bg-blue-500'; // Blue for polling
-      default:return isActive ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300';
+      default:return isActive ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600';
     }
   };
 
@@ -382,7 +382,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             isPollingOnly ?
             <RefreshCw className="w-3 h-3 text-blue-500" /> :
 
-            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
+            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500 dark:text-slate-200'}`} />
             }
 
             {/* Show entity badge on top of spinner */}

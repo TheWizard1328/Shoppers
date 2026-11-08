@@ -45,7 +45,10 @@ function Calendar({
         day_range_start: "day-range-start",
         day_range_end: "day-range-end",
         day_selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+          // Dark mode: --primary resolves near-white, so the selected day was a pale
+          // box. Emerald keeps it readable and matches the app's accent (owner
+          // report Nov 8 2026).
+          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-600 dark:hover:text-white dark:focus:bg-emerald-600 dark:focus:text-white",
         day_today: "bg-accent text-accent-foreground",
         day_outside:
           "day-outside text-muted-foreground aria-selected:bg-accent/50 aria-selected:text-muted-foreground",

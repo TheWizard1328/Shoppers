@@ -588,7 +588,19 @@ export default function StatsPanel({
                     <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 z-[10001] text-body bg-surface border-surface" align="end" style={{ pointerEvents: 'auto' }}>
+                <PopoverContent
+                  className="w-auto p-0 z-[10001] text-body bg-surface"
+                  align="end"
+                  /* Owner request Nov 8 2026: same visible edge as the settings popup —
+                     1px slate border plus a matching outline, which survives the portal. */
+                  style={{
+                    pointerEvents: 'auto',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: 'rgba(148, 163, 184, 0.9)',
+                    outline: '1px solid rgba(148, 163, 184, 0.95)',
+                    outlineOffset: '-1px',
+                  }}>
                  {(() => {
                       const todayStr = format(new Date(), 'yyyy-MM-dd');
                       // Build per-date info: has any delivery, has failed delivery, has active delivery
@@ -646,7 +658,7 @@ export default function StatsPanel({
                           onMonthChange={setCalendarMonth}
                           components={{ DayContent }}
                           footer={
-                          <div className="px-3 pb-2 pt-1 border-t border-surface">
+                          <div className="px-3 pb-0 pt-1 border-t border-surface">
                         <TooltipProvider><Tooltip>
                           <TooltipTrigger asChild>
                             <button type="button" onClick={() => {const d = new Date();setCalendarMonth(d);handleDateChange(d);}}
@@ -660,7 +672,7 @@ export default function StatsPanel({
                         </Tooltip></TooltipProvider>
                       </div>
                           }
-                          className="rdp p-3 text-body" />);
+                          className="rdp p-3 pb-2 text-body" />);
 
                     })()}
                 </PopoverContent>
