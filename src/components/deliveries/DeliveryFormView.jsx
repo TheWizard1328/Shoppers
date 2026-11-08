@@ -897,14 +897,14 @@ export default function DeliveryFormView({
     // mobileFormInsetStyle above, so letting the catch-all also add
     // padding-bottom here just double-counts the safe-area gap.
     role="dialog"
-    className="fixed inset-0 z-[10020] overflow-hidden bg-black/60 flex items-center justify-center p-4"
+    className={`fixed inset-0 z-[10020] overflow-hidden bg-black/60 flex items-center justify-center ${useMobileLayout && isMobileDevice ? 'p-0' : 'p-4'}`}
     style={mobileFormInsetStyle || desktopFillStyle}>
       
       <motion.div
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full min-w-0 ${isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-auto max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
+        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-none flex' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-auto max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
         >
         <Card
           onKeyDown={handleGlobalKeyDown}
