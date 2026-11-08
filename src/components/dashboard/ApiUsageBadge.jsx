@@ -33,18 +33,17 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   const effectiveStopCardsHeight = hasVisibleStopCards ? stopCardsHeight : 0;
   const isOwner = isAppOwner(currentUser);
 
-  // UTC day bounds — aligned with HERE's counter reset at 00:00 UTC
-  // HERE resets daily quotas at UTC midnight (= ~6pm Edmonton time), so we must
-  // query the same UTC window HERE uses, not a local-time window.
+  // LOCAL day bounds (owner request Nov 8 2026): the usage counter resets at
+  // local midnight -> local 23:59:59 again, NOT at 00:00 UTC. The UTC window was
+  // only ever there to line the badge up with the HERE / Google quota sites,
+  // which reset at UTC midnight (~6pm Edmonton); the owner wants the number to
+  // follow the local working day. toISOString() converts the local bounds to the
+  // matching UTC instants, so the stored-call comparison stays correct across DST.
   const getDayBoundsISO = () => {
     const now = new Date();
-    const startISO = new Date(Date.UTC(
-      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0
-    )).toISOString();
-    const endISO = new Date(Date.UTC(
-      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59
-    )).toISOString();
-    return { startISO, endISO };
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startISO: start.toISOString(), endISO: end.toISOString() };
   };
 
   // RETRY (Oct 2 2026): fetchCounts previously had no retry — a boot-time
