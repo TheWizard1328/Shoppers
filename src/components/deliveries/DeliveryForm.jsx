@@ -269,6 +269,29 @@ export default function DeliveryForm({
     setLocallyDeletedDeliveryIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
   }, []);
   const [scheduledDriverMap, setScheduledDriverMap] = useState({}); // storeId -> driverId
+  // One shared delivery pool for the staged loader, the projection builder and the
+  // deleted-row prune (owner video Nov 8 2026: the list rendered correctly and then
+  // reverted). They each used a different source, so every pass overwrote the last.
+  // The pool is the dashboard slice unioned with the 2-week offline cache.
+  const [cachedDeliveryPool, setCachedDeliveryPool] = useState([]);
+  const widenedDeliveries = useMemo(() => {
+    if (!cachedDeliveryPool.length) return allDeliveries;
+    const byId = new Map();
+    cachedDeliveryPool.forEach((row) => { if (row && (row.id || row.delivery_id)) byId.set(row.id || row.delivery_id, row); });
+    (allDeliveries || []).forEach((row) => { if (row && (row.id || row.delivery_id)) byId.set(row.id || row.delivery_id, row); });
+    return Array.from(byId.values());
+  }, [cachedDeliveryPool, allDeliveries]);
+  useEffect(() => {
+    if (delivery) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const cached = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        if (alive && Array.isArray(cached) && cached.length) setCachedDeliveryPool(cached);
+      } catch { /* cache unavailable */ }
+    })();
+    return () => { alive = false; };
+  }, [delivery, allDeliveries?.length]);
   const scheduledDriverMapRef = useRef({}); // always-current ref for handlePatientSelect closure
   // Slot-specific map of `${storeId}_AM`/`${storeId}_PM` -> scheduled driver display name
   // for slots that have a genuine scheduled driver for that exact slot (per-slot override
@@ -289,7 +312,7 @@ export default function DeliveryForm({
     currentUser,
     stores,
     patients,
-    allDeliveries,
+    allDeliveries: widenedDeliveries,
     selectedDate: formData.delivery_date,
     stagedDeliveries,
     scheduledDriverMap,
@@ -1535,7 +1558,7 @@ export default function DeliveryForm({
 
   useEffect(() => {
     if (delivery || stagedDeliveries.length === 0) return;
-    const deletedPendingDeliveries = stagedDeliveries.filter((staged) => { if (!staged.id) return false; return !allDeliveries?.some((d) => d && d.id === staged.id); });
+    const deletedPendingDeliveries = stagedDeliveries.filter((staged) => { if (!staged.id) return false; return !widenedDeliveries?.some((d) => d && d.id === staged.id); });
     if (deletedPendingDeliveries.length > 0) {
       deletedPendingDeliveries.forEach((del) => registerDeletedDeliveryId(del.id));
       setStagedDeliveries((prev) => prev.filter((staged) => !deletedPendingDeliveries.some((del) => del.id === staged.id)));
@@ -1544,7 +1567,7 @@ export default function DeliveryForm({
       setProjectedDeliveries(filteredPredictions);
       if (editingStagedId && deletedPendingDeliveries.some((d) => d._tempId === editingStagedId)) { setEditingStagedId(null); handleClearForm(); }
     }
-  }, [allDeliveries, stagedDeliveries.length, delivery]);
+  }, [widenedDeliveries, stagedDeliveries.length, delivery]);
 
   // Pending panel follows the FORM's Delivery Date + Driver, not the dashboard date,
   // and reloads whenever either changes (owner fix Nov 8 2026). The old guard
@@ -1557,8 +1580,8 @@ export default function DeliveryForm({
   //    the newest run may write, and the pool comes from the cache plus the server.
   const pendingReqRef = useRef(0);
   const pendingPoolSignature = useMemo(
-    () => (allDeliveries || []).map((d) => `${d.id || d.delivery_id}:${d.updated_date || ''}`).sort().join(','),
-    [allDeliveries]
+    () => (widenedDeliveries || []).map((d) => `${d.id || d.delivery_id}:${d.updated_date || ''}`).sort().join(','),
+    [widenedDeliveries]
   );
   const stagedSigRef = useRef('');
   useEffect(() => {
@@ -1570,7 +1593,7 @@ export default function DeliveryForm({
     let cancelled = false;
     hasLoadedPending.current = true;
     (async () => {
-      let pool = Array.isArray(allDeliveries) ? allDeliveries : [];
+      let pool = Array.isArray(widenedDeliveries) ? widenedDeliveries : (Array.isArray(allDeliveries) ? allDeliveries : []);
       let pendingDeliveries = [];
       // The two-week future pass in the boot sync is what fills the cache for the
       // selected city, so the panel normally needs no query of its own. Only when the
