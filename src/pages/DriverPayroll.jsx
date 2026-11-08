@@ -422,6 +422,10 @@ export default function DriverPayroll() {
   const [isSharingPdf, setIsSharingPdf] = useState(false);
   const payrollScrollRef = useRef(null);
   const isManualChangeRef = useRef(false);
+  // Sticky hand-pick for the pay cycle (owner report Nov 8 2026). isManualChangeRef
+  // clears 200ms after the click, which let the auto effects fight a deliberate
+  // choice; this one stays set until a different driver is viewed.
+  const manualCycleOverrideRef = useRef(false);
   const hasLoadedInitialDataRef = useRef(false);
   const triedPreviousPeriodRef = useRef(false);
   const summaryRef = useRef(null);
@@ -947,6 +951,7 @@ export default function DriverPayroll() {
 
   const handlePayPeriodChange = useCallback((newPayPeriod) => {
     isManualChangeRef.current = true;
+    manualCycleOverrideRef.current = true;
 
     const shouldClassify = newPayPeriod === 'weekly' || newPayPeriod === 'biweekly';
     const effectiveYear = shouldClassify ? getClassificationYearForDate(new Date(), newPayPeriod) : selectedYear;
@@ -1996,11 +2001,62 @@ export default function DriverPayroll() {
       triedPreviousPeriodRef.current = true;
     }
 
+    // A single-driver view that could not resolve its cycle yet (his live row was
+    // not in the payload, or the payload predated his change) must NOT lock the
+    // one-shot flag — reconciliation below retries when live data lands.
+    const _expectsDriverCycle = !!(selectedDriverId && selectedDriverId !== 'all');
+    if (!newCycle && _expectsDriverCycle) return;
+
     hasLoadedInitialDataRef.current = true;
   }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon, payPeriod, currentPeriod, selectedCityId, selectedYear]);
 
   // Re-select period when live payroll records arrive (may override offline-based initial selection)
   const periodSelectionDoneWithRecordsRef = useRef(false);
+  // ── Cycle reconciliation (owner report Nov 8 2026) ─────────────────────────
+  // Sharuk is semimonthly since Nov 2, yet his phone kept opening Payroll on
+  // WEEKLY with an empty "Nov 2 - Nov 8" period, because the one-shot refine
+  // above locks itself on its FIRST pass — and a first pass that ran before his
+  // live AppUser row (or before the Nov 2 change reached his device) left the
+  // page on the stale weekly cycle with nothing to show. Live data now wins: for
+  // a single-driver view the cycle is re-derived from THAT driver's record
+  // (pay_rate_history aware) whenever the payload changes, unless a cycle was
+  // picked by hand.
+  const reconcileTargetRef = useRef('');
+  useEffect(() => {
+    if (!payrollData?.appUsers) return;
+    const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null;
+    const targetKey = String(targetDriverId || '');
+    if (reconcileTargetRef.current !== targetKey) {
+      reconcileTargetRef.current = targetKey;
+      manualCycleOverrideRef.current = false; // a new driver starts clean
+    }
+    if (!targetDriverId || manualCycleOverrideRef.current) return;
+    const targetAppUser = payrollData.appUsers.find(
+      (au) => au?.user_id === targetDriverId || au?.id === targetDriverId
+    );
+    if (!targetAppUser || !targetAppUser?.app_roles?.includes('driver')) return;
+    const targetCycle = getDriverCycleForDate(targetAppUser, new Date());
+    if (!targetCycle || targetCycle === payPeriod) return;
+
+    const shouldClassify = targetCycle === 'weekly' || targetCycle === 'biweekly';
+    const effectiveYear = shouldClassify ? getClassificationYearForDate(new Date(), targetCycle) : selectedYear;
+    const nextPeriods = calculateAllPeriods(effectiveYear, targetCycle);
+    const nextIdx = determinePreferredPayrollPeriodIndex({
+      periods: nextPeriods,
+      payrollRecords: payrollData?.payrollRecords || [],
+      selectedCityId,
+      selectedDriverId: targetDriverId,
+      payPeriodType: targetCycle,
+      today: new Date()
+    });
+    console.warn(`[DriverPayroll] pay cycle corrected ${payPeriod || '(unset)'} → ${targetCycle} from the selected driver's own record`);
+    setPayPeriod(targetCycle);
+    if (shouldClassify && effectiveYear !== selectedYear) setSelectedYear(effectiveYear);
+    setSelectedPeriodIndex(nextIdx);
+    periodSelectionDoneWithRecordsRef.current = true;
+    triedPreviousPeriodRef.current = true;
+  }, [payrollData?.appUsers, selectedDriverId, payPeriod, selectedYear, selectedCityId]);
+
 
   // Keep the selected period stable after initialization; dedicated effects handle choosing the correct period.
 
