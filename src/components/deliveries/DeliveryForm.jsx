@@ -1614,6 +1614,15 @@ export default function DeliveryForm({
       stagedSigRef.current = sig;
       setStagedDeliveries(stagedItems);
       setHasChanges(false);
+      // A later effect can still clear the list right after this write (owner saw the
+      // future rows appear and then vanish as the form finished loading). Re-assert the
+      // same rows once more if the panel came up empty.
+      if (stagedItems.length) {
+        setTimeout(() => {
+          if (cancelled) return;
+          setStagedDeliveries((prev) => (prev.length === 0 ? stagedItems : prev));
+        }, 500);
+      }
     })();
     return () => { cancelled = true; };
   }, [delivery, pendingPoolSignature, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id]);

@@ -713,7 +713,24 @@ export default function DeliveryFormView({
   // the `||` fallbacks below keep working.
   const desktopFillStyle = undefined;
 
-  const mobileFormInsetStyle = undefined;
+  // OWNER FIX (Nov 8 2026): full-bleed on a phone needs the hidden chrome back. The
+  // APK renders under the status bar and over the bottom nav, and Capacitor reports a
+  // zero safe-area, so the measured nav height alone left the form short at the top and
+  // clipped at the bottom. Native gets a minimum status-bar band and a minimum handle
+  // band on top of the measured heights.
+  const isNativeShell = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (window.Capacitor?.isNativePlatform?.()) return true;
+      return /; wv\)/.test(navigator.userAgent || '') && !!window.androidBridge;
+    } catch { return false; }
+  })();
+  const mobileFormInsetStyle = useMobileLayout && isMobileDevice
+    ? {
+        paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
+        paddingBottom: `calc(${mobileBottomNavHeight || 64}px + max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'}))`
+      }
+    : undefined;
 
   // Auto-focus the barcode scanner manual input when a staged or pending item is selected (desktop only)
   React.useEffect(() => {
