@@ -1651,6 +1651,11 @@ export default function DriverPayroll() {
       // own months (finalized or not), plus the current cycle, and asks the
       // server for live entity data instead of the cached summary.
       await deepRefreshPayrollCycle();
+      // The grid's own refresh button is gone (duplicate of this one), so the
+      // period rebuild it used to add now runs here too - nothing is lost.
+      if (refreshSelectedPeriodFromDeliveries) {
+        await refreshSelectedPeriodFromDeliveries();
+      }
       if (refreshPayrollRecords) {
         await refreshPayrollRecords();
       }
@@ -2357,28 +2362,27 @@ export default function DriverPayroll() {
  onClick={handleManualRefresh}
  disabled={isRefreshing || isPayrollSyncing || isLoadingPayroll}
  size="sm"
- variant="ghost"
- className="p-2 h-auto text-body"
+ className="px-3 h-9 gap-1 bg-emerald-600 text-white border border-emerald-600 hover:bg-emerald-700 hover:text-white dark:bg-emerald-600 dark:text-white dark:border-emerald-500 dark:hover:bg-emerald-500"
  title="Refresh payroll data"
  >
-              
-                <RefreshCw className={`w-5 h-5 ${isPayrollSyncing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${isPayrollSyncing ? 'animate-spin' : ''}`} />
+                <span className="ml-1">Refresh</span>
                 </Button>
               </div>
               <Button
  onClick={handleSharePayroll}
  disabled={isCapturingScreenshot}
  size="sm"
- variant="ghost"
- className="p-2 h-auto text-body"
+ variant="outline"
+ className="px-3 h-9 gap-1 bg-white text-slate-700 border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
  title="Capture and share screenshot"
  >
-              
                 {isCapturingScreenshot ?
-              <Loader2 className="w-5 h-5 animate-spin" /> :
+              <Loader2 className="w-4 h-4 animate-spin" /> :
 
-              <Share2 className="w-5 h-5" />
+              <Share2 className="w-4 h-4" />
               }
+                <span className="ml-1">Share</span>
               </Button>
             </div>
           </div>
