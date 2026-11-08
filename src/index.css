@@ -224,6 +224,36 @@ input[type="checkbox"],
   aspect-ratio: 1 / 1;
 }
 
+/* Radio buttons (owner report Nov 8 2026): the blanket 44px min-height above also hit
+   Radix's hidden native radio "bubble" input and the radio button itself, leaving a stray
+   grey dot beside every inactive ring. Size the real radio like the checkbox, and keep the
+   bubble input invisible and out of layout. */
+[role="radio"] {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  aspect-ratio: 1 / 1;
+  padding: 0 !important;
+}
+
+input[type="radio"][aria-hidden="true"],
+input[type="radio"][tabindex="-1"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
 [role="switch"] {
   min-height: 20px !important;
   min-width: 36px !important;
