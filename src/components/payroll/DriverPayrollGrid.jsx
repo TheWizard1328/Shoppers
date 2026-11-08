@@ -303,11 +303,14 @@ export default function DriverPayrollGrid({
   };
 
   // Build a map of dateKey -> store -> count (deliveries), extraKm, oversized count, and after-hours count
-  const { dataMap, extraKmMap, oversizedMap, afterHoursMap, storesWithData } = useMemo(() => {
+  const { dataMap, extraKmMap, oversizedMap, afterHoursMap, afterHoursDeliveryMap, storesWithData } = useMemo(() => {
     const deliveryMap = {};
     const kmMap = {};
     const oversizedCountMap = {};
     const afterHoursCountMap = {};
+    // Split so the tooltip can state the right rate per kind: an after-hours
+    // DELIVERY pays 2x base, an after-hours PICKUP pays 1x base.
+    const afterHoursDeliveryMap = {};
     const storeHasData = {};
 
 
@@ -317,11 +320,13 @@ export default function DriverPayrollGrid({
       kmMap[dateKey] = {};
       oversizedCountMap[dateKey] = {};
       afterHoursCountMap[dateKey] = {};
+      afterHoursDeliveryMap[dateKey] = {};
       allSortedStores.forEach((store) => {
         deliveryMap[dateKey][store.id] = 0;
         kmMap[dateKey][store.id] = 0;
         oversizedCountMap[dateKey][store.id] = 0;
         afterHoursCountMap[dateKey][store.id] = 0;
+        afterHoursDeliveryMap[dateKey][store.id] = 0;
       });
     });
 
@@ -349,6 +354,7 @@ export default function DriverPayrollGrid({
           // deliveries (owner rule Nov 3 2026): the delivery itself plus one extra
           // unit, matching the payroll summary card total.
           afterHoursCountMap[dateKey][storeId]++;
+          afterHoursDeliveryMap[dateKey][storeId]++;
           deliveryMap[dateKey][storeId]++;
         }
         kmMap[dateKey][storeId] += calculateExtraKm(d);
@@ -360,7 +366,7 @@ export default function DriverPayrollGrid({
     store.status !== 'inactive'
     );
 
-    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, afterHoursMap: afterHoursCountMap, storesWithData: storesWithDataList };
+    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, afterHoursMap: afterHoursCountMap, afterHoursDeliveryMap, storesWithData: storesWithDataList };
   }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers, selectedDriverId, currentPeriod]);
 
   // Use stores with data for display (hide empty columns)
@@ -634,8 +640,20 @@ export default function DriverPayrollGrid({
                       const displayValueDesktop = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(2) : '' :
                       value > 0 ? value : (showAhZero ? 0 : '');
-                      const ahTitle = `${afterHoursCount} after-hours (2× base pay)`;
-                      const osTitle = `${oversizedCount} oversized`;
+                      // WORDING (owner report Nov 8 2026): the 2x rate applies to after-hours
+                      // DELIVERIES only - after-hours PICKUPS pay 1x base - so the tooltip
+                      // names each kind it actually finds in the cell instead of lumping them.
+                      const ahDeliveryCount = afterHoursDeliveryMap[dateKey]?.[store.id] || 0;
+                      const ahPickupCount = Math.max(0, afterHoursCount - ahDeliveryCount);
+                      const ahParts = [];
+                      if (ahPickupCount > 0) {
+                        ahParts.push(`${ahPickupCount} after-hours ${ahPickupCount === 1 ? 'pickup' : 'pickups'} (1× base pay)`);
+                      }
+                      if (ahDeliveryCount > 0) {
+                        ahParts.push(`${ahDeliveryCount} after-hours ${ahDeliveryCount === 1 ? 'delivery' : 'deliveries'} (2× base pay)`);
+                      }
+                      const ahTitle = ahParts.join(' + ');
+                      const osTitle = `${oversizedCount} oversized ${oversizedCount === 1 ? 'item' : 'items'}`;
                       return (
                         <td
                           key={store.id}
