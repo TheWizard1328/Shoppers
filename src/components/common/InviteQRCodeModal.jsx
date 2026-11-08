@@ -188,7 +188,19 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-md pb-4">
+      <DialogContent
+        className="w-full max-w-md pb-2 sm:pb-4"
+        /* Panel edge matches the settings popup: 1px slate border plus a matching
+           outline, which renders in light AND dark (owner request Nov 8 2026).
+           Bottom padding is tighter on a phone (pb-2) where the dialog nearly fills
+           the screen, and stays pb-4 from sm upward where there is room. */
+        style={{
+          borderWidth: '1px',
+          borderStyle: 'solid',
+          borderColor: 'rgba(148, 163, 184, 0.9)',
+          outline: '1px solid rgba(148, 163, 184, 0.95)',
+          outlineOffset: '-1px',
+        }}>
         <DialogHeader>
           <DialogTitle>{'Generate QR Code'}</DialogTitle>
         </DialogHeader>
