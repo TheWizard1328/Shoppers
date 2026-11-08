@@ -2358,13 +2358,13 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                       <div className="col-span-2 col-start-1 flex items-center gap-4 text-sm">
                         <div className="flex items-center gap-2">
                           <span className="text-label">Failed:</span>
-                          <span className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
+                          <span className="rounded-md bg-red-100 dark:bg-red-900/40 px-2 py-1 text-xs font-semibold text-red-700 dark:text-red-300">
                             {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-label">Returns:</span>
-                          <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
+                          <span className="rounded-md bg-orange-100 dark:bg-orange-900/40 px-2 py-1 text-xs font-semibold text-orange-700 dark:text-orange-300">
                             {driversWithDeliveries.reduce((sum, d) => sum + (d.returnsCount || 0), 0)}
                           </span>
                         </div>
