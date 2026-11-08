@@ -1088,7 +1088,22 @@ export default function PatientForm({
   // So the top inset is the status-bar safe area only; the header height is NOT
   // added any more (that stopped the form below the header). The bottom keeps the
   // nav height + safe-area bottom so the footer buttons never sit under the nav.
-  const mobileFormInsetStyle = undefined;
+  // OWNER SPEC (Nov 8 2026): the Edit Patient form is full screen on a phone, exactly
+  // like Edit Delivery. Full bleed from the status bar down over the bottom nav, so only
+  // the real safe-area inset is reserved (native shell gets a status-bar minimum).
+  const isNativeShell = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (window.Capacitor?.isNativePlatform?.()) return true;
+      return /; wv\)/.test(navigator.userAgent || '') && !!window.androidBridge;
+    } catch { return false; }
+  })();
+  const mobileFormInsetStyle = isMobile
+    ? {
+        paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
+        paddingBottom: `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
+      }
+    : undefined;
 
   return (
     <div
@@ -1098,13 +1113,13 @@ export default function PatientForm({
     // adding padding-bottom too would double-count the safe area.
     role="dialog"
     ref={patientFormContainerRef}
-    className="fixed inset-0 bg-black/60 flex z-[10020] items-center justify-center p-4 pt-20 lg:pt-4 lg:pl-64"
+    className={`fixed inset-0 bg-black/60 flex z-[10020] items-center justify-center ${isMobile ? 'p-0' : 'p-4 pt-20 lg:pt-4 lg:pl-64'}`}
     style={mobileFormInsetStyle || desktopFillStyle}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="flex flex-col min-w-0 w-full max-w-[30rem] max-h-[90vh] rounded-lg">
+        className={`flex flex-col min-w-0 w-full ${isMobile ? 'h-full max-h-none' : 'max-w-[30rem] max-h-[90vh] rounded-lg'}`}>
 
         <Card className="shadow-xl flex flex-col overflow-hidden text-body bg-surface border-surface" style={{ height: '100%', maxHeight: '100%' }}>
           <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0 bg-surface border-surface">
