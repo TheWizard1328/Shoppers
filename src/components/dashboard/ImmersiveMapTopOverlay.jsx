@@ -76,7 +76,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
 
   const liveEta = getCurrentEtaForDelivery(
     delivery?.id,
-    delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--"
+    delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "00:00"
   );
 
   return (
