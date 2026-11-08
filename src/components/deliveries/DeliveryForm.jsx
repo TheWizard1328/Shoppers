@@ -1550,23 +1550,28 @@ export default function DeliveryForm({
   // and reloads whenever either changes (owner fix Nov 8 2026). The old guard
   // (hasLoadedPending) fired once per form-open, so switching the form date kept the
   // previous date's rows, complete with their old date section headers.
-  const pendingLoadKeyRef = useRef('');
+  // OWNER FIX (Nov 8 2026): two separate faults made the panel depend on WHEN it opened.
+  // 1) the load required the dashboard allDeliveries prop, which is not populated yet if
+  //    the form opens straight after boot; 2) a one-shot key latched the first result, so a
+  //    later date change never reloaded. Both are gone: every run gets a request id, only
+  //    the newest run may write, and the pool comes from the cache plus the server.
+  const pendingReqRef = useRef(0);
+  const pendingPoolSignature = useMemo(
+    () => (allDeliveries || []).map((d) => `${d.id || d.delivery_id}:${d.updated_date || ''}`).sort().join(','),
+    [allDeliveries]
+  );
+  const stagedSigRef = useRef('');
   useEffect(() => {
     if (delivery) return;
     const formDate = formData.delivery_date || suggestedDate || '';
     const formDriverId = formData.driver_id || '';
-    if (!allDeliveries || !formDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
-    const loadKey = `${formDate}|${formDriverId}`;
-    // Reload on date/driver change, and also whenever the staged list has been emptied,
-    // so a reset effect clearing rows can never leave the panel permanently blank.
-    if (pendingLoadKeyRef.current === loadKey && stagedDeliveries.length > 0) return;
-    hasLoadedPending.current = true;
+    if (!formDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
+    const reqId = ++pendingReqRef.current;
     let cancelled = false;
+    hasLoadedPending.current = true;
     (async () => {
-      // allDeliveries is the DASHBOARD's day slice and the offline cache only holds synced
-      // days, so a post dated ahead of both would never be found. Widen the pool, then
-      // fall back to a direct server query if it still comes up empty.
-      let pool = allDeliveries || [];
+      let pool = Array.isArray(allDeliveries) ? allDeliveries : [];
+      let pendingDeliveries = [];
       try {
         const cached = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
         if (Array.isArray(cached) && cached.length) {
@@ -1574,9 +1579,9 @@ export default function DeliveryForm({
           [...cached, ...pool].forEach((row) => { if (row && (row.id || row.delivery_id)) byId.set(row.id || row.delivery_id, row); });
           pool = Array.from(byId.values());
         }
-      } catch { /* no cache available */ }
-      if (cancelled) return;
-      let pendingDeliveries = filterPendingDeliveriesForUser({
+      } catch { /* no cache available, fall through to the server */ }
+      if (cancelled || pendingReqRef.current !== reqId) return;
+      pendingDeliveries = filterPendingDeliveriesForUser({
         allDeliveries: pool, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
       });
       if (pendingDeliveries.length === 0) {
@@ -1590,18 +1595,18 @@ export default function DeliveryForm({
           }
         } catch { /* offline */ }
       }
-      if (cancelled) return;
-      if (pendingDeliveries.length === 0) { pendingLoadKeyRef.current = loadKey; return; }
-      const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries: pool, calculateDistance });
-      setTimeout(() => {
-        if (cancelled) return;
-        pendingLoadKeyRef.current = loadKey;
-        setStagedDeliveries(newStagedItems);
-        setHasChanges(false);
-      }, 80);
+      if (cancelled || pendingReqRef.current !== reqId) return;
+      const stagedItems = pendingDeliveries.length
+        ? mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries: pool, calculateDistance })
+        : [];
+      const sig = stagedItems.map((it) => `${it.id || it._tempId}`).sort().join(',');
+      if (sig === stagedSigRef.current) return; // identical set, do not repaint (kills the flicker)
+      stagedSigRef.current = sig;
+      setStagedDeliveries(stagedItems);
+      setHasChanges(false);
     })();
     return () => { cancelled = true; };
-  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id, stagedDeliveries.length]);
+  }, [delivery, pendingPoolSignature, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id]);
 
   // Resolve InterStore From/To locations from delivery_id phone numbers when editing
   useEffect(() => {
