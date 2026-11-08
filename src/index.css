@@ -578,31 +578,17 @@ html.dark-theme body {
 
 /* ============================================================================
    UNIFIED POPUP / MENU EDGES (owner request Nov 8 2026)
-   Every menu surface had its own idea of a border: some used the --border /
-   --input vars (which resolve near-black on the dark panel), some hardcoded
-   border-black, some had an inline borderColor with no width. In dark mode they
-   all but vanished against the background. One rule now paints the same 1px
-   slate edge on every floating surface and on every select/combobox trigger,
-   in BOTH themes. Deliberately !important: it must beat the theme utilities and
-   inline border colours those components carry. One slate tone is used rather
-   than a theme variable so the edge reads on white and on near-black alike.
+   Every floating surface (select list, dropdown, submenu, popover, combobox
+   list, dialog) carries .menu-edge from its shared ui component. The edge is a
+   single 1px slate with !important so it beats the theme border utilities that
+   resolve near-black on the dark panel and any inline borderColor. One slate
+   tone reads on white and on near-black, so no theme variable or dark: variant
+   is involved. (An earlier attempt keyed on data-radix-* attributes that Radix
+   does not actually emit, so it matched nothing.)
    ============================================================================ */
-[data-radix-popper-content-wrapper] > *,
-[data-radix-menu-content],
-[data-radix-select-content],
-[data-radix-popover-content],
-[role="menu"],
-[role="listbox"],
-[role="dialog"],
-[role="alertdialog"],
-[role="combobox"],
-[role="tooltip"] {
+.menu-edge {
   border: 1px solid rgba(148, 163, 184, 0.9) !important;
 }
-
-/* Triggers that are plain buttons/inputs (SelectTrigger, MultiSelect, custom
-   pickers) keep their own width; only the colour is forced. */
-button[role="combobox"],
-[data-state="open"][role="combobox"] {
+button[role="combobox"] {
   border-color: rgba(148, 163, 184, 0.95) !important;
 }
