@@ -803,7 +803,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // Mirror first (our own WS echo is suppressed for 5 min), then drop caches
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, ...updatePayload }]).catch(() => {});
       invalidateIdbReadCache('deliveries');
-      toast.success(`COD of $${amount.toFixed(2)} marked refunded`);
+      // SQUARE CATALOG (owner spec Nov 8 2026): a refunded COD must leave the
+      // register catalog too, otherwise the COD item keeps sitting on the POS
+      // and can be rung again. squareDeleteCodItem deletes the Square object
+      // and cleans its bookkeeping rows.
+      let catalogNote = '';
+      try {
+        const delRes = await base44.functions.invoke('squareDeleteCodItem', {
+          deliveryId: String(d.id),
+          reason: 'COD refunded from Square Balances Set tender'
+        }).catch((e) => {console.warn('squareDeleteCodItem failed:', e?.message || e);return null;});
+        if (delRes === null) catalogNote = ' (catalog item delete failed — run a catalog reconcile)';
+      } catch (e) {
+        console.warn('squareDeleteCodItem failed:', e?.message || e);
+        catalogNote = ' (catalog item delete failed — run a catalog reconcile)';
+      }
+      toast.success(`COD of $${amount.toFixed(2)} marked refunded${catalogNote}`);
       // Full page refresh, same path as the Refresh button
       await syncRef.current?.();
       return true;
