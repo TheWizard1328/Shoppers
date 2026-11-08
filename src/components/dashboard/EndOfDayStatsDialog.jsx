@@ -130,7 +130,7 @@ export default function EndOfDayStatsDialog({
     // Fallback: if performanceStats hasn't loaded yet (async activity-segments
     // fetch still in flight), estimate from first completed stop to NOW so the
     // dialog doesn't show blank.  Once the real value arrives the dialog re-renders.
-    if (!timeOnDuty || timeOnDuty === '--:--') {
+    if (!timeOnDuty || timeOnDuty === '00:00') {
       if (!routeActuallyComplete) {
         const completedDeliveries = (deliveries || []).filter(d => d && d.actual_delivery_time && d.status === 'completed');
         if (completedDeliveries.length > 0) {
