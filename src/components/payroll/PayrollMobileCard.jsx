@@ -149,10 +149,10 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Deliveries Section - Collapsible */}
-      <div className="border rounded border-surface">
+      <div className="border rounded border-slate-200 dark:border-slate-700">
         <button
           onClick={() => toggleSection('deliveries')}
-          className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-200 transition-colors bg-surface">
+          className="w-full px-3 py-2 flex items-center justify-between bg-slate-50 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors">
 
           <span className="text-xs font-semibold text-body-2">Deliveries</span>
           <ChevronDown
@@ -160,7 +160,7 @@ export default function PayrollMobileCard({
 
         </button>
         {expandedSection === 'deliveries' &&
-        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between overflow-x-hidden w-full bg-surface" style={{ borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
+        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between overflow-x-hidden w-full bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700" style={{ minHeight: '120px' }}>
             {/* 5-column grid layout */}
             <div className="space-y-1" style={{ display: 'grid', gridTemplateColumns: '1fr 0.5fr 0.8fr 0.35fr 1fr', columnGap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace', minWidth: 0, width: '100%' }}>
               {/* Total */}

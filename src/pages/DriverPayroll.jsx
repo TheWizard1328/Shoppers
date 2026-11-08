@@ -923,11 +923,25 @@ export default function DriverPayroll() {
     const isPatientReturn = (d) => d?.patient_id
       ? String(patientById.get(d.patient_id)?.address || '').toUpperCase().includes('(RTN)')
       : false;
-    const inScope = selectedDriverId === 'all'
+    // SCOPE PARITY (owner report Nov 7 2026: badge 348 vs grid 336). The grid only
+    // counts a row when the driver's pay cycle for THAT date matches the selected
+    // cycle, so a driver sitting on a different cycle dropped out of the grid while
+    // the badge still counted them. Both now apply the identical per-delivery rule.
+    const appUserMap = new Map(
+      (payrollData?.appUsers || []).filter((u) => u?.user_id).map((u) => [u.user_id, u]),
+    );
+    const inScope = (selectedDriverId === 'all'
       ? rows
-      : rows.filter((d) => d?.driver_id === selectedDriverId);
+      : rows.filter((d) => d?.driver_id === selectedDriverId)
+    ).filter((d) => {
+      if (!payPeriod) return true;
+      const au = appUserMap.get(d?.driver_id);
+      if (!au) return false;                       // grid drops drivers with no AppUser
+      const cycle = getDriverCycleForDate(au, d.delivery_date);
+      return cycle === null || cycle === undefined ? true : cycle === payPeriod;
+    });
     return countDeliveryUnits(inScope, isPatientReturn);
-  }, [cityFilteredDeliveries, selectedDriverId, payrollData?.patients]);
+  }, [cityFilteredDeliveries, selectedDriverId, payrollData?.patients, payrollData?.appUsers, payPeriod]);
   const periodLabel = useMemo(() => currentPeriod ? currentPeriod.label : '', [currentPeriod]);
   const needsCitySelection = !!currentUser && sortedCities.length > 0 && !selectedCityId;
 
