@@ -167,10 +167,49 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
 
   const path = useMemo(() => decodePolyline(encoded), [encoded]);
 
+  // CONTEXT MARKERS (owner request Nov 8 2026): the debug map only drew the leg
+  // polyline and its deviation points, so the patient's door and the store were
+  // invisible. Both are fetched by id and drawn as labelled markers below.
+  const [patientPos, setPatientPos] = useState(null);
+  const [storePos, setStorePos] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        if (delivery?.patient_id) {
+          const rows = await base44.entities.Patient.filter({ id: delivery.patient_id });
+          const p = rows?.[0];
+          const lat = Number(p?.latitude ?? p?.patient_latitude);
+          const lon = Number(p?.longitude ?? p?.patient_longitude);
+          if (alive && Number.isFinite(lat) && Number.isFinite(lon)) {
+            setPatientPos({ lat, lon, name: p?.full_name || p?.name || 'Patient' });
+          } else if (alive) setPatientPos(null);
+        } else if (alive) setPatientPos(null);
+        if (delivery?.store_id) {
+          const rows = await base44.entities.Store.filter({ id: delivery.store_id });
+          const st = rows?.[0];
+          const lat = Number(st?.latitude);
+          const lon = Number(st?.longitude);
+          if (alive && Number.isFinite(lat) && Number.isFinite(lon)) {
+            setStorePos({ lat, lon, name: st?.name || 'Store' });
+          } else if (alive) setStorePos(null);
+        } else if (alive) setStorePos(null);
+      } catch (err) {
+        console.warn('[StopPolylineDeviationMap] context markers failed:', err?.message || err);
+      }
+    })();
+    return () => { alive = false; };
+  }, [delivery?.patient_id, delivery?.store_id]);
+
   const allPositions = useMemo(() => {
+    // (patientPos / storePos are appended after the base list is built)
     const pts = [...path, ...waypoints.map((w) => [w.lat, w.lng])];
+    // Fit the view to the store and the patient door too, so neither marker can sit
+    // outside the visible bounds when the stored polyline is short or missing.
+    if (storePos) pts.push([storePos.lat, storePos.lon]);
+    if (patientPos) pts.push([patientPos.lat, patientPos.lon]);
     return pts.length ? pts : [[53.5461, -113.4938]];
-  }, [path, waypoints]);
+  }, [path, waypoints, storePos, patientPos]);
 
   const start = path[0] || null;
   const end = path[path.length - 1] || null;
@@ -474,6 +513,16 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
           {end && (
             <CircleMarker center={end} radius={6} pathOptions={{ color: '#fff', weight: 2, fillColor: '#ef4444', fillOpacity: 1 }}>
               <Tooltip>Stop</Tooltip>
+            </CircleMarker>
+          )}
+          {storePos && (
+            <CircleMarker center={storePos} radius={7} pathOptions={{ color: '#fff', weight: 2, fillColor: '#f59e0b', fillOpacity: 1 }}>
+              <Tooltip>{storePos.name} (store)</Tooltip>
+            </CircleMarker>
+          )}
+          {patientPos && (
+            <CircleMarker center={patientPos} radius={7} pathOptions={{ color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1 }}>
+              <Tooltip>{patientPos.name} (patient)</Tooltip>
             </CircleMarker>
           )}
           {waypoints.map((w, i) => (

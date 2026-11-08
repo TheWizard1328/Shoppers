@@ -227,7 +227,7 @@ export default function RouteManagementContent({
       }
 
       {resolvedViewMode === "cards" ?
-      <div className="flex h-full gap-4">
+      <div className="flex flex-1 min-h-0 gap-4">
           <div className={`${showSplitView ? "w-[400px] flex-shrink-0" : "w-full"} h-full overflow-hidden`}>
             <div className="px-3 py-2 space-y-2 overflow-y-auto h-full min-h-0 flex flex-col items-center" style={{ maxHeight: isMobile ? 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - 220px)' : 'calc(100vh - 280px)' }}>
               {deliveries.map((delivery, index) => {
@@ -251,7 +251,7 @@ export default function RouteManagementContent({
           </div>
 
           {showSplitView &&
-        <div className="flex-1 h-full overflow-hidden rounded-lg border bg-surface border-surface">
+        <div className="flex-1 h-full min-h-0 overflow-hidden rounded-lg border bg-surface border-surface">
               <StopDetailsPanel
             delivery={selectedDelivery}
             patient={selectedPatient}

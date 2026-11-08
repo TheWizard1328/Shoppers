@@ -151,7 +151,7 @@ export default function DateListPanel({
                   {format(dateObj, 'EEE, MMM d')}
                 </div>
                 {isToday(dateObj) && (
-                  <Badge className="bg-blue-100 text-blue-800 text-xs">Today</Badge>
+                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 text-xs">Today</Badge>
                 )}
                 <Badge variant="secondary" className="text-xs text-body-2" style={{ background: 'var(--bg-slate-200)' }}>
                   {total}

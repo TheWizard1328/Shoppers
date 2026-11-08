@@ -698,7 +698,16 @@ export default function DeliveriesPage() {
   const prevYMRef = useRef({ y: selectedYear, m: selectedMonth });
   useEffect(() => {
     if (prevModeRef.current === null) return;
-    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') {loadData(false).catch(() => {});prevYMRef.current = { y: selectedYear, m: selectedMonth };return;}
+    // Driver switches are a CLIENT-SIDE filter over the month already loaded. The
+    // old code re-ran the whole loadData() on every driver change, which blanked the
+    // panel behind a 5-10s spinner (owner report Nov 8 2026). Only a real year/month
+    // change reloads now.
+    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') {
+      const ymChanged = prevYMRef.current.y !== selectedYear || prevYMRef.current.m !== selectedMonth;
+      if (ymChanged) loadData(false).catch(() => {});
+      prevYMRef.current = { y: selectedYear, m: selectedMonth };
+      return;
+    }
     if (isDriverOverviewMode || !initialLoadDone.current) return;
     // Route Management loads a fixed now-based window independent of selectedYear/selectedMonth — no re-fetch needed on month change.
     prevYMRef.current = { y: selectedYear, m: selectedMonth };

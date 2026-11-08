@@ -320,8 +320,23 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
  * Find or create a pickup ID (PUID) for a delivery
  * Handles logic for finding existing pickups or creating new ones based on completion status
  */
+// SHORT PUID FALLBACK (owner report Nov 8 2026): pending stops were being handed a
+// date-derived id like 2026-11-08-001, which is a STOP id pattern, not a PUID, and
+// collided across stores/drivers. The canonical PUID is a 3-char short id, so the
+// fallback now mints one that is unique against every stop_id already in play.
+const generateShortPuid = (allDeliveries = []) => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const existing = new Set((allDeliveries || []).map((d) => d?.stop_id).filter(Boolean));
+  for (let i = 0; i < 50; i++) {
+    let r = '';
+    for (let j = 0; j < 3; j++) r += chars.charAt(Math.floor(Math.random() * chars.length));
+    if (!existing.has(r)) return r;
+  }
+  return `P${Date.now().toString(36).slice(-4)}`;
+};
+
 export const findOrCreatePickupId = (store, deliveryDate, driverId, requestedTimeSlot, allDeliveries) => {
-  if (!store || !deliveryDate || !driverId || !requestedTimeSlot) return generateStopId();
+  if (!store || !deliveryDate || !driverId || !requestedTimeSlot) return generateShortPuid(allDeliveries);
   
   // First, look for an existing NON-COMPLETED pickup for the requested time slot and driver
   let puid = null;
@@ -380,17 +395,17 @@ export const findOrCreatePickupId = (store, deliveryDate, driverId, requestedTim
         console.log(`✅ [PUID Logic] Found existing NON-COMPLETED PM pickup: ${puid}`);
       } else {
         // No existing PM pickup, create a new one for PM.
-        puid = generateStopId();
+        puid = generateShortPuid(allDeliveries);
         console.log(`🆕 [PUID Logic] Created NEW PM pickup PUID: ${puid}`);
       }
     } else {
       // No PM driver, just create a new pickup for the requested timeslot
-      puid = generateStopId();
+      puid = generateShortPuid(allDeliveries);
       console.log(`🆕 [PUID Logic] No PM driver found, created NEW ${requestedTimeSlot} pickup PUID: ${puid}`);
     }
   } else {
     // Otherwise, create a new pickup for the requested timeslot.
-    puid = generateStopId();
+    puid = generateShortPuid(allDeliveries);
     console.log(`🆕 [PUID Logic] Created NEW ${requestedTimeSlot} pickup PUID: ${puid}`);
   }
   
