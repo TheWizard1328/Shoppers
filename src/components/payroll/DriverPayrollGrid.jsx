@@ -509,11 +509,9 @@ export default function DriverPayrollGrid({
               <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
                 <Button size="sm" variant="ghost" onClick={() => setViewMode('deliveries')} className={`text-xs h-6 px-2 gap-1 ${viewMode === 'deliveries' ? 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                 <Package className="w-3 h-3" />Deliveries
-                  <Package className="w-3 h-3" />Deliveries
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setViewMode('extraKm')} className={`text-xs h-6 px-2 gap-1 ${viewMode === 'extraKm' ? 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                 <Ruler className="w-3 h-3" />Extra KM
-                  <Ruler className="w-3 h-3" />Extra KM
                 </Button>
               </div>
             </div>
@@ -533,11 +531,9 @@ export default function DriverPayrollGrid({
                 <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0 ml-auto" style={{ background: 'var(--bg-slate-100)' }}>
                   <Button size="sm" variant="ghost" onClick={() => setViewMode('deliveries')} className={`text-xs h-6 px-2 gap-1 ${viewMode === 'deliveries' ? 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                   <Package className="w-3 h-3" />Deliveries
-                    <Package className="w-3 h-3" />Deliveries
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setViewMode('extraKm')} className={`text-xs h-6 px-2 gap-1 ${viewMode === 'extraKm' ? 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                   <Ruler className="w-3 h-3" />Extra KM
-                    <Ruler className="w-3 h-3" />Extra KM
                   </Button>
                 </div>
               </div>
