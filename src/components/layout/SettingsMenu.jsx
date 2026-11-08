@@ -105,7 +105,7 @@ export default function SettingsMenu({
          inline borderColor (white) and no border width, so it blended into the
          panel behind it. Now a real 1px border in both themes plus a stronger
          shadow so it reads as a separate surface. */
-      className="w-60 z-[99999] text-body bg-surface border border-slate-300 dark:border-slate-600 shadow-xl ring-1 ring-black/5 dark:ring-white/10" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+      className="w-60 z-[99999] text-body bg-surface border-2 border-slate-400 dark:border-slate-500 shadow-2xl" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
     >
       {/* Settings header and Admin Import toggle - only for admins/app owners */}
 
