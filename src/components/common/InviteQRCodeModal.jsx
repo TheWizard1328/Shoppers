@@ -188,7 +188,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-md">
+      <DialogContent className="w-full max-w-md pb-4">
         <DialogHeader>
           <DialogTitle>{'Generate QR Code'}</DialogTitle>
         </DialogHeader>
@@ -199,10 +199,10 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
             <div>
               <label className="text-sm font-medium mb-2 block">Role</label>
               <Select value={selectedRole} onValueChange={handleRoleChange}>
-                <SelectTrigger>
+                <SelectTrigger className="border-slate-400 dark:border-slate-500">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent className="z-[10010]">
+                <SelectContent className="z-[10010] border border-slate-400 dark:border-slate-500">
                   {availableRoles.map((role) =>
                 <SelectItem key={role} value={role}>
                       {roleLabels[role] || role.charAt(0).toUpperCase() + role.slice(1)}
@@ -220,10 +220,10 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
           <div>
                 <label className="text-sm font-medium mb-2 block">Platform</label>
                 <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-slate-400 dark:border-slate-500">
                     <SelectValue placeholder="Select a platform" />
                   </SelectTrigger>
-                  <SelectContent className="z-[10010]">
+                  <SelectContent className="z-[10010] border border-slate-400 dark:border-slate-500">
                     <SelectItem value="android">
                       Android{apkInfoLoaded && versionLabel ? ` (${versionLabel})` : ''}
                     </SelectItem>

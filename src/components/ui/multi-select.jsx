@@ -73,7 +73,7 @@ export const MultiSelect = React.forwardRef((props, ref) => {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={`w-full justify-between h-auto min-h-[32px] border-black ${className}`}
+          className={`w-full justify-between h-auto min-h-[32px] border border-slate-400 dark:border-slate-500 ${className}`}
           onClick={() => setOpen(!open)}
           id={id}
           {...rest}>
@@ -116,7 +116,7 @@ export const MultiSelect = React.forwardRef((props, ref) => {
                 </Button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-[--radix-popover-trigger-width] p-0 z-[10003] overflow-hidden"
+              className="w-[--radix-popover-trigger-width] p-0 z-[10003] overflow-hidden border border-slate-400 dark:border-slate-500"
               align="start"
               sideOffset={4}
               style={overlayBounds.isMobileLike ? {
