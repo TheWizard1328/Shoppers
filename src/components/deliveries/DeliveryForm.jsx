@@ -1572,16 +1572,9 @@ export default function DeliveryForm({
     (async () => {
       let pool = Array.isArray(allDeliveries) ? allDeliveries : [];
       let pendingDeliveries = [];
-      // The panel used to work only for a date the dashboard had already loaded.
-      // Ask the server for every pending post from the form date forward FIRST, so the
-      // result never depends on what happens to be cached or on the selected day.
-      try {
-        const forwardPending = await base44.entities.Delivery
-          .filter({ status: 'pending', delivery_date: { $gte: formDate } }, '-delivery_date', 300)
-          .catch(() => []);
-        if (Array.isArray(forwardPending) && forwardPending.length) pool = [...forwardPending, ...pool];
-      } catch { /* fall through to cache + plain query */ }
-      if (cancelled || pendingReqRef.current !== reqId) return;
+      // The two-week future pass in the boot sync is what fills the cache for the
+      // selected city, so the panel normally needs no query of its own. Only when the
+      // pool still has nothing do we ask the server for pending posts from this date on.
       try {
         const cached = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
         if (Array.isArray(cached) && cached.length) {
@@ -1596,7 +1589,9 @@ export default function DeliveryForm({
       });
       if (pendingDeliveries.length === 0) {
         try {
-          const serverPending = await base44.entities.Delivery.filter({ status: 'pending' }, '-delivery_date', 300).catch(() => []);
+          const serverPending = await base44.entities.Delivery
+            .filter({ status: 'pending', delivery_date: { $gte: formDate } }, '-delivery_date', 300)
+            .catch(() => []);
           if (Array.isArray(serverPending) && serverPending.length) {
             const scoped = filterPendingDeliveriesForUser({
               allDeliveries: serverPending, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole

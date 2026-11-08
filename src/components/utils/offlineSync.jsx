@@ -437,8 +437,8 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 55, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 3b: Future deliveries D+1..D+7 for the same city — ONE range query
-    // (owner spec, Oct 13 2026). Delta-filtered by the future stamp so steady
+    // Step 3b: Future deliveries D+1..D+14 for the same city — ONE range query
+    // (owner spec, Oct 13 2026; window widened to two weeks Nov 8 2026). Delta-filtered by the future stamp so steady
     // boots pull only the handful of rows that changed.
     // LIGHT PROFILE (owner spec Oct 14 2026): secondary owner instances (every
     // owner device except THE-DESKTOP(Editor)) pass skipFutureDates — they
@@ -449,16 +449,16 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
       const fStampKey = `Delivery:future:${cityId || 'all'}`;
       const fStamp = await readSyncStamp(fStampKey);
       const futureFilter = {
-        delivery_date: { $gte: format(addDays(new Date(), 1), 'yyyy-MM-dd'), $lte: format(addDays(new Date(), 7), 'yyyy-MM-dd') }
+        delivery_date: { $gte: format(addDays(new Date(), 1), 'yyyy-MM-dd'), $lte: format(addDays(new Date(), 14), 'yyyy-MM-dd') }
       };
       if (cityStores.length > 0) futureFilter.store_id = { $in: cityStores };
       if (fStamp) futureFilter.updated_date = { $gte: overlapIso(fStamp) };
-      const futureRows = await queueEntityRequest(() => Delivery.filter(futureFilter, 'delivery_date', 2000), 'Delivery.filter:future7');
+      const futureRows = await queueEntityRequest(() => Delivery.filter(futureFilter, 'delivery_date', 3000), 'Delivery.filter:future14');
       if (futureRows && futureRows.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, futureRows);
       }
       await offlineDB.updateSyncStatus(fStampKey, { status: 'synced', recordCount: (futureRows || []).length });
-      console.log(`🚀 [PrioritySync] Future 7-day delta: ${(futureRows || []).length} rows`);
+      console.log(`🚀 [PrioritySync] Future 14-day delta: ${(futureRows || []).length} rows`);
     } catch (futureErr) {
       // Non-fatal — future dates are also covered by WebSockets + historical cycle
       console.warn('⚠️ [PrioritySync] Future 7-day pass failed:', futureErr?.message || futureErr);
