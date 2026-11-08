@@ -1557,8 +1557,11 @@ export default function DeliveryForm({
     const formDriverId = formData.driver_id || '';
     if (!allDeliveries || !formDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
     const loadKey = `${formDate}|${formDriverId}`;
-    if (pendingLoadKeyRef.current === loadKey) return;
-    pendingLoadKeyRef.current = loadKey;
+    // Reload when the date/driver changes OR when the list has been emptied out from
+    // under us (a reset effect clearing staged rows used to leave the panel permanently
+    // empty because the key said "already loaded"). Owner report Nov 8 2026.
+    const needsLoad = pendingLoadKeyRef.current !== loadKey || stagedDeliveries.length === 0;
+    if (!needsLoad) return;
     hasLoadedPending.current = true;
     let cancelled = false;
     (async () => {
@@ -1593,12 +1596,17 @@ export default function DeliveryForm({
         } catch { /* offline: keep the cached result */ }
       }
       if (cancelled) return;
-      if (pendingDeliveries.length === 0) { setStagedDeliveries([]); setHasChanges(false); return; }
+      if (pendingDeliveries.length === 0) { pendingLoadKeyRef.current = loadKey; return; }
       const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries: pool, calculateDistance });
-      setTimeout(() => { if (cancelled) return; setStagedDeliveries(newStagedItems); setHasChanges(false); }, 80);
+      setTimeout(() => {
+        if (cancelled) return;
+        pendingLoadKeyRef.current = loadKey;
+        setStagedDeliveries(newStagedItems);
+        setHasChanges(false);
+      }, 80);
     })();
     return () => { cancelled = true; };
-  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id]);
+  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id, stagedDeliveries.length]);
 
   // Resolve InterStore From/To locations from delivery_id phone numbers when editing
   useEffect(() => {
