@@ -145,16 +145,16 @@ function extractStoredTime(value) {
 }
 
 function formatTime24Hour(timeString) {
-  if (!timeString || ["--:--", "null", "undefined", "NaN:NaN"].includes(String(timeString))) return "--:--";
+  if (!timeString || ["00:00", "null", "undefined", "NaN:NaN"].includes(String(timeString))) return "00:00";
   try {
     const normalized = extractStoredTime(timeString) || String(timeString);
     const [h, m] = normalized.split(":");
     const hours = parseInt(h, 10);
     const minutes = parseInt(m, 10);
-    if (isNaN(hours) || isNaN(minutes)) return "--:--";
+    if (isNaN(hours) || isNaN(minutes)) return "00:00";
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   } catch {
-    return "--:--";
+    return "00:00";
   }
 }
 
@@ -222,18 +222,18 @@ export default function StopCardHeader({
     if (isFinished) {
       const actual = formatTime24Hour(delivery?.actual_delivery_time);
       const arrival = formatTime24Hour(delivery?.arrival_time);
-      const hasActual = actual !== "--:--";
-      const hasArrival = arrival !== "--:--";
+      const hasActual = actual !== "00:00";
+      const hasArrival = arrival !== "00:00";
 
       if (hasArrival || hasActual) {
         return <span className="text-sm font-bold">{hasArrival && hasActual ? `${arrival} → ${actual}` : hasArrival ? arrival : actual}</span>;
       }
 
-      return <span className="text-sm font-bold">--:--</span>;
+      return <span className="text-sm font-bold">00:00</span>;
     }
     const eta = getCurrentEtaForDelivery(
       delivery?.id,
-      delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--"
+      delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "00:00"
     );
     return <span className="text-sm font-bold">ETA: {formatTime24Hour(eta)}</span>;
   })();
