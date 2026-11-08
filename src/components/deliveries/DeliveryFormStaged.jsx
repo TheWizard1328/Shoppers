@@ -499,7 +499,7 @@ export default function DeliveryFormStaged({
                 <div className="text-[10px] text-soft leading-tight">
                   {rotations} recurrences missed{Number.isFinite(days) ? ` · ${days} days since last delivery` : ''}
                 </div>
-                <div className="mt-1 flex items-center gap-1.5">
+                <div className="mt-1 flex items-center justify-end gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleRestoreProjection(projected.patient_id)}
@@ -524,9 +524,10 @@ export default function DeliveryFormStaged({
                       confirmAddProjectedToStaged(projected);
                       if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
                     }}
-                    className="rounded border border-emerald-600 bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white hover:bg-emerald-700"
+                    className="h-7 w-7 p-0 flex-shrink-0 inline-flex items-center justify-center rounded border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                    style={{ backgroundColor: '#059669', color: '#ffffff' }}
                   >
-                    +
+                    <Plus className="w-5 h-5" />
                   </button>
                 </div>
               </div>
