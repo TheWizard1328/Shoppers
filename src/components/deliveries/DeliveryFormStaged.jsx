@@ -489,28 +489,45 @@ export default function DeliveryFormStaged({
             const days = projected.days_since_last;
             return (
               <div key={`suppressed-${projected.patient_id}`} className="mx-1 mb-1 rounded border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800 px-2 py-1.5">
-                <div className="text-xs font-medium text-body truncate">{projected.patient_name || rowPatient?.full_name || 'Patient'}</div>
-                <div className="text-[10px] text-soft">
-                  {projected.frequency || projected.reason} · {rotations} rotations missed
-                  {Number.isFinite(days) ? ` · ${days} days since last delivery` : ''}
+                {/* OWNER LAYOUT (Nov 8 2026): row 1 name + recurrence pattern, row 2 the
+                    missed count, row 3 worded buttons Restore / Retire and a + that restores
+                    the recurrence while adding the stop to the route (Pending once saved). */}
+                <div className="flex items-baseline gap-1.5 min-w-0">
+                  <span className="text-xs font-semibold text-body truncate min-w-0">{projected.patient_name || rowPatient?.full_name || 'Patient'}</span>
+                  <span className="text-[10px] text-soft whitespace-nowrap flex-shrink-0">{projected.frequency || projected.reason}</span>
                 </div>
-                <div className="mt-1 flex items-center gap-2">
+                <div className="text-[10px] text-soft leading-tight">
+                  {rotations} recurrences missed{Number.isFinite(days) ? ` · ${days} days since last delivery` : ''}
+                </div>
+                <div className="mt-1 flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleRestoreProjection(projected.patient_id)}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:underline"
+                    className="rounded border border-emerald-400 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
                   >
-                    <RotateCcw className="h-3 w-3" /> Restore
+                    Restore
                   </button>
                   {canRetireProjection && (
                     <button
                       type="button"
                       onClick={() => handleRetireProjection(projected)}
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-600 hover:underline"
+                      className="rounded border border-red-400 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
                     >
-                      <Ban className="h-3 w-3" /> Retire recurrence
+                      Retire
                     </button>
                   )}
+                  <button
+                    type="button"
+                    title="Add to route (restores the recurrence once saved)"
+                    onClick={() => {
+                      handleRestoreProjection(projected.patient_id);
+                      confirmAddProjectedToStaged(projected);
+                      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+                    }}
+                    className="rounded border border-emerald-600 bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white hover:bg-emerald-700"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
             );
