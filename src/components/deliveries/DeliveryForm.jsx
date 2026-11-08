@@ -3,6 +3,7 @@
  * Rendering is delegated to DeliveryFormView.jsx.
  */
 import { useDevice } from '@/components/utils/DeviceContext';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { buildInTransitDirectSaveData } from './inTransitDirectSave';
 import { format } from "date-fns";
@@ -1556,16 +1557,51 @@ export default function DeliveryForm({
     const formDriverId = formData.driver_id || '';
     if (!allDeliveries || !formDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
     const loadKey = `${formDate}|${formDriverId}`;
-    if (pendingLoadKeyRef.current === loadKey) return;
-    const pendingDeliveries = filterPendingDeliveriesForUser({
-      allDeliveries, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
-    });
-    pendingLoadKeyRef.current = loadKey;
+    // Reload on date/driver change, and also whenever the staged list has been emptied,
+    // so a reset effect clearing rows can never leave the panel permanently blank.
+    if (pendingLoadKeyRef.current === loadKey && stagedDeliveries.length > 0) return;
     hasLoadedPending.current = true;
-    if (pendingDeliveries.length === 0) { setStagedDeliveries([]); setHasChanges(false); return; }
-    const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries, calculateDistance });
-    setTimeout(() => { setStagedDeliveries(newStagedItems); setHasChanges(false); }, 80);
-  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id]);
+    let cancelled = false;
+    (async () => {
+      // allDeliveries is the DASHBOARD's day slice and the offline cache only holds synced
+      // days, so a post dated ahead of both would never be found. Widen the pool, then
+      // fall back to a direct server query if it still comes up empty.
+      let pool = allDeliveries || [];
+      try {
+        const cached = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        if (Array.isArray(cached) && cached.length) {
+          const byId = new Map();
+          [...cached, ...pool].forEach((row) => { if (row && (row.id || row.delivery_id)) byId.set(row.id || row.delivery_id, row); });
+          pool = Array.from(byId.values());
+        }
+      } catch { /* no cache available */ }
+      if (cancelled) return;
+      let pendingDeliveries = filterPendingDeliveriesForUser({
+        allDeliveries: pool, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
+      });
+      if (pendingDeliveries.length === 0) {
+        try {
+          const serverPending = await base44.entities.Delivery.filter({ status: 'pending' }, '-delivery_date', 300).catch(() => []);
+          if (Array.isArray(serverPending) && serverPending.length) {
+            const scoped = filterPendingDeliveriesForUser({
+              allDeliveries: serverPending, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
+            });
+            if (scoped.length) { pendingDeliveries = scoped; pool = [...serverPending, ...pool]; }
+          }
+        } catch { /* offline */ }
+      }
+      if (cancelled) return;
+      if (pendingDeliveries.length === 0) { pendingLoadKeyRef.current = loadKey; return; }
+      const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries: pool, calculateDistance });
+      setTimeout(() => {
+        if (cancelled) return;
+        pendingLoadKeyRef.current = loadKey;
+        setStagedDeliveries(newStagedItems);
+        setHasChanges(false);
+      }, 80);
+    })();
+    return () => { cancelled = true; };
+  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id, stagedDeliveries.length]);
 
   // Resolve InterStore From/To locations from delivery_id phone numbers when editing
   useEffect(() => {
