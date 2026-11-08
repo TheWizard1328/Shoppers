@@ -396,7 +396,7 @@ export function useLocalPerformanceStats({
         totalPay: stats.totalPay,
         totalKm: stats.totalKm,
         totalExtraKm: stats.totalExtraKm,
-        totalTimeOnDuty: prev?.totalTimeOnDuty ?? '--:--',
+        totalTimeOnDuty: prev?.totalTimeOnDuty ?? '00:00',
         extraKmLimit: stats.extraKmLimit
       }));
       setIsLoadingPayrollStats(false);
