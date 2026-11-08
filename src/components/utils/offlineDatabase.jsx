@@ -575,6 +575,51 @@ const _enforceTerminalNextFlag = (record) => {
   return { ...record, isNextDelivery: false };
 };
 
+// ── Stale-snapshot next-stop guard (owner report Nov 8 2026) ─────────────────
+// A stale snapshot writer kept writing the route back with isNextDelivery false
+// on every stop, so the dashboard self-heal had to restore the flag four times
+// in a few minutes. Losing the next stop mid-route breaks navigation and the map
+// highlight, so the write gate now refuses the clear itself: a delivery that is
+// still ACTIVE, still holds the flag in IndexedDB, and is arriving with the flag
+// cleared keeps it — UNLESS something else on the same route claims the flag in
+// the same write (a real advance) or already holds it in IndexedDB.
+const NEXT_FLAG_TERMINAL = ['completed', 'failed', 'cancelled', 'returned'];
+const _nextFlagActive = (r) => !!r && !NEXT_FLAG_TERMINAL.includes(String(r?.status || '').toLowerCase());
+
+const _restoreStompedNextFlags = async (records) => {
+  const list = Array.isArray(records) ? records : [];
+  const candidates = list.filter((r) =>
+    r?.id && _nextFlagActive(r) && r.isNextDelivery !== true);
+  if (candidates.length === 0) return records;
+  // A write that promotes SOME stop to next is a legitimate advance — the
+  // previous holder is meant to be cleared in that same payload.
+  const claimants = list.filter((r) => r?.id && r.isNextDelivery === true && _nextFlagActive(r));
+  let existingById = new Map();
+  try {
+    const all = await getAll(STORES.DELIVERIES);
+    existingById = new Map((all || []).filter((d) => d?.id).map((d) => [String(d.id), d]));
+  } catch (_) { return records; }
+  const claimedRouteKeys = new Set(claimants.map((r) => `${r.driver_id || ''}:${r.delivery_date || ''}`));
+  const restored = new Map(); // id -> true
+  for (const rec of candidates) {
+    const key = String(rec.id);
+    const prev = existingById.get(key);
+    if (!prev || prev.isNextDelivery !== true) continue;
+    if (!_nextFlagActive(prev)) continue; // finished stop — clearing is correct
+    const routeKey = `${rec.driver_id || prev.driver_id || ''}:${rec.delivery_date || prev.delivery_date || ''}`;
+    if (claimedRouteKeys.has(routeKey)) continue;
+    // Does another stop on this route already hold the flag in IndexedDB?
+    const alt = [...existingById.values()].find((d) =>
+      d && String(d.id) !== key && d.isNextDelivery === true && _nextFlagActive(d) &&
+      `${d.driver_id || ''}:${d.delivery_date || ''}` === routeKey);
+    if (alt) continue;
+    restored.set(key, true);
+  }
+  if (restored.size === 0) return records;
+  console.warn(`[offlineDB] blocked stale next-stop clear on ${restored.size} stop(s) — restored isNextDelivery`);
+  return list.map((r) => (r?.id && restored.has(String(r.id)) ? { ...r, isNextDelivery: true } : r));
+};
+
 const _guardDeliveryRecord = async (storeName, record) => {
   if (storeName !== STORES.DELIVERIES || !record?.id) return record;
   let out = _enforceTerminalNextFlag(record);
@@ -600,6 +645,12 @@ const save = async (storeName, record) => {
     return { success: false, error: 'partial-app-user-rejected' };
   }
   record = await _guardDeliveryRecord(storeName, record);
+  if (storeName === STORES.DELIVERIES && record?.id) {
+    try {
+      const [kept] = await _restoreStompedNextFlags([record]);
+      if (kept) record = kept;
+    } catch (_) { /* never block the write */ }
+  }
 
   try {
     // Encrypt PHI records before storing
@@ -669,6 +720,9 @@ const bulkSave = async (storeName, records) => {
     // Finished stops can never be "next" (owner report Nov 2 2026) — see
     // _enforceTerminalNextFlag above.
     try { records = records.map(_enforceTerminalNextFlag); } catch (_) { /* keep originals */ }
+    // Stale-snapshot clear protection (owner report Nov 8 2026) — see
+    // _restoreStompedNextFlags above.
+    try { records = await _restoreStompedNextFlags(records); } catch (_) { /* keep originals */ }
   }
 
   const isPHI = isPHIStore(storeName);
