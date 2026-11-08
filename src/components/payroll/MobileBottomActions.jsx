@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Share2, RefreshCw, ListChecks } from "lucide-react";
 import useMobileChromeHeights from "@/components/utils/useMobileChromeHeights";
@@ -17,6 +17,43 @@ import useMobileChromeHeights from "@/components/utils/useMobileChromeHeights";
 export default function MobileBottomActions({ onSummary, onShare, onRefresh, refreshing, capturing, onHeightChange }) {
   const { bottomNav } = useMobileChromeHeights(true);
   const barRef = useRef(null);
+
+  // Sit exactly on the nav's TOP EDGE, measured from the live element.
+  // OWNER REPORT (Nov 7 2026, second pass): adding the nav height PLUS the
+  // bottom safe area counted the inset twice - the nav already contains it -
+  // which left a big empty band between these buttons and the bottom nav.
+  // Measuring `innerHeight - navRect.top` is the distance from the viewport
+  // bottom to the top of the nav, so no inset can be double-counted.
+  const [navOffset, setNavOffset] = useState(null);
+  useEffect(() => {
+    const read = () => {
+      const nav = document.querySelector('[data-mobile-bottom-nav]');
+      if (!nav) { setNavOffset(null); return; }
+      const r = nav.getBoundingClientRect();
+      if (!r || !r.height) { setNavOffset(null); return; }
+      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      setNavOffset(Math.max(0, Math.round(vh - r.top)));
+    };
+    read();
+    const nav = document.querySelector('[data-mobile-bottom-nav]');
+    let ro = null;
+    if (nav && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(read);
+      ro.observe(nav);
+    }
+    window.addEventListener('resize', read);
+    window.addEventListener('orientationchange', read);
+    const vv = window.visualViewport;
+    if (vv) vv.addEventListener('resize', read);
+    const t = setTimeout(read, 200);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', read);
+      window.removeEventListener('orientationchange', read);
+      if (vv) vv.removeEventListener('resize', read);
+      clearTimeout(t);
+    };
+  }, []);
 
   // Report the bar's real rendered height so the page can reserve exactly that
   // much bottom padding. A fixed value was wrong: the bar is visible up to lg
@@ -46,7 +83,11 @@ export default function MobileBottomActions({ onSummary, onShare, onRefresh, ref
     <div
       ref={barRef}
       className="lg:hidden fixed left-0 right-0 z-20 w-full max-w-full bg-white/95 backdrop-blur border-t border-slate-200 dark:border-slate-700 overflow-hidden"
-      style={{ bottom: `calc(${bottomNav}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))` }}>
+      style={{
+        bottom: navOffset != null
+          ? `${navOffset}px`
+          : `calc(${bottomNav}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
+      }}>
       <div className="w-full max-w-full px-2 py-2 grid grid-cols-3 gap-2">
         <Button size="sm" variant="outline" onClick={onSummary} className="w-full min-w-0 px-2">
           <ListChecks className="h-4 w-4 shrink-0" />
