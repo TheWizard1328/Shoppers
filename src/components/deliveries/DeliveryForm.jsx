@@ -1575,9 +1575,24 @@ export default function DeliveryForm({
         }
       } catch { /* cache unavailable, fall back to the prop */ }
       if (cancelled) return;
-      const pendingDeliveries = filterPendingDeliveriesForUser({
+      let pendingDeliveries = filterPendingDeliveriesForUser({
         allDeliveries: pool, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
       });
+      if (pendingDeliveries.length === 0) {
+        // Last resort: the offline cache and the dashboard prop both only cover the days
+        // that were synced. Ask the server directly for posted pending stops so the panel
+        // can never come up empty just because a future date was never cached.
+        try {
+          const serverPending = await base44.entities.Delivery.filter({ status: 'pending' }, '-delivery_date', 300).catch(() => []);
+          if (Array.isArray(serverPending) && serverPending.length) {
+            pendingDeliveries = filterPendingDeliveriesForUser({
+              allDeliveries: serverPending, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
+            });
+            if (pendingDeliveries.length) pool = [...serverPending, ...pool];
+          }
+        } catch { /* offline: keep the cached result */ }
+      }
+      if (cancelled) return;
       if (pendingDeliveries.length === 0) { setStagedDeliveries([]); setHasChanges(false); return; }
       const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries: pool, calculateDistance });
       setTimeout(() => { if (cancelled) return; setStagedDeliveries(newStagedItems); setHasChanges(false); }, 80);
