@@ -1466,8 +1466,12 @@ export default function PatientForm({
                       </div>
                     }
                   </div>
-                  <div className={formData.care_pros ? "grid grid-cols-5 gap-2" : "grid grid-cols-1"}>
-                    <div className={formData.care_pros ? "col-span-3" : "col-span-1"}>
+                  {/* OWNER SPEC (Nov 8 2026): the notes box keeps its full width and
+                      height whether or not Care Pro's is on. The CP fields stack BELOW
+                      the notes, so the container grows in height instead of squeezing
+                      the notes into 60% width. */}
+                  <div className="space-y-2">
+                    <div className="w-full">
                       <Textarea
                         id="notes"
                         value={formData.notes}
@@ -1477,7 +1481,7 @@ export default function PatientForm({
                         className="h-24 md:h-32 text-sm resize-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                     {formData.care_pros &&
-                    <div className="col-span-2 space-y-2">
+                    <div className="grid grid-cols-2 gap-2 items-start">
                         <Input
                         id="cp_name"
                         value={formData.cp_name}
