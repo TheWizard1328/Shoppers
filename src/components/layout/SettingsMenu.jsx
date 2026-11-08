@@ -116,6 +116,12 @@ export default function SettingsMenu({
         borderWidth: '1px',
         borderStyle: 'solid',
         borderColor: 'rgba(148, 163, 184, 0.9)', // slate-400, visible on both surfaces
+        // Belt and braces: an outline plus an inset ring in the same slate, so the
+        // edge is drawn even if something in the portal clips or repaints the
+        // border box. Light mode is unchanged (the outline sits on the border).
+        outline: '1px solid rgba(148, 163, 184, 0.95)',
+        outlineOffset: '-1px',
+        boxShadow: 'inset 0 0 0 1px rgba(148, 163, 184, 0.55), 0 12px 32px rgba(0, 0, 0, 0.35)',
       }}
     >
       {/* Settings header and Admin Import toggle - only for admins/app owners */}
