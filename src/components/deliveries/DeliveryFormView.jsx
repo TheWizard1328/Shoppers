@@ -728,7 +728,9 @@ export default function DeliveryFormView({
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
     ? {
         paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
-        paddingBottom: `calc(${mobileBottomNavHeight || 64}px + max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'}))`
+        // OWNER SPEC (Nov 8 2026): on a phone the form covers the app's bottom nav, so
+        // only the real system gesture/safe-area inset is reserved, never the nav height.
+        paddingBottom: `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
       }
     : undefined;
 

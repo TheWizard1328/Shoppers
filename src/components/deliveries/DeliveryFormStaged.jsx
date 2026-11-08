@@ -516,19 +516,23 @@ export default function DeliveryFormStaged({
                       Retire
                     </button>
                   )}
-                  <button
+                  {/* Same Button component + classes as the Projected rows so the global
+                      mobile tap-size rules size both identically. */}
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
+                    style={{ backgroundColor: '#059669', color: '#ffffff' }}
                     title="Add to route (restores the recurrence once saved)"
                     onClick={() => {
                       handleRestoreProjection(projected.patient_id);
                       confirmAddProjectedToStaged(projected);
                       if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
                     }}
-                    className="h-7 w-7 p-0 flex-shrink-0 inline-flex items-center justify-center rounded border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
-                    style={{ backgroundColor: '#059669', color: '#ffffff' }}
                   >
                     <Plus className="w-5 h-5" />
-                  </button>
+                  </Button>
                 </div>
               </div>
             );
