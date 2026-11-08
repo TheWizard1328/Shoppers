@@ -37,6 +37,9 @@ import * as driverIdleAlerts from './driverIdleAlerts';
 // lastPosition, no marker move. Fail-open for timestamps that aren't
 // plausible epoch-ms (provider didn't send one).
 const STALE_FIX_MAX_AGE_MS = 30 * 1000;
+// A live watchPosition fix younger than this counts as a fresh fix for one-shot
+// callers (no extra antenna/service request needed).
+const TRACKER_LIVE_FIX_WINDOW_MS = 10 * 1000;
 
 class LocationTracker {
     constructor() {
@@ -358,6 +361,17 @@ class LocationTracker {
       }
     }
 
+    // LIVE-STREAM SHORTCUT (owner fix Nov 8 2026): while watchPosition is
+    // streaming, asking the native provider for a one-shot fix makes the Android
+    // plugin try to start its foreground service again and reject with
+    // ALREADY_STARTED / "Service already started" — that fired ~15 error rows an
+    // hour on the owner's phone. A fix the live stream delivered moments ago IS
+    // a fresh fix, so hand it back without touching the antenna.
+    if (Number(this._lastFixAt) > 0 && (Date.now() - Number(this._lastFixAt)) < TRACKER_LIVE_FIX_WINDOW_MS) {
+      const liveFix = this.getCachedPosition();
+      if (liveFix) return liveFix;
+    }
+
     // Try a fresh fix from the provider (same provider the tracker uses).
     try {
       const pos = await this._requestSharedFix({
@@ -371,7 +385,11 @@ class LocationTracker {
       this.lastPosition = result;
       return result;
     } catch (err) {
-      console.warn(`📍 [LocationTracker] getFreshPosition failed (${err?.message}), falling back to cached position`);
+      // The Android shell reports a one-shot fix during an active watch as
+      // ALREADY_STARTED / "Service already started". That is benign by design —
+      // stay quiet instead of logging an error row every retry.
+      const _benignOneShot = /ALREADY_STARTED|Service already started|FOREGROUND_SERVICE_START_NOT_ALLOWED|background location while the app is in the background/i.test(String(err?.message || err || ''));
+      if (!_benignOneShot) console.warn(`📍 [LocationTracker] getFreshPosition failed (${err?.message}), falling back to cached position`);
       // CRITICAL: Fall back to the last known position instead of returning null.
       // This is the whole point — after backgrounding, the fresh fix might time
       // out, but lastPosition is still valid (it was updated by the visibilitychange

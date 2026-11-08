@@ -1,0 +1,42 @@
+{
+  "name": "KmRefreshLog",
+  "type": "object",
+  "properties": {
+    "delivery_id": {
+      "type": "string",
+      "description": "Delivery whose store-to-address distance was refreshed"
+    },
+    "delivery_date": {
+      "type": "string",
+      "description": "Delivery date of that stop (yyyy-MM-dd) — one refresh per delivery per date for drivers"
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "Patient record whose distance_from_store was updated"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "Auth user id of whoever pressed the km refresh badge"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Display name of whoever pressed the km refresh badge"
+    },
+    "old_km": {
+      "type": "number",
+      "description": "distance_from_store before the refresh"
+    },
+    "new_km": {
+      "type": "number",
+      "description": "distance_from_store after the refresh"
+    },
+    "refreshed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the refresh happened"
+    }
+  },
+  "required": [
+    "delivery_id"
+  ]
+}
