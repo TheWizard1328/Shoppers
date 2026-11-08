@@ -165,7 +165,7 @@ function splitSwipeCents(total, weights) {
   return base;
 }
 
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, loading, isOwner = true, combineCandidates = null, locationOrder = [], cardLocId = null,
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, onRefundCod, loading, isOwner = true, combineCandidates = null, locationOrder = [], cardLocId = null,
   // ADMIN NOTES (owner request Nov 3 2026): a pen on every delivery item card
   // opens a note dialog that saves to that balance item, and a note-paper icon
   // appears when the DRIVER left a note on the delivery (tapping shows it).
@@ -418,13 +418,16 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             bottom: cashPick.anchorBottom ? Math.max(8, window.innerHeight - cashPick.y + 6) : undefined
           }}>
           <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center">Set tender</div>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
             {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
                    (/_at) so the fee/loan/folder credit and ledger confirmation
                    stop counting it (owner rule Oct 9 2026). */}
             <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>
+            {/* Refunded (owner spec Nov 8 2026): clears the COD amount, collected
+                amount and Type, notes the refund, then refreshes the page. */}
+            <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || !onRefundCod} onClick={async () => {setCashPickBusy(true);try {const ok = await onRefundCod?.(cashPick.row.delivery_id);if (ok !== false) setCashPick(null);} finally {setCashPickBusy(false);}}}>Refunded</Button>
           </div>
           {cashPick.label === 'Cash' && (cashPick.cashRows || []).length > 0 &&
           <div className="pt-1 border-t border-slate-100 dark:border-slate-700 space-y-0.5">
@@ -765,6 +768,47 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // payment automatically accrues Square fee + loan% + folder% in Collected
   // today, loadDeliveryCardCredits (card estimate), loan remaining and the
   // folder total.
+  // REFUNDED TENDER (owner spec Nov 8 2026): 4th option in the Set tender popup.
+  // The customer's COD money was handed back, so the delivery no longer owes or
+  // holds a COD: clear the amount to collect, the collected payments (amount +
+  // Type) and every collection stamp, add the audit note, then refresh the page.
+  // Distinct from markFailedCodRefunded (failed COD returned to the card balance).
+  const refundCod = useCallback(async (deliveryId) => {
+    try {
+      const rows = await base44.entities.Delivery.filter({ id: String(deliveryId) }, undefined, 1, 0).catch(() => []);
+      const d = (rows || [])[0];
+      if (!d) {toast.error('Could not find that delivery');return false;}
+      const payments = Array.isArray(d.cod_payments) ? d.cod_payments : [];
+      const requiredNum = Number(d.cod_total_amount_required || 0);
+      const paidNum = payments.reduce((sm, pm) => sm + (Number(pm?.amount) || 0), 0);
+      // The COD amount for the note: what was required, else what was collected.
+      const amount = requiredNum > 0 ? requiredNum : paidNum;
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+      const noteSuffix = `Original COD of $${amount.toFixed(2)} was refunded on ${today}.`;
+      const existingNote = String(d.delivery_notes || '');
+      const updatePayload = {
+        cod_total_amount_required: 0,
+        cod_payments: [],
+        cod_card_spend_at: '',
+        cod_confirmed_collected: false,
+        cod_confirmed_collected_at: '',
+        delivery_notes: existingNote ? `${existingNote} ${noteSuffix}` : noteSuffix
+      };
+      await base44.entities.Delivery.update(String(d.id), updatePayload);
+      // Mirror first (our own WS echo is suppressed for 5 min), then drop caches
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, ...updatePayload }]).catch(() => {});
+      invalidateIdbReadCache('deliveries');
+      toast.success(`COD of $${amount.toFixed(2)} marked refunded`);
+      // Full page refresh, same path as the Refresh button
+      await syncRef.current?.();
+      return true;
+    } catch (e) {
+      console.error('refundCod failed:', e);
+      toast.error('Could not mark the COD as refunded');
+      return false;
+    }
+  }, []);
+
   const cashToCardSyncTimerRef = useRef(null);
   const cashToCard = useCallback(async (deliveryId, newType, combineIds = []) => {
     const toType = String(newType || '');
@@ -3340,6 +3384,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       onMarkSpend={markCardSpend}
                       onMarkRefunded={markFailedRefunded}
                       onCashToCard={cashToCard}
+                      onRefundCod={refundCod}
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
                       { label: 'Collected', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
