@@ -235,10 +235,11 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
           r.cashAwaitingSquare ? 'Cash' : r.failed ? 'Failed' : r.pendingPickup ? 'Awaiting Pickup' : r.inTransit ? 'In Transit' : 'Pending';
           const emeraldCls = 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300';
           const redCls = 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300';
+          const roseCls = 'bg-rose-100 dark:bg-rose-900/30 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300';
           const statusColorCls = r.collected ?
-          emeraldCls :
+          statusLabel === 'Refunded' ? roseCls : emeraldCls :
           r.cashAwaitingSquare ? emeraldCls : r.failed ? redCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
-          const showNetAmount = r.collected && statusLabel !== 'Cash' && r.netAmount != null;
+          const showNetAmount = r.collected && statusLabel !== 'Cash' && statusLabel !== 'Refunded' && r.netAmount != null;
           // OWNER LAYOUT (Oct 22 2026): ONE ROW PER COD ITEM — store badge,
           // patient name, amount, Card Spend badge per row, exactly like the
           // original layout; a combined swipe simply adds one row per included
@@ -792,7 +793,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         cod_card_spend_at: '',
         cod_confirmed_collected: false,
         cod_confirmed_collected_at: '',
-        delivery_notes: existingNote ? `${existingNote} ${noteSuffix}` : noteSuffix
+        cod_refunded_at: new Date().toISOString(),
+        cod_refunded_amount: amount,
+        // OWNER RULE (Nov 8 2026): an existing note is preserved and the refund
+        // note starts on its OWN new line.
+        delivery_notes: existingNote ? `${existingNote}\n${noteSuffix}` : noteSuffix
       };
       await base44.entities.Delivery.update(String(d.id), updatePayload);
       // Mirror first (our own WS echo is suppressed for 5 min), then drop caches
@@ -1195,9 +1200,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // the driver on every COD row, so the same pass also records the
       // delivery's driver_name (ids alone are unreadable on screen).
       const driverNameByDelivery = new Map();
+      const refundedDeliveryIds = new Set();
       try {
         const allDel = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
         (allDel || []).forEach((dd) => {
+          // A refunded COD's register item must not resurface as a Pending row.
+          if (dd?.id && dd?.cod_refunded_at) refundedDeliveryIds.add(String(dd.id));
           if (dd?.id && dd?.driver_id) driverByDelivery.set(String(dd.id), String(dd.driver_id));
           if (dd?.id && dd?.driver_name) driverNameByDelivery.set(String(dd.id), String(dd.driver_name));
         });
@@ -1246,7 +1254,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const date = parsedDate || String(it.delivery_date || '').slice(0, 10) || null;
         const abbrev = sInfo?.abbreviation || parsed?.abbrev || null;
         const sInfoByAbbrev = abbrev ? storeByAbbrev.get(String(abbrev).toUpperCase()) : null;
-        if (it.delivery_id && cardPaidDeliveryIdsRef.current.has(String(it.delivery_id))) continue;
+        if (it.delivery_id && (cardPaidDeliveryIdsRef.current.has(String(it.delivery_id)) || refundedDeliveryIds.has(String(it.delivery_id)))) continue;
         byLoc.get(it.location_id).push({
           key: `cat-${it.id || it.square_catalog_object_id}`,
           delivery_id: it.delivery_id || null,
@@ -1588,7 +1596,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const required = centsOf(d?.cod_total_amount_required);
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
         const paidSum = payments.reduce((s, pm) => s + centsOf(pm?.amount), 0);
-        if (required <= 0 && paidSum <= 0) continue;
+        // REFUNDED CODS STAY VISIBLE (owner spec Nov 8 2026): no amount left and
+        // no payments, but it still belongs in Collected today with a Refunded
+        // badge so the day's story stays complete.
+        const refundedAt = String(d?.cod_refunded_at || '');
+        if (required <= 0 && paidSum <= 0 && !refundedAt) continue;
         const locId = storeToLoc.get(String(d?.store_id || ''));
         if (!locId) continue;
         const sInfo = storeById.get(String(d?.store_id || ''));
@@ -1614,11 +1626,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const swipedEntry = swipedTodayByDelivery.get(String(d.id)) || null;
         // A cash-recorded COD whose money landed on a card TODAY is collected
         // card money — never dropped by the cash rule above.
-        if (!isCard && !swipedEntry) continue;
-        const effLabel = isCard ? label :
+        if (!isCard && !swipedEntry && !refundedAt) continue;
+        const effLabel = refundedAt ? 'Refunded' : isCard ? label :
           (String(swipedEntry?.card_brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit');
 
-        const gross = (required > 0 ? required : paidSum) / 100;
+        const gross = refundedAt ? Number(d?.cod_refunded_amount || 0) : (required > 0 ? required : paidSum) / 100;
         const mark = manualSpendMarksRef.current?.[String(d.id)];
         const rowObj = {
           key: `d-${d.id}`,
@@ -1633,6 +1645,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           amount: gross,
           sub: collectionMoment.slice(11, 16),
           collected: true,
+          refunded: !!refundedAt,
           // Debit/Credit payments ARE card money by definition in the
           // delivery-data model — the sky "Card Spend" pill marks them.
           hasCardSpend: isCard,
@@ -3370,7 +3383,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   })();
                   const allCollectedRows = [...(codCollectedTodayByLoc[loc.location_id] || []), ...carryOverNotTappedRows];
                   const collectedTodayRows = !driverScopeId ? allCollectedRows : allCollectedRows.filter((r) => String(r.driver_id || '') === driverScopeId);
-                  const sumOf = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
+                  // Refunded rows show the refunded COD amount but are NOT kept money, so they never join the total.
+                  const sumOf = (rows) => rows.reduce((s, r) => s + (r.refunded ? 0 : Number(r.amount || 0)), 0);
                   return (
                     <CardCodList
                       canMarkSpend={!!currentUser}
