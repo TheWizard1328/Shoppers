@@ -615,7 +615,7 @@ export default function SidebarUserFooter({
 
           {/* Clickable area: avatar + name/role/phone — shows logout for dispatchers */}
           <div
-            className={`flex items-center gap-3 flex-1 min-w-0 rounded-lg py-1 -mx-1 px-1 transition-colors ${canOpenTestDialog || (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin')) ? 'cursor-pointer hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 active:bg-slate-200' : ''}`}
+            className={`flex items-center gap-3 flex-1 min-w-0 rounded-lg py-1 -mx-1 px-1 transition-colors ${canOpenTestDialog || (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin')) ? 'cursor-pointer hover:bg-slate-100 dark:bg-transparent dark:hover:bg-slate-800 active:bg-slate-200' : ''}`}
             onClick={() => {
               if (canOpenTestDialog) {
                 setTestAsOpen(true);
@@ -659,7 +659,7 @@ export default function SidebarUserFooter({
 
           <div className="flex flex-col items-center">
             <button
-              onClick={onOpenMessaging} className="px-2 py-0 rounded-lg hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors relative"
+              onClick={onOpenMessaging} className="px-2 py-0 rounded-lg hover:bg-slate-100 dark:bg-transparent dark:hover:bg-slate-800 transition-colors relative"
               title="Messages">
               <MessageCircle className="w-5 h-5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
               {unreadMessageCount > 0 &&
@@ -669,7 +669,7 @@ export default function SidebarUserFooter({
               }
             </button>
             <button
-              onClick={onOpenInviteQR} className="px-2 py-0 rounded-lg hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+              onClick={onOpenInviteQR} className="px-2 py-0 rounded-lg hover:bg-slate-100 dark:bg-transparent dark:hover:bg-slate-800 transition-colors"
               title="Generate Invite QR Code" aria-label="Generate invite QR code">
               <QrCode className="w-5 h-5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300" />
             </button>
