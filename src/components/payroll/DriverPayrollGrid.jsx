@@ -470,10 +470,10 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                 </CardTitle>
-                <span className="text-[10px] font-medium hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap" style={{ color: 'var(--text-slate-400)' }} title="Cell indicators shown next to daily delivery counts">
-                  <span className="inline-flex items-center justify-center h-3.5 px-1 rounded bg-amber-500 text-white text-[9px] font-bold leading-none">AH</span>
+                <span className="text-[10px] font-medium hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap" style={{ color: 'var(--text-slate-400)' }} title="Corner dots in a cell: amber = after-hours, blue = oversized">
+                  <span className="w-[7px] h-[7px] rounded-full bg-amber-500 inline-block" />
                   <span>After Hours</span>
-                  <span className="inline-flex items-center justify-center h-3.5 px-1 rounded bg-sky-600 text-white text-[9px] font-bold leading-none">+</span>
+                  <span className="w-[7px] h-[7px] rounded-[1px] bg-sky-600 inline-block" />
                   <span>Oversized</span>
                 </span>
               </div>
@@ -640,28 +640,32 @@ export default function DriverPayrollGrid({
                         <td
                           key={store.id}
                           className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
+                          title={viewMode === 'deliveries' && (afterHoursCount > 0 || oversizedCount > 0)
+                            ? [afterHoursCount > 0 ? ahTitle : null, oversizedCount > 0 ? osTitle : null].filter(Boolean).join(' · ')
+                            : undefined}
                           style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}>
 
                           {/* OWNER REPORT Nov 7 2026: the old stacked "-" / "+" glyph column was
                               hard to read and made the row taller whenever both appeared. Markers
                               are now two fixed-height chips sitting BESIDE the number, so the cell
                               is a constant height and each flag is a solid, legible badge. */}
-                          <div className="flex items-center justify-center gap-1 leading-none h-4 whitespace-nowrap">
+                          {/* OWNER REPORT Nov 7 2026 (round 2): inline AH/+ chips widened the
+                              store columns. The flags are now tiny corner dots that sit OUT of
+                              flow, so a cell is sized by its number alone: an amber dot at the
+                              top-right is after-hours, a sky square at the bottom-right is
+                              oversized. Both keep their tooltip. */}
+                          <div className="relative mx-auto flex items-center justify-center h-4 leading-none">
                             <span className="md:hidden">{displayValueMobile}</span>
                             <span className="hidden md:inline">{displayValueDesktop}</span>
                             {viewMode === 'deliveries' && afterHoursCount > 0 && (
                               <span
-                                className="inline-flex items-center justify-center h-3.5 min-w-[16px] px-0.5 rounded bg-amber-500 text-white text-[9px] font-bold leading-none shrink-0"
-                                title={ahTitle}>
-                                AH{afterHoursCount > 1 ? afterHoursCount : ''}
-                              </span>
+                                title={ahTitle}
+                                className="absolute top-0 right-0 w-[7px] h-[7px] rounded-full bg-amber-500 ring-1 ring-white dark:ring-slate-900 pointer-events-none" />
                             )}
                             {viewMode === 'deliveries' && oversizedCount > 0 && (
                               <span
-                                className="inline-flex items-center justify-center h-3.5 min-w-[16px] px-0.5 rounded bg-sky-600 text-white text-[9px] font-bold leading-none shrink-0"
-                                title={osTitle}>
-                                +{oversizedCount > 1 ? oversizedCount : ''}
-                              </span>
+                                title={osTitle}
+                                className="absolute bottom-0 right-0 w-[7px] h-[7px] rounded-[1px] bg-sky-600 ring-1 ring-white dark:ring-slate-900 pointer-events-none" />
                             )}
                           </div>
                         </td>);
