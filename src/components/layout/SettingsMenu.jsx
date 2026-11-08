@@ -105,7 +105,17 @@ export default function SettingsMenu({
          inline borderColor (white) and no border width, so it blended into the
          panel behind it. Now a real 1px border in both themes plus a stronger
          shadow so it reads as a separate surface. */
-      className="w-60 z-[99999] text-body bg-surface border-2 border-slate-400 dark:border-slate-500 shadow-2xl" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+      /* The app's dark signal is html.dark-theme, which the dark: utility variant
+         here does not match, so a dark:border never applied and the menu kept a
+         near-black edge on a dark panel (owner report Nov 8 2026). Use the theme's
+         own --menu-border instead: #000000 in light, #e2e8f0 in dark. */
+      className="w-60 z-[99999] text-body bg-surface shadow-2xl"
+      style={{
+        fontSize: isMobileDeviceForUI ? '16px' : '15px',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: 'var(--menu-border)',
+      }}
     >
       {/* Settings header and Admin Import toggle - only for admins/app owners */}
 
