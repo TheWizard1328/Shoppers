@@ -470,7 +470,12 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                 </CardTitle>
-                <span className="text-[10px] font-medium hidden lg:inline whitespace-nowrap" style={{ color: 'var(--text-slate-400)' }} title="Cell indicators shown next to daily delivery counts">− After Hours &nbsp;·&nbsp; + Oversized</span>
+                <span className="text-[10px] font-medium hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap" style={{ color: 'var(--text-slate-400)' }} title="Cell indicators shown next to daily delivery counts">
+                  <span className="inline-flex items-center justify-center h-3.5 px-1 rounded bg-amber-500 text-white text-[9px] font-bold leading-none">AH</span>
+                  <span>After Hours</span>
+                  <span className="inline-flex items-center justify-center h-3.5 px-1 rounded bg-sky-600 text-white text-[9px] font-bold leading-none">+</span>
+                  <span>Oversized</span>
+                </span>
               </div>
 
               {/* Center: Period Navigation */}
@@ -629,36 +634,33 @@ export default function DriverPayrollGrid({
                       const displayValueDesktop = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(2) : '' :
                       value > 0 ? value : (showAhZero ? 0 : '');
-                      const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 ?
-                      '+'.repeat(oversizedCount) :
-                      '';
-                      // After-hours marker — "-" indicates an after-hours delivery (doubled base pay).
-                      // Separate from oversized "+" so the two flags stay distinguishable.
-                      const ahSigns = viewMode === 'deliveries' && afterHoursCount > 0 ?
-                      '-'.repeat(afterHoursCount) :
-                      '';
                       const ahTitle = `${afterHoursCount} after-hours (2× base pay)`;
                       const osTitle = `${oversizedCount} oversized`;
-                      const showMarkers = viewMode === 'deliveries' && (plusSigns || ahSigns);
                       return (
                         <td
                           key={store.id}
                           className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                           style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}>
 
-                          <div className="flex items-center justify-center gap-0.5 leading-none">
-                            {/* Delivery / km count — spans both indicator rows visually (left column) */}
+                          {/* OWNER REPORT Nov 7 2026: the old stacked "-" / "+" glyph column was
+                              hard to read and made the row taller whenever both appeared. Markers
+                              are now two fixed-height chips sitting BESIDE the number, so the cell
+                              is a constant height and each flag is a solid, legible badge. */}
+                          <div className="flex items-center justify-center gap-1 leading-none h-4 whitespace-nowrap">
                             <span className="md:hidden">{displayValueMobile}</span>
                             <span className="hidden md:inline">{displayValueDesktop}</span>
-                            {/* Right column: Oversized (+) on top row, After-hours (-) on bottom row */}
-                            {showMarkers && (
-                              <span className="flex flex-col items-start justify-center text-[0.65rem] leading-[1.05]">
-                                {plusSigns && (
-                                  <span title={osTitle}>{plusSigns}</span>
-                                )}
-                                {ahSigns && (
-                                  <span className="text-amber-500 dark:text-amber-400" title={ahTitle}>{ahSigns}</span>
-                                )}
+                            {viewMode === 'deliveries' && afterHoursCount > 0 && (
+                              <span
+                                className="inline-flex items-center justify-center h-3.5 min-w-[16px] px-0.5 rounded bg-amber-500 text-white text-[9px] font-bold leading-none shrink-0"
+                                title={ahTitle}>
+                                AH{afterHoursCount > 1 ? afterHoursCount : ''}
+                              </span>
+                            )}
+                            {viewMode === 'deliveries' && oversizedCount > 0 && (
+                              <span
+                                className="inline-flex items-center justify-center h-3.5 min-w-[16px] px-0.5 rounded bg-sky-600 text-white text-[9px] font-bold leading-none shrink-0"
+                                title={osTitle}>
+                                +{oversizedCount > 1 ? oversizedCount : ''}
                               </span>
                             )}
                           </div>
