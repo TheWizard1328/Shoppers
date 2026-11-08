@@ -592,3 +592,14 @@ html.dark-theme body {
 button[role="combobox"] {
   border-color: rgba(148, 163, 184, 0.95) !important;
 }
+
+/* Native date/time picker icon is a dark glyph, which vanishes on the dark form
+   surfaces (owner report Nov 8 2026). Invert it on both dark signals. */
+html.dark-theme input[type="date"]::-webkit-calendar-picker-indicator,
+html.dark-theme input[type="time"]::-webkit-calendar-picker-indicator,
+html.auto-theme.dark input[type="date"]::-webkit-calendar-picker-indicator,
+html.auto-theme.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.6);
+  opacity: 0.9;
+  cursor: pointer;
+}

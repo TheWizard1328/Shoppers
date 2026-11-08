@@ -984,13 +984,13 @@ export default function DeliveryFormView({
             </div>
             {!delivery &&
             <div className={`flex gap-2 ${useMobileLayout && isMobileDevice ? 'w-full flex-nowrap' : 'ml-7 flex-wrap'}`}>
-                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${!isPickupMode && !isInterStoreMode && !isCyclingMarkerMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(false);setIsCyclingMarkerMode?.(false);}} style={isPickupMode || isInterStoreMode || isCyclingMarkerMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${!isPickupMode && !isInterStoreMode && !isCyclingMarkerMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(false);setIsCyclingMarkerMode?.(false);}} style={isPickupMode || isInterStoreMode || isCyclingMarkerMode ? { background: 'var(--bg-white)', borderColor: 'rgba(148, 163, 184, 0.85)', color: 'var(--text-slate-900)' } : {}}>
                   Add Delivery
                 </Button>
-                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(true);setIsCyclingMarkerMode?.(false);}} style={!isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(true);setIsCyclingMarkerMode?.(false);}} style={!isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'rgba(148, 163, 184, 0.85)', color: 'var(--text-slate-900)' } : {}}>
                   InterStores
                 </Button>
-                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(true);setIsInterStoreMode?.(false);setIsCyclingMarkerMode?.(false);}} style={!isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(true);setIsInterStoreMode?.(false);setIsCyclingMarkerMode?.(false);}} style={!isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'rgba(148, 163, 184, 0.85)', color: 'var(--text-slate-900)' } : {}}>
                   Add Pickup
                 </Button>
                 {userHasRole(currentUser, 'driver') &&
@@ -1033,7 +1033,7 @@ export default function DeliveryFormView({
                     cycling_longitude: parseFloat(cachedPos.longitude.toFixed(7))
                   }));
                 }
-              }} style={!isCyclingMarkerMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+              }} style={!isCyclingMarkerMode ? { background: 'var(--bg-white)', borderColor: 'rgba(148, 163, 184, 0.85)', color: 'var(--text-slate-900)' } : {}}>
                   Cycling Marker
                 </Button>
               }
@@ -1064,7 +1064,7 @@ export default function DeliveryFormView({
                     <Label className="text-sm font-semibold text-body">Transfer Date *</Label>
                     <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                   </div>
-                  <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-all ${interStoreReady && !formData.driver_id ? 'border-amber-400 ring-2 ring-amber-300' : ''}`} style={interStoreReady && !formData.driver_id ? { background: '#fffbeb', borderColor: '#fbbf24' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-all ${interStoreReady && !formData.driver_id ? 'border-amber-400 ring-2 ring-amber-300' : ''}`} style={interStoreReady && !formData.driver_id ? { background: '#fffbeb', borderColor: '#fbbf24' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                     <Label className="text-sm font-semibold" style={{ color: interStoreReady && !formData.driver_id ? '#92400e' : 'var(--text-slate-900)' }}>Driver {interStoreReady && !formData.driver_id ? '⚠ Required' : ''}</Label>
                     <Select open={forceOpenInterStoreDriverSelect} onOpenChange={setForceOpenInterStoreDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                     const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1253,7 +1253,7 @@ export default function DeliveryFormView({
                       <Label className="text-sm font-semibold text-body">Delivery Date *</Label>
                       <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                     </div>
-                    <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-colors ${forceOpenDriverSelect ? 'border-red-400 ring-2 ring-red-300' : ''}`} style={forceOpenDriverSelect ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-colors ${forceOpenDriverSelect ? 'border-red-400 ring-2 ring-red-300' : ''}`} style={forceOpenDriverSelect ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                       <Label className="text-sm font-semibold text-body">Driver</Label>
                       <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                         const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1307,7 +1307,7 @@ export default function DeliveryFormView({
                             <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                           </div>
 
-                          <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                             <Label className="text-sm font-semibold text-body">Driver {delivery ? '*' : ''}</Label>
                             <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                             const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1358,7 +1358,7 @@ export default function DeliveryFormView({
                           <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                         </div>
 
-                        <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                           <Label className="text-sm font-semibold text-body">Driver {delivery ? '*' : ''}</Label>
                           <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1391,7 +1391,7 @@ export default function DeliveryFormView({
                         <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="px-3 py-1 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9 [&::-webkit-calendar-picker-indicator]:mr-1 [&::-webkit-calendar-picker-indicator]:scale-100" />
                       </div>
 
-                      <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border" style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border" style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Driver {delivery ? '*' : ''}</Label>
                         <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1918,7 +1918,7 @@ export default function DeliveryFormView({
             <div className="flex flex-wrap items-center w-full gap-2">
               <div className="flex flex-wrap items-center gap-3 min-w-0">
                 {!delivery && useMobileLayout && !isPickupMode &&
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowStagedPanel(!showStagedPanel)} className="gap-2 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowStagedPanel(!showStagedPanel)} className="gap-2 text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                     <Package className="w-4 h-4" />
                     Deliveries: (S: {stagedCount.new} P: {stagedCount.pending})
                   </Button>
@@ -1973,7 +1973,7 @@ export default function DeliveryFormView({
                   } else {
                     handleCancelClick();
                   }
-                }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ borderColor: 'var(--border-slate-300)' }} className="inline-flex min-h-11 min-w-20 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs text-body bg-surface">
+                }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} className="inline-flex min-h-11 min-w-20 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs text-body bg-surface">
                  {(() => {
                     if (delivery) return 'Cancel';
                     if (isInterStoreMode) {

@@ -1123,7 +1123,7 @@ export default function PatientForm({
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
               {/* AppOwner Only: GPS & Distance Section */}
               {(isAppOwner(currentUser) || forceAppOwnerView) &&
-              <div className="px-2 rounded-[10px] py-2 border-2 space-y-1" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-slate-200)' }}>
+              <div className="px-2 rounded-[10px] py-2 border-2 space-y-1" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', background: 'var(--bg-slate-200)' }}>
                   <div className="flex items-center gap-2 mb-1">
                     <Label className="text-xs font-semibold uppercase text-body-2">App Owner Controls</Label>
                   </div>
@@ -1136,7 +1136,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
                       placeholder="5-chr"
-                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}
+                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}
                       maxLength={5} />
                     </div>
                     <div className="flex-1 min-w-0 space-y-1" style={{ maxWidth: 'calc(50% - 60px)' }}>
@@ -1149,7 +1149,7 @@ export default function PatientForm({
                       value={Number.isFinite(formData.latitude) ? formData.latitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, latitude: toFiniteNumber(e.target.value) }))}
                       placeholder="GPS Lat"
-                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                     <div className="flex-1 min-w-0 space-y-1" style={{ maxWidth: 'calc(50% - 60px)' }}>
                       <Label htmlFor="longitude" className="text-sm font-medium text-body">Longitude</Label>
@@ -1161,7 +1161,7 @@ export default function PatientForm({
                       value={Number.isFinite(formData.longitude) ? formData.longitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, longitude: toFiniteNumber(e.target.value) }))}
                       placeholder="GPS Lon"
-                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                     <div className="flex-none w-[75px] space-y-1">
                       <Label htmlFor="distance" className="text-sm font-medium text-body">Dist</Label>
@@ -1173,7 +1173,7 @@ export default function PatientForm({
                       value={Number.isFinite(formData.distance_from_store) ? formData.distance_from_store : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: toFiniteNumber(e.target.value) }))}
                       placeholder="km"
-                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                   </div>
                   {/* System Record ID + Last Delivery Date - only shown when editing existing patient */}
@@ -1182,7 +1182,7 @@ export default function PatientForm({
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-soft">System Record ID</Label>
                       <div
-                      className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 px-2 text-soft bg-surface" style={{ borderColor: 'var(--border-slate-300)', border: '1px solid var(--border-slate-300)' }}>
+                      className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 px-2 text-soft bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', border: '1px solid var(--border-slate-300)' }}>
                         {patient.id}
                       </div>
                     </div>
@@ -1193,7 +1193,7 @@ export default function PatientForm({
                       type="date"
                       value={formData.last_delivery_date || ""}
                       onChange={(e) => setFormData((prev) => ({ ...prev, last_delivery_date: e.target.value }))}
-                      className="h-9 text-xs text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                      className="h-9 text-xs text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                   </div>
                 }
@@ -1212,7 +1212,7 @@ export default function PatientForm({
                       value={formData.store_id}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
                       disabled={isStoreDisabled || disableOtherFieldsDuringAddressLookup}>
-                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
+                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <SelectValue placeholder="Select store..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px] overflow-y-auto z-[99999] text-body bg-surface border-surface">
@@ -1231,7 +1231,7 @@ export default function PatientForm({
                       value={formData.status}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
                       disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}>
-                      <SelectTrigger className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
+                      <SelectTrigger className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="max-h-[200px] overflow-y-auto z-[99999] text-body bg-surface border-surface">
@@ -1314,7 +1314,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       value={formData.unit_number}
                       onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
-                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''} text-body`} style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }} />
+                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''} text-body`} style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                   </div>
 
                   {/* Buzzer portal dialog */}
@@ -1353,7 +1353,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(e) => setFormData((prev) => ({ ...prev, full_name: capitalizeName(e.target.value) }))}
                       required
-                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''} text-body`} style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }} />
+                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''} text-body`} style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="email" className="text-sm font-medium text-body">Email Address</Label>
@@ -1364,7 +1364,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                       placeholder="Email address"
-                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                   </div>
                 </div>
 
@@ -1403,7 +1403,7 @@ export default function PatientForm({
                       value={formData.time_window_start}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
                       disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                   </div>
 
                   <div className="col-span-6 space-y-1">
@@ -1414,7 +1414,7 @@ export default function PatientForm({
                       value={formData.time_window_end}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
                       disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                   </div>
                 </div>
               </div>
@@ -1459,7 +1459,7 @@ export default function PatientForm({
                         disabled={disableOtherFieldsDuringAddressLookup}
                         onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                         placeholder="Special delivery instructions, preferences, etc."
-                        className="h-24 md:h-32 text-sm resize-none text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                        className="h-24 md:h-32 text-sm resize-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                     {formData.care_pros &&
                     <div className="col-span-2 space-y-2">
@@ -1469,7 +1469,7 @@ export default function PatientForm({
                         disabled={disableOtherFieldsDuringAddressLookup}
                         onChange={(e) => setFormData((prev) => ({ ...prev, cp_name: e.target.value }))}
                         placeholder="Care Pro name"
-                        className="h-9 text-sm text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                        className="h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                         <div className="space-y-0.5">
                           <Label htmlFor="cp_envelopes" className="text-xs font-medium text-body">CP Envelopes</Label>
                           <Input
@@ -1480,7 +1480,7 @@ export default function PatientForm({
                           disabled={disableOtherFieldsDuringAddressLookup}
                           onChange={(e) => setFormData((prev) => ({ ...prev, cp_envelopes: Number(e.target.value) }))}
                           placeholder="0"
-                          className="h-9 text-sm text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} />
+                          className="h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                         </div>
                       </div>
                     }
@@ -1490,7 +1490,7 @@ export default function PatientForm({
 
               <div className="grid grid-cols-2 gap-2" style={{ opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                     <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)' }}>
-                      <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-300)' }}>
+                      <div className="border-b pb-2 mb-3" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <h3 className="text-sm font-semibold text-body">Delivery Preferences</h3>
                       </div>
 
@@ -1533,7 +1533,7 @@ export default function PatientForm({
                 </div>
 
                 <div className="px-3 py-2 rounded-[10px] relative" style={{ background: 'var(--bg-slate-200)' }}>
-                  <div className="border-b pb-2" style={{ borderColor: 'var(--border-slate-300)' }}>
+                  <div className="border-b pb-2" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <div className="flex items-center space-x-2">
                           <Checkbox
                         id="recurring"
@@ -1678,7 +1678,7 @@ export default function PatientForm({
 
           <CardFooter className="px-4 py-2 border-t flex items-center justify-end flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
+              <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} className="text-body bg-surface">
                 Cancel
               </Button>
               <Button type="button" onClick={handleSubmit} disabled={!isFormValid || isSavingPatient || disableOtherFieldsDuringAddressLookup} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">
