@@ -358,7 +358,10 @@ export default function AppSidebar({
               title="View the change log"
               /* No gap above or below: the -mt-1 pull is gone and leading-none
                  keeps the link flush to the version rows (owner Nov 6 2026). */
-              className="mt-0 leading-none text-[11px] font-semibold text-emerald-700 text-left hover:text-emerald-800 hover:underline cursor-pointer"
+              /* index.css forces min-height:44px on every button, which boxed this
+                 11px label with dead space above and below (owner report Nov 8 2026).
+                 The class utilities win over the element rule, so it collapses tight. */
+              className="mt-0 p-0 h-auto min-h-0 leading-none text-[11px] font-semibold text-emerald-700 text-left hover:text-emerald-800 hover:underline cursor-pointer"
             >
               Change Logs
             </button>
