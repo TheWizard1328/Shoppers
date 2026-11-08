@@ -368,6 +368,10 @@ export default function DriverPayroll() {
   const { currentUser } = useUser();
   useAppData();
 
+  // Measured height of the fixed mobile action bar (Summary/Share/Refresh). The
+  // scroll containers reserve this plus a small gap so nothing is ever hidden.
+  const [actionsBarHeight, setActionsBarHeight] = useState(0);
+  const actionsBarPad = Math.max(actionsBarHeight, 0) + 16;
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const [selectedCityId, setSelectedCityId] = useState('');
   const [selectedDriverId, setSelectedDriverId] = useState('all');
@@ -2161,7 +2165,7 @@ export default function DriverPayroll() {
   const showBlockingSpinner = (isLoadingPayroll && !blockingGraceExpired) || payPeriod === null || selectedPeriodIndex === null;
   if (showBlockingSpinner) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600 dark:text-slate-400">Loading payroll data...</span></div>{eTransDialog}</>;
 
-  return <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-4" style={{ background: 'var(--bg-slate-50)' }}>
+  return <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-4" style={{ background: 'var(--bg-slate-50)', paddingBottom: actionsBarPad }}>
       <div className="max-w-7xl w-full mx-auto flex flex-col min-h-full min-w-0" ref={contentRef}>
         {isLoadingPayroll && blockingGraceExpired && (
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-slate-800 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
@@ -2375,9 +2379,10 @@ export default function DriverPayroll() {
       
 
         {/* Content Area for Screenshot */}
-        {/* pb-[76px]: room for the fixed MobileBottomActions bar (which itself sits above the
-            bottom nav), so the last row of the grid is never hidden behind it. */}
-        <div ref={payrollScrollRef} className="pb-[76px] min-h-0 flex-1 overflow-y-auto overflow-x-hidden md:pb-1 overscroll-contain">
+        {/* Bottom padding is MEASURED from the action bar (see actionsBarHeight), because the
+            bar is visible all the way up to lg while a fixed md:pb-1 collapsed the reserve at
+            768px and hid the last cards (owner report Nov 7 2026, wide phone). */}
+        <div ref={payrollScrollRef} style={{ paddingBottom: actionsBarPad }} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           {/* Grid (mobile collapsible) */}
           <div className="lg:hidden mb-3">
             <Button size="sm" variant="outline" className="bg-background px-2 text-xs font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-8 w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
@@ -2452,6 +2457,7 @@ export default function DriverPayroll() {
         </div>
         
         <MobileBottomActions
+        onHeightChange={setActionsBarHeight}
         onSummary={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         onShare={handleSharePayroll}
         onRefresh={handleManualRefresh}
