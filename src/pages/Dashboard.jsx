@@ -2129,7 +2129,13 @@ function Dashboard() {
     const driverExists = (id) => !!id && driversList.some((d) => d && (d.id === id || d.user_id === id));
 
     const saved = globalFilters.getSelectedDriverId();
-    const hasSaved = saved && saved !== 'all' && driverExists(saved);
+    // OWNER FIX (Nov 8 2026): a saved driver whose stops for THIS date/city are
+    // not in driversList still counts — validating only against the date-scoped
+    // list dropped a perfectly good selection and silently reset an admin back
+    // to their own account. Any AppUser holding the driver role qualifies.
+    const savedIsKnownDriver = !!saved && saved !== 'all' && (driverExists(saved) ||
+      (appUsers || []).some((u) => u && String(u.user_id || '') === String(saved) && Array.isArray(u.app_roles) && u.app_roles.includes('driver')));
+    const hasSaved = savedIsKnownDriver;
 
     let selection = 'all';
 

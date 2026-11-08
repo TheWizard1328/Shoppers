@@ -22,6 +22,18 @@ export function initializeGlobalFilters(fetchedUser, savedSettings) {
   const isDispatcherOnly = userHasRole(fetchedUser, 'dispatcher') && !userHasRole(fetchedUser, 'admin');
   const isAdmin = userHasRole(fetchedUser, 'admin');
 
+  // PERSISTENCE FIX (owner report Nov 8 2026: "the selected driver resets to the
+  // admin user on refresh/restart"). A server setting that came back empty used
+  // to overwrite the good local selection with 'all', and the dashboard then fell
+  // back to the admin's own id. Trust order is now: saved server value → the
+  // selection already in this device's globalFilters/localStorage → 'all'.
+  const savedDriverId = () => {
+    const fromServer = String(s.selected_driver_id || '');
+    if (fromServer) return fromServer;
+    const local = String(globalFilters.getSelectedDriverId() || '');
+    return local && local !== 'all' ? local : 'all';
+  };
+
   if (isDriverOnly) {
     // Drivers: always today + their own ID
     globalFilters.setSelectedDate(todayStr, fetchedUser.id);
@@ -29,11 +41,11 @@ export function initializeGlobalFilters(fetchedUser, savedSettings) {
   } else if (isDispatcherOnly) {
     // Dispatchers: always today + saved driver pref (or 'all')
     globalFilters.setSelectedDate(todayStr, fetchedUser.id);
-    globalFilters.setSelectedDriverId(s.selected_driver_id || 'all', fetchedUser.id);
+    globalFilters.setSelectedDriverId(savedDriverId(), fetchedUser.id);
   } else if (isAdmin) {
     // Admins: restore saved date + driver, fallback to today/'all'
     globalFilters.setSelectedDate(s.selected_date || todayStr, fetchedUser.id);
-    globalFilters.setSelectedDriverId(s.selected_driver_id || 'all', fetchedUser.id);
+    globalFilters.setSelectedDriverId(savedDriverId(), fetchedUser.id);
   } else {
     // Fallback
     globalFilters.setSelectedDate(todayStr, fetchedUser.id);
