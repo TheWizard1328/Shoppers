@@ -706,30 +706,14 @@ export default function DeliveryFormView({
   // DESKTOP-CLASS (tablet landscape + PC): the form fills the measured content
   // box - right of the (user-resizable) sidebar, below any top chrome - instead
   // of floating as a capped 468-1050px card with dead margins around it.
-  const desktopFillStyle = !(useMobileLayout && isMobileDevice) && contentArea && contentArea.width > 0 ? {
-    position: 'fixed',
-    left: `${contentArea.left}px`,
-    top: `${contentArea.top}px`,
-    width: `${contentArea.width}px`,
-    height: `${contentArea.height}px`,
-    right: 'auto',
-    bottom: 'auto',
-    padding: 0,
-  } : undefined;
+  // OWNER REVERSAL (Nov 8 2026): the measured fill (desktop content box, phone
+  // status-bar-to-nav) made these forms nearly full screen. Back to the capped,
+  // CENTRED card: the dialog keeps its own max-width (468-1050px by mode) and the
+  // overlay centres it. Both styles stay declared but empty so every call site and
+  // the `||` fallbacks below keep working.
+  const desktopFillStyle = undefined;
 
-  const mobileFormInsetStyle = useMobileLayout && isMobileDevice ? {
-    // OWNER SPEC (Nov 7 2026): on a phone this form fills from the STATUS BAR down
-    // to the TOP OF THE BOTTOM NAV and COVERS the app's mobile header. The top
-    // inset is therefore the status-bar safe area alone - adding the header
-    // height here is what used to park the form below the header instead of over
-    // it. `bottom` still carries the nav height + safe-area bottom so the footer
-    // buttons stay clear of the nav (mirrors --native-safe-bottom).
-    top: 'var(--native-safe-top, env(safe-area-inset-top, 0px))',
-    bottom: isKeyboardLikelyOpen ?
-    '0px' :
-    `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
-    background: 'var(--bg-white)'
-  } : undefined;
+  const mobileFormInsetStyle = undefined;
 
   // Auto-focus the barcode scanner manual input when a staged or pending item is selected (desktop only)
   React.useEffect(() => {
@@ -913,15 +897,15 @@ export default function DeliveryFormView({
     // mobileFormInsetStyle above, so letting the catch-all also add
     // padding-bottom here just double-counts the safe-area gap.
     role="dialog"
-    className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : desktopFillStyle ? 'bg-black/60 flex' : 'bg-black/60 flex items-center justify-center p-4'}`}
+    className="fixed inset-0 z-[10020] overflow-hidden bg-black/60 flex items-center justify-center p-4"
     style={mobileFormInsetStyle || desktopFillStyle}>
       
       <motion.div
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : desktopFillStyle ? 'h-full max-h-full overflow-hidden' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-auto max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
-        style={(useMobileLayout && isMobileDevice) || desktopFillStyle ? { height: '100%', maxHeight: '100%', maxWidth: '100%' } : undefined}>
+        className={`w-full min-w-0 ${isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-auto max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
+        >
         <Card
           onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl overflow-hidden'} text-body bg-surface border-surface`}>
@@ -1078,7 +1062,7 @@ export default function DeliveryFormView({
                 <div className="flex gap-3">
                   <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">Transfer Date *</Label>
-                    <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                    <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                   </div>
                   <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-all ${interStoreReady && !formData.driver_id ? 'border-amber-400 ring-2 ring-amber-300' : ''}`} style={interStoreReady && !formData.driver_id ? { background: '#fffbeb', borderColor: '#fbbf24' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: interStoreReady && !formData.driver_id ? '#92400e' : 'var(--text-slate-900)' }}>Driver {interStoreReady && !formData.driver_id ? '⚠ Required' : ''}</Label>
@@ -1123,7 +1107,7 @@ export default function DeliveryFormView({
                 <div className="flex gap-3">
                   <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">Date *</Label>
-                    <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                    <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                   </div>
                   <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">Driver</Label>
@@ -1267,7 +1251,7 @@ export default function DeliveryFormView({
                   <div className="flex gap-3">
                     <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                       <Label className="text-sm font-semibold text-body">Delivery Date *</Label>
-                      <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                      <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                     </div>
                     <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-colors ${forceOpenDriverSelect ? 'border-red-400 ring-2 ring-red-300' : ''}`} style={forceOpenDriverSelect ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <Label className="text-sm font-semibold text-body">Driver</Label>
@@ -1320,7 +1304,7 @@ export default function DeliveryFormView({
                         <div className="grid grid-cols-2 gap-3 w-full">
                           <div className="min-w-0 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             <Label className="text-sm font-semibold text-body">Delivery Date *</Label>
-                            <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                            <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                           </div>
 
                           <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -1371,7 +1355,7 @@ export default function DeliveryFormView({
 
                         <div className="min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           <Label className="text-sm font-semibold text-body">Delivery Date *</Label>
-                          <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                          <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
                         </div>
 
                         <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -1404,7 +1388,7 @@ export default function DeliveryFormView({
                     <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-[1.1fr_0.9fr_auto] gap-2 w-full items-stretch' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
                       <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Delivery Date *</Label>
-                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="px-3 py-1 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9 [&::-webkit-calendar-picker-indicator]:mr-1 [&::-webkit-calendar-picker-indicator]:scale-100" />
+                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="px-3 py-1 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9 [&::-webkit-calendar-picker-indicator]:mr-1 [&::-webkit-calendar-picker-indicator]:scale-100" />
                       </div>
 
                       <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border" style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
