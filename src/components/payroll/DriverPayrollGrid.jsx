@@ -649,33 +649,35 @@ export default function DriverPayrollGrid({
                               hard to read and made the row taller whenever both appeared. Markers
                               are now two fixed-height chips sitting BESIDE the number, so the cell
                               is a constant height and each flag is a solid, legible badge. */}
-                          {/* OWNER SPEC Nov 7 2026 (round 3): one marker PER COUNT, tight beside the
-                              number - oversized squares on the TOP row, after-hours dots on the
-                              BOTTOM row. Both rows are fixed 5px tall inside the 16px cell row, so
-                              the height still cannot grow; the stack only adds ~5-10px of width.
-                              A row is only rendered when its count is above zero, so a lone
-                              oversized square or a lone after-hours dot centres vertically. */}
-                          <div className="flex items-center justify-center gap-1 leading-none h-4 whitespace-nowrap">
-                            <span className="md:hidden">{displayValueMobile}</span>
-                            <span className="hidden md:inline">{displayValueDesktop}</span>
-                            {viewMode === 'deliveries' && (oversizedCount > 0 || afterHoursCount > 0) && (
-                              <span className="flex flex-col items-start justify-center gap-[1px] shrink-0">
-                                {oversizedCount > 0 && (
-                                  <span className="flex items-center gap-[1px] h-[5px]">
-                                    {Array.from({ length: Math.min(oversizedCount, 5) }).map((_, i) => (
-                                      <span key={`os${i}`} className="w-[5px] h-[5px] rounded-[1px] bg-sky-600" />
-                                    ))}
-                                  </span>
-                                )}
-                                {afterHoursCount > 0 && (
-                                  <span className="flex items-center gap-[1px] h-[5px]">
-                                    {Array.from({ length: Math.min(afterHoursCount, 5) }).map((_, i) => (
-                                      <span key={`ah${i}`} className="w-[5px] h-[5px] rounded-full bg-amber-500" />
-                                    ))}
-                                  </span>
-                                )}
-                              </span>
-                            )}
+                          {/* OWNER SPEC Nov 7 2026 (round 4): the VALUE alone is centred in the
+                              column; the markers hang off its right edge as an absolutely
+                              positioned stack, so a cell with markers no longer shifts its number
+                              off-centre. Oversized squares ride the top row, after-hours dots the
+                              bottom row, one per count. A row with no count is not rendered, so a
+                              lone row stays vertically centred. */}
+                          <div className="relative h-4 flex items-center justify-center leading-none">
+                            <span className="relative inline-flex items-center">
+                              <span className="md:hidden">{displayValueMobile}</span>
+                              <span className="hidden md:inline">{displayValueDesktop}</span>
+                              {viewMode === 'deliveries' && (oversizedCount > 0 || afterHoursCount > 0) && (
+                                <span className="absolute left-full ml-[2px] top-1/2 -translate-y-1/2 flex flex-col items-start justify-center gap-[1px] pointer-events-none">
+                                  {oversizedCount > 0 && (
+                                    <span className="flex items-center gap-[1px] h-[5px]">
+                                      {Array.from({ length: Math.min(oversizedCount, 5) }).map((_, idx) => (
+                                        <span key={`os${idx}`} className="w-[5px] h-[5px] rounded-[1px] bg-sky-600" />
+                                      ))}
+                                    </span>
+                                  )}
+                                  {afterHoursCount > 0 && (
+                                    <span className="flex items-center gap-[1px] h-[5px]">
+                                      {Array.from({ length: Math.min(afterHoursCount, 5) }).map((_, idx) => (
+                                        <span key={`ah${idx}`} className="w-[5px] h-[5px] rounded-full bg-amber-500" />
+                                      ))}
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                            </span>
                           </div>
                         </td>);
 
