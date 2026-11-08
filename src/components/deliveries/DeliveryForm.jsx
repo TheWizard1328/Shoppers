@@ -3,6 +3,7 @@
  * Rendering is delegated to DeliveryFormView.jsx.
  */
 import { useDevice } from '@/components/utils/DeviceContext';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { buildInTransitDirectSaveData } from './inTransitDirectSave';
 import { format } from "date-fns";
@@ -1557,14 +1558,31 @@ export default function DeliveryForm({
     if (!allDeliveries || !formDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
     const loadKey = `${formDate}|${formDriverId}`;
     if (pendingLoadKeyRef.current === loadKey) return;
-    const pendingDeliveries = filterPendingDeliveriesForUser({
-      allDeliveries, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
-    });
     pendingLoadKeyRef.current = loadKey;
     hasLoadedPending.current = true;
-    if (pendingDeliveries.length === 0) { setStagedDeliveries([]); setHasChanges(false); return; }
-    const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries, calculateDistance });
-    setTimeout(() => { setStagedDeliveries(newStagedItems); setHasChanges(false); }, 80);
+    let cancelled = false;
+    (async () => {
+      // ROOT CAUSE (Nov 8 2026): the prop allDeliveries is the DASHBOARD's day slice,
+      // so pending stops dated ahead of it simply are not in the array. Widen the pool
+      // from the offline cache (every synced delivery) and union by id before filtering.
+      let pool = allDeliveries || [];
+      try {
+        const cached = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        if (Array.isArray(cached) && cached.length) {
+          const byId = new Map();
+          [...cached, ...pool].forEach((row) => { if (row && (row.id || row.delivery_id)) byId.set(row.id || row.delivery_id, row); });
+          pool = Array.from(byId.values());
+        }
+      } catch { /* cache unavailable, fall back to the prop */ }
+      if (cancelled) return;
+      const pendingDeliveries = filterPendingDeliveriesForUser({
+        allDeliveries: pool, selectedDate: formDate, selectedDriverId: formDriverId, currentUser, userHasRole
+      });
+      if (pendingDeliveries.length === 0) { setStagedDeliveries([]); setHasChanges(false); return; }
+      const newStagedItems = mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries: pool, calculateDistance });
+      setTimeout(() => { if (cancelled) return; setStagedDeliveries(newStagedItems); setHasChanges(false); }, 80);
+    })();
+    return () => { cancelled = true; };
   }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id]);
 
   // Resolve InterStore From/To locations from delivery_id phone numbers when editing
