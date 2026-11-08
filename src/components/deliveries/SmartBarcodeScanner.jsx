@@ -157,6 +157,7 @@ export default function SmartBarcodeScanner({
   onManualInputOverrideApplied = () => {},
   barcodeInputRef: externalBarcodeInputRef = null,
   onTabForward = null,
+  defaultCollapsed = false,
 }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
@@ -227,6 +228,10 @@ export default function SmartBarcodeScanner({
   const audioCtxRef = useRef(null);
 
   const { isMobile } = useDevice();
+  // OWNER SPEC (Nov 8 2026): on a phone, in-transit and finished deliveries open
+  // with the barcode panel collapsed to save vertical space.
+  const [panelOpen, setPanelOpen] = useState(!defaultCollapsed);
+  useEffect(() => { setPanelOpen(!defaultCollapsed); }, [defaultCollapsed]);
   const fastThreshold = isMobile ? 50 : 35;
   const allValues = [...receiptBarcodeValues, ...rxBarcodeValues];
 
@@ -875,14 +880,21 @@ export default function SmartBarcodeScanner({
 
   return (
     <div className="space-y-" onClick={(e) => {if (isMobile && !showCamera && e.target?.tagName !== 'INPUT') hiddenInputRef.current?.focus?.();}}>
-      <div className="pb-1 gap- flex items-center gap-1">
+      <div
+        className={`pb-1 flex items-center gap-1 ${defaultCollapsed ? 'cursor-pointer select-none' : ''}`}
+        onClick={defaultCollapsed ? () => setPanelOpen((v) => !v) : undefined}
+        role={defaultCollapsed ? 'button' : undefined}
+        aria-expanded={defaultCollapsed ? panelOpen : undefined}
+      >
         <Barcode className="w-4 h-4 text-emerald-600" />
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Barcodes</Label>
         {allValues.length > 0 &&
         <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 text-xs px-1.5 py-0 h-5">{allValues.length}</Badge>
         }
+        {defaultCollapsed && <span className="ml-auto text-xs text-slate-500 dark:text-slate-400">{panelOpen ? '▾' : '▸'}</span>}
       </div>
 
+      {panelOpen && (<>
       <div className="flex gap-2 items-center">
         <Input
           ref={inputRef}
@@ -961,6 +973,7 @@ export default function SmartBarcodeScanner({
           isRx={true} />
         
       </div>
+      </>)}
 
       {selectedBarcode &&
       <div

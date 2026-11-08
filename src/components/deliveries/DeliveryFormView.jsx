@@ -1492,11 +1492,11 @@ export default function DeliveryFormView({
                           <div className="flex gap-3">
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold text-body">Patient Notes</Label>
-                              <Textarea value={formData.delivery_instructions ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none min-h-[150px]" disabled={isSaving} />
+                              <Textarea value={formData.delivery_instructions ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none min-h-[110px]" disabled={isSaving} />
                             </div>
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold text-body">Driver Notes</Label>
-                              <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none min-h-[150px]" disabled={isSaving} />
+                              <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none min-h-[110px]" disabled={isSaving} />
                             </div>
                           </div>
                         </div>
@@ -1654,6 +1654,7 @@ export default function DeliveryFormView({
                       <div className="min-w-0 min-h-0 overflow-y-auto pr-1 space-y-3">
                           <div className="px-3 py-2 rounded-lg space-y-2 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             <SmartBarcodeScanner
+                            defaultCollapsed={useMobileLayout && isMobileDevice && ['in_transit', 'en_route', 'completed', 'failed', 'cancelled', 'returned'].includes(formData.status)}
                             receiptBarcodeValues={formData.receipt_barcode_values || []}
                             rxBarcodeValues={formData.barcode_values || []}
                             onReceiptChange={(vals) => setFormData((prev) => ({ ...prev, receipt_barcode_values: vals }))}
@@ -1754,6 +1755,7 @@ export default function DeliveryFormView({
                         {/* Barcode Scanner */}
                         <div className="space-y-2 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           <SmartBarcodeScanner
+                          defaultCollapsed={useMobileLayout && isMobileDevice && ['in_transit', 'en_route', 'completed', 'failed', 'cancelled', 'returned'].includes(formData.status)}
                           receiptBarcodeValues={formData.receipt_barcode_values || []}
                           rxBarcodeValues={formData.barcode_values || []}
                           onReceiptChange={(vals) => setFormData((prev) => ({ ...prev, receipt_barcode_values: vals }))}
