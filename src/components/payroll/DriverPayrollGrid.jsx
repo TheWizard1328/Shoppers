@@ -470,11 +470,11 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                 </CardTitle>
-                <span className="text-[10px] font-medium hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap" style={{ color: 'var(--text-slate-400)' }} title="Corner dots in a cell: amber = after-hours, blue = oversized">
-                  <span className="w-[7px] h-[7px] rounded-full bg-amber-500 inline-block" />
-                  <span>After Hours</span>
-                  <span className="w-[7px] h-[7px] rounded-[1px] bg-sky-600 inline-block" />
+                <span className="text-[10px] font-medium hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap" style={{ color: 'var(--text-slate-400)' }} title="Markers sit to the right of each count, one per delivery: blue squares on the top row are oversized, amber dots on the bottom row are after-hours">
+                  <span className="w-[6px] h-[6px] rounded-[1px] bg-sky-600 inline-block" />
                   <span>Oversized</span>
+                  <span className="w-[6px] h-[6px] rounded-full bg-amber-500 inline-block" />
+                  <span>After Hours</span>
                 </span>
               </div>
 
@@ -649,23 +649,26 @@ export default function DriverPayrollGrid({
                               hard to read and made the row taller whenever both appeared. Markers
                               are now two fixed-height chips sitting BESIDE the number, so the cell
                               is a constant height and each flag is a solid, legible badge. */}
-                          {/* OWNER REPORT Nov 7 2026 (round 2): inline AH/+ chips widened the
-                              store columns. The flags are now tiny corner dots that sit OUT of
-                              flow, so a cell is sized by its number alone: an amber dot at the
-                              top-right is after-hours, a sky square at the bottom-right is
-                              oversized. Both keep their tooltip. */}
-                          <div className="relative mx-auto flex items-center justify-center h-4 leading-none">
+                          {/* OWNER SPEC Nov 7 2026 (round 3): one marker PER COUNT, tight beside the
+                              number - oversized squares on the TOP row, after-hours dots on the
+                              BOTTOM row. Both rows are fixed 5px tall inside the 16px cell row, so
+                              the height still cannot grow; the stack only adds ~5-10px of width. */}
+                          <div className="flex items-center justify-center gap-1 leading-none h-4 whitespace-nowrap">
                             <span className="md:hidden">{displayValueMobile}</span>
                             <span className="hidden md:inline">{displayValueDesktop}</span>
-                            {viewMode === 'deliveries' && afterHoursCount > 0 && (
-                              <span
-                                title={ahTitle}
-                                className="absolute top-0 right-0 w-[7px] h-[7px] rounded-full bg-amber-500 ring-1 ring-white dark:ring-slate-900 pointer-events-none" />
-                            )}
-                            {viewMode === 'deliveries' && oversizedCount > 0 && (
-                              <span
-                                title={osTitle}
-                                className="absolute bottom-0 right-0 w-[7px] h-[7px] rounded-[1px] bg-sky-600 ring-1 ring-white dark:ring-slate-900 pointer-events-none" />
+                            {viewMode === 'deliveries' && (oversizedCount > 0 || afterHoursCount > 0) && (
+                              <span className="flex flex-col items-start justify-center gap-[1px] shrink-0">
+                                <span className="flex items-center gap-[1px] h-[5px]">
+                                  {Array.from({ length: Math.min(oversizedCount, 5) }).map((_, i) => (
+                                    <span key={`os${i}`} className="w-[5px] h-[5px] rounded-[1px] bg-sky-600" />
+                                  ))}
+                                </span>
+                                <span className="flex items-center gap-[1px] h-[5px]">
+                                  {Array.from({ length: Math.min(afterHoursCount, 5) }).map((_, i) => (
+                                    <span key={`ah${i}`} className="w-[5px] h-[5px] rounded-full bg-amber-500" />
+                                  ))}
+                                </span>
+                              </span>
                             )}
                           </div>
                         </td>);
