@@ -93,13 +93,13 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     setSelectedPlatform('android');
   };
 
-  const availableRoles = isAdmin
-    ? ['admin', 'dispatcher', 'driver', 'patient']
-    : isDriver && !isDispatcher
-      ? ['driver', 'patient']
-      : isDispatcher
-        ? ['dispatcher', 'driver', 'patient']
-        : ['driver', 'patient'];
+  const availableRoles = isAdmin ?
+  ['admin', 'dispatcher', 'driver', 'patient'] :
+  isDriver && !isDispatcher ?
+  ['driver', 'patient'] :
+  isDispatcher ?
+  ['dispatcher', 'driver', 'patient'] :
+  ['driver', 'patient'];
 
   const roleLabels = {
     admin: 'Admin',
@@ -193,8 +193,8 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
           <DialogTitle>{'Generate QR Code'}</DialogTitle>
         </DialogHeader>
 
-        {!qrUrl ? (
-          <div className="space-y-4">
+        {!qrUrl ?
+        <div className="space-y-4">
             {/* Role Selection */}
             <div>
               <label className="text-sm font-medium mb-2 block">Role</label>
@@ -203,11 +203,11 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent className="z-[10010]">
-                  {availableRoles.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {roleLabels[role] || (role.charAt(0).toUpperCase() + role.slice(1))}
+                  {availableRoles.map((role) =>
+                <SelectItem key={role} value={role}>
+                      {roleLabels[role] || role.charAt(0).toUpperCase() + role.slice(1)}
                     </SelectItem>
-                  ))}
+                )}
                   <SelectItem value={DOWNLOAD_APP_VALUE}>
                     {roleLabels[DOWNLOAD_APP_VALUE]}
                   </SelectItem>
@@ -216,8 +216,8 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
             </div>
 
             {/* Platform Selection — only for Download Native App */}
-            {isDownloadAppFlow && (
-              <div>
+            {isDownloadAppFlow &&
+          <div>
                 <label className="text-sm font-medium mb-2 block">Platform</label>
                 <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
                   <SelectTrigger>
@@ -230,110 +230,110 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                     <SelectItem value="ios">iOS</SelectItem>
                   </SelectContent>
                 </Select>
-                {selectedPlatform === 'ios' && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                {selectedPlatform === 'ios' &&
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                     The iOS app is coming soon — not available for download yet.
                   </p>
-                )}
-                {selectedPlatform === 'android' && !apkUrl && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+            }
+                {selectedPlatform === 'android' && !apkUrl &&
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                     {apkInfoLoaded ? 'No APK build available yet.' : 'Loading latest APK build…'}
                   </p>
-                )}
+            }
               </div>
-            )}
+          }
 
             {/* Store Selection */}
-            {!isDownloadAppFlow && (selectedRole === 'driver' || selectedRole === 'dispatcher') && (
-              <div>
+            {!isDownloadAppFlow && (selectedRole === 'driver' || selectedRole === 'dispatcher') &&
+          <div className="py-1">
                 <label className="text-sm font-medium mb-2 block">
                   Assign Stores {isDispatcher && !isAdmin ? '(Your Stores)' : ''}
                 </label>
-                {isDispatcher && !isAdmin ? (
-                  <div className="space-y-2">
-                    {stores
-                      .filter((s) => currentUser.store_ids?.includes(s.id))
-                      .map((store) => (
-                        <div key={store.id} className="text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded">
+                {isDispatcher && !isAdmin ?
+            <div className="space-y-2">
+                    {stores.
+              filter((s) => currentUser.store_ids?.includes(s.id)).
+              map((store) =>
+              <div key={store.id} className="text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded">
                           {store.name}
                         </div>
-                      ))}
-                  </div>
-                ) : (
-                  <MultiSelect
-                    options={buildStoreOptions(selectedRole)}
-                    value={selectedStores}
-                    onChange={setSelectedStores}
-                    placeholder="Select stores"
-                  />
-                )}
+              )}
+                  </div> :
+
+            <MultiSelect
+              options={buildStoreOptions(selectedRole)}
+              value={selectedStores}
+              onChange={setSelectedStores}
+              placeholder="Select stores" />
+
+            }
               </div>
-            )}
+          }
 
             <Button
-              onClick={handleGenerateQR}
-              disabled={isGenerating || (isDownloadAppFlow && selectedPlatform === 'ios')}
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
-            >
+            onClick={handleGenerateQR}
+            disabled={isGenerating || isDownloadAppFlow && selectedPlatform === 'ios'}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 py-2">
+            
               {isGenerating ? 'Generating...' : 'Generate QR Code'}
             </Button>
-          </div>
-        ) : (
-          <div className="space-y-4 flex flex-col items-center">
+          </div> :
+
+        <div className="space-y-4 flex flex-col items-center">
             <div className="p-4 bg-white dark:bg-slate-900 rounded-lg border">
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(qrUrl)}`}
-                alt="Invite QR Code"
-                className="w-64 h-64"
-              />
+              <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(qrUrl)}`}
+              alt="Invite QR Code"
+              className="w-64 h-64" />
+            
             </div>
 
             <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
-              {isDownloadAppFlow
-                ? <>Scan to download the <span className="font-semibold">Android APK{versionLabel ? ` (${versionLabel})` : ''}</span>.</>
-                : selectedRole === 'patient'
-                  ? <>Scan to open the <span className="font-semibold">Patient Portal</span> login page.</>
-                  : isExistingUserOnly && selectedRole === 'driver'
-                    ? <>Scan to log in with your existing account on another device.</>
-                    : <>Invite role: <span className="font-semibold">{selectedRole}</span></>
-              }
+              {isDownloadAppFlow ?
+            <>Scan to download the <span className="font-semibold">Android APK{versionLabel ? ` (${versionLabel})` : ''}</span>.</> :
+            selectedRole === 'patient' ?
+            <>Scan to open the <span className="font-semibold">Patient Portal</span> login page.</> :
+            isExistingUserOnly && selectedRole === 'driver' ?
+            <>Scan to log in with your existing account on another device.</> :
+            <>Invite role: <span className="font-semibold">{selectedRole}</span></>
+            }
             </p>
 
             <div className="space-y-2 w-full">
               <Button
-                onClick={handleCopyURL}
-                variant="outline"
-                className="w-full gap-2"
-              >
+              onClick={handleCopyURL}
+              variant="outline"
+              className="w-full gap-2">
+              
                 <Copy className="w-4 h-4" />
                 Copy URL
               </Button>
               <Button
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(qrUrl)}`;
-                  link.download = 'invite-qr-code.png';
-                  link.click();
-                }}
-                variant="outline"
-                className="w-full gap-2"
-              >
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(qrUrl)}`;
+                link.download = 'invite-qr-code.png';
+                link.click();
+              }}
+              variant="outline"
+              className="w-full gap-2">
+              
                 <Download className="w-4 h-4" />
                 Download QR Code
               </Button>
               <Button
-                onClick={() => {
-                  setQrUrl(null);
-                  setInviteUrl(null);
-                }}
-                className="w-full bg-slate-200 text-slate-900 dark:text-slate-100 hover:bg-slate-300"
-              >
+              onClick={() => {
+                setQrUrl(null);
+                setInviteUrl(null);
+              }}
+              className="w-full bg-slate-200 text-slate-900 dark:text-slate-100 hover:bg-slate-300">
+              
                 Generate Another
               </Button>
             </div>
           </div>
-        )}
+        }
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>);
+
 }
