@@ -340,29 +340,12 @@ export function useStopCardCompletionActions({
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       invalidate('Delivery');
 
-      // ── STEP 2b: Fire notifications immediately — before optimizer runs ──────
-      // CRITICAL: Must fire here (not after optimizer) so notifications always send
-      // even if optimization times out or fails.
-      try {
-        const notifyDeliveries = stagedChangedDeliveries.filter(d => transitionedIds.has(d?.id));
-        if (notifyDeliveries.length > 0) {
-          // Credit the ASSIGNED driver in the notification — when an admin accepts
-          // on behalf of a driver, the message must say the DRIVER accepted the
-          // stops, not the admin who clicked the button.
-          const assignedDriverUser = appUsers.find(u => u?.user_id === delivery.driver_id) || driverAppUser || currentUser;
-          // Route through the Rule Builder (MessageRule "+Stops Accepted+",
-          // event driver_accepted) with legacy fallback. The actor's role keys
-          // rule conditions; the credited driver is the ASSIGNED driver.
-          notifyDriverAcceptedStops({
-            actor: currentUser,
-            driver: assignedDriverUser,
-            store,
-            appUsers,
-            deliveries: notifyDeliveries,
-            pendingCount: notifyDeliveries.length,
-          }).catch(() => {});
-        }
-      } catch (_) {}
+      // ── STEP 2b: Prepare the accepted-stops notification (SEND IS DEFERRED) ───
+      // OWNER SPEC (Nov 8 2026): the in-app message + push must list the stops in
+      // the NEW route order, so they are sent AFTER optimization (STEP 5.7) with
+      // the optimized stop_order. Sending here listed the pre-optimization order,
+      // which put same-address stops apart from each other.
+      const _acceptedNotifyDeliveries = stagedChangedDeliveries.filter(d => transitionedIds.has(d?.id));
 
       // ── STEP 3b: Square COD reconcile (fire-and-forget, does not block optimizer) ──
       // One backend call: the reconciler reads the authoritative DB records (already
@@ -514,6 +497,42 @@ export function useStopCardCompletionActions({
             return (fullDeliveriesForOptimizer || []).map(d => optMap.get(d?.id) || d);
           })()
         : fullDeliveriesForOptimizer;
+
+      // ── STEP 5.7: Accepted-stops notification, in the NEW route order ────────
+      // A same-address pair must read together, so the list is sorted by the
+      // optimized stop_order (the value the coordinator just produced), never by
+      // the pre-optimization order. Falls back to the original record when the
+      // optimizer returned nothing.
+      try {
+        if (_acceptedNotifyDeliveries.length > 0) {
+          const _optOrder = new Map((optimizedDeliveries || []).map(d => [String(d?.id), d]));
+          const _orderOf = (d) => {
+            const o = _optOrder.get(String(d?.id)) || d || {};
+            const n = Number(o?.stop_order);
+            return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+          };
+          const notifyDeliveries = [..._acceptedNotifyDeliveries].sort((a, b) => {
+            const d = _orderOf(a) - _orderOf(b);
+            if (d !== 0) return d;
+            return String(a?.id || '').localeCompare(String(b?.id || ''));
+          });
+          // Credit the ASSIGNED driver in the notification — when an admin accepts
+          // on behalf of a driver, the message must say the DRIVER accepted the
+          // stops, not the admin who clicked the button.
+          const assignedDriverUser = appUsers.find(u => u?.user_id === delivery.driver_id) || driverAppUser || currentUser;
+          // Route through the Rule Builder (MessageRule "+Stops Accepted+",
+          // event driver_accepted) with legacy fallback. The actor's role keys
+          // rule conditions; the credited driver is the ASSIGNED driver.
+          notifyDriverAcceptedStops({
+            actor: currentUser,
+            driver: assignedDriverUser,
+            store,
+            appUsers,
+            deliveries: notifyDeliveries,
+            pendingCount: notifyDeliveries.length,
+          }).catch(() => {});
+        }
+      } catch (_) {}
 
       // ── STEP 5.5: SINGLE merged server commit (owner rule, Oct 5 2026) ──────
       // The coordinator deferred its server write (skipServerWrite). Merge its
