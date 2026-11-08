@@ -88,7 +88,7 @@ export const recordEtaUpdates = (updates = []) => {
   }
 };
 
-export const getCurrentEtaForDelivery = (deliveryId, fallback = '--:--') => {
+export const getCurrentEtaForDelivery = (deliveryId, fallback = '00:00') => {
   const bus = ensureBus();
   return bus.currentById.get(deliveryId) || fallback;
 };
