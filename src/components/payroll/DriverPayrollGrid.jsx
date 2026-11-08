@@ -652,22 +652,28 @@ export default function DriverPayrollGrid({
                           {/* OWNER SPEC Nov 7 2026 (round 3): one marker PER COUNT, tight beside the
                               number - oversized squares on the TOP row, after-hours dots on the
                               BOTTOM row. Both rows are fixed 5px tall inside the 16px cell row, so
-                              the height still cannot grow; the stack only adds ~5-10px of width. */}
+                              the height still cannot grow; the stack only adds ~5-10px of width.
+                              A row is only rendered when its count is above zero, so a lone
+                              oversized square or a lone after-hours dot centres vertically. */}
                           <div className="flex items-center justify-center gap-1 leading-none h-4 whitespace-nowrap">
                             <span className="md:hidden">{displayValueMobile}</span>
                             <span className="hidden md:inline">{displayValueDesktop}</span>
                             {viewMode === 'deliveries' && (oversizedCount > 0 || afterHoursCount > 0) && (
                               <span className="flex flex-col items-start justify-center gap-[1px] shrink-0">
-                                <span className="flex items-center gap-[1px] h-[5px]">
-                                  {Array.from({ length: Math.min(oversizedCount, 5) }).map((_, i) => (
-                                    <span key={`os${i}`} className="w-[5px] h-[5px] rounded-[1px] bg-sky-600" />
-                                  ))}
-                                </span>
-                                <span className="flex items-center gap-[1px] h-[5px]">
-                                  {Array.from({ length: Math.min(afterHoursCount, 5) }).map((_, i) => (
-                                    <span key={`ah${i}`} className="w-[5px] h-[5px] rounded-full bg-amber-500" />
-                                  ))}
-                                </span>
+                                {oversizedCount > 0 && (
+                                  <span className="flex items-center gap-[1px] h-[5px]">
+                                    {Array.from({ length: Math.min(oversizedCount, 5) }).map((_, i) => (
+                                      <span key={`os${i}`} className="w-[5px] h-[5px] rounded-[1px] bg-sky-600" />
+                                    ))}
+                                  </span>
+                                )}
+                                {afterHoursCount > 0 && (
+                                  <span className="flex items-center gap-[1px] h-[5px]">
+                                    {Array.from({ length: Math.min(afterHoursCount, 5) }).map((_, i) => (
+                                      <span key={`ah${i}`} className="w-[5px] h-[5px] rounded-full bg-amber-500" />
+                                    ))}
+                                  </span>
+                                )}
                               </span>
                             )}
                           </div>
