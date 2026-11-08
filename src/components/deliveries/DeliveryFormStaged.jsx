@@ -221,9 +221,6 @@ export default function DeliveryFormStaged({
   ];
 
   return (
-    {/* OWNER FIX (Nov 8 2026): the panel used flex-1 h-full inside an h-auto card, so a
-        long staged/pending/projected list simply made the whole Add-to-route form taller.
-        A hard max-height keeps the form a fixed size and the list scrolls instead. */}
     <div className="space-y-1 flex-1 min-h-0 h-full max-h-[55vh] overflow-y-auto overscroll-contain custom-scrollbar">
       {/* Staged Deliveries Section (new, not yet saved) */}
       {sortedStagedDeliveries.filter((s) => !s.id).length > 0 &&
