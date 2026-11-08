@@ -101,7 +101,11 @@ export default function SettingsMenu({
       <DemoModeDialog open={showDemoModeDialog} onOpenChange={setShowDemoModeDialog} />
     <DropdownMenuContent 
       align="end" 
-      className="w-60 z-[99999] text-body bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+      /* OWNER REQUEST Nov 8 2026: the popup needs a visible edge. It had only an
+         inline borderColor (white) and no border width, so it blended into the
+         panel behind it. Now a real 1px border in both themes plus a stronger
+         shadow so it reads as a separate surface. */
+      className="w-60 z-[99999] text-body bg-surface border border-slate-300 dark:border-slate-600 shadow-xl ring-1 ring-black/5 dark:ring-white/10" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
     >
       {/* Settings header and Admin Import toggle - only for admins/app owners */}
 
