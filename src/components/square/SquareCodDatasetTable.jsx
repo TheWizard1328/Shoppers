@@ -54,8 +54,6 @@ const isRowCollected = (row) => {
 };
 
 const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) => {
-  // Only a genuine note survives here; the COD description and delivery id are gone.
-  const keepSubtext = row.subtext && !/^COD for |Delivery [0-9a-zA-Z]{6,}/i.test(String(row.subtext)) ? row.subtext : null;
   const driverColor = row.driverColor || null;
   const rowStyle = driverColor ? { borderLeft: `3px solid ${driverColor}`, background: hexToRgba(driverColor, 0.03) } : {};
   return (
@@ -127,6 +125,8 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
   const [expanded, setExpanded] = useState(false);
   const actionClassName = row.actions?.props?.className || '';
   const isCollected = actionClassName.includes('emerald');
+  // Only a genuine note survives here; the COD description and delivery id are gone.
+  const keepSubtext = row.subtext && !/^COD for |Delivery [0-9a-zA-Z]{6,}/i.test(String(row.subtext)) ? row.subtext : null;
 
   const handleClick = () => {
     if (onRowClick) onRowClick(row);
