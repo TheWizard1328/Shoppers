@@ -345,8 +345,8 @@ export default function StoreMetricsPanel() {
         <Card>
           <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Store className="w-6 h-6 text-blue-600" />
+              <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-950">
+                <Store className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Stores Paying Fees</p>
@@ -361,8 +361,8 @@ export default function StoreMetricsPanel() {
         <Card>
           <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-emerald-100 rounded-lg">
-                <Package className="w-6 h-6 text-emerald-600" />
+              <div className="p-3 rounded-lg bg-emerald-100 dark:bg-emerald-950">
+                <Package className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Billable Deliveries</p>
@@ -377,8 +377,8 @@ export default function StoreMetricsPanel() {
         <Card>
           <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-amber-100 rounded-lg">
-                <DollarSign className="w-6 h-6 text-amber-600" />
+              <div className="p-3 rounded-lg bg-amber-100 dark:bg-amber-950">
+                <DollarSign className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Fee Rate</p>
@@ -390,15 +390,15 @@ export default function StoreMetricsPanel() {
           </CardContent>
         </Card>
 
-        <Card className="bg-emerald-50 border-emerald-200">
+        <Card className="bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800">
           <CardContent className="px-3 py-3">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-emerald-500 rounded-lg">
+              <div className="p-3 rounded-lg bg-emerald-500 dark:bg-emerald-600">
                 <DollarSign className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="text-sm text-emerald-700">Total Fees Owed</p>
-                <p className="text-lg md:text-2xl font-bold text-emerald-900">
+                <p className="text-sm text-emerald-700 dark:text-emerald-300">Total Fees Owed</p>
+                <p className="text-lg md:text-2xl font-bold text-emerald-900 dark:text-emerald-50">
                   {formatCurrency(metrics?.totals?.total_fees_owed || 0)}
                 </p>
               </div>
@@ -497,7 +497,7 @@ export default function StoreMetricsPanel() {
                         </TableCell>
                         <TableCell className="text-center">
                           {store.pays_app_fees ?
-                      <Badge className="bg-amber-100 text-amber-800">
+                      <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">
                               <DollarSign className="w-3 h-3 mr-1" />
                               Paying Fees
                             </Badge> :
@@ -522,7 +522,7 @@ export default function StoreMetricsPanel() {
                         <TableCell className="text-right font-mono">{store.total_deliveries}</TableCell>
                         <TableCell className="text-right font-mono">{store.billable_deliveries}</TableCell>
                         <TableCell className="text-right font-mono font-semibold">{store.billable_while_paying}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold text-emerald-700">
+                        <TableCell className="text-right font-mono font-semibold text-emerald-700 dark:text-emerald-300">
                           {formatCurrency(store.total_fees_owed)}
                         </TableCell>
                       </TableRow>
@@ -536,7 +536,7 @@ export default function StoreMetricsPanel() {
                       <TableCell className="text-right font-mono">—</TableCell>
                       <TableCell className="text-right font-mono">{metrics.totals.total_billable_deliveries}</TableCell>
                       <TableCell className="text-right font-mono">{metrics.totals.total_billable_while_paying}</TableCell>
-                      <TableCell className="text-right font-mono text-emerald-700 text-lg">
+                      <TableCell className="text-right font-mono text-emerald-700 dark:text-emerald-300 text-lg">
                         {formatCurrency(metrics.totals.total_fees_owed)}
                       </TableCell>
                     </TableRow>
