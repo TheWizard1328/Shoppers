@@ -241,3 +241,54 @@ export async function resequenceTrackingNumbersForScope({
     return [];
   }
 }
+
+/**
+ * Admin resequence (owner rule Nov 9 2026): when an ADMIN updates a pending stop or
+ * presses Done, every pending stop is renumbered - all drivers, not just the form's
+ * driver - because an admin can move work between routes. Pickups keep their numbers.
+ */
+export async function resequenceAllScopesForDate({
+  deliveryDate, stores, patients, updateDeliveryLocal, companyId = null, fallbackDeliveries = []
+}) {
+  if (!deliveryDate) return [];
+  const { offlineDB } = await import('./offlineDatabase');
+  let all = [];
+  try { all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES); } catch (_) { all = []; }
+  if (!Array.isArray(all) || all.length === 0) all = Array.isArray(fallbackDeliveries) ? fallbackDeliveries : [];
+  let scope = (all || []).filter((d) => d && d.delivery_date === deliveryDate);
+  if (companyId) {
+    const sameCompany = scope.filter((d) => !d.company_id || String(d.company_id) === String(companyId));
+    if (sameCompany.length) scope = sameCompany;
+  }
+  if (scope.length === 0) return [];
+  const updates = recalculateTrackingNumbersLocal({ deliveries: scope, stores, patients });
+  if (updates.length === 0) return [];
+  await applyTrackingNumberUpdates({ updates, allDeliveries: scope, updateDeliveryLocal });
+  return updates;
+}
+
+/**
+ * Single decision point for every manual save.
+ * - Transfer to ANOTHER driver: TR numbers are left alone (owner rule Nov 9 2026).
+ * - Same driver, new date: both the new and the old date scopes are resequenced.
+ * - Admin: the whole date is resequenced for every driver.
+ */
+export async function resequenceAfterSave({
+  isAdmin = false, deliveryDate, driverId, prevDeliveryDate = '', prevDriverId = '',
+  stores, patients, updateDeliveryLocal, companyId = null, fallbackDeliveries = []
+}) {
+  try {
+    const driverChanged = Boolean(prevDriverId && driverId && String(prevDriverId) !== String(driverId));
+    if (driverChanged) return [];
+    if (isAdmin) {
+      return await resequenceAllScopesForDate({ deliveryDate, stores, patients, updateDeliveryLocal, companyId, fallbackDeliveries });
+    }
+    const updates = await resequenceTrackingNumbersForScope({ deliveryDate, driverId, stores, patients, updateDeliveryLocal, fallbackDeliveries });
+    if (prevDeliveryDate && prevDeliveryDate !== deliveryDate) {
+      await resequenceTrackingNumbersForScope({ deliveryDate: prevDeliveryDate, driverId, stores, patients, updateDeliveryLocal, fallbackDeliveries });
+    }
+    return updates;
+  } catch (_) {
+    return [];
+  }
+}

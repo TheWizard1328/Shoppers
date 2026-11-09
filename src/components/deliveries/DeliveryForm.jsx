@@ -1144,31 +1144,10 @@ export default function DeliveryForm({
       } catch (_) { /* keep the form value */ }
       const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate.jsx');
       const { stagedDelivery, deliveryId } = await persistPendingDeliveryUpdate({ selectedStaged, formData, patient, store, editingStagedId, distanceFromStore });
-      try {
-        const { resequenceTrackingNumbersForScope } = await import('@/components/utils/recalculateTrackingNumbersLocal');
-        await resequenceTrackingNumbersForScope({
-          deliveryDate: formData.delivery_date,
-          driverId: formData.driver_id,
-          stores,
-          patients,
-          updateDeliveryLocal,
-          fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
-        });
-        // Admin case: if the stop moved driver/date/store, the OLD scope lost a stop
-        // too, so its remaining stops must be renumbered as well.
-        const _origDriver = selectedStaged?.driver_id || '';
-        const _origDate = selectedStaged?.delivery_date || '';
-        if (_origDate && (_origDate !== formData.delivery_date || _origDriver !== formData.driver_id)) {
-          await resequenceTrackingNumbersForScope({
-            deliveryDate: _origDate,
-            driverId: _origDriver,
-            stores,
-            patients,
-            updateDeliveryLocal,
-            fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
-          });
-        }
-      } catch (_) { /* best effort */ }
+      await runResequencePolicy({
+        prevDeliveryDate: selectedStaged?.delivery_date || '',
+        prevDriverId: selectedStaged?.driver_id || '',
+      });
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged)); setHasChanges(true);
       // CRITICAL: Do NOT dispatch refreshDeliveryStats or deliveriesUpdated here.
       // updateDeliveryLocal already called notifyMutation() which updated the
@@ -1214,25 +1193,7 @@ export default function DeliveryForm({
     const _batchOutcome = await runHandleBatchSave({ batchSaveLockRef, isSaving: isSavingRef.current, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers, addedPickupRoutes });
     // Done always resequences TR#s for this Store + Date + Driver, even when the
     // batch had nothing new to write (owner report Nov 9 2026).
-    try {
-      const { resequenceTrackingNumbersForScope } = await import('@/components/utils/recalculateTrackingNumbersLocal');
-      const _fallback = [...(allDeliveries || []), ...(stagedDeliveries || [])];
-      await resequenceTrackingNumbersForScope({
-        deliveryDate: formData.delivery_date,
-        driverId: formData.driver_id,
-        stores, patients, updateDeliveryLocal, fallbackDeliveries: _fallback,
-      });
-      // Admin case: a stop moved off another driver/date leaves the old scope short.
-      const _prevDriver = delivery?.driver_id || '';
-      const _prevDate = delivery?.delivery_date || '';
-      if (_prevDate && (_prevDate !== formData.delivery_date || _prevDriver !== formData.driver_id)) {
-        await resequenceTrackingNumbersForScope({
-          deliveryDate: _prevDate,
-          driverId: _prevDriver,
-          stores, patients, updateDeliveryLocal, fallbackDeliveries: _fallback,
-        });
-      }
-    } catch (_) { /* best effort */ }
+    await runResequencePolicy({});
     return _batchOutcome;
   }, [stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges]);
 
@@ -1350,6 +1311,30 @@ export default function DeliveryForm({
 
   useEffect(() => { setHighlightedPatientIndex(-1); }, [filteredPatients.length]);
   useEffect(() => { if (highlightedPatientIndex >= 0) { const element = document.getElementById(`patient-item-${highlightedPatientIndex}`); if (element) element.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } }, [highlightedPatientIndex]);
+
+  // TR resequence policy (owner rules Nov 9 2026): pickups keep their numbers, pending
+  // deliveries are renumbered by distance from store. A transfer to ANOTHER driver
+  // leaves TR numbers untouched; the same driver on a new date resequences both
+  // dates; an ADMIN resequences every driver on that date.
+  const runResequencePolicy = useCallback(async ({ prevDeliveryDate = '', prevDriverId = '', deliveryDate, driverId } = {}) => {
+    try {
+      const { resequenceAfterSave } = await import('@/components/utils/recalculateTrackingNumbersLocal');
+      const roles = Array.isArray(currentUser?.app_roles) ? currentUser.app_roles : [];
+      const isAdmin = roles.includes('admin') || currentUser?.role === 'admin';
+      await resequenceAfterSave({
+        isAdmin,
+        deliveryDate: deliveryDate || formData.delivery_date,
+        driverId: driverId || formData.driver_id,
+        prevDeliveryDate,
+        prevDriverId,
+        stores,
+        patients,
+        updateDeliveryLocal,
+        companyId: formData.company_id || currentUser?.company_id || null,
+        fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
+      });
+    } catch (_) { /* best effort */ }
+  }, [currentUser, formData.delivery_date, formData.driver_id, formData.company_id, stores, patients, allDeliveries, stagedDeliveries]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1472,17 +1457,12 @@ export default function DeliveryForm({
         // Store + Date + Driver, sorted by distance from store first. This is the
         // path the Edit Delivery form actually takes, so the resequence lives here
         // too (the dashboard handler is not involved for a saved stop).
-        try {
-          const { resequenceTrackingNumbersForScope } = await import('@/components/utils/recalculateTrackingNumbersLocal');
-          await resequenceTrackingNumbersForScope({
-            deliveryDate: dataToSave.delivery_date || formData.delivery_date,
-            driverId: dataToSave.driver_id || formData.driver_id,
-            stores,
-            patients,
-            updateDeliveryLocal,
-            fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
-          });
-        } catch (_) { /* best effort */ }
+        await runResequencePolicy({
+          prevDeliveryDate: delivery?.delivery_date || '',
+          prevDriverId: delivery?.driver_id || '',
+          deliveryDate: dataToSave.delivery_date || formData.delivery_date,
+          driverId: dataToSave.driver_id || formData.driver_id,
+        });
         // ONE Square reconcile for every edit path (create-on-activate, amount change,
         // COD added/removed, terminal transition). The backend decides from the
         // authoritative record; the patch carries the just-written form values.
