@@ -54,6 +54,8 @@ const isRowCollected = (row) => {
 };
 
 const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) => {
+  // Only a genuine note survives here; the COD description and delivery id are gone.
+  const keepSubtext = row.subtext && !/^COD for |Delivery [0-9a-zA-Z]{6,}/i.test(String(row.subtext)) ? row.subtext : null;
   const driverColor = row.driverColor || null;
   const rowStyle = driverColor ? { borderLeft: `3px solid ${driverColor}`, background: hexToRgba(driverColor, 0.03) } : {};
   return (
@@ -143,12 +145,17 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
         onClick={handleClick}
         role="button"
         className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none">
+        {/* OWNER SPEC (Nov 9 2026) mobile layout: line 1 = catalog item name,
+            line 2 = date and COD amount, buttons stay on the right. */}
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[14px] leading-5 text-slate-900 dark:text-slate-50 truncate">{row.itemName || 'N/A'}</p>
-          <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</p>
+          <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-400 truncate">
+            {formatDate(row.collectionDate || row.deliveryDate)}
+            <span className="mx-1 text-slate-300 dark:text-slate-600">·</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</span>
+          </p>
         </div>
-        <div className="shrink-0 text-base font-bold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
-        {showCatalogColumn
+        {row.actions
           ? <div className="shrink-0" onClick={(e) => e.stopPropagation()}>{row.actions || null}</div>
           : isCollected
             ? <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
@@ -160,37 +167,39 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
       {/* Expanded detail section */}
       {expanded && (
         <div className="border-t border-slate-100 dark:border-slate-700/70 p-4 space-y-3">
+          {/* OWNER SPEC (Nov 9 2026): patient name rides on the store line, far
+              right. The old "COD for <name> | Delivery <id>" subtext is removed. */}
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide text-soft">Store</div>
-            <div className="mt-1 text-sm font-medium truncate text-body">{row.storeName || 'Unknown'}</div>
-            {row.subtext && <div className="mt-0.5 text-xs truncate text-soft">{row.subtext}</div>}
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="text-[11px] uppercase tracking-wide text-soft shrink-0">Store</div>
+              {row.patientName && <div className="text-sm font-medium truncate text-right text-body">{row.patientName}</div>}
+            </div>
+            <div className="mt-1 flex items-baseline justify-between gap-3">
+              <div className="text-sm font-medium truncate text-body">{row.storeName || 'Unknown'}</div>
+            </div>
+            {keepSubtext && <div className="mt-0.5 text-xs truncate text-soft">{keepSubtext}</div>}
           </div>
+          {/* OWNER SPEC (Nov 9 2026): each ID badge is one row — label left,
+              the ID right-justified on that same row. */}
           {showLocationColumn &&
-            <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-              <div className="text-[11px] uppercase tracking-wide text-soft">Square Location ID</div>
-              <div className="mt-1 text-xs font-mono break-all text-body-2">
-                {row.locationId || '--'}
-              </div>
+            <div className="rounded-xl px-3 py-2 flex items-baseline justify-between gap-3" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+              <div className="text-[11px] uppercase tracking-wide text-soft shrink-0">Square Location ID</div>
+              <div className="text-xs font-mono text-body-2 text-right truncate">{row.locationId || '--'}</div>
             </div>
           }
-          <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide text-soft">Catalog ID</div>
-            <div className="mt-1 text-xs font-mono break-all text-body-2">
-              {row.catalogId || '--'}
-            </div>
+          <div className="rounded-xl px-3 py-2 flex items-baseline justify-between gap-3" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+            <div className="text-[11px] uppercase tracking-wide text-soft shrink-0">Catalog ID</div>
+            <div className="text-xs font-mono text-body-2 text-right truncate">{row.catalogId || '--'}</div>
           </div>
-          <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide text-soft">Transaction ID</div>
-            <div className="mt-1 text-xs font-mono break-all text-body-2">
-              {row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}
-            </div>
+          <div className="rounded-xl px-3 py-2 flex items-baseline justify-between gap-3" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+            <div className="text-[11px] uppercase tracking-wide text-soft shrink-0">Transaction ID</div>
+            <div className="text-xs font-mono text-body-2 text-right truncate">{row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}</div>
           </div>
           {row.notes &&
             <div className="rounded-xl bg-amber-50 dark:bg-amber-950 dark:bg-amber-900/10 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
               {row.notes}
             </div>
           }
-          {row.actions && !showCatalogColumn && <div className="pt-1 flex justify-end" onClick={(e) => e.stopPropagation()}>{row.actions}</div>}
         </div>
       )}
     </div>

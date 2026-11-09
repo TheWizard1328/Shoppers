@@ -2353,6 +2353,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         transactionId: matchingTx?.square_payment_id || matchingTx?.square_transaction_id || matchingTx?.id || '--',
         deliveryDate: delivery.delivery_date,
         collectionType,
+        patientName: patient?.full_name || delivery.patient_name || null,
         subtext: delivery.driver_name || null,
         driverColor: getDriverColorForId(delivery.driver_id),
         actions: isArchivedDelivery(delivery) ?
@@ -2500,6 +2501,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         deliveryDate: displayDate,
         collectionDate,
         collectionType,
+        patientName: matchedDelivery?.patient_name || null,
         subtext: collectedByName ? `Collected by ${collectedByName}` : transaction.payment_method || null,
         driverColor: getDriverColorForId(matchedDelivery?.driver_id || transaction.driver_id),
         notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
@@ -2609,6 +2611,9 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         catalogId: catalogObjectId || '--',
         transactionId: matchingTx ? matchingTx.square_payment_id || matchingTx.square_transaction_id || matchingTx.id || '--' : '--',
         deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
+        // OWNER SPEC (Nov 9 2026): patient name sits top-right of the store card,
+        // so it has to travel on the row instead of living inside a COD description.
+        patientName: linkedDelivery?.patient_name || (/^COD for (.+?) \| Delivery/.exec(String(item.description || '')) || [])[1] || null,
         subtext: item.description || item.status || null,
         driverColor: getDriverColorForId(linkedDelivery?.driver_id),
         isCollected,
