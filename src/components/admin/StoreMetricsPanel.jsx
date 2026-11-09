@@ -22,9 +22,22 @@ const getMonthRange = (year, month) => {
 };
 
 const getPreviousDate = (dateStr) => {
-  const date = new Date(`${dateStr}T00:00:00`);
+  const date = new Date(`${String(dateStr).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
   date.setDate(date.getDate() - 1);
   return date.toISOString().split('T')[0];
+};
+
+// Safe date formatter for fee-period values. `app_fee_history.effective_date`
+// can be missing or already carry a time (e.g. "2026-11-08T00:00:00.000Z");
+// appending "T00:00:00" to that produces an Invalid Date and date-fns `format`
+// throws a RangeError that crashed the whole metrics panel. Returns '' when the
+// value cannot be parsed so the cell falls back to its placeholder.
+const formatFeeDate = (dateStr, pattern = 'MMM d, yyyy') => {
+  if (!dateStr) return '';
+  const dateOnly = typeof dateStr === 'string' ? dateStr.slice(0, 10) : dateStr;
+  const date = new Date(`${dateOnly}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? '' : format(date, pattern);
 };
 
 const getFeePeriodForMonth = (store, year, month) => {
@@ -33,7 +46,9 @@ const getFeePeriodForMonth = (store, year, month) => {
   }
 
   const { monthStart, monthEnd } = getMonthRange(year, month);
-  const sortedHistory = [...store.app_fee_history].sort((a, b) => a.effective_date.localeCompare(b.effective_date));
+  const sortedHistory = [...store.app_fee_history]
+    .filter((entry) => entry?.effective_date)
+    .sort((a, b) => String(a.effective_date).localeCompare(String(b.effective_date)));
 
   for (let i = 0; i < sortedHistory.length; i++) {
     const entry = sortedHistory[i];
@@ -273,7 +288,7 @@ export default function StoreMetricsPanel() {
       startX += colWidths[1];
 
       const feePeriod = store.current_fee_period ?
-      `${format(new Date(store.current_fee_period.start + 'T00:00:00'), 'MMM dd, yyyy')} → ${store.current_fee_period.end ? format(new Date(store.current_fee_period.end + 'T00:00:00'), 'MMM dd, yyyy') : 'Present'}` :
+      `${formatFeeDate(store.current_fee_period.start, 'MMM dd, yyyy') || '—'} → ${store.current_fee_period.end ? formatFeeDate(store.current_fee_period.end, 'MMM dd, yyyy') || '—' : 'Present'}` :
       '—';
       doc.text(feePeriod.substring(0, 28), startX, y);
       startX += colWidths[2];
@@ -494,10 +509,10 @@ export default function StoreMetricsPanel() {
                           {store.current_fee_period ?
                       <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
                               <Calendar className="w-3 h-3" />
-                              {format(new Date(store.current_fee_period.start + 'T00:00:00'), 'MMM d, yyyy')}
+                              {formatFeeDate(store.current_fee_period.start) || '—'}
                               <span className="mx-1">→</span>
                               {store.current_fee_period.end ?
-                        format(new Date(store.current_fee_period.end + 'T00:00:00'), 'MMM d, yyyy') :
+                        formatFeeDate(store.current_fee_period.end) || '—' :
                         'Present'}
                             </div> :
 
