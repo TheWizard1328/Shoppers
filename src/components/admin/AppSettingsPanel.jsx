@@ -447,10 +447,27 @@ export default function AppSettingsPanel() {
                   </div>
                   <div>
                     <div className="mb-1.5">
-                      <Label htmlFor="winter_cold_min" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
-                        Cold Warning — Min / Enable (°C)
+                      <Label htmlFor="winter_breadcrumb_accuracy" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                        Breadcrumb Accuracy Gate (m)
                       </Label>
-                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.cold_threshold_min_c}</span>
+                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.breadcrumb_accuracy_gate_m}</span>
+                    </div>
+                    <Input
+                      id="winter_breadcrumb_accuracy"
+                      type="number"
+                      step="10"
+                      min="20"
+                      value={winterMode.breadcrumb_accuracy_gate_m}
+                      onChange={(e) => setWinterMode((w) => ({ ...w, breadcrumb_accuracy_gate_m: e.target.value }))}
+                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
+                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-1.5">
+                      <Label htmlFor="winter_cold_min" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                        Cold Warning — Min / Enable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_min_c}</span>
+                      </Label>
                     </div>
                     <Input
                       id="winter_cold_min"
@@ -465,9 +482,8 @@ export default function AppSettingsPanel() {
                   <div>
                     <div className="mb-1.5">
                       <Label htmlFor="winter_cold_max" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
-                        Cold Warning — Max / Disable (°C)
+                        Cold Warning — Max / Disable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_max_c}</span>
                       </Label>
-                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.cold_threshold_max_c}</span>
                     </div>
                     <Input
                       id="winter_cold_max"
@@ -475,24 +491,6 @@ export default function AppSettingsPanel() {
                       step="1"
                       value={winterMode.cold_threshold_max_c}
                       onChange={(e) => setWinterMode((w) => ({ ...w, cold_threshold_max_c: e.target.value }))}
-                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
-                    />
-                  </div>
-                  <div>
-                    <div className="mb-1.5">
-                      <Label htmlFor="winter_breadcrumb_accuracy" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
-                        Breadcrumb Accuracy Gate (m)
-                      </Label>
-                      <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.breadcrumb_accuracy_gate_m}</span>
-                    </div>
-                    <Input
-                      id="winter_breadcrumb_accuracy"
-                      type="number"
-                      step="10"
-                      min="20"
-                      value={winterMode.breadcrumb_accuracy_gate_m}
-                      onChange={(e) => setWinterMode((w) => ({ ...w, breadcrumb_accuracy_gate_m: e.target.value }))}
                       className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                       style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
                     />
