@@ -1135,6 +1135,13 @@ export default function DeliveryForm({
     const distanceFromStore = resolveDistanceFromStore({ patient, store, calculateDistance });
     const selectedStaged = stagedDeliveries.find((staged) => staged._tempId === editingStagedId);
     if (selectedStaged?.id) {
+      // Same invariant as handleSubmit: the attached pickup decides the slot, so a
+      // record saved with puid=AM can never keep a stale PM field.
+      try {
+        const _picked = [...(stagedDeliveries || []), ...(allDeliveries || [])]
+          .find((d) => d && !d.patient_id && (d.stop_id || d.puid) && (d.stop_id || d.puid) === (formData.puid || selectedStaged.puid));
+        if (_picked?.ampm_deliveries && _picked.ampm_deliveries !== formData.ampm_deliveries) setFormData((prev) => ({ ...prev, ampm_deliveries: _picked.ampm_deliveries }));
+      } catch (_) { /* keep the form value */ }
       const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate.jsx');
       const { stagedDelivery, deliveryId } = await persistPendingDeliveryUpdate({ selectedStaged, formData, patient, store, editingStagedId, distanceFromStore });
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged)); setHasChanges(true);
@@ -1304,6 +1311,15 @@ export default function DeliveryForm({
     try {
       const currentTravelMode = getPreferredTravelMode(appUsers || [], currentUser?.id);
       const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries, currentTravelMode });
+      // OWNER REPORT (Nov 9 2026): records reached the DB with a pickup pointing at the
+      // AM stop while ampm_deliveries still said PM, and a save then wrote the stale PM
+      // back (remote log: puid zsA + ampm PM in the same payload). The pickup attached
+      // through puid is the source of truth, so resolve the slot from it at write time.
+      try {
+        const _slotPickup = [...(allDeliveries || []), ...(stagedDeliveries || [])]
+          .find((d) => d && !d.patient_id && (d.stop_id || d.puid) && (d.stop_id || d.puid) === (dataToSave.puid || formData.puid));
+        if (_slotPickup?.ampm_deliveries) dataToSave.ampm_deliveries = _slotPickup.ampm_deliveries;
+      } catch (_) { /* no pickup available: keep the form value */ }
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) { import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); }); return true; }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) { try { await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData)); } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); } }
       const { driverChanged, dateChanged, timeWindowChanged, travelModeChanged, statusChangedToInTransit, statusChangedToCompletion, actualDeliveryTimeChanged, codWasRemoved } = getDeliverySubmitFlags({ delivery, formData, dataToSave });
