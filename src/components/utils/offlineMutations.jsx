@@ -535,6 +535,33 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       } catch (_) { /* helper unavailable: leave payload untouched */ }
     }
     
+    // AM/PM RECONCILE (owner rule Nov 9 2026): before any write, make the delivery's
+    // slot agree with the pickup it belongs to. A record kept puid=AM while
+    // ampm_deliveries said PM, and every save rewrote the stale PM, so the field
+    // never changed, no WS event carried a change, and the staged panel stood still.
+    if (updates && typeof updates === 'object' && existingDelivery) {
+      try {
+        const pool = [ ...(Array.isArray(window.__appDeliveries) ? window.__appDeliveries : []), existingDelivery ];
+        const storeId = updates.store_id || existingDelivery.store_id;
+        const date = updates.delivery_date || existingDelivery.delivery_date;
+        const driverId = updates.driver_id ?? existingDelivery.driver_id;
+        const puid = updates.puid || existingDelivery.puid;
+        const pickups = pool.filter((d) => d && !d.patient_id && d.store_id === storeId
+          && d.delivery_date === date && String(d.driver_id || '') === String(driverId || '')
+          && !['cancelled', 'failed'].includes(d.status));
+        const byPuid = puid ? pickups.find((p) => (p.stop_id || p.puid) === puid) : null;
+        const sole = !byPuid && pickups.length === 1 ? pickups[0] : null;
+        const chosen = byPuid || sole;
+        if (chosen && chosen.ampm_deliveries) {
+          if (updates.ampm_deliveries !== chosen.ampm_deliveries) {
+            console.warn('[OfflineMutations] ampm reconcile', { deliveryId, from: updates.ampm_deliveries, to: chosen.ampm_deliveries, pickup: chosen.stop_id });
+            updates.ampm_deliveries = chosen.ampm_deliveries;
+          }
+          if (chosen.stop_id && updates.puid !== chosen.stop_id) updates.puid = chosen.stop_id;
+        }
+      } catch (_) { /* pickups unavailable: keep the requested slot */ }
+    }
+
     // CRITICAL: If delivery not in IndexedDB, update backend FIRST, then add to IndexedDB
     if (!existingDelivery) {
 
