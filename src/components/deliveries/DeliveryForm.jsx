@@ -281,17 +281,27 @@ export default function DeliveryForm({
     (allDeliveries || []).forEach((row) => { if (row && (row.id || row.delivery_id)) byId.set(row.id || row.delivery_id, row); });
     return Array.from(byId.values());
   }, [cachedDeliveryPool, allDeliveries]);
+  // OWNER FIX (Nov 9 2026): this duplicate-check pool used to read the ENTIRE
+  // deliveries store on every mount and again on every allDeliveries growth,
+  // which is what made the staged/pending list crawl and starved other IDB
+  // readers. The pool only needs the form's own date plus future dates, so it
+  // now uses the delivery_date index instead of a full-table getAll.
+  const poolDate = formData?.delivery_date || delivery?.delivery_date || null;
   useEffect(() => {
     if (delivery) return undefined;
+    if (!poolDate) return undefined;
     let alive = true;
     (async () => {
       try {
-        const cached = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        const horizon = new Date(`${poolDate}T12:00:00`);
+        horizon.setDate(horizon.getDate() + 60);
+        const toDate = horizon.toISOString().split('T')[0];
+        const cached = await offlineDB.getDeliveriesByDateRange(poolDate, toDate);
         if (alive && Array.isArray(cached) && cached.length) setCachedDeliveryPool(cached);
       } catch { /* cache unavailable */ }
     })();
     return () => { alive = false; };
-  }, [delivery, allDeliveries?.length]);
+  }, [delivery, poolDate, allDeliveries?.length]);
   const scheduledDriverMapRef = useRef({}); // always-current ref for handlePatientSelect closure
   // Slot-specific map of `${storeId}_AM`/`${storeId}_PM` -> scheduled driver display name
   // for slots that have a genuine scheduled driver for that exact slot (per-slot override
