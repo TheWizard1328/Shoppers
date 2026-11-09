@@ -13,6 +13,7 @@
  */
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+const STARTED_STATUSES = ['in_transit', 'en_route'];
 
 function parseTrackingNumber(value) {
   if (value === null || value === undefined) return null;
@@ -109,7 +110,22 @@ export function recalculateTrackingNumbersLocal({ deliveries, stores, patients }
         if (aFinished && !bFinished) return -1;
         if (!aFinished && bFinished) return 1;
 
-        // For non-finished stops: sort by distance from store (closest first)
+        // Started stops (in_transit / en_route) sit directly after the pickup and keep
+        // their relative order - a transferred in-transit stop takes base+1 and the
+        // pending stops follow it (owner rule Nov 9 2026).
+        const aStarted = STARTED_STATUSES.includes(a.status);
+        const bStarted = STARTED_STATUSES.includes(b.status);
+        if (aStarted && !bStarted) return -1;
+        if (!aStarted && bStarted) return 1;
+        if (aStarted && bStarted) {
+          const ta = parseTrackingNumber(a.tracking_number);
+          const tb = parseTrackingNumber(b.tracking_number);
+          if (ta !== null && tb !== null && ta !== tb) return ta - tb;
+          const so = (a.stop_order || 999999) - (b.stop_order || 999999);
+          if (so !== 0) return so;
+        }
+
+        // For remaining non-finished stops: sort by distance from store (closest first)
         if (!aFinished && !bFinished && hasStoreCoords) {
           const coordsA = resolveDeliveryCoords(a, patientMap);
           const coordsB = resolveDeliveryCoords(b, patientMap);
