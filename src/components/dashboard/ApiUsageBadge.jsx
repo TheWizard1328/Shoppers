@@ -5,6 +5,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
 import { getApiLogCategory, sumApiLogCalls } from "@/components/utils/apiUsageLog";
 import { isAppOwner } from "@/components/utils/userRoles";
+import { readApiCounts, writeApiCounts, bumpApiCounts, needsServerRefresh } from '@/components/utils/apiCountsCache';
 import {
   Tooltip,
   TooltipContent,
