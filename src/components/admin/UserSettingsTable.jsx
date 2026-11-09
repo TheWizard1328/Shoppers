@@ -56,6 +56,8 @@ function useViewportFit() {
     if (!el) return undefined;
     const compute = () => {
       const top = el.getBoundingClientRect().top;
+      // Hidden tab (display:none) reports top 0 — keep the last good value.
+      if (top < 40) return;
       const pad = 12;
       setMaxH(Math.max(220, Math.round(window.innerHeight - top - pad)));
     };
@@ -76,6 +78,9 @@ const BADGE_ON = 'bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald
 
 export default function UserSettingsTable({ appUsers, mergedUsers }) {
   const [cardRef, cardMaxH] = useViewportFit();
+  // Second measurement on the scroll container itself: h-full chains kept
+  // collapsing, so the list body gets an explicit pixel height it can scroll in.
+  const [scrollRef, scrollH] = useViewportFit();
   // Same treatment as the App Users table: a 10-column table on a 390px phone is
   // horizontal-scroll soup, so phones get stacked cards (owner report Nov 6 2026).
   const { isMobile } = useDevice();
@@ -188,7 +193,7 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
         ) : displayedSettings.length === 0 ? (
           <div className="text-center py-8 text-soft">No {viewMode} user settings found.</div>
         ) : isMobile ? (
-          <div className="space-y-2 h-full overflow-y-auto">
+          <div ref={scrollRef} style={{ height: scrollH ? `${scrollH}px` : undefined }} className="space-y-2 overflow-y-auto">
             {[...displayedSettings].sort((a, b) => {
               const aUpdated = a.updated ? new Date(a.updated).getTime() : 0;
               const bUpdated = b.updated ? new Date(b.updated).getTime() : 0;
@@ -223,8 +228,8 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
             })}
           </div>
         ) : (
-          <div className="h-full border rounded-md overflow-hidden border-surface">
-            <div className="h-full overflow-x-auto overflow-y-auto">
+          <div className="border rounded-md overflow-hidden border-surface">
+            <div ref={scrollRef} style={{ height: scrollH ? `${scrollH}px` : undefined }} className="overflow-x-auto overflow-y-auto">
               <table className="w-full text-sm table-fixed">
                 <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800">
                   <tr>
