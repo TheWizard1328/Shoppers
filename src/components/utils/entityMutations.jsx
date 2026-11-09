@@ -409,6 +409,9 @@ export const updatePatient = async (patientId, updates, options = {}) => {
 
     // ─── STEP 2: Persist to IDB (after UI already updated) ──────────────────
     const updated = { ...existing, ...updates, updated_date: new Date().toISOString() };
+    // GPS CHANGE LOG (owner spec Nov 9 2026): entity path writes too.
+    import('./patientGpsWatcher').then(({ logPatientGpsChange }) => logPatientGpsChange({ existing, patient: updated })).catch(() => {});
+
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]);
 
     // ─── STEP 3: Queue first, then upload without blocking the editor ──────

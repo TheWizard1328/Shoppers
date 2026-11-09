@@ -299,6 +299,15 @@ export const updatePatientLocal = async (patientId, updates, options = {}) => {
       }
     } catch (_) { /* audit must never break a patient write */ }
 
+    // ── GPS CHANGE LOG (owner spec Nov 9 2026) ──────────────────────────
+    // One PatientGPSLog row per coordinate move, whoever wrote it.
+    import('./patientGpsWatcher').then(({ logPatientGpsChange }) => logPatientGpsChange({
+      existing: existingPatient,
+      patient: { ...existingPatient, ...(updates || {}) },
+      source: String(options?.source || '') || undefined,
+      action: options?.action || options?.gpsAction || undefined,
+    })).catch(() => {});
+
     // Apply updates
     const updatedPatient = {
       ...existingPatient,

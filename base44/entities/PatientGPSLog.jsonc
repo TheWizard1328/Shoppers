@@ -2,6 +2,26 @@
   "name": "PatientGPSLog",
   "type": "object",
   "properties": {
+    "change_source": {
+      "type": "string",
+      "description": "user when a GPS action was explicitly taken, background when no gesture stamped it"
+    },
+    "change_action": {
+      "type": "string",
+      "description": "Which GPS action stamped the change (stop_card, crosshair, geocode, form_save, bulk)"
+    },
+    "caller": {
+      "type": "string",
+      "description": "Caller stack slice of the writer that changed the coordinates"
+    },
+    "distance_m": {
+      "type": "number",
+      "description": "Haversine distance between the old and new coordinate"
+    },
+    "device_identifier": {
+      "type": "string",
+      "description": "Device that performed the write"
+    },
     "source_patient_id": {
       "type": "string",
       "description": "Patient ID that triggered the GPS update"
