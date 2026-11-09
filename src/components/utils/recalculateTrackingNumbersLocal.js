@@ -70,26 +70,37 @@ export function recalculateTrackingNumbersLocal({ deliveries, stores, patients }
       return String(a.store_id || '').localeCompare(String(b.store_id || ''));
     });
 
-  const getNextPickupBase = (usedBases = new Set()) => {
-    let expected = 0;
-    while (usedBases.has(expected)) {
-      expected += 20;
-    }
-    return expected;
-  };
-
+  // PICKUP BASE ALLOCATION — per driver, and never rewrites a base the user set.
+  // Owner rule (Nov 9 2026): every driver's pickups are numbered inside their OWN
+  // route, so Robert, Sharuk, Anna and Erin each start at 00. A manually typed
+  // pickup TR# is kept exactly as entered; only a pickup with no usable number is
+  // given the next free base for that driver.
   const updates = [];
   const pickupBaseMap = new Map();
-  const usedPickupBases = new Set();
-
+  const pickupsByDriver = new Map();
   for (const pickup of pickups) {
-    let pickupBase = parseTrackingNumber(pickup.tracking_number);
-    if (pickupBase === null || pickupBase < 0 || pickupBase % 20 !== 0 || usedPickupBases.has(pickupBase)) {
-      pickupBase = getNextPickupBase(usedPickupBases);
-      updates.push({ id: pickup.id, tracking_number: String(pickupBase).padStart(2, '0') });
+    const driverKey = String(pickup.driver_id || '');
+    if (!pickupsByDriver.has(driverKey)) pickupsByDriver.set(driverKey, []);
+    pickupsByDriver.get(driverKey).push(pickup);
+  }
+
+  for (const list of pickupsByDriver.values()) {
+    const usedBases = new Set();
+    for (const pickup of list) {
+      const existingBase = parseTrackingNumber(pickup.tracking_number);
+      if (existingBase !== null && existingBase >= 0) {
+        pickupBaseMap.set(pickup.stop_id, existingBase);
+        usedBases.add(existingBase);
+      }
     }
-    pickupBaseMap.set(pickup.stop_id, pickupBase);
-    usedPickupBases.add(pickupBase);
+    for (const pickup of list) {
+      if (pickupBaseMap.has(pickup.stop_id)) continue;
+      let base = 0;
+      while (usedBases.has(base)) base += 20;
+      pickupBaseMap.set(pickup.stop_id, base);
+      usedBases.add(base);
+      updates.push({ id: pickup.id, tracking_number: String(base).padStart(2, '0') });
+    }
   }
 
   for (const pickup of pickups) {
