@@ -2003,7 +2003,7 @@ const DATE_INPUT_CLS = 'bg-white text-slate-900 border-slate-300 dark:bg-slate-8
             <MapPin className="w-5 h-5" />
             <span>Route Viewer</span>
             <Badge variant="outline">{viewMode === 'combined' ? `${combinedStopGroups.length} stops` : activeItems.length + ' records'}</Badge>
-            {viewMode === 'combined' && <Badge className="bg-amber-100 text-amber-800 border-0">Combined Mode</Badge>}
+            {viewMode === 'combined' && <Badge className="bg-amber-100 !text-amber-800 border-0 dark:bg-amber-900/40 dark:!text-amber-200">Combined Mode</Badge>}
           </div>
           <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading} className="gap-2">
