@@ -468,7 +468,11 @@ export default function DeliveryCameraOverlay({
   const handleCreateNew = useCallback(() => {
     if (!scanResults?.extractedData || !onCreatePatient) return;
     const ed = scanResults.extractedData;
-    onCreatePatient(() => handleClose(), {
+    // OWNER REPORT (Nov 9 2026): the camera stayed live while the patient form
+    // was open, because the close callback only fired after the form saved.
+    // The scanner has done its job once it hands off, so close it now.
+    handleClose();
+    onCreatePatient(() => {}, {
       full_name: ed.patient_name,
       address: ed.street_address,
       phone: ed.phone_number,

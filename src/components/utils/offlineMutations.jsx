@@ -270,6 +270,30 @@ export const updatePatientLocal = async (patientId, updates) => {
       throw new Error(`Patient ${patientId} not found in local database`);
     }
 
+    // ── GPS WRITE AUDIT (owner report Nov 9 2026) ──────────────────────────
+    // Patient markers were moving with no address change and no user action,
+    // and nothing recorded who wrote the coordinates. Every coordinate change
+    // now leaves one RemoteLogEntry line with old -> new plus the caller stack,
+    // so the guilty writer can be named instead of guessed. Read-only noise
+    // otherwise; it never blocks or alters the write.
+    try {
+      const hasLat = updates && Object.prototype.hasOwnProperty.call(updates, 'latitude');
+      const hasLng = updates && Object.prototype.hasOwnProperty.call(updates, 'longitude');
+      if (hasLat || hasLng) {
+        const oldLat = Number(existingPatient?.latitude);
+        const oldLng = Number(existingPatient?.longitude);
+        const newLat = hasLat ? Number(updates.latitude) : oldLat;
+        const newLng = hasLng ? Number(updates.longitude) : oldLng;
+        if (newLat !== oldLat || newLng !== oldLng) {
+          const caller = (new Error().stack || '')
+            .split('\n').slice(2, 6).map((l) => l.trim().replace(/^at /, '')).join(' <- ').slice(0, 500);
+          import('./remoteLogger').then(({ remoteLogger }) => remoteLogger.warn(
+            `[PATIENT_GPS_WRITE] ${patientId} ${existingPatient?.full_name || ''} old=${oldLat},${oldLng} new=${newLat},${newLng} address="${existingPatient?.address || ''}" caller=${caller}`
+          )).catch(() => {});
+        }
+      }
+    } catch (_) { /* audit must never break a patient write */ }
+
     // Apply updates
     const updatedPatient = {
       ...existingPatient,

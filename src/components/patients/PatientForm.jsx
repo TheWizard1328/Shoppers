@@ -247,12 +247,38 @@ export default function PatientForm({
   useEffect(() => {allPatientsRef.current = allPatients;}, [allPatients]);
 
   // CRITICAL: Generate unique PID immediately on mount for new patients
+  // A scan-created patient arrives as prefilled data with _isNew, NOT as a saved
+  // record. Treat it as new so the PID, coords and distance all still get built
+  // (owner report Nov 9 2026: label scan produced a patient with no PID, no GPS
+  // and no distance because it was mistaken for an existing patient).
+  const isNewPatientRecord = !patient || patient._isNew === true;
   useEffect(() => {
-    if (!patient) {
+    if (isNewPatientRecord) {
       const newPID = generatePatientId(allPatientsRef.current.map((p) => p?.patient_id).filter(Boolean));
-      setFormData((prev) => ({ ...prev, patient_id: newPID }));
+      setFormData((prev) => (prev.patient_id ? prev : { ...prev, patient_id: newPID }));
     }
-  }, [patient]);
+  }, [patient, isNewPatientRecord]);
+
+  // Prefilled (scanned) addresses never passed through the address picker, so
+  // they carry no coordinates. Resolve them once so distance_from_store can run.
+  const _geocodeDoneRef = useRef(false);
+  useEffect(() => {
+    if (!isNewPatientRecord || _geocodeDoneRef.current) return;
+    const address = String(formData.address || '').trim();
+    const hasCoords = Number.isFinite(toFiniteNumber(formData.latitude)) && Number.isFinite(toFiniteNumber(formData.longitude));
+    if (!address || hasCoords) return;
+    _geocodeDoneRef.current = true;
+    (async () => {
+      try {
+        const res = await base44.functions.invoke('geocodeAddress', { address });
+        const lat = toFiniteNumber(res?.data?.latitude ?? res?.data?.lat ?? res?.latitude ?? res?.lat);
+        const lng = toFiniteNumber(res?.data?.longitude ?? res?.data?.lng ?? res?.longitude ?? res?.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+        }
+      } catch (_) { /* distance stays blank; user can drop a pin */ }
+    })();
+  }, [isNewPatientRecord, formData.address, formData.latitude, formData.longitude]);
 
   useEffect(() => {
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
@@ -581,7 +607,7 @@ export default function PatientForm({
     console.log('📝 [PatientForm] handleSubmit - duplicateMode:', duplicateMode);
 
     // CRITICAL: For new patients, ensure unique PID by city
-    if (!patient && !dataToSave.patient_id) {
+    if (isNewPatientRecord && !dataToSave.patient_id) {
       console.log('🔄 [PatientForm] Generating new PID for new patient...');
       // Filter allPatients to only those in the user's current city
       const cityId = currentUser?.city_id;
