@@ -199,15 +199,9 @@ export async function optimizeTransferredStopRoute({
     const drawn = !placed || !IN_HAND.includes(placed.status) || placed.hasPolyline;
 
     if (result?.success && sequenced && drawn) {
-      // OWNER RULE (Nov 3 2026): reset the next-delivery flag after the run — the
-      // first active stop on the new order owns it, and nobody else does.
-      try {
-        const resetRoute = await readLocalRoute(driverId, deliveryDate);
-        const nextOwner = await ensureOneNextFlag(resetRoute);
-        if (nextOwner) console.log(`[TransferOptimize] ${source} — isNextDelivery reset to ${nextOwner}`);
-      } catch (err) {
-        console.warn('[TransferOptimize] next-flag reset skipped:', err?.message || err);
-      }
+      // OWNER RULE (Nov 9 2026): the transfer itself must not leave any
+      // isNextDelivery flag set. The ROUTE OPTIMIZER owns that flag now (it sets
+      // it from the finished order), so this helper no longer assigns one.
       console.log(`[TransferOptimize] ${source} — placed as stop ${placed.stopOrder}${placed.track ? ` / TR${placed.track}` : ''} on ${dayOf(deliveryDate)}`);
       // Repaint NOW: the optimizer commits silently (bulk + route_commit marker), so
       // nothing else tells the dashboard/map that stop_order and the legs moved. The

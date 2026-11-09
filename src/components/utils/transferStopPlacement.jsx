@@ -141,13 +141,30 @@ export async function resolveTransferPlacement({
   const storesById = new Map((stores || []).filter((s) => s?.id).map((s) => [String(s.id), s]));
   const dayKey = `${String(targetDriverId)}::${nextDate}`;
 
-  // ── 1. NO pickup skeleton, NO pickup creation (owner rule Nov 9 2026) ──────
-  // "For transferring to another driver's route there will never be a pickup for
-  // that driver for that transferred stop, and there shouldn't be a pickup
-  // created, because the delivery has already been picked up." The old code
-  // built the target driver's pickup skeleton and even created default pickups
-  // for an empty day; a transferred stop must never depend on that.
-  const skeleton = [];
+  // ── 1. default pickups for the target day (owner rule Nov 9 2026, part 2) ──
+  // "If a delivery is transferred to another driver and they have default
+  // pickups for that day that haven't been added to their route yet, the default
+  // pickups must be created first, THEN the stop is transferred." The transferred
+  // stop itself never gets a new PUID and never gets its own pickup created
+  // (part 1): the day's default pickups are what make its route valid.
+  let createdPickups = [];
+  try {
+    const existing = pickupsForDay(allDeliveries, nextDate, targetDriverId);
+    const wanted = scheduledStoreSlots(stores, nextDate, targetDriverId);
+    const have = new Set(existing.map((p) => `${String(p.store_id || '')}:${String(p.ampm_deliveries || '')}`));
+    const missing = wanted.filter(({ store, slot }) => !have.has(`${String(store?.id || '')}:${String(slot || '')}`));
+    if (missing.length) {
+      createdPickups = await createDefaultPickups({ stores, targetDate: nextDate, targetDriverId, targetDriverName });
+      console.log(`[transferPlacement] created ${createdPickups.length} default pickup(s) for ${targetDriverName || targetDriverId} on ${nextDate} before transferring the stop`);
+    }
+  } catch (err) {
+    console.warn('[transferPlacement] default pickup pre-creation failed:', err?.message || err);
+  }
+  const skeleton = pickupsForDay(allDeliveries.concat(createdPickups), nextDate, targetDriverId).map((p, i) => ({
+    stopId: p.stop_id || p.puid || p.id || null,
+    start: p.delivery_time_start || '',
+    order: Number(p.stop_order) || i + 1,
+  }));
 
   // ── 2. PUID never changes (owner rule Nov 9 2026) ─────────────────────────
   // The delivery was already collected, so it keeps the pickup it was collected
