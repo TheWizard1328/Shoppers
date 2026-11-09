@@ -1712,7 +1712,7 @@ export default function AdminUtilities() {
   }
 
   return (
-    <div className="w-full flex flex-col" style={{ background: 'var(--bg-slate-50)', height: '100%', overflow: 'hidden' }}>
+    <div className="w-full flex flex-col flex-1 min-h-0" style={{ background: 'var(--bg-slate-50)', height: '100%', minHeight: 0, overflow: 'hidden' }}>
       {/* Sticky header — never scrolls */}
       <div className="flex-shrink-0 px-2 md:px-3 pt-2 md:pt-3 pb-2" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -1741,7 +1741,7 @@ export default function AdminUtilities() {
 
       {/* Scrollable content area */}
       <div ref={adminScrollContainerRef} className="flex-1 overflow-y-auto px-2 md:px-3 pb-4">
-        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
+        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full flex-1 min-h-0 flex flex-col">
 
           <TabsContent value="data" className="mt-0">
             <div className="space-y-6">
@@ -1915,11 +1915,11 @@ export default function AdminUtilities() {
               </div>
           </TabsContent>
 
-          <TabsContent value="store-metrics">
+          <TabsContent value="store-metrics" className="mt-4 flex-1 min-h-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
             <StoreMetricsPanel />
           </TabsContent>
 
-          <TabsContent value="user-settings" className="mt-4 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden" style={{ height: 'calc(100vh - 220px)' }}>
+          <TabsContent value="user-settings" className="mt-4 flex-1 min-h-0 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden">
             <AppUserMirrorPanel />
             <UserSettingsTable
               appUsers={appUsers || []}

@@ -407,7 +407,7 @@ export default function StoreMetricsPanel() {
         </Card>
       </div>
 
-      <Card className="flex flex-col max-h-[calc(100vh-220px)] min-h-[420px] overflow-hidden">
+      <Card className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <CardHeader className="px-3 py-2 flex flex-col space-y-1.5 shrink-0">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
