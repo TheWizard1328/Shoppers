@@ -30,11 +30,11 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
     if (!driver?.id) return;
     setLoading(true);
     try {
-      const docs = await base44.entities.DriverDocument.list({
-        filter: { driver_id: driver.id },
-        sort: '-uploaded_at'
-      });
-      setDocuments(docs || []);
+      const docsPage = await base44.entities.DriverDocument.filter(
+        { driver_id: driver.id },
+        { sort: '-uploaded_at' }
+      );
+      setDocuments(Array.isArray(docsPage) ? docsPage : (docsPage?.items || []));
     } catch (err) {
       console.error('Failed to load documents:', err);
     } finally {

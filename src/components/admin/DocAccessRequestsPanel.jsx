@@ -15,20 +15,16 @@ export default function DocAccessRequestsPanel({ currentUser }) {
   const loadRequests = useCallback(async () => {
     setLoading(true);
     try {
-      let result;
-      if (filter === 'all') {
-        result = await base44.entities.DocAccessRequest.list({
-          sort: '-requested_at',
-          limit: 100
-        });
-      } else {
-        result = await base44.entities.DocAccessRequest.list({
-          filter: { status: filter },
-          sort: '-requested_at',
-          limit: 100
-        });
-      }
-      setRequests(result || []);
+      // filter(query, options) — with options it returns a page ({ items, ... }),
+      // not a bare array (the old list() form is what threw "requests.map is not
+      // a function").
+      const query = filter === 'all' ? {} : { status: filter };
+      const page = await base44.entities.DocAccessRequest.filter(query, {
+        sort: '-requested_at',
+        limit: 100
+      });
+      const items = Array.isArray(page) ? page : (page?.items || []);
+      setRequests(items);
     } catch (err) {
       console.error('Failed to load requests:', err);
     } finally {
@@ -45,9 +41,9 @@ export default function DocAccessRequestsPanel({ currentUser }) {
   const handleApprove = async (requestId) => {
     setActing(requestId);
     try {
-      await base44.functions.invoke('approveDocAccess', {
-        request_id: requestId,
-        action: 'approve'
+      await base44.functions.invoke('docAccessManager', {
+        action: 'approve',
+        request_id: requestId
       });
       await loadRequests();
     } catch (err) {
@@ -61,9 +57,9 @@ export default function DocAccessRequestsPanel({ currentUser }) {
   const handleDeny = async (requestId) => {
     setActing(requestId);
     try {
-      await base44.functions.invoke('approveDocAccess', {
-        request_id: requestId,
-        action: 'deny'
+      await base44.functions.invoke('docAccessManager', {
+        action: 'deny',
+        request_id: requestId
       });
       await loadRequests();
     } catch (err) {

@@ -36,17 +36,14 @@ export default function SecureDocViewer() {
         
         if (!isAdmin) {
           // Look for an active approved DocAccessRequest for this driver
-          const requests = await base44.entities.DocAccessRequest.list({
-            filter: {
-              requester_id: me.id,
-              driver_id: driverId,
-              status: 'approved'
-            },
-            sort: '-approved_at',
-            limit: 5
-          });
+          const requestsPage = await base44.entities.DocAccessRequest.filter({
+            requester_id: me.id,
+            driver_id: driverId,
+            status: 'approved'
+          }, { sort: '-approved_at', limit: 5 });
+          const requests = Array.isArray(requestsPage) ? requestsPage : (requestsPage?.items || []);
 
-          const activeRequest = (requests || []).find(r => {
+          const activeRequest = requests.find(r => {
             if (!r.approved_at) return false;
             // Check midnight expiry
             const now = new Date();
@@ -82,11 +79,11 @@ export default function SecureDocViewer() {
         }
 
         // Load documents for this driver
-        const docs = await base44.entities.DriverDocument.list({
-          filter: { driver_id: driverId },
-          sort: '-uploaded_at'
-        });
-        setDocuments(docs || []);
+        const docsPage = await base44.entities.DriverDocument.filter(
+          { driver_id: driverId },
+          { sort: '-uploaded_at' }
+        );
+        setDocuments(Array.isArray(docsPage) ? docsPage : (docsPage?.items || []));
       } catch (err) {
         console.error('SecureDocViewer error:', err);
         setError(err.message || 'Failed to load documents');
