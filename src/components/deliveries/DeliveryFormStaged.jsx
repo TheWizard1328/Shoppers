@@ -180,10 +180,26 @@ export default function DeliveryFormStaged({
   // divided with a date header?" Pending stops on the date being edited stay in
   // the normal Pending list; every pending stop booked for another date drops
   // into its own date-headed group so they no longer mix in with today's work.
+  // OWNER REPORT (Nov 9 2026): today's pending stops showed under Future Pending.
+  // The selected date can arrive as M/D/YYYY (dashboard) while delivery_date is ISO,
+  // so the keys never matched. Normalise every shape to YYYY-MM-DD.
   const _dateKeyOf = (value) => {
-    const raw = String(value || '').trim();
+    if (!value) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+    }
+    const raw = String(value).trim();
     if (!raw) return '';
-    return raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0];
+    const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (iso) return `${iso[1]}-${pad(iso[2])}-${pad(iso[3])}`;
+    const us = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (us) return `${us[3]}-${pad(us[1])}-${pad(us[2])}`;
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
+    }
+    return '';
   };
   const _todayKey = (() => {
     const now = new Date();
