@@ -292,7 +292,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
           </div>
           <div className="space-y-1">
             <div className="font-medium">Only log selected users</div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Drivers</div>
                 <MultiSelect
