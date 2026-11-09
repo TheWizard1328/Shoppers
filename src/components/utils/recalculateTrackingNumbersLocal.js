@@ -12,6 +12,42 @@
  *    falling back to stop_order (set by optimizer)
  */
 
+
+/** Dates arrive as ISO, M/D/YYYY or Date; compare them as YYYY-MM-DD. */
+const normalizeDateKey = (value) => {
+  if (!value) return '';
+  if (value instanceof Date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  }
+  const raw = String(value).trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[0];
+  const us = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (us) return `${us[3]}-${String(us[1]).padStart(2, '0')}-${String(us[2]).padStart(2, '0')}`;
+  return raw;
+};
+
+/** IndexedDB and the caller pool each miss different records; merge them by id. */
+const mergeDeliveryPool = (primary, fallback) => {
+  const byId = new Map();
+  const add = (rows) => {
+    if (!Array.isArray(rows)) return;
+    for (const row of rows) {
+      if (!row) continue;
+      const key = row.id || `${row.stop_id || ''}__${row.delivery_date || ''}__${row.patient_id || ''}`;
+      const existing = byId.get(key);
+      byId.set(key, existing ? { ...existing, ...row } : row);
+    }
+  };
+  add(fallback);
+  add(primary);
+  return Array.from(byId.values());
+};
+
+/** A puid is unique only within one date, so a pickup group is puid + date. */
+const pickupKey = (pickup) => `${pickup.stop_id}__${normalizeDateKey(pickup.delivery_date)}`;
+
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 const STARTED_STATUSES = ['in_transit', 'en_route'];
 
@@ -89,22 +125,22 @@ export function recalculateTrackingNumbersLocal({ deliveries, stores, patients }
     for (const pickup of list) {
       const existingBase = parseTrackingNumber(pickup.tracking_number);
       if (existingBase !== null && existingBase >= 0) {
-        pickupBaseMap.set(pickup.stop_id, existingBase);
+        pickupBaseMap.set(pickupKey(pickup), existingBase);
         usedBases.add(existingBase);
       }
     }
     for (const pickup of list) {
-      if (pickupBaseMap.has(pickup.stop_id)) continue;
+      if (pickupBaseMap.has(pickupKey(pickup))) continue;
       let base = 0;
       while (usedBases.has(base)) base += 20;
-      pickupBaseMap.set(pickup.stop_id, base);
+      pickupBaseMap.set(pickupKey(pickup), base);
       usedBases.add(base);
       updates.push({ id: pickup.id, tracking_number: String(base).padStart(2, '0') });
     }
   }
 
   for (const pickup of pickups) {
-    const pickupBase = pickupBaseMap.get(pickup.stop_id);
+    const pickupBase = pickupBaseMap.get(pickupKey(pickup));
     if (pickupBase === null || pickupBase === undefined) continue;
 
     const store = storeMap.get(pickup.store_id);
@@ -113,7 +149,8 @@ export function recalculateTrackingNumbersLocal({ deliveries, stores, patients }
     const hasStoreCoords = Number.isFinite(storeLat) && Number.isFinite(storeLon);
 
     const linkedDeliveries = deliveries
-      .filter((d) => d && d.patient_id && d.puid === pickup.stop_id)
+      .filter((d) => d && d.patient_id && d.puid === pickup.stop_id
+        && normalizeDateKey(d.delivery_date) === normalizeDateKey(pickup.delivery_date))
       .sort((a, b) => {
         // Finished deliveries always come first (their TR#s are reserved)
         const aFinished = FINISHED_STATUSES.includes(a.status);
@@ -255,9 +292,10 @@ export async function resequenceTrackingNumbersForScope({
     let all = [];
     try { all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES); } catch (_) { all = []; }
     // IDB can be empty (fresh device) or stall; fall back to the caller's pool.
-    if (!all || !all.length) all = Array.isArray(fallbackDeliveries) ? fallbackDeliveries : [];
+    all = mergeDeliveryPool(all, fallbackDeliveries);
+    const dateKey = normalizeDateKey(deliveryDate);
     const scope = (all || []).filter((d) => d
-      && String(d.delivery_date || '') === String(deliveryDate)
+      && normalizeDateKey(d.delivery_date) === dateKey
       && String(d.driver_id || '') === String(driverId || ''));
     if (!scope.length) return [];
     const updates = recalculateTrackingNumbersLocal({ deliveries: scope, stores, patients });
