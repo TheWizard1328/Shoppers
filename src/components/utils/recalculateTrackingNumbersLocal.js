@@ -202,3 +202,38 @@ export async function applyTrackingNumberUpdates({ updates, allDeliveries, updat
 
   return updatedDeliveries;
 }
+
+/**
+ * Authoritative resequence after a manual save.
+ *
+ * Owner report (Nov 9 2026): clicking Done on Add To Route or Update on the Edit
+ * Delivery form must resequence TR#s for every pending stop on the same
+ * Store + Date + Driver by distance from store. The old batch writer numbered
+ * stops from its own local counter, so duplicate TR#s survived on the record.
+ * This reads the whole date/driver scope back out of IndexedDB and rewrites the
+ * numbers from that complete set, which is what the panel and the pickup card see.
+ */
+export async function resequenceTrackingNumbersForScope({
+  deliveryDate,
+  driverId,
+  stores,
+  patients,
+  updateDeliveriesLocally,
+  updateDeliveryLocal,
+}) {
+  if (!deliveryDate) return [];
+  try {
+    const { offlineDB } = await import('./offlineDatabase');
+    const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const scope = (all || []).filter((d) => d
+      && String(d.delivery_date || '') === String(deliveryDate)
+      && String(d.driver_id || '') === String(driverId || ''));
+    if (!scope.length) return [];
+    const updates = recalculateTrackingNumbersLocal({ deliveries: scope, stores, patients });
+    if (!updates.length) return [];
+    await applyTrackingNumberUpdates({ updates, allDeliveries: scope, updateDeliveriesLocally, updateDeliveryLocal });
+    return updates;
+  } catch (_) {
+    return [];
+  }
+}

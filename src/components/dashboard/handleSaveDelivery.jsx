@@ -198,6 +198,19 @@ export async function handleSaveDelivery(deliveryData, ctx) {
           // Save to IDB + backend. skipSmartRefresh=true because we already paused
           // at the top of handleSaveDelivery and will resume at the end.
           await updateDeliveryLocal(editingDelivery.id, deliveryData, { skipSmartRefresh: true });
+          // Owner request (Nov 9 2026): Update must resequence TR#s for the same
+          // Store + Date + Driver by distance from store.
+          try {
+            const { resequenceTrackingNumbersForScope } = await import('@/components/utils/recalculateTrackingNumbersLocal');
+            await resequenceTrackingNumbersForScope({
+              deliveryDate: deliveryData.delivery_date || editingDelivery.delivery_date,
+              driverId: deliveryData.driver_id || editingDelivery.driver_id,
+              stores,
+              patients,
+              updateDeliveriesLocally,
+              updateDeliveryLocal,
+            });
+          } catch (_) { /* TR resequence is best-effort */ }
 
           // Re-read the full merged record from IDB and broadcast to UI for polish
           try {
