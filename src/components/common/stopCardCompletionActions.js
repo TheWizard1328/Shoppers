@@ -1736,6 +1736,25 @@ export function useStopCardCompletionActions({
             return null;
           });
 
+          // ACCEPT-ORDER DIAGNOSTIC (Nov 9 2026): owner report — the accept run
+          // sequenced the remaining stops differently from an immediate manual
+          // FAB (Beverly pulled ahead of Catherine, causing backtracking). Log the
+          // pre/post order plus each active stop's window so the next accept shows
+          // whether the engine received different window data or decided differently.
+          try {
+            const _act = (_fullDeliveries || []).filter((d) => d && String(d.driver_id) === String(driverId)
+              && d.delivery_date === deliveryDate
+              && !['completed', 'failed', 'cancelled'].includes(String(d.status || '')))
+              .sort((a, b) => (Number(a.stop_order) || 9999) - (Number(b.stop_order) || 9999));
+            const _before = _act.map((d) => `${d.stop_order}:${d.stop_id || d.id}`);
+            const _wins = _act.map((d) => `${d.stop_id || d.id}[${d.delivery_time_start || '-'}~${d.delivery_time_end || '-'}]`);
+            const _after = (Array.isArray(coordResult?.optimizeData?.writeBatch) ? coordResult.optimizeData.writeBatch : [])
+              .filter((u) => u?.data && u.data.stop_order !== undefined)
+              .sort((a, b) => (Number(a.data.stop_order) || 9999) - (Number(b.data.stop_order) || 9999))
+              .map((u) => `${u.data.stop_order}:${u.id}`);
+            console.warn(`[AcceptOrder] degraded=${!!coordResult?.isDegraded} sequenced=${_after.length} before=${_before.join(',')} after=${_after.join(',')} windows=${_wins.join(',')}`);
+          } catch (_) { /* diagnostic only */ }
+
           // CRITICAL: Use the optimizer's freshDeliveries (local data merged with writeBatch).
           // DO NOT call forceRefreshDriverDeliveries — that fetches from the DB where
           // the fire-and-forget writes haven't committed yet, causing stale data to
