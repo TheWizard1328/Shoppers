@@ -13,6 +13,11 @@
  */
 
 
+
+/** Staged/temp rows live only in form state - they must never be numbered or written. */
+const isPersistedDelivery = (d) => !!d && !!d.id && !d._tempId && !d._isStaged
+  && String(d.id).length > 8 && String(d.status || '').toLowerCase() !== 'staged';
+
 /** Dates arrive as ISO, M/D/YYYY or Date; compare them as YYYY-MM-DD. */
 const normalizeDateKey = (value) => {
   if (!value) return '';
@@ -96,7 +101,7 @@ export function recalculateTrackingNumbersLocal({ deliveries, stores, patients }
 
   // Identify pickups (no patient_id, has stop_id)
   const pickups = deliveries
-    .filter((d) => d && !d.patient_id && d.stop_id)
+    .filter((d) => isPersistedDelivery(d) && !d.patient_id && d.stop_id)
     .sort((a, b) => {
       const stopDelta = (a.stop_order || 999999) - (b.stop_order || 999999);
       if (stopDelta !== 0) return stopDelta;
@@ -241,7 +246,7 @@ export async function applyTrackingNumberUpdates({ updates, allDeliveries, updat
   // Build updated delivery objects
   const updateMap = new Map(updates.map((u) => [u.id, u.tracking_number]));
   const updatedDeliveries = (allDeliveries || [])
-    .filter(Boolean)
+    .filter((d) => isPersistedDelivery(d))
     .map((d) => {
       if (!updateMap.has(d.id)) return null;
       return { ...d, tracking_number: updateMap.get(d.id) };
@@ -294,7 +299,7 @@ export async function resequenceTrackingNumbersForScope({
     // IDB can be empty (fresh device) or stall; fall back to the caller's pool.
     all = mergeDeliveryPool(all, fallbackDeliveries);
     const dateKey = normalizeDateKey(deliveryDate);
-    const scope = (all || []).filter((d) => d
+    const scope = (all || []).filter((d) => isPersistedDelivery(d)
       && normalizeDateKey(d.delivery_date) === dateKey
       && String(d.driver_id || '') === String(driverId || ''));
     if (!scope.length) return [];
@@ -321,7 +326,7 @@ export async function resequenceAllScopesForDate({
   let all = [];
   try { all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES); } catch (_) { all = []; }
   all = mergeDeliveryPool(all, fallbackDeliveries);
-  let scope = (all || []).filter((d) => d && normalizeDateKey(d.delivery_date) === dateKey);
+  let scope = (all || []).filter((d) => isPersistedDelivery(d) && normalizeDateKey(d.delivery_date) === dateKey);
   if (companyId) {
     const sameCompany = scope.filter((d) => !d.company_id || String(d.company_id) === String(companyId));
     if (sameCompany.length) scope = sameCompany;
