@@ -23,6 +23,14 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     ...dataToSave
   } = { ...formData };
 
+  // OWNER RULE (Nov 9 2026): a stop pushed straight to in_transit / en_route
+  // (never staged or pending first) must always carry a delivery start time.
+  // Without one the optimizer bucketed it as "servable now" and ran it first.
+  if (['in_transit', 'en_route'].includes(String(dataToSave.status || ''))
+    && !String(dataToSave.delivery_time_start || '').trim()) {
+    dataToSave.delivery_time_start = currentLocalTime;
+  }
+
   if (dataToSave.cod_total_amount_required > 0) {
     dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
   }

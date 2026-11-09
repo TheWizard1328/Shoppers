@@ -643,6 +643,14 @@ let _inheritedWindowCount = 0;
     // the other way. The original start is preserved instead and marked
     // expired; the constraint block re-anchors the whole group with ONE shift.
     let windowStartExpired = false;
+    // OWNER RULE (Nov 9 2026): on today's route a stop with NO delivery start
+    // time is treated exactly like one whose start time already passed — it is
+    // servable now, never a higher-priority anchor ahead of live work.
+    if (routeIsToday && !windowStart) {
+      windowStart = `${String(Math.floor(currentMinutes / 60)).padStart(2, '0')}:${String(currentMinutes % 60).padStart(2, '0')}`;
+      windowStartExpired = true;
+      _clampedWindowCount++;
+    }
     if (routeIsToday && windowStart) {
       const _wsMin = parseTimeToMinutes(windowStart);
       if (Number.isFinite(_wsMin) && _wsMin < currentMinutes) {
