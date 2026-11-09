@@ -1154,6 +1154,20 @@ export default function DeliveryForm({
           updateDeliveryLocal,
           fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
         });
+        // Admin case: if the stop moved driver/date/store, the OLD scope lost a stop
+        // too, so its remaining stops must be renumbered as well.
+        const _origDriver = selectedStaged?.driver_id || '';
+        const _origDate = selectedStaged?.delivery_date || '';
+        if (_origDate && (_origDate !== formData.delivery_date || _origDriver !== formData.driver_id)) {
+          await resequenceTrackingNumbersForScope({
+            deliveryDate: _origDate,
+            driverId: _origDriver,
+            stores,
+            patients,
+            updateDeliveryLocal,
+            fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
+          });
+        }
       } catch (_) { /* best effort */ }
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged)); setHasChanges(true);
       // CRITICAL: Do NOT dispatch refreshDeliveryStats or deliveriesUpdated here.
@@ -1202,14 +1216,22 @@ export default function DeliveryForm({
     // batch had nothing new to write (owner report Nov 9 2026).
     try {
       const { resequenceTrackingNumbersForScope } = await import('@/components/utils/recalculateTrackingNumbersLocal');
+      const _fallback = [...(allDeliveries || []), ...(stagedDeliveries || [])];
       await resequenceTrackingNumbersForScope({
         deliveryDate: formData.delivery_date,
         driverId: formData.driver_id,
-        stores,
-        patients,
-        updateDeliveryLocal,
-        fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
+        stores, patients, updateDeliveryLocal, fallbackDeliveries: _fallback,
       });
+      // Admin case: a stop moved off another driver/date leaves the old scope short.
+      const _prevDriver = delivery?.driver_id || '';
+      const _prevDate = delivery?.delivery_date || '';
+      if (_prevDate && (_prevDate !== formData.delivery_date || _prevDriver !== formData.driver_id)) {
+        await resequenceTrackingNumbersForScope({
+          deliveryDate: _prevDate,
+          driverId: _prevDriver,
+          stores, patients, updateDeliveryLocal, fallbackDeliveries: _fallback,
+        });
+      }
     } catch (_) { /* best effort */ }
     return _batchOutcome;
   }, [stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges]);
