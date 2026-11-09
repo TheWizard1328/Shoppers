@@ -76,6 +76,28 @@ export default function CompanyDataTab() {
     return { rows, from: 'server' };
   }, []);
 
+  // After a server backfill the local cache can still hold old rows with no
+  // company_id (that is what made the tab show "3 deliveries" while the server
+  // reported zero). Stamp the local copies so the IDB-sourced counts agree.
+  const healLocalCache = useCallback(async (companyId) => {
+    if (!companyId) return 0;
+    let healed = 0;
+    for (const [key, cfg] of Object.entries(SOURCES)) {
+      if (key === 'patients') continue; // no company_id field on Patient
+      try {
+        const rows = await offlineDB.getAll(cfg.store);
+        if (!Array.isArray(rows) || !rows.length) continue;
+        const blanks = rows.filter((r) => !r?.company_id || !String(r.company_id).trim());
+        if (!blanks.length) continue;
+        await offlineDB.bulkSave(cfg.store, blanks.map((r) => ({ ...r, company_id: companyId })));
+        healed += blanks.length;
+      } catch {
+        /* cache heal is best-effort */
+      }
+    }
+    return healed;
+  }, []);
+
   const load = useCallback(async ({ preferIdb }) => {
     const keys = Object.keys(SOURCES);
     const [companyList, ...reads] = await Promise.all([
@@ -129,6 +151,7 @@ export default function CompanyDataTab() {
     setBackfillError('');
     setBackfill({ running: true, log: [], summary: null });
     const log = [];
+    let companyId = '';
     const push = (line) => {
       log.push(line);
       setBackfill({ running: true, log: [...log], summary: null });
@@ -138,6 +161,7 @@ export default function CompanyDataTab() {
         const res = await base44.functions.invoke('backfillCompanyIds', {});
         const data = res?.data || res;
         if (data?.error) throw new Error(data.error);
+        if (data?.company_id) companyId = data.company_id;
         const parts = Object.entries(data?.results || {}).map(([name, r]) => `${name}: ${r.updated} updated${r.remaining ? `, ${r.remaining} left` : ''}`);
         push(`Pass ${pass} — ${data?.company_name || 'company'} — ${parts.join(' | ')}`);
         if (data?.done) {
@@ -153,8 +177,11 @@ export default function CompanyDataTab() {
           setBackfill({ running: false, log: [...log], summary: 'More blanks remain. Press Backfill again.' });
         }
       }
-      // Reconcile from the server so the counts reflect the writes just made.
+      // Reconcile from the server, then stamp the same rows in the local cache so
+      // a later IDB refresh does not resurrect them as blanks.
       await load({ preferIdb: false });
+      const healed = await healLocalCache(companyId);
+      if (healed) push(`Local cache healed: ${healed} cached record(s) stamped.`);
     } catch (err) {
       setBackfillError(err?.message || 'Backfill failed');
       setBackfill((b) => ({ running: false, log: b?.log || [], summary: null }));

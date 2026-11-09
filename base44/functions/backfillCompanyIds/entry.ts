@@ -18,8 +18,11 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  * Safe to call repeatedly: it only ever touches blank company_id rows.
  */
 
-const DEFAULT_ENTITIES = ['Store', 'Delivery', 'Payroll', 'AppUser'];
-const EXTRA_ENTITIES = ['Patient', 'InterStoreLocation'];
+// InterStoreLocation joined the default list Nov 8 2026 (owner request: the
+// backfill button must cover interstore pickup points too). Patient stays out:
+// those records have no company_id field at all.
+const DEFAULT_ENTITIES = ['Store', 'Delivery', 'Payroll', 'AppUser', 'InterStoreLocation'];
+const EXTRA_ENTITIES = ['Patient'];
 const VALID = new Set([...DEFAULT_ENTITIES, ...EXTRA_ENTITIES]);
 const BATCH = 500;
 const MAX_BATCHES_PER_ENTITY = 6; // ≤3000 writes per entity per call
@@ -80,10 +83,15 @@ Deno.serve(async (req) => {
       const api = base44.asServiceRole.entities[name];
       const out = { blank_before: 0, updated: 0, remaining: 0 };
 
-      // Count blanks first so the caller can show progress.
-      for (const f of blankFilters()) {
-        const rows = await api.filter(f, 'created_date', 1000).catch(() => []);
-        out.blank_before += Array.isArray(rows) ? rows.length : 0;
+      // Count blanks first so the caller can show progress. The three filters
+      // overlap (a null field also matches $exists:false), so dedupe by id.
+      {
+        const seenBlank = new Set();
+        for (const f of blankFilters()) {
+          const rows = await api.filter(f, 'created_date', 1000).catch(() => []);
+          for (const r of rows || []) if (r?.id) seenBlank.add(r.id);
+        }
+        out.blank_before = seenBlank.size;
       }
 
       if (dryRun) {
@@ -121,10 +129,14 @@ Deno.serve(async (req) => {
       }
       out.updated = updated;
 
-      // Remaining blanks after this run.
-      for (const f of blankFilters()) {
-        const rows = await api.filter(f, 'created_date', 1).catch(() => []);
-        out.remaining += Array.isArray(rows) ? rows.length : 0;
+      // Remaining blanks after this run (deduped).
+      {
+        const seenLeft = new Set();
+        for (const f of blankFilters()) {
+          const rows = await api.filter(f, 'created_date', 5).catch(() => []);
+          for (const r of rows || []) if (r?.id) seenLeft.add(r.id);
+        }
+        out.remaining = seenLeft.size;
       }
       if (out.remaining > 0) working = true;
       results[name] = out;
