@@ -61,7 +61,7 @@ function useViewportFit() {
       const top = el.getBoundingClientRect().top;
       // Hidden tab (display:none) reports top 0 - keep the last good value.
       if (top < 40) return;
-      setMaxH(Math.max(220, Math.round(window.innerHeight - top - 12)));
+      setMaxH(Math.max(220, Math.round(window.innerHeight - top - 16)));
     };
     compute();
     window.addEventListener('resize', compute);

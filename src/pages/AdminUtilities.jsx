@@ -1740,7 +1740,9 @@ export default function AdminUtilities() {
       </div>
 
       {/* Scrollable content area */}
-      <div ref={adminScrollContainerRef} className="flex-1 overflow-y-auto px-2 md:px-3 pb-4">
+      {/* Settings + Metrics size their own tables to the viewport, so the outer
+          wrapper must not scroll for them (extra scrollbar, owner report Nov 8 2026). */}
+      <div ref={adminScrollContainerRef} className={`flex-1 min-h-0 flex flex-col px-2 md:px-3 ${(activeUtilityTab === 'user-settings' || activeUtilityTab === 'store-metrics') ? 'overflow-y-hidden pb-3' : 'overflow-y-auto pb-4'}`}>
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full flex-1 min-h-0 flex flex-col">
 
           <TabsContent value="data" className="mt-0">
