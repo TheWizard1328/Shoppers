@@ -179,7 +179,14 @@ if (import.meta.hot) {
   import.meta.hot.on('vite:beforeUpdate', () => {
     window.parent?.postMessage({ type: 'sandbox:beforeUpdate' }, '*');
   });
-  import.meta.hot.on('vite:afterUpdate', () => {
+  import.meta.hot.on('vite:afterUpdate', async () => {
     window.parent?.postMessage({ type: 'sandbox:afterUpdate' }, '*');
+    // A hot update can drop the theme classes or leave a stale OS listener
+    // behind — re-apply the cached preference so the theme survives the reload.
+    // Imported lazily so the boot module graph is unchanged.
+    try {
+      const { applyThemePreference } = await import('@/components/utils/userSettingsManager');
+      applyThemePreference(localStorage.getItem('rxdeliver_theme_preference') || 'auto');
+    } catch (_) { /* non-fatal */ }
   });
 }

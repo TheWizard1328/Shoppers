@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // APK transparent status/nav bars follow the APP theme, not the OS one
 // (owner report Nov 5 2026: light mode icons were invisible).
 import { syncNativeSystemBarTheme } from './nativeSystemBars';
+import { applyThemePreference } from './userSettingsManager';
 
 export default function useAutoThemeSync(themePreference) {
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -35,30 +36,11 @@ export default function useAutoThemeSync(themePreference) {
   // state equality) so a clobbered <html> class list also self-heals.
   const themeRef = useRef(themePreference);
   themeRef.current = themePreference;
-  const applyThemeClasses = useCallback((pref, sysDark) => {
-    const root = document.documentElement;
-    // Run the native bar sync AFTER the class flip so it reads the new theme.
-    const syncBars = () => syncNativeSystemBarTheme();
-    if (pref === 'dark') {
-      root.classList.remove('auto-theme', 'light-theme');
-      root.classList.add('dark-theme', 'dark');
-      root.setAttribute('data-system-theme', 'dark');
-      syncBars();
-      return;
-    }
-    if (pref === 'light') {
-      root.classList.remove('auto-theme', 'dark-theme', 'dark');
-      root.classList.add('light-theme');
-      root.setAttribute('data-system-theme', 'light');
-      syncBars();
-      return;
-    }
-    root.classList.remove('light-theme', 'dark-theme');
-    root.classList.add('auto-theme');
-    root.setAttribute('data-system-theme', sysDark ? 'dark' : 'light');
-    if (sysDark) root.classList.add('dark');
-    else root.classList.remove('dark');
-    syncBars();
+  // Single source of truth for the theme classes (userSettingsManager).
+  // The native bar sync runs AFTER the class flip so it reads the new theme.
+  const applyThemeClasses = useCallback((pref) => {
+    applyThemePreference(pref);
+    syncNativeSystemBarTheme();
   }, []);
 
   // EDITOR GUARD (owner report Nov 1 2026: app set to LIGHT on a Dark-OS PC,
@@ -87,7 +69,7 @@ export default function useAutoThemeSync(themePreference) {
       let sysDark = false;
       try { sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch { sysDark = false; }
       setSystemPrefersDark(sysDark);
-      applyThemeClasses(themeRef.current, sysDark);
+      applyThemeClasses(themeRef.current);
     };
     const onVis = () => { if (document.visibilityState === 'visible') recheck(); };
     document.addEventListener('visibilitychange', onVis);
@@ -101,37 +83,11 @@ export default function useAutoThemeSync(themePreference) {
   }, [applyThemeClasses]);
 
   useEffect(() => {
-    const root = document.documentElement;
     // Cache the RESOLVED preference (owner fix, Sep 28) so index.html's
     // pre-React head script can apply the correct theme on the very next
     // load before any JS/React runs — eliminates the light-flash on load.
+    // applyThemePreference caches it too; the single apply path handles the rest.
     try { localStorage.setItem('rxdeliver_theme_preference', themePreference || 'auto'); } catch { /* non-fatal */ }
-
-    if (themePreference === 'dark') {
-      root.classList.remove('auto-theme', 'light-theme');
-      root.classList.add('dark-theme', 'dark');
-      root.setAttribute('data-system-theme', 'dark');
-      syncNativeSystemBarTheme();
-      return;
-    }
-
-    if (themePreference === 'light') {
-      root.classList.remove('auto-theme', 'dark-theme', 'dark');
-      root.classList.add('light-theme');
-      root.setAttribute('data-system-theme', 'light');
-      syncNativeSystemBarTheme();
-      return;
-    }
-
-    root.classList.remove('light-theme', 'dark-theme');
-    root.classList.add('auto-theme');
-    root.setAttribute('data-system-theme', systemPrefersDark ? 'dark' : 'light');
-
-    if (systemPrefersDark) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    syncNativeSystemBarTheme();
-  }, [themePreference, systemPrefersDark]);
+    applyThemeClasses(themePreference);
+  }, [themePreference, systemPrefersDark, applyThemeClasses]);
 }

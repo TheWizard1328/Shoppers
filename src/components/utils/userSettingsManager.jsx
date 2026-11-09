@@ -271,6 +271,7 @@ async function refreshGlobalSettings(userId, _attempt = 0) {
     await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
 
     if (updates.theme_preference !== undefined) {
+      applyThemePreference(updates.theme_preference);
       window.dispatchEvent(new CustomEvent('themePreferenceChanged', {
         detail: { theme: updates.theme_preference }
       }));
@@ -343,9 +344,7 @@ export async function loadUserSettings(userId) {
     currentUserId = userId;
     lastFetchTime = Date.now();
 
-    if (cachedSettings.theme_preference === 'auto') {
-      initializeAutoDarkMode();
-    }
+    applyThemePreference(cachedSettings.theme_preference);
 
     // Global settings (e.g. theme chosen on another device) must not be frozen
     // at this device's last cached values — refresh them in the background.
@@ -419,10 +418,8 @@ export async function loadUserSettings(userId) {
       
       await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
       
-      if (cachedSettings.theme_preference === 'auto') {
-        initializeAutoDarkMode();
-      }
-      
+      applyThemePreference(cachedSettings.theme_preference);
+
       console.log(`✅ [UserSettings] Loaded device profile for ${deviceIdentifier}`);
       return cachedSettings;
     }
@@ -476,9 +473,7 @@ export async function loadUserSettings(userId) {
 
       await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
 
-      if (cachedSettings.theme_preference === 'auto') {
-        initializeAutoDarkMode();
-      }
+      applyThemePreference(cachedSettings.theme_preference);
 
       console.log(`✅ [UserSettings] Created new settings record with device profile`);
       return cachedSettings;
@@ -545,6 +540,9 @@ export async function saveSetting(userId, key, value) {
     cachedGlobalSettings = { ...cachedGlobalSettings, [key]: value };
   }
   currentUserId = userId;
+
+  // Theme changes apply immediately on every device path, not only for 'auto'.
+  if (key === 'theme_preference') applyThemePreference(value);
 
   const idbWritePromise = saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
   pendingWritePromises.add(idbWritePromise);
@@ -740,9 +738,7 @@ export async function saveSettings(userId, settings) {
       console.log(`✅ [UserSettings] Updated settings`);
     }
 
-    if (cachedSettings.theme_preference === 'auto') {
-      initializeAutoDarkMode();
-    }
+    applyThemePreference(cachedSettings.theme_preference);
 
     return cachedSettings;
 
@@ -766,14 +762,16 @@ export function getSetting(key) {
 }
 
 /**
- * Apply auto dark mode - syncs with device's system dark mode preference
- * CRITICAL: Uses native prefers-color-scheme media query (no API calls)
+ * System dark-mode preference — read natively via matchMedia (no API calls)
  */
-function applyAutoDarkMode() {
-  const currentSettings = cachedSettings || { ...DEFAULT_SETTINGS };
-  if (currentSettings.theme_preference !== 'auto') return;
+const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
 
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+/**
+ * Writes the Auto (system-following) class set: auto-theme, plus the bare
+ * 'dark' signal when the OS is dark. Returns whether the OS is dark.
+ */
+function applyAutoThemeClasses() {
+  const prefersDark = window.matchMedia(DARK_MEDIA_QUERY).matches;
   const root = document.documentElement;
 
   root.classList.remove('light-theme', 'dark-theme');
@@ -786,6 +784,57 @@ function applyAutoDarkMode() {
   }
 
   root.setAttribute('data-system-theme', prefersDark ? 'dark' : 'light');
+  return prefersDark;
+}
+
+/**
+ * Attaches the OS change listener exactly once (no duplicates on repeat calls).
+ */
+function ensureAutoThemeListener() {
+  if (darkModeMediaQuery) return;
+  darkModeMediaQuery = window.matchMedia(DARK_MEDIA_QUERY);
+  darkModeMediaQuery.addEventListener('change', applyAutoDarkMode);
+  console.log('🌓 [UserSettings] Auto dark mode monitoring initialized (syncs with system)');
+}
+
+/**
+ * THEME APPLICATION — one place, used by every settings load/change path.
+ * 'light' / 'dark': explicit, so the OS change listener is removed (a system
+ * switch can never override the user's choice).
+ * 'auto': keeps following the OS, exactly as before.
+ */
+export function applyThemePreference(pref) {
+  if (typeof document === 'undefined') return;
+  const preference = pref === 'dark' || pref === 'light' ? pref : 'auto';
+  const root = document.documentElement;
+
+  // Cached so index.html's pre-React head script paints the right theme on load.
+  try { localStorage.setItem('rxdeliver_theme_preference', preference); } catch { /* non-fatal */ }
+
+  if (preference !== 'auto') {
+    if (darkModeMediaQuery) {
+      darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
+      darkModeMediaQuery = null;
+    }
+    root.classList.remove('dark', 'dark-theme', 'auto-theme');
+    if (preference === 'dark') {
+      root.classList.add('dark', 'dark-theme');
+    } else {
+      root.classList.add('light-theme');
+    }
+    root.setAttribute('data-system-theme', preference);
+    return;
+  }
+
+  applyAutoThemeClasses();
+  ensureAutoThemeListener();
+}
+
+function applyAutoDarkMode() {
+  const currentSettings = cachedSettings || { ...DEFAULT_SETTINGS };
+  if (currentSettings.theme_preference !== 'auto') return;
+
+  const prefersDark = applyAutoThemeClasses();
   console.log(`🌓 [UserSettings] Auto dark mode synced with system: ${prefersDark ? 'DARK' : 'LIGHT'}`);
 }
 
@@ -812,19 +861,8 @@ async function getLatestUserSettingsRecord(userId) {
 }
 
 export function initializeAutoDarkMode() {
-  // Clean up existing listener
-  if (darkModeMediaQuery) {
-    darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
-  }
-  
-  // Apply immediately
   applyAutoDarkMode();
-  
-  // Listen for system dark mode changes
-  darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  darkModeMediaQuery.addEventListener('change', applyAutoDarkMode);
-  
-  console.log('🌓 [UserSettings] Auto dark mode monitoring initialized (syncs with system)');
+  ensureAutoThemeListener();
 }
 
 /**
@@ -851,4 +889,16 @@ export function clearSettingsCache() {
  */
 export function getDefaultSettingsObject() {
   return { ...DEFAULT_SETTINGS };
+}
+
+// HMR guard: a hot update re-evaluates this module while the previous instance's
+// matchMedia listener is still attached — Vite keeps the old media-query object
+// alive, so every reload used to leave another theme listener behind. Drop it.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (darkModeMediaQuery) {
+      darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
+      darkModeMediaQuery = null;
+    }
+  });
 }
