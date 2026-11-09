@@ -73,34 +73,40 @@ export async function runAcceptAllBatchPipeline({
     const patientWindowStartMin = patient?.time_window_start ? _parseTimeToMinutes(patient.time_window_start) : null;
 
     let resolvedStart;
-    if (delivery.time_window_inferred === true) {
-      // ── BATCH ANCHOR (owner report Nov 9 2026) ──────────────────────────
-      // These four stops all came from ONE pickup but arrived as 17:02 / 17:02
-      // / 17:02 while a sibling got 16:48, because each pending stop had been
-      // stamped with its pickup SLOT start + 5 at creation. An inferred start
-      // is not a customer promise, so accept re-anchors it to now + 5: the
-      // whole batch shares one start and road geometry decides the order. A
-      // patient window or a dispatcher-set time never carries the flag.
-      resolvedStart = deliveryTimeStart || '09:00';
-    } else if (ownStartMin != null) {
-      // Rule 1: the delivery's own window is authoritative once created.
-      // OWNER AMENDMENT (Oct 2 2026): EXCEPT when the delivery's own start is
-      // EARLIER than the patient's window start — a dispatcher can create/
-      // edit a pending stop with a start that precedes when the patient is
-      // actually available. At Accept All the stop is about to be sequenced,
-      // so reset it to the patient's start so the optimizer gets the correct
-      // earliest-arrival time (only raises, never lowers).
-      if (patientWindowStartMin != null && ownStartMin < patientWindowStartMin) {
-        resolvedStart = patient.time_window_start;
-      } else {
-        resolvedStart = delivery.delivery_time_start;
-      }
-    } else if (patientWindowStartMin != null && nowMinutes != null && patientWindowStartMin >= nowMinutes) {
-      // Rule 2: blank delivery window — patient default still valid, use it
+
+    // ── BATCH ANCHOR (owner directive Nov 9 2026) ─────────────────────────
+    // "At the moment Assign All is clicked and it is cycling through every
+    // pending stop for that pickup, it should stamp them with the current time
+    // plus 5 minutes." That is the rule: the whole accepted batch shares ONE
+    // start anchored to the accept moment, so the engine orders them by road
+    // geometry instead of by a ladder of minutes nobody asked for.
+    //
+    // The four Londonderry stops proved it: created one by one in the morning
+    // with 16:05 inherited from the 4:00 PM pickup slot, they came back from
+    // accept as 16:48 / 17:02 / 17:02 / 17:02 and the far stop jumped the
+    // queue. An arrival default is NOT a customer promise.
+    //
+    // Two things still win over the anchor, because they are real constraints:
+    //   - a patient window that is genuinely ahead (fridge / appointment), and
+    //   - a start the dispatcher pushed well into the future (>= 20 min ahead),
+    //     which cannot be an inherited arrival time.
+    const ACCEPT_REANCHOR_GAP_MIN = 20;
+    const anchor = deliveryTimeStart || '09:00';
+    const anchorMin = _parseTimeToMinutes(anchor);
+    const ownIsRealPromise = ownStartMin != null && anchorMin != null && ownStartMin >= anchorMin + ACCEPT_REANCHOR_GAP_MIN;
+    const patientIsRealPromise = patientWindowStartMin != null && anchorMin != null && patientWindowStartMin >= anchorMin + ACCEPT_REANCHOR_GAP_MIN;
+
+    if (ownIsRealPromise) {
+      // A dispatcher-set / promised start well ahead of the accept time is kept.
+      resolvedStart = (patientIsRealPromise && ownStartMin < patientWindowStartMin)
+        ? patient.time_window_start
+        : delivery.delivery_time_start;
+    } else if (patientIsRealPromise) {
       resolvedStart = patient.time_window_start;
     } else {
-      // Rule 3: no usable window anywhere — now+5
-      resolvedStart = deliveryTimeStart || '09:00';
+      // Arrival default (inherited from the pickup slot, or already passed) —
+      // the whole batch stamps now + 5.
+      resolvedStart = anchor;
     }
 
     // delivery_time_end: same precedence — delivery's own end first, patient
