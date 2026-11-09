@@ -394,8 +394,14 @@ export default function PolylineViewer({ users = [] }) {
   const [dateFrom, setDateFrom]         = useState(localToday);
   const [dateTo, setDateTo]             = useState(localToday);
 
-  // Keep the range valid: picking a "To" date earlier than "From" pulls "From"
-  // down to that same date instead of leaving an inverted (empty) range.
+  // Keep the range valid, both ways:
+  //  - a "To" date earlier than "From" pulls "From" down to that same date
+  //  - a "From" date later than "To" pushes "To" up to that same date
+  // so the pickers can never hold an inverted (empty) range.
+  const handleDateFromChange = (value) => {
+    setDateFrom(value);
+    setDateTo(prev => (value && prev && value > prev ? value : prev));
+  };
   const handleDateToChange = (value) => {
     setDateTo(value);
     setDateFrom(prev => (value && prev && value < prev ? value : prev));
@@ -1983,7 +1989,7 @@ const DATE_INPUT_CLS = 'bg-white text-slate-900 border-slate-300 dark:bg-slate-8
       {/* Date range filter */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">From date</label>
-        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`w-full ${DATE_INPUT_CLS}`} />
+        <Input type="date" value={dateFrom} onChange={e => handleDateFromChange(e.target.value)} className={`w-full ${DATE_INPUT_CLS}`} />
         <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">To date</label>
         <Input type="date" value={dateTo} onChange={e => handleDateToChange(e.target.value)} className={`w-full ${DATE_INPUT_CLS}`} />
       </div>
@@ -2130,7 +2136,7 @@ const DATE_INPUT_CLS = 'bg-white text-slate-900 border-slate-300 dark:bg-slate-8
               {/* Date range filter */}
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">From</span>
-                <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`w-36 ${DATE_INPUT_CLS}`} />
+                <Input type="date" value={dateFrom} onChange={e => handleDateFromChange(e.target.value)} className={`w-36 ${DATE_INPUT_CLS}`} />
                 <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">To</span>
                 <Input type="date" value={dateTo} onChange={e => handleDateToChange(e.target.value)} className={`w-36 ${DATE_INPUT_CLS}`} />
               </div>
