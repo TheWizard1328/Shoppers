@@ -1144,6 +1144,17 @@ export default function DeliveryForm({
       } catch (_) { /* keep the form value */ }
       const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate.jsx');
       const { stagedDelivery, deliveryId } = await persistPendingDeliveryUpdate({ selectedStaged, formData, patient, store, editingStagedId, distanceFromStore });
+      try {
+        const { resequenceTrackingNumbersForScope } = await import('@/components/utils/recalculateTrackingNumbersLocal');
+        await resequenceTrackingNumbersForScope({
+          deliveryDate: formData.delivery_date,
+          driverId: formData.driver_id,
+          stores,
+          patients,
+          updateDeliveryLocal,
+          fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
+        });
+      } catch (_) { /* best effort */ }
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged)); setHasChanges(true);
       // CRITICAL: Do NOT dispatch refreshDeliveryStats or deliveriesUpdated here.
       // updateDeliveryLocal already called notifyMutation() which updated the
@@ -1186,7 +1197,21 @@ export default function DeliveryForm({
       ? [...(allDeliveries || []), ...alreadyCreatedPickups]
       : allDeliveries;
     addedPickupRecordsRef.current = [];
-    return runHandleBatchSave({ batchSaveLockRef, isSaving: isSavingRef.current, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers, addedPickupRoutes });
+    const _batchOutcome = await runHandleBatchSave({ batchSaveLockRef, isSaving: isSavingRef.current, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers, addedPickupRoutes });
+    // Done always resequences TR#s for this Store + Date + Driver, even when the
+    // batch had nothing new to write (owner report Nov 9 2026).
+    try {
+      const { resequenceTrackingNumbersForScope } = await import('@/components/utils/recalculateTrackingNumbersLocal');
+      await resequenceTrackingNumbersForScope({
+        deliveryDate: formData.delivery_date,
+        driverId: formData.driver_id,
+        stores,
+        patients,
+        updateDeliveryLocal,
+        fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
+      });
+    } catch (_) { /* best effort */ }
+    return _batchOutcome;
   }, [stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges]);
 
   // Keep ref in sync so auto-commit can call the latest version after staged state updates
@@ -1421,6 +1446,21 @@ export default function DeliveryForm({
         // transfer the record write goes out SILENT and the single route_commit
         // marker fired at the end of the placement run carries the whole change.
         await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }), { skipSmartRefresh: true, silentServer: Boolean(transferTarget) });
+        // OWNER REPORT (Nov 9 2026): Update must resequence TR#s for the same
+        // Store + Date + Driver, sorted by distance from store first. This is the
+        // path the Edit Delivery form actually takes, so the resequence lives here
+        // too (the dashboard handler is not involved for a saved stop).
+        try {
+          const { resequenceTrackingNumbersForScope } = await import('@/components/utils/recalculateTrackingNumbersLocal');
+          await resequenceTrackingNumbersForScope({
+            deliveryDate: dataToSave.delivery_date || formData.delivery_date,
+            driverId: dataToSave.driver_id || formData.driver_id,
+            stores,
+            patients,
+            updateDeliveryLocal,
+            fallbackDeliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
+          });
+        } catch (_) { /* best effort */ }
         // ONE Square reconcile for every edit path (create-on-activate, amount change,
         // COD added/removed, terminal transition). The backend decides from the
         // authoritative record; the patch carries the just-written form values.

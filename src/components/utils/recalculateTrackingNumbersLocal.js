@@ -220,11 +220,15 @@ export async function resequenceTrackingNumbersForScope({
   patients,
   updateDeliveriesLocally,
   updateDeliveryLocal,
+  fallbackDeliveries,
 }) {
   if (!deliveryDate) return [];
   try {
     const { offlineDB } = await import('./offlineDatabase');
-    const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    let all = [];
+    try { all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES); } catch (_) { all = []; }
+    // IDB can be empty (fresh device) or stall; fall back to the caller's pool.
+    if (!all || !all.length) all = Array.isArray(fallbackDeliveries) ? fallbackDeliveries : [];
     const scope = (all || []).filter((d) => d
       && String(d.delivery_date || '') === String(deliveryDate)
       && String(d.driver_id || '') === String(driverId || ''));
