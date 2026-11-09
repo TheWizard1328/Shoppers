@@ -147,6 +147,29 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   };
 };
 
+// ── ACCEPT-ANCHOR (owner report Nov 9 2026) ────────────────────────────────
+// Four stops from ONE pickup came back with 17:02 while a sibling stop got
+// 16:48, right after accepting at 16:43. The inherited anchor was the pickup's
+// SLOT start (16:57) + 5, even though that slot had not been reached and the
+// driver was standing at the store. Every sibling of a batch must share the
+// accept anchor. Rule: anchor = max(now, candidate) + 5, so a slot that has
+// already started (or is now) collapses to now + 5 and only a genuinely FUTURE
+// slot keeps a later time.
+const _hhmmToMin = (t) => {
+  const m = String(t || '').match(/(\d{1,2}):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+};
+
+export const inheritStartAfterAccept = (candidateTime) => {
+  const nowPlus5 = addMinutesToTime(format(new Date(), 'HH:mm'), 5);
+  const nowMin = _hhmmToMin(nowPlus5);
+  const candMin = _hhmmToMin(candidateTime);
+  if (!Number.isFinite(candMin)) return nowPlus5;
+  const cand = addMinutesToTime(candidateTime, 5);
+  const candPlus = _hhmmToMin(cand);
+  return Number.isFinite(candPlus) && candPlus > nowMin ? cand : nowPlus5;
+};
+
 // Populate temporary start times for deliveries with blank time windows
 export const populateTemporaryStartTimes = (deliveries, stores) => {
   const finishedStatuses = ['completed', 'failed', 'cancelled'];
@@ -159,11 +182,14 @@ export const populateTemporaryStartTimes = (deliveries, stores) => {
     if (parentPickup) {
       if (finishedStatuses.includes(parentPickup.status) && parentPickup.actual_delivery_time) {
           const completionTime = format(new Date(parentPickup.actual_delivery_time), 'HH:mm');
-        delivery.delivery_time_start = addMinutesToTime(completionTime, 5);
+        delivery.delivery_time_start = inheritStartAfterAccept(completionTime);
+        delivery.time_window_inferred = true;
       } else if (parentPickup.delivery_time_eta) {
-        delivery.delivery_time_start = addMinutesToTime(parentPickup.delivery_time_eta, 5);
+        delivery.delivery_time_start = inheritStartAfterAccept(parentPickup.delivery_time_eta);
+        delivery.time_window_inferred = true;
       } else if (parentPickup.delivery_time_start) {
-        delivery.delivery_time_start = addMinutesToTime(parentPickup.delivery_time_start, 5);
+        delivery.delivery_time_start = inheritStartAfterAccept(parentPickup.delivery_time_start);
+        delivery.time_window_inferred = true;
       }
     }
   });

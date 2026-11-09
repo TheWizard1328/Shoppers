@@ -1,3 +1,4 @@
+import { inheritStartAfterAccept } from '@/components/dashboard/DashboardHelpers';
 import { format } from 'date-fns';
 import { generateUniqueSID, addMinutesToTime } from "@/components/dashboard/DashboardHelpers";
 import { batchCreateDeliveriesLocal, updateDeliveryLocal, enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
@@ -235,7 +236,7 @@ export const handleBatchSaveDelivery = async ({
         if (!stop.delivery_time_start && stopPatient?.time_window_start) {
           stop.delivery_time_start = stopPatient.time_window_start;
         } else if (!stop.delivery_time_start) {
-          const p5 = correspondingPickup?.delivery_time_start ? addMinutesToTime(correspondingPickup.delivery_time_start, 5) : null;
+          const p5 = correspondingPickup?.delivery_time_start ? inheritStartAfterAccept(correspondingPickup.delivery_time_start) : null;
           const eta5 = correspondingPickup?.estimated_arrival ? addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
           if (p5 && eta5 && eta5 > p5) stop.delivery_time_start = eta5;
           else if (p5) stop.delivery_time_start = p5;

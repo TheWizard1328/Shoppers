@@ -10,7 +10,7 @@ import { fabControlEvents } from '@/components/utils/fabControlEvents';
 import { invalidate } from '@/components/utils/dataManager';
 import { updateDeliveryLocal } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
-import { addMinutesToTime, generateUniqueSID, populateTemporaryStartTimes } from '@/components/dashboard/DashboardHelpers';
+import { addMinutesToTime, generateUniqueSID, populateTemporaryStartTimes, inheritStartAfterAccept } from '@/components/dashboard/DashboardHelpers';
 import { applyPatientWindowOnPending } from '@/components/utils/patientWindowSync';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
 import { filterDeleted } from '@/components/utils/deletedDeliveryRegistry';
@@ -360,7 +360,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         if (!stop.delivery_time_start && sp?.time_window_start) { stop.delivery_time_start = sp.time_window_start; }
         else if (!stop.delivery_time_start) {
           const cp = list.find((s) => s && !s.patient_id && s.store_id === stop.store_id && !(s.ampm_deliveries && stop.ampm_deliveries && s.ampm_deliveries !== stop.ampm_deliveries) && !finishedStatuses.includes(s.status));
-          const p5 = cp?.delivery_time_start ? addMinutes(cp.delivery_time_start, 5) : null;
+          const p5 = cp?.delivery_time_start ? inheritStartAfterAccept(cp.delivery_time_start) : null;
           const eta5 = cp?.estimated_arrival ? addMinutes(cp.estimated_arrival, 5) : null;
           if (p5 && eta5 && eta5 > p5) stop.delivery_time_start = eta5;
           else if (p5) stop.delivery_time_start = p5;

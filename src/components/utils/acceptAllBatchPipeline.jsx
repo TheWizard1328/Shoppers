@@ -73,7 +73,16 @@ export async function runAcceptAllBatchPipeline({
     const patientWindowStartMin = patient?.time_window_start ? _parseTimeToMinutes(patient.time_window_start) : null;
 
     let resolvedStart;
-    if (ownStartMin != null) {
+    if (delivery.time_window_inferred === true) {
+      // ── BATCH ANCHOR (owner report Nov 9 2026) ──────────────────────────
+      // These four stops all came from ONE pickup but arrived as 17:02 / 17:02
+      // / 17:02 while a sibling got 16:48, because each pending stop had been
+      // stamped with its pickup SLOT start + 5 at creation. An inferred start
+      // is not a customer promise, so accept re-anchors it to now + 5: the
+      // whole batch shares one start and road geometry decides the order. A
+      // patient window or a dispatcher-set time never carries the flag.
+      resolvedStart = deliveryTimeStart || '09:00';
+    } else if (ownStartMin != null) {
       // Rule 1: the delivery's own window is authoritative once created.
       // OWNER AMENDMENT (Oct 2 2026): EXCEPT when the delivery's own start is
       // EARLIER than the patient's window start — a dispatcher can create/
@@ -116,6 +125,7 @@ export async function runAcceptAllBatchPipeline({
       ...delivery,
       status: 'in_transit',
       delivery_time_start: resolvedStart,
+      time_window_inferred: false,
       delivery_time_end: resolvedEnd,
       delivery_time_eta: eta,
       puid: delivery.puid || puid || stopId || delivery.puid || ''

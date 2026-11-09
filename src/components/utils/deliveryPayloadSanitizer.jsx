@@ -15,7 +15,7 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'stop_id',
   'puid',
   'prescription_number',
-  'delivery_notes',
+  'time_window_inferred', 'delivery_notes',
   'route_commit_at',
   'route_commit_count',
   'route_commit_ids',

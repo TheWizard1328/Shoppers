@@ -2,6 +2,10 @@
   "name": "Delivery",
   "type": "object",
   "properties": {
+    "time_window_inferred": {
+      "type": "boolean",
+      "description": "True when delivery_time_start was inherited from a pickup slot rather than set by a patient window or dispatcher. Accept re-anchors these to now+5 so a batch accepted together shares one start time."
+    },
     "company_id": {
       "type": "string",
       "description": "Reference to the Company this delivery belongs to"

@@ -88,7 +88,7 @@ const flushTimers = {};
 // the payload, so an explicit null/empty value is the restart signature.
 const TERMINAL_STATUS_SET = new Set(['completed', 'failed', 'cancelled']);
 
-const POLYLINE_PRESERVE_FIELDS = [
+const POLYLINE_PRESERVE_FIELDS = ['time_window_inferred', 
   'encoded_polyline', 'polyline_from_order', 'travel_dist', 'polyline_saved_at',
   'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes',
   'deviation_waypoints',
