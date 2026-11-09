@@ -270,7 +270,7 @@ export const updatePatientLocal = async (patientId, updates, options = {}) => {
       throw new Error(`Patient ${patientId} not found in local database`);
     }
 
-    // ── GPS WRITE AUDIT (owner report Nov 9 2026) ──────────────────────────
+    // ── GPS WRITE AUDIT (owner spec Nov 9 2026) ────────────────────────────
     // Patient markers were moving with no address change and no user action,
     // and nothing recorded who wrote the coordinates. Every coordinate change
     // now leaves one RemoteLogEntry line with old -> new plus the caller stack,
@@ -279,10 +279,12 @@ export const updatePatientLocal = async (patientId, updates, options = {}) => {
     try {
       const hasLat = updates && Object.prototype.hasOwnProperty.call(updates, 'latitude');
       const hasLng = updates && Object.prototype.hasOwnProperty.call(updates, 'longitude');
-      // Only silent writes are audited. A coordinate write tagged as a user GPS
-      // update (stop card GPS button / crosshair) is deliberate and stays quiet.
+      // OWNER SPEC (Nov 9 2026): log EVERY coordinate change, user-driven or not.
+      // The source tag says whether a person did it (stop card GPS / crosshair =
+      // 'user') or a background path did it ('unknown'), so an accidental press
+      // can be told apart from a silent jump.
       const source = String(options?.source || 'unknown');
-      if ((hasLat || hasLng) && source !== 'user') {
+      if (hasLat || hasLng) {
         const oldLat = Number(existingPatient?.latitude);
         const oldLng = Number(existingPatient?.longitude);
         const newLat = hasLat ? Number(updates.latitude) : oldLat;
