@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -95,6 +95,31 @@ export default function AdminDeliveriesTable(props) {
     });
   };
 
+  // Table fills the page: measure from the grid's top edge to the bottom of the
+  // viewport (owner request Nov 8 2026) instead of the old hardcoded 600px.
+  const scrollRef = useRef(null);
+  const [tableMaxHeight, setTableMaxHeight] = useState(600);
+  useEffect(() => {
+    const measure = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      const next = Math.max(240, Math.round(window.innerHeight - top - 12));
+      setTableMaxHeight((prev) => (Math.abs(prev - next) > 2 ? next : prev));
+    };
+    measure();
+    const settle = setTimeout(measure, 250);
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    window.addEventListener('scroll', measure, { passive: true });
+    return () => {
+      clearTimeout(settle);
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+      window.removeEventListener('scroll', measure);
+    };
+  }, [displayDeliveries.length, isLoadingData]);
+
   const isAllSelected = displayDeliveries.length > 0 && selectedDeliveries.size === displayDeliveries.length;
   const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < displayDeliveries.length;
 
@@ -122,7 +147,7 @@ export default function AdminDeliveriesTable(props) {
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-surface border-surface"><Checkbox id="show-most-recent" checked={showMostRecentOnly} onCheckedChange={setShowMostRecentOnly} disabled={isCodFilterActive} /><label htmlFor="show-most-recent" className="text-sm font-medium cursor-pointer text-body">{isCodFilterActive ? 'Most Recent Date Only (off for COD filters)' : 'Most Recent Date Only'}</label></div>
         </div>
         <div className="border rounded-md overflow-hidden border-surface">
-          <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
+          <div ref={scrollRef} className="overflow-x-auto overflow-y-auto" style={{ maxHeight: `${tableMaxHeight}px` }}>
             <table className="w-full text-sm table-fixed">
               <thead className="border-b sticky top-0 z-10 border-surface" style={{ background: 'var(--bg-slate-100)' }}>
                 <tr>
