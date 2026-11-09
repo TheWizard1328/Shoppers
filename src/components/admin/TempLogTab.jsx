@@ -923,7 +923,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
         {canDelete && logs.length > 0 && (
           confirmDelete?.type === 'clearAll' ?
           <div className="flex items-center gap-1.5 ml-auto">
-            <span className="text-xs text-red-600 font-medium">Clear ALL temp logs (online + all devices)?</span>
+            <span className="text-xs text-red-600 font-medium dark:text-red-400">Clear ALL temp logs (online + all devices)?</span>
             <button
               onClick={handleClearAll}
               disabled={clearingAll}
@@ -933,7 +933,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
             </button>
             <button
               onClick={() => setConfirmDelete(null)}
-              className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300"
+              className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300 dark:bg-slate-800"
             >
               No
             </button>
@@ -941,7 +941,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
           <button
             onClick={() => setConfirmDelete({ type: 'clearAll' })}
             title="Clear all temperature logs from online DB and all devices"
-            className="ml-auto flex items-center gap-1 text-xs text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+            className="ml-auto flex items-center gap-1 text-xs text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors font-medium dark:text-red-400"
           >
             <AlertCircle className="w-3.5 h-3.5" />
             Clear All Logs
@@ -952,7 +952,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
       {/* Chart */}
       {loading ?
       <div className="flex items-center justify-center h-48">
-          <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-500 dark:text-emerald-400" />
           <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">Loading temp logs…</span>
         </div> :
       chartData.length === 0 ?
@@ -1171,11 +1171,11 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                         {canDelete && (
                     confirmDelete?.type === 'all' && confirmDelete?.driverId === driver.id ?
                     <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-red-600 font-medium">Delete all?</span>
+                              <span className="text-xs text-red-600 font-medium dark:text-red-400">Delete all?</span>
                               <button onClick={() => deleteAllForDriver(driver.id)} disabled={isDeletingAll} className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
                                 {isDeletingAll ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
                               </button>
-                              <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300">No</button>
+                              <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300 dark:bg-slate-800">No</button>
                             </div> :
 
                     <button onClick={() => setConfirmDelete({ type: 'all', driverId: driver.id })} title="Delete all logs for this driver" className="text-slate-400 dark:text-slate-400 hover:text-red-500 transition-colors">
@@ -1205,7 +1205,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                           className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
                           
                               {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-400 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-400 flex-shrink-0" />}
-                              <Thermometer className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                              <Thermometer className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 dark:text-emerald-400" />
                               <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{logDate}</span>
                               <span className="text-xs text-slate-400 dark:text-slate-400 ml-1">• {readingCount} reading{readingCount !== 1 ? 's' : ''}</span>
                               {log.latest_reading?.temperature_celsius != null &&
@@ -1215,11 +1215,11 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                             {canDelete && (
                         confirmDelete?.type === 'log' && confirmDelete?.logId === log.id ?
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  <span className="text-xs text-red-600 font-medium">Delete?</span>
+                                  <span className="text-xs text-red-600 font-medium dark:text-red-400">Delete?</span>
                                   <button onClick={() => deleteLog(log.id)} disabled={isDeletingThis} className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
                                     {isDeletingThis ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
                                   </button>
-                                  <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300">No</button>
+                                  <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300 dark:bg-slate-800">No</button>
                                 </div> :
 
                         <button onClick={(e) => {e.stopPropagation();setConfirmDelete({ type: 'log', logId: log.id });}} title="Delete this log" className="text-slate-300 hover:text-red-500 transition-colors flex-shrink-0">
@@ -1248,7 +1248,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                                     {r.humidity_percent != null &&
                               <span className="text-xs text-slate-400 dark:text-slate-400">{r.humidity_percent.toFixed(0)}% RH</span>
                               }
-                                    {isOut && <AlertTriangle className="w-3 h-3 text-red-500" />}
+                                    {isOut && <AlertTriangle className="w-3 h-3 text-red-500 dark:text-red-400" />}
                                   </div>);
 
                         })}
@@ -1351,8 +1351,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                       <td className="px-4 py-2 text-right font-mono text-slate-600 dark:text-slate-400">{latest?.toFixed(1)}°C</td>
                       <td className="px-4 py-2 text-center">
                         {outOfRange ?
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-950 px-2 py-0.5 rounded-full">⚠ Out of Range</span> :
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 dark:bg-green-950 px-2 py-0.5 rounded-full">✓ OK</span>}
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-950 px-2 py-0.5 rounded-full dark:text-red-400">⚠ Out of Range</span> :
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 dark:bg-green-950 px-2 py-0.5 rounded-full dark:text-green-300">✓ OK</span>}
                       </td>
                     </tr>,
                     isExpanded ? (
@@ -1361,7 +1361,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                        <div className="flex items-center gap-2">
                          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">{allReadings.length} reading{allReadings.length !== 1 ? 's' : ''} — {getDriverName(log.driver_id)}</span>
-                         {logSelectedCount > 0 && <span className="text-xs text-blue-600 font-medium">{logSelectedCount} selected</span>}
+                         {logSelectedCount > 0 && <span className="text-xs text-blue-600 font-medium dark:text-blue-400">{logSelectedCount} selected</span>}
                        </div>
                        <div className="flex items-center gap-2">
                          {logSelectedCount > 1 && (
@@ -1379,12 +1379,12 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                            if (outsideCount === 0) return null;
                            return confirmDelete?.type === 'outsideRoute' && confirmDelete?.logId === log.id ? (
                              <div className="flex items-center gap-1.5">
-                               <span className="text-xs text-orange-600 font-medium">Remove {outsideCount} outside route?</span>
+                               <span className="text-xs text-orange-600 font-medium dark:text-orange-400">Remove {outsideCount} outside route?</span>
                                <button onClick={() => deleteReadingsOutsideRoute(log.id)} disabled={deleting === `outsideRoute-${log.id}`} className="text-xs px-2 py-0.5 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50">{deleting === `outsideRoute-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}</button>
-                               <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300">No</button>
+                               <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300 dark:bg-slate-800">No</button>
                              </div>
                            ) : (
-                             <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'outsideRoute', logId: log.id }); }} className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-700 transition-colors" title={`Remove ${outsideCount} readings outside route (${rb.first}–${rb.last})`}>
+                             <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'outsideRoute', logId: log.id }); }} className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-700 transition-colors dark:text-orange-400" title={`Remove ${outsideCount} readings outside route (${rb.first}–${rb.last})`}>
                                <Trash2 className="w-3 h-3" /> Outside route ({outsideCount})
                              </button>
                            );
@@ -1392,9 +1392,9 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                          {canDelete && allReadings.length > 0 && (
                            confirmDelete?.type === 'allReadings' && confirmDelete?.logId === log.id ?
                            <div className="flex items-center gap-1.5">
-                             <span className="text-xs text-red-600 font-medium">Delete all?</span>
+                             <span className="text-xs text-red-600 font-medium dark:text-red-400">Delete all?</span>
                              <button onClick={() => deleteAllReadingsForLog(log.id)} disabled={deleting === `allReadings-${log.id}`} className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">{deleting === `allReadings-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}</button>
-                             <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300">No</button>
+                             <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300 dark:bg-slate-800">No</button>
                            </div> :
                            <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'allReadings', logId: log.id }); }} className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-400 hover:text-red-500 transition-colors"><Trash2 className="w-3 h-3" /> Delete all</button>
                          )}
@@ -1415,15 +1415,15 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                              <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-12">{time}</span>
                              <span className={`text-xs font-mono font-semibold w-16 ${isOut ? 'text-red-600' : 'text-emerald-700'}`}>{temp != null ? `${temp.toFixed(1)}°C` : '—'}</span>
                              {r.humidity_percent != null && <span className="text-xs text-slate-400 dark:text-slate-400 w-16">{r.humidity_percent.toFixed(0)}% RH</span>}
-                             {isOut && <AlertTriangle className="w-3 h-3 text-red-500" />}
+                             {isOut && <AlertTriangle className="w-3 h-3 text-red-500 dark:text-red-400" />}
                              <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                               <button title="Edit this reading" onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(log.id, idx, temp); }} className="p-1 rounded hover:bg-blue-100 text-blue-500 transition-colors"><Pencil className="w-3 h-3" /></button>
+                               <button title="Edit this reading" onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(log.id, idx, temp); }} className="p-1 rounded hover:bg-blue-100 text-blue-500 transition-colors dark:text-blue-400"><Pencil className="w-3 h-3" /></button>
                                {canDelete && (
                                  confirmDelete?.type === 'reading' && confirmDelete?.logId === log.id && confirmDelete?.readingIdx === idx ?
                                  <div className="flex items-center gap-1">
-                                   <span className="text-xs text-red-600">Delete?</span>
+                                   <span className="text-xs text-red-600 dark:text-red-400">Delete?</span>
                                    <button onClick={(e) => { e.stopPropagation(); deleteReading(log.id, idx); }} disabled={deleting === rKey} className="text-xs px-1.5 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">{deleting === rKey ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}</button>
-                                   <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300">No</button>
+                                   <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300 dark:bg-slate-800">No</button>
                                  </div> :
                                  <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'reading', logId: log.id, readingIdx: idx }); }} className="p-1 rounded hover:bg-red-100 text-slate-300 hover:text-red-500 transition-all"><Trash2 className="w-3 h-3" /></button>
                                )}

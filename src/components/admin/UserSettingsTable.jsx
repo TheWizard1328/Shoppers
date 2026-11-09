@@ -38,6 +38,12 @@ const useColumnVisibility = () => {
   return { visibleColumns, toggleColumn, config: USER_SETTINGS_COLUMNS };
 };
 
+// Inline light-mode var() styling on the Cloud/Local toggle left the active
+// segment unreadable in dark mode (same near-white primary bug as the Route
+// Viewer). Explicit per-theme classes instead.
+const SEG_ON = 'bg-white text-slate-900 shadow-sm border border-slate-300 hover:bg-white dark:bg-slate-600 dark:text-white dark:border-slate-500 dark:hover:bg-slate-600';
+const SEG_OFF = 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700';
+
 export default function UserSettingsTable({ appUsers, mergedUsers }) {
   // Same treatment as the App Users table: a 10-column table on a 390px phone is
   // horizontal-scroll soup, so phones get stacked cards (owner report Nov 6 2026).
@@ -138,8 +144,8 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
             </Badge>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant={viewMode === 'cloud' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('cloud')} style={viewMode !== 'cloud' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}>Cloud ({userSettings.length})</Button>
-            <Button variant={viewMode === 'local' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('local')} style={viewMode !== 'local' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}>Local ({localUserSettings.length})</Button>
+            <Button variant="ghost" size="sm" onClick={() => setViewMode('cloud')} className={viewMode === 'cloud' ? SEG_ON : SEG_OFF}>Cloud ({userSettings.length})</Button>
+            <Button variant="ghost" size="sm" onClick={() => setViewMode('local')} className={viewMode === 'local' ? SEG_ON : SEG_OFF}>Local ({localUserSettings.length})</Button>
             <ColumnVisibilityControl config={config} visibleColumns={visibleColumns} onToggle={toggleColumn} />
           </div>
         </CardTitle>
@@ -147,7 +153,7 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-emerald-500" /><span className="ml-2 text-label">Loading user settings...</span></div>
+          <div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-emerald-500 dark:text-emerald-400" /><span className="ml-2 text-label">Loading user settings...</span></div>
         ) : displayedSettings.length === 0 ? (
           <div className="text-center py-8 text-soft">No {viewMode} user settings found.</div>
         ) : isMobile ? (

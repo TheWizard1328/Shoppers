@@ -332,7 +332,7 @@ export default function StoreMetricsPanel() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2 dark:text-emerald-400" />
           <span className="text-slate-600 dark:text-slate-400">Loading store metrics...</span>
         </CardContent>
       </Card>);

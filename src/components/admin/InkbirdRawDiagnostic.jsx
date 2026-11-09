@@ -417,17 +417,17 @@ export default function InkbirdRawDiagnostic() {
   const isActive  = ['connecting','reading','polling'].includes(status);
   const latestTemp = temp;
   const tempColor = latestTemp == null ? 'text-slate-400 dark:text-slate-400' :
-    latestTemp < 2 || latestTemp > 8 ? 'text-red-600' : 'text-emerald-600';
+    latestTemp < 2 || latestTemp > 8 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400';
 
   return (
     <Card className="bg-surface border-surface">
       <CardHeader>
         <CardTitle className="flex items-center justify-between flex-wrap gap-2 text-body">
           <div className="flex items-center gap-2 flex-wrap">
-            <Thermometer className="w-5 h-5 text-cyan-600" />
+            <Thermometer className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
             <span>Inkbird BLE Diagnostic</span>
             {paired && (
-              <span className="text-xs font-normal text-emerald-600 flex items-center gap-1.5">
+              <span className="text-xs font-normal text-emerald-600 flex items-center gap-1.5 dark:text-emerald-400">
                 · <strong>{paired}</strong>
                 <button onClick={forgetDevice}
                   className="text-slate-400 dark:text-slate-400 hover:text-red-500 underline text-xs" title="Forget device">
@@ -473,10 +473,10 @@ export default function InkbirdRawDiagnostic() {
                 {latestTemp !== null ? `${latestTemp}°C` : '—'}
               </p>
               {latestTemp !== null && (latestTemp < 2 || latestTemp > 8) && (
-                <p className="text-xs text-red-600 font-medium">⚠️ Outside target range (2–8°C)</p>
+                <p className="text-xs text-red-600 font-medium dark:text-red-400">⚠️ Outside target range (2–8°C)</p>
               )}
               {isActive && (
-                <p className="text-xs text-cyan-600 animate-pulse">
+                <p className="text-xs text-cyan-600 animate-pulse dark:text-cyan-400">
                   {status === 'polling' ? `Polling every ${POLL_INTERVAL_MS/1000}s…` : 'Listening for notifications…'}
                 </p>
               )}
@@ -495,12 +495,12 @@ export default function InkbirdRawDiagnostic() {
 
             {/* Status / error */}
             {!hasBluetooth && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 p-3 text-amber-800 text-sm">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 p-3 text-amber-800 text-sm dark:border-amber-800 dark:text-amber-200">
                 ⚠️ Web Bluetooth not available. Use Chrome or Edge on Android/desktop.
               </div>
             )}
             {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 p-3 text-red-700 text-sm flex items-start gap-2">
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 p-3 text-red-700 text-sm flex items-start gap-2 dark:border-red-800 dark:text-red-300">
                 <span>❌ {error}</span>
                 {!isActive && (
                   <Button size="sm" variant="outline" className="ml-auto shrink-0 h-7 text-xs" onClick={start}>

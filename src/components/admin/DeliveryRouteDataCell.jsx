@@ -8,7 +8,7 @@ const hasData = (value) => {
 };
 
 const BooleanBadge = ({ isPresent }) =>
-<Badge className={isPresent ? 'bg-green-100 text-green-800 hover:bg-green-100' : 'bg-red-100 text-red-800 hover:bg-red-100'}>
+<Badge className={isPresent ? 'bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-200'}>
     {isPresent ? 'True' : 'False'}
   </Badge>;
 

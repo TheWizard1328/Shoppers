@@ -52,7 +52,7 @@ const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
 };
 
 const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => (
-  <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-600" />{title}</DialogTitle><DialogDescription className="text-base pt-2">{description}</DialogDescription></DialogHeader><DialogFooter className="gap-2 sm:gap-0"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button variant={variant} onClick={() => { onConfirm(); onOpenChange(false); }}>{confirmText}</Button></DialogFooter></DialogContent></Dialog>
+  <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />{title}</DialogTitle><DialogDescription className="text-base pt-2">{description}</DialogDescription></DialogHeader><DialogFooter className="gap-2 sm:gap-0"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button variant={variant} onClick={() => { onConfirm(); onOpenChange(false); }}>{confirmText}</Button></DialogFooter></DialogContent></Dialog>
 );
 
 // RouteImport (250 lines) kept inline below for AM/PM import
@@ -266,7 +266,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
     return null;
   };
 
-  return (<Dialog open={true} onOpenChange={onCancel}><DialogContent><DialogHeader><DialogTitle>Import AM/PM Designations</DialogTitle><DialogDescription>Upload a CSV file to update delivery AM/PM designations.</DialogDescription></DialogHeader><div className="space-y-4"><Input type="file" accept=".csv" onChange={handleFileUpload} disabled={loading} /><div className="text-xs text-slate-600 dark:text-slate-400 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg p-3"><p className="font-semibold mb-1">CSV Format:</p><ul className="list-disc list-inside space-y-1"><li>Column 1: Stop ID (SID) or Tracking Number (TR#)</li><li>Column 2: AM/PM indicator (1 = AM, 2 = PM)</li><li>First row is treated as header and will be skipped</li></ul></div><p className="text-sm text-slate-600 dark:text-slate-400">{status || "Select a CSV file to begin import."}</p>{loading && <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500" />}</div><DialogFooter><Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button><Button onClick={handleImport} disabled={loading || !csvFile}>{loading ? 'Importing...' : 'Import AM/PM Data'}</Button></DialogFooter></DialogContent></Dialog>);
+  return (<Dialog open={true} onOpenChange={onCancel}><DialogContent><DialogHeader><DialogTitle>Import AM/PM Designations</DialogTitle><DialogDescription>Upload a CSV file to update delivery AM/PM designations.</DialogDescription></DialogHeader><div className="space-y-4"><Input type="file" accept=".csv" onChange={handleFileUpload} disabled={loading} /><div className="text-xs text-slate-600 dark:text-slate-400 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg p-3 dark:border-blue-800"><p className="font-semibold mb-1">CSV Format:</p><ul className="list-disc list-inside space-y-1"><li>Column 1: Stop ID (SID) or Tracking Number (TR#)</li><li>Column 2: AM/PM indicator (1 = AM, 2 = PM)</li><li>First row is treated as header and will be skipped</li></ul></div><p className="text-sm text-slate-600 dark:text-slate-400">{status || "Select a CSV file to begin import."}</p>{loading && <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500 dark:text-emerald-400" />}</div><DialogFooter><Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button><Button onClick={handleImport} disabled={loading || !csvFile}>{loading ? 'Importing...' : 'Import AM/PM Data'}</Button></DialogFooter></DialogContent></Dialog>);
 };
 
 // COLUMN_CONFIGS and useColumnVisibility moved to AdminDataTables.jsx
@@ -1693,7 +1693,7 @@ export default function AdminUtilities() {
   if (initialLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500 dark:text-emerald-400" />
         <span className="ml-3 text-lg text-label">Loading initial data...</span>
       </div>);
 
@@ -1703,7 +1703,7 @@ export default function AdminUtilities() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <Card className="p-8 text-center bg-surface border-surface">
-          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500 dark:text-red-400" />
           <h2 className="text-xl font-bold mb-2 text-body">Access Denied</h2>
           <p className="text-label">Only app owners can access this page.</p>
         </Card>
@@ -1995,8 +1995,8 @@ export default function AdminUtilities() {
             </div>
             <Progress value={bulkDelete.total ? bulkDelete.processed / bulkDelete.total * 100 : 0} />
             <div className="flex items-center justify-between text-sm">
-              <div className="text-emerald-600 font-medium">Success: {bulkDelete.success}</div>
-              <div className="text-red-600 font-medium">Failed: {bulkDelete.failed}</div>
+              <div className="text-emerald-600 font-medium dark:text-emerald-400">Success: {bulkDelete.success}</div>
+              <div className="text-red-600 font-medium dark:text-red-400">Failed: {bulkDelete.failed}</div>
             </div>
           </div>
 

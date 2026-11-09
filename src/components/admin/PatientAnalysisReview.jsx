@@ -110,16 +110,16 @@ export default function PatientAnalysisReview({ stores = [] }) {
   };
 
   const getStatusBadge = (status) => {
-    if (status === 'pending_review') return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Pending Review</Badge>;
-    if (status === 'applied') return <Badge className="bg-green-100 text-green-800 border-green-200">Applied</Badge>;
+    if (status === 'pending_review') return <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:border-amber-800">Pending Review</Badge>;
+    if (status === 'applied') return <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800">Applied</Badge>;
     if (status === 'dismissed') return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">Dismissed</Badge>;
     return null;
   };
 
   const getResultTypeBadge = (type) => {
-    if (type === 'inactivity_flagged') return <Badge className="bg-red-100 text-red-800 border-red-200">Inactivity</Badge>;
-    if (type === 'pattern_ambiguous') return <Badge className="bg-orange-100 text-orange-800 border-orange-200">Ambiguous Pattern</Badge>;
-    if (type === 'pattern_detected') return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Pattern Detected</Badge>;
+    if (type === 'inactivity_flagged') return <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800">Inactivity</Badge>;
+    if (type === 'pattern_ambiguous') return <Badge className="bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-800">Ambiguous Pattern</Badge>;
+    if (type === 'pattern_detected') return <Badge className="bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-800">Pattern Detected</Badge>;
     return null;
   };
 
@@ -168,7 +168,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
             </div>
           </CardTitle>
           {runStatus && (
-            <CardDescription className="text-xs mt-1 text-emerald-700 bg-emerald-50 rounded p-2">
+            <CardDescription className="text-xs mt-1 text-emerald-700 bg-emerald-50 rounded p-2 dark:text-emerald-300 dark:bg-emerald-950">
               {runStatus}
             </CardDescription>
           )}
@@ -194,7 +194,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
       {/* Results List */}
       {isLoading ? (
         <div className="flex items-center justify-center h-40">
-          <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-500 dark:text-emerald-400" />
           <span className="ml-2 text-sm text-label">Loading results...</span>
         </div>
       ) : results.length === 0 ? (
@@ -289,7 +289,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
                       <Badge className={`text-xs ${i === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
                         {p.confidence}% confidence
                       </Badge>
-                      {i === 0 && <Badge className="text-xs bg-blue-100 text-blue-800">Top match</Badge>}
+                      {i === 0 && <Badge className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Top match</Badge>}
                     </div>
                     <p className="text-xs mt-1 text-soft">{p.supporting_data}</p>
                   </div>
@@ -310,7 +310,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
               <Button variant="outline" onClick={() => setSelectedResult(null)}>Cancel</Button>
               <Button
                 variant="outline"
-                className="text-red-600 border-red-200 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
+                className="text-red-600 border-red-200 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 dark:text-red-400 dark:border-red-800"
                 onClick={() => handleDismiss(selectedResult)}
                 disabled={applyingId === selectedResult.id}
               >

@@ -249,7 +249,7 @@ export default function AppSettingsPanel() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2 dark:text-emerald-400" />
           <span className="text-slate-600 dark:text-slate-400">Loading settings...</span>
         </CardContent>
       </Card>
@@ -291,7 +291,7 @@ export default function AppSettingsPanel() {
           >
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight" style={{ color: '#ffffff' }}>
-                <Settings className="w-5 h-5 text-amber-500" />
+                <Settings className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                 Other Admin Settings
               </CardTitle>
               <CardDescription style={{ color: '#a89b8f' }}>
@@ -305,7 +305,7 @@ export default function AppSettingsPanel() {
                     App Fees (Cost per Delivery)
                   </Label>
                   <div className="flex items-center gap-2">
-                    <span className="text-amber-500 font-semibold">$</span>
+                    <span className="text-amber-500 font-semibold dark:text-amber-400">$</span>
                     <Input
                       id="app_fees"
                       type="number"
@@ -524,7 +524,7 @@ export default function AppSettingsPanel() {
           >
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight" style={{ color: '#ffffff' }}>
-                <Thermometer className="w-5 h-5 text-amber-500" />
+                <Thermometer className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                 Fridge Temp Ranges
               </CardTitle>
               <CardDescription style={{ color: '#a89b8f' }}>

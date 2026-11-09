@@ -87,18 +87,18 @@ export default function CompanyDataTab() {
   const getCount = (entity, companyId) => counts[entity]?.[companyId] ?? 0;
 
   const statDefs = [
-    { key: 'stores', label: 'Stores', Icon: MapPin, color: 'text-emerald-600' },
-    { key: 'patients', label: 'Patients', Icon: HeartPulse, color: 'text-blue-600' },
-    { key: 'appUsers', label: 'App Users', Icon: Users, color: 'text-purple-600' },
-    { key: 'deliveries', label: 'Deliveries', Icon: Package, color: 'text-orange-600' },
-    { key: 'payrolls', label: 'Payrolls', Icon: DollarSign, color: 'text-yellow-600' },
+    { key: 'stores', label: 'Stores', Icon: MapPin, color: 'text-emerald-600 dark:text-emerald-400' },
+    { key: 'patients', label: 'Patients', Icon: HeartPulse, color: 'text-blue-600 dark:text-blue-400' },
+    { key: 'appUsers', label: 'App Users', Icon: Users, color: 'text-purple-600 dark:text-purple-400' },
+    { key: 'deliveries', label: 'Deliveries', Icon: Package, color: 'text-orange-600 dark:text-orange-400' },
+    { key: 'payrolls', label: 'Payrolls', Icon: DollarSign, color: 'text-yellow-600 dark:text-yellow-400' },
     { key: 'interStores', label: 'ISP Locations', Icon: Building2, color: 'text-slate-600 dark:text-slate-400' },
   ];
 
   if (loading) {
     return (
       <div className="flex justify-center items-center h-40">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500 dark:text-emerald-400" />
         <span className="ml-3 text-slate-600 dark:text-slate-400">Loading company data...</span>
       </div>
     );
@@ -106,8 +106,8 @@ export default function CompanyDataTab() {
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg px-3 py-2">
-        Records with a blank <code className="font-mono text-xs bg-blue-100 px-1 rounded">company_id</code> are counted under <strong>RGistics (default)</strong>. As you add more companies and assign records, their counts will appear here.
+      <div className="text-sm text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg px-3 py-2 dark:border-blue-800">
+        Records with a blank <code className="font-mono text-xs bg-blue-100 px-1 rounded dark:bg-blue-900">company_id</code> are counted under <strong>RGistics (default)</strong>. As you add more companies and assign records, their counts will appear here.
       </div>
 
       {rows.map((row) => {

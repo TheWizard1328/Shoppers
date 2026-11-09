@@ -31,10 +31,10 @@ export function appendInkbirdLog(level, message, detail = null) {
 }
 
 const LEVEL_STYLES = {
-  info:    'bg-blue-100 text-blue-800',
-  warn:    'bg-yellow-100 text-yellow-800',
-  error:   'bg-red-100 text-red-800',
-  success: 'bg-green-100 text-green-800',
+  info:    'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  warn:    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  error:   'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  success: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
 };
 
 function formatTs(iso) {
@@ -88,10 +88,10 @@ export default function InkbirdBleLog() {
             className="text-base font-semibold flex items-center gap-2 cursor-pointer select-none text-body-2"
             onClick={() => setExpanded(v => !v)}
           >
-            <Bluetooth className="w-4 h-4 text-blue-500" />
+            <Bluetooth className="w-4 h-4 text-blue-500 dark:text-blue-400" />
             Inkbird BLE Diagnostics
             {logs.length > 0 && (
-              <Badge className="bg-slate-200 text-slate-700 dark:text-slate-300 text-xs">{logs.length}</Badge>
+              <Badge className="bg-slate-200 text-slate-700 dark:text-slate-300 text-xs dark:bg-slate-800">{logs.length}</Badge>
             )}
             {expanded ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
           </CardTitle>
@@ -120,7 +120,7 @@ export default function InkbirdBleLog() {
             ].map(([label, ok]) => (
               <div key={label} className="flex items-center justify-between">
                 <span className="text-label">{label}</span>
-                <Badge className={ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                <Badge className={ok ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}>
                   {ok ? '✓ Yes' : '✗ No'}
                 </Badge>
               </div>

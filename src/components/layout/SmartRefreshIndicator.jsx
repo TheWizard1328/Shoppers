@@ -227,7 +227,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   // Determine spinner color based on active manager
   const getSpinnerColor = () => {
     if (hasError) return 'bg-red-500';
-    if (isPaused) return 'bg-yellow-100';
+    if (isPaused) return 'bg-yellow-100 dark:bg-yellow-900';
     if (!isOnline) return 'bg-red-500';
     if (isPollingOnly) return 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600';
 
@@ -380,7 +380,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             hasError ?
             <RefreshCw className="w-3 h-3 text-white" /> :
             isPollingOnly ?
-            <RefreshCw className="w-3 h-3 text-blue-500" /> :
+            <RefreshCw className="w-3 h-3 text-blue-500 dark:text-blue-400" /> :
 
             <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500 dark:text-slate-200'}`} />
             }
@@ -445,7 +445,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         isPaused ?
         <div className="w-2 h-2 rounded-full bg-yellow-500" /> :
         isPollingOnly ?
-        <RefreshCw className="w-3.5 h-3.5 text-blue-500" /> :
+        <RefreshCw className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> :
 
         <RefreshCw className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
         }
