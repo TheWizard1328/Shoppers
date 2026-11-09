@@ -33,12 +33,15 @@ const SOURCES = {
   interStores: { entity: 'InterStoreLocation', store: 'inter_store_locations' },
 };
 
-const buildCounts = (records) => {
+// Patient has no company_id field at all (verified Nov 8 2026), so those records
+// were all landing in the "(default)" bucket and inflating it by the entire
+// patient table. Patients inherit their store's company instead.
+const buildCounts = (records, resolveFallback) => {
   const map = {};
   (records || []).forEach((r) => {
-    const key = r?.company_id ? String(r.company_id).trim() : 'default';
-    const k = key || 'default';
-    map[k] = (map[k] || 0) + 1;
+    const raw = r?.company_id ? String(r.company_id).trim() : '';
+    const key = raw || (resolveFallback ? resolveFallback(r) : '') || 'default';
+    map[key] = (map[key] || 0) + 1;
   });
   return map;
 };
@@ -82,10 +85,16 @@ export default function CompanyDataTab() {
       ...keys.map((k) => readEntity(k, preferIdb)),
     ]);
 
+    // store_id → company_id, used to attribute records that cannot hold the field.
+    const storeCompany = {};
+    const storeRows = reads[keys.indexOf('stores')]?.rows || [];
+    storeRows.forEach((st) => { if (st?.id && st?.company_id) storeCompany[st.id] = String(st.company_id).trim(); });
+    const viaStore = (r) => (r?.store_id ? storeCompany[r.store_id] || '' : '');
+
     const next = {};
     let anyIdb = false;
     keys.forEach((k, i) => {
-      next[k] = buildCounts(reads[i]?.rows);
+      next[k] = buildCounts(reads[i]?.rows, k === 'patients' ? viaStore : null);
       if (reads[i]?.from === 'idb') anyIdb = true;
     });
     setCounts(next);
@@ -222,7 +231,7 @@ export default function CompanyDataTab() {
       )}
 
       <div className="text-sm text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg px-3 py-2 dark:border-blue-800">
-        Records with a blank <code className="font-mono text-xs bg-blue-100 px-1 rounded dark:bg-blue-900">company_id</code> are counted under <strong>RGistics (default)</strong>. Backfill Companies stamps them with the single company's real record id.
+        Records with a blank <code className="font-mono text-xs bg-blue-100 px-1 rounded dark:bg-blue-900">company_id</code> are counted under <strong>RGistics (default)</strong>. Patients have no company_id field, so they are counted under the company of their store. Backfill Companies stamps blanks on Store, Delivery, Payroll and AppUser with the single company's real record id.
       </div>
 
       {rows.map((row) => {
