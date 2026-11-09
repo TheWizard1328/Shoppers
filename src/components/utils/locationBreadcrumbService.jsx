@@ -32,10 +32,14 @@ function getCacheKey(driverId, deliveryDate) {
   return `${driverId}:${deliveryDate}`;
 }
 
-// Online sync throttle: push the full 'TODAY' record to the server every 3rd offline save (15s)
+// Online sync throttle (OWNER SPEC Nov 9 2026): crumbs are captured locally every
+// 2s, but the master 'TODAY' record is pushed to the server ONCE PER MINUTE while
+// driving, plus an immediate flush when a stop is completed. Every push is a full
+// snapshot of the day's trail, so a skipped or throttled push costs nothing — the
+// next one carries every point. Time-based, not save-count-based, so a changed
+// capture interval can never silently alter the server write rate.
 let _lastOnlineSyncTime = 0;
-let _breadcrumbSaveCount = 0;
-const ONLINE_SYNC_EVERY_N_SAVES = 3; // Sync on every 3rd offline save (3 × 5s = 15s)
+const MASTER_SYNC_INTERVAL_MS = 60 * 1000;
 
 // ── Duplicate-flush guard (owner report Oct 29 2026) ────────────────────────
 // "Rate limit exceeded: entity_update allows 140 requests..." popped right
@@ -45,7 +49,7 @@ const ONLINE_SYNC_EVERY_N_SAVES = 3; // Sync on every 3rd offline save (3 × 5s 
 // as an entity update against the shared account quota. Skip a flush whose
 // exact trail was already sent for this driver/date in the last 60s.
 const _lastFlushByKey = new Map();
-const _FLUSH_DEDUPE_MS = 60 * 1000;
+const _FLUSH_DEDUPE_MS = 45 * 1000;
 const _alreadyFlushed = (driverId, date, encodedPolyline) => {
   try {
     const key = `${driverId}__${date}`;
@@ -350,14 +354,13 @@ export const collectBreadcrumbForTracker = async ({
   };
   await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
 
-  // Always save to offline DB first, then sync to server every 3rd save (15s)
-  _breadcrumbSaveCount++;
+  // Always save to offline DB first, then push the full master trail to the
+  // server at most once per minute (owner spec Nov 9 2026).
   const now = Date.now();
-  if (_breadcrumbSaveCount >= ONLINE_SYNC_EVERY_N_SAVES) {
-    _breadcrumbSaveCount = 0;
+  if (now - _lastOnlineSyncTime >= MASTER_SYNC_INTERVAL_MS) {
     _lastOnlineSyncTime = now;
     if (_alreadyFlushed(currentUser.id, deliveryDate, encodedPolyline)) {
-      return; // identical trail already sent < 60s ago
+      return; // identical trail already sent < 45s ago
     }
     const releaseLock = await acquireBreadcrumbSyncLock();
     try {
@@ -515,6 +518,53 @@ export const seedHomeAnchorOnDuty = async ({
 // after the cooldown).
 let _flushRateLimitCooldownUntil = 0;
 const _isRateLimitErr = (err) => /rate limit/i.test(String(err?.message || err?.reason?.message || err || ''));
+
+/**
+ * flushMasterTrailNow — force an immediate server push of this driver/date master
+ * trail, bypassing the once-a-minute throttle (OWNER SPEC Nov 9 2026).
+ *
+ * Called when a stop is completed, BEFORE the slicer runs: the server-side
+ * slicer (consolidateBreadcrumbSegment) walks the SERVER copy of the master
+ * trail, so the final crumbs of the leg must already be there or the stop's
+ * segment silently loses its tail. Every push is a full snapshot, so calling
+ * this more often than the throttle is safe and idempotent.
+ */
+export const flushMasterTrailNow = async (driverId, deliveryDate) => {
+  try {
+    if (!driverId || !deliveryDate) return { flushed: false };
+    const cacheKey = getCacheKey(driverId, deliveryDate);
+    const trailPoints = _masterTrailCache.get(cacheKey);
+    if (!Array.isArray(trailPoints) || trailPoints.length === 0) return { flushed: false };
+
+    const encodedPolyline = encodePolyline(trailPoints);
+    const timestamps = trailPoints.map((p) => p[2] || 0).join(',');
+    const outageTsArr = Array.from(_outageTimestampsCache.get(cacheKey) || []);
+    const offlineKey = getTodayOfflineKey(driverId, deliveryDate);
+
+    const releaseLock = await acquireBreadcrumbSyncLock();
+    try {
+      await base44.functions.invoke('syncPendingBreadcrumbs', {
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        encoded_polyline: encodedPolyline,
+        timestamps,
+        point_count: trailPoints.length,
+        outage_timestamps: outageTsArr,
+      });
+      const latest = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey).catch(() => null);
+      if (latest?.encoded_polyline === encodedPolyline) {
+        await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false });
+      }
+      _lastOnlineSyncTime = Date.now();
+      return { flushed: true, pointCount: trailPoints.length };
+    } finally {
+      releaseLock();
+    }
+  } catch (error) {
+    console.warn('[Breadcrumbs] Stop-completion flush failed:', error?.message);
+    return { flushed: false, error: error?.message };
+  }
+};
 
 export const flushPendingBreadcrumbMasters = async () => {
   if (Date.now() < _flushRateLimitCooldownUntil) return { flushed: 0, rateLimited: true };

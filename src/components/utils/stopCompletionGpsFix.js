@@ -20,7 +20,7 @@
  * Always fire-and-forget — never blocks the ~37ms completion critical path.
  */
 import { locationTracker } from './locationTracker';
-import { collectBreadcrumbForTracker } from './locationBreadcrumbService';
+import { collectBreadcrumbForTracker, flushMasterTrailNow } from './locationBreadcrumbService';
 
 export const recordStopCompletionGpsFix = async ({ currentUser, deliveryDate } = {}) => {
   try {
@@ -62,6 +62,11 @@ export const recordStopCompletionGpsFix = async ({ currentUser, deliveryDate } =
       longitude: pos.longitude,
       timestamp: Date.now(),
     });
+
+    // 3) Push the master trail NOW (OWNER SPEC Nov 9 2026). The once-a-minute
+    //    throttle would otherwise leave the final crumbs of this leg server-side
+    //    only up to ~60s later, and the slicer reads the SERVER copy.
+    await flushMasterTrailNow(currentUser?.id, deliveryDate || null).catch(() => {});
 
     console.log(`📍 [StopCompletionGpsFix] fix recorded: ${pos.latitude.toFixed(5)}, ${pos.longitude.toFixed(5)} (±${Math.round(pos.accuracy || 0)}m)`);
     return pos;

@@ -110,7 +110,7 @@ class LocationTracker {
         this.minEtaRefreshDistance = 500;
         this.minTimeBetweenEtaRefresh = 120000;
         this.lastBreadcrumbSavedAt = 0;
-        this.breadcrumbSaveInterval = 5000; // 5 seconds — offline DB write frequency
+        this.breadcrumbSaveInterval = 2000; // OWNER SPEC Nov 9 2026: 2s local crumb capture
         this.breadcrumbInterval = null; // Independent 5s timer for breadcrumb collection (fallback)
         this.breadcrumbWatchdog = null; // Watchdog timer — detects missed breadcrumb ticks
         this.lastBreadcrumbTickAt = 0; // Updated on every successful breadcrumb collection
@@ -158,12 +158,12 @@ class LocationTracker {
         .catch(() => {});
       this.updateInterval = 15000; // 15s GPS polling — drivers only
       this.minDistanceChange = 100;
-      this.breadcrumbSaveInterval = 5000; // 5s — offline DB write frequency, on_duty drivers only
+      this.breadcrumbSaveInterval = 2000; // OWNER SPEC Nov 9 2026: 2s local crumb capture, on_duty drivers only
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
       this.updateInterval = 15000;
       this.minDistanceChange = 100;
-      this.breadcrumbSaveInterval = 5000;
+      this.breadcrumbSaveInterval = 2000; // OWNER SPEC Nov 9 2026: 2s local crumb capture
     }
   }
 
@@ -470,7 +470,7 @@ class LocationTracker {
       this._atStopBreadcrumbInterval = null;
     }
 
-    // Restart the normal 5s breadcrumb interval
+    // Restart the normal 2s breadcrumb interval
     if (this.breadcrumbInterval) clearInterval(this.breadcrumbInterval);
     this.breadcrumbInterval = setInterval(async () => {
       if (!this.isTracking || !this._isBreadcrumbStatusActive() || this.isBreadcrumbSlowed) return;
@@ -500,7 +500,7 @@ class LocationTracker {
           await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now, freshPos.coords.accuracy);
         } catch (e) {}
       }
-    }, 10000);
+    }, 5000); // watchdog re-check only; it still acts only when the last crumb is >7s old
   }
 
   /**
@@ -1603,7 +1603,7 @@ class LocationTracker {
               console.warn('🍞 [Breadcrumb Watchdog] Force fix failed:', e?.message);
             }
           }
-        }, 10000);
+        }, 5000); // watchdog re-check only; it still acts only when the last crumb is >7s old
 
 
         // ── Token-watch interval ──────────────────────────────────────────
