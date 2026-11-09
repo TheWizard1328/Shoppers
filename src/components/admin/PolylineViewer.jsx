@@ -1932,6 +1932,15 @@ export default function PolylineViewer({ users = [] }) {
     );
   };
 
+// Segmented control (owner report Nov 8 2026). The active segment used the
+// 'default' Button variant, which resolves to a near-white primary surface in
+// dark mode — the selected "Delivery Polylines" / "Online" segment rendered as
+// a blank white box with invisible text. Both states are explicit now.
+const SEG_ACTIVE = 'bg-white text-slate-900 shadow-sm hover:bg-white dark:bg-slate-600 dark:text-white dark:hover:bg-slate-600';
+const SEG_IDLE = 'text-slate-600 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-slate-700/60';
+// Native date fields keep the UA's white widget in dark mode (owner report
+// Nov 8 2026) — the surface and the text are pinned per theme here.
+const DATE_INPUT_CLS = 'bg-white text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';
   // ── Controls bar (shared desktop + sheet) ─────────────────────────────────
   const renderControls = () => (
     <div className="space-y-3">
@@ -1940,10 +1949,10 @@ export default function PolylineViewer({ users = [] }) {
         {VIEW_MODES.map(m => (
           <Button
             key={m.id}
-            variant={viewMode === m.id ? 'default' : 'ghost'}
+            variant="ghost"
             size="sm"
             onClick={() => setViewMode(m.id)}
-            className="flex-1 h-8 text-xs"
+            className={`flex-1 h-8 text-xs ${viewMode === m.id ? SEG_ACTIVE : SEG_IDLE}`}
           >
             {m.id === 'combined' && <Layers className="w-3 h-3 mr-1" />}
             {m.label}
@@ -1952,8 +1961,8 @@ export default function PolylineViewer({ users = [] }) {
       </div>
       {/* Data source */}
       <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-        <Button variant={dataSource === 'online' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('online')} className="flex-1 h-8">Online</Button>
-        <Button variant={dataSource === 'offline' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('offline')} className="flex-1 h-8">Offline</Button>
+        <Button variant="ghost" size="sm" onClick={() => setDataSource('online')} className={`flex-1 h-8 ${dataSource === 'online' ? SEG_ACTIVE : SEG_IDLE}`}>Online</Button>
+        <Button variant="ghost" size="sm" onClick={() => setDataSource('offline')} className={`flex-1 h-8 ${dataSource === 'offline' ? SEG_ACTIVE : SEG_IDLE}`}>Offline</Button>
       </div>
       {/* Driver filter */}
       <Select value={driverFilter} onValueChange={setDriverFilter}>
@@ -1966,9 +1975,9 @@ export default function PolylineViewer({ users = [] }) {
       {/* Date range filter */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">From date</label>
-        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-full" />
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`w-full ${DATE_INPUT_CLS}`} />
         <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">To date</label>
-        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-full" />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`w-full ${DATE_INPUT_CLS}`} />
       </div>
       {(driverFilter !== 'all' || dateFrom || dateTo) && (
         <Button variant="outline" size="sm" className="w-full" onClick={() => { setDriverFilter('all'); setDateFrom(''); setDateTo(''); }}>Clear Filters</Button>
@@ -2091,7 +2100,7 @@ export default function PolylineViewer({ users = [] }) {
               {/* View mode */}
               <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
                 {VIEW_MODES.map(m => (
-                  <Button key={m.id} variant={viewMode === m.id ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode(m.id)} className="h-8 text-xs gap-1">
+                  <Button key={m.id} variant="ghost" size="sm" onClick={() => setViewMode(m.id)} className={`h-8 text-xs gap-1 ${viewMode === m.id ? SEG_ACTIVE : SEG_IDLE}`}>
                     {m.id === 'combined' && <Layers className="w-3 h-3" />}
                     {m.label}
                   </Button>
@@ -2099,8 +2108,8 @@ export default function PolylineViewer({ users = [] }) {
               </div>
               {/* Data source */}
               <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                <Button variant={dataSource === 'online' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('online')} className="h-8">Online</Button>
-                <Button variant={dataSource === 'offline' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('offline')} className="h-8">Offline</Button>
+                <Button variant="ghost" size="sm" onClick={() => setDataSource('online')} className={`h-8 ${dataSource === 'online' ? SEG_ACTIVE : SEG_IDLE}`}>Online</Button>
+                <Button variant="ghost" size="sm" onClick={() => setDataSource('offline')} className={`h-8 ${dataSource === 'offline' ? SEG_ACTIVE : SEG_IDLE}`}>Offline</Button>
               </div>
               {/* Driver filter */}
               <Select value={driverFilter} onValueChange={setDriverFilter}>
@@ -2113,9 +2122,9 @@ export default function PolylineViewer({ users = [] }) {
               {/* Date range filter */}
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">From</span>
-                <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" />
+                <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`w-36 ${DATE_INPUT_CLS}`} />
                 <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">To</span>
-                <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" />
+                <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`w-36 ${DATE_INPUT_CLS}`} />
               </div>
               {(driverFilter !== 'all' || dateFrom || dateTo) && (
                 <Button variant="outline" size="sm" onClick={() => { setDriverFilter('all'); setDateFrom(''); setDateTo(''); }}>Clear Filters</Button>

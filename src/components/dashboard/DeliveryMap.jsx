@@ -316,6 +316,15 @@ function DeliveryMap({
   // stripped by Terser in production builds, so the healthy line is local-only;
   // the STALL line is a console.warn so remoteLogger ships it to RemoteLogEntry
   // (one line per stalled boot — no storm when healthy).
+  // Self-heal (owner request Nov 8 2026): a stalled boot is not just reported,
+  // it is retried. First a size invalidation (the usual cause is a container
+  // measured at 0 before the dashboard chrome settled), then, if the map still
+  // never reports ready with stops on screen, one full remount. Empty
+  // dashboards stay quiet: a dispatch station with no stops today has nothing
+  // to paint, and repeating that line every couple of minutes buried the real
+  // signal in the hourly digest.
+  const [mapRemountKey, setMapRemountKey] = useState(0);
+  const mapHealRef = useRef({ invalidated: 0, remounted: 0 });
   const mapBootWatchRef = useRef({ map: null, mapReady: false, key: null, deliveries: 0 });
   mapBootWatchRef.current.map = map || null;
   mapBootWatchRef.current.mapReady = mapReady || false;
@@ -332,11 +341,39 @@ function DeliveryMap({
           `[MapBoot] whenReady=${st.map ? 'fired' : 'NOT-FIRED'} key=${st.key ? 'present' : 'MISSING'} ` +
           `mapReady=${st.mapReady ? 'yes' : 'no'} container=${sizeStr} deliveries=${st.deliveries} ` +
           `t=${Math.round((Date.now() - mountedAt) / 1000)}s`;
-        if (st.map && st.key && st.mapReady && el && el.clientHeight > 0) {
+        const healthy = !!(st.map && st.key && st.mapReady && el && el.clientHeight > 0);
+        if (healthy) {
           console.log(`[MapBoot] OK ${line}`);
-        } else {
-          console.warn(`[MapBoot] STALL ${line}`);
+          return;
         }
+        if (st.deliveries === 0) {
+          // Nothing to paint on this dashboard — local note only, never shipped.
+          console.log(`[MapBoot] idle ${line}`);
+          return;
+        }
+        console.warn(`[MapBoot] STALL ${line}`);
+        // Retry in escalating steps instead of leaving a dead map on screen.
+        try {
+          const heal = mapHealRef.current;
+          if (st.map && el && el.clientWidth > 0 && heal.invalidated < 2) {
+            heal.invalidated += 1;
+            st.map.invalidateSize();
+            console.warn(`[MapBoot] HEAL invalidateSize #${heal.invalidated}`);
+            setTimeout(() => {
+              const now = mapBootWatchRef.current;
+              const el2 = document.querySelector('.leaflet-container');
+              if (!now.mapReady && now.deliveries > 0 && el2 && el2.clientHeight > 0 && mapHealRef.current.remounted < 1) {
+                mapHealRef.current.remounted += 1;
+                console.warn('[MapBoot] HEAL remount #1');
+                setMapRemountKey((k) => k + 1);
+              }
+            }, 6000);
+          } else if (!st.mapReady && heal.remounted < 1) {
+            heal.remounted += 1;
+            console.warn('[MapBoot] HEAL remount #1');
+            setMapRemountKey((k) => k + 1);
+          }
+        } catch { /* healing must never throw */ }
       } catch { /* watchdog must never throw */ }
     }, 12000);
     return () => clearTimeout(tm);
@@ -2103,6 +2140,7 @@ function DeliveryMap({
     <div className="absolute inset-0">
       <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} currentUser={currentUser} />
       <MapContainer
+        key={`map-${mapRemountKey}`}
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}
         maxZoom={18}
