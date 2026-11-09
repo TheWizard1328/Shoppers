@@ -383,15 +383,23 @@ export default function PolylineViewer({ users = [] }) {
 
   // filters
   const [driverFilter, setDriverFilter] = useState('all');
-  const [dateFrom, setDateFrom]         = useState('');
-  // Default the "To" date picker to today's LOCAL date so the filter starts scoped to the current day.
-  const [dateTo, setDateTo]             = useState(() => {
+  // Both date pickers default to today's LOCAL date so the filter starts scoped to the current day.
+  const localToday = () => {
     const d = new Date();
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
-  });
+  };
+  const [dateFrom, setDateFrom]         = useState(localToday);
+  const [dateTo, setDateTo]             = useState(localToday);
+
+  // Keep the range valid: picking a "To" date earlier than "From" pulls "From"
+  // down to that same date instead of leaving an inverted (empty) range.
+  const handleDateToChange = (value) => {
+    setDateTo(value);
+    setDateFrom(prev => (value && prev && value < prev ? value : prev));
+  };
 
   // HERE api key
   const [hereApiKey, setHereApiKey]     = useState(null);
@@ -1977,7 +1985,7 @@ const DATE_INPUT_CLS = 'bg-white text-slate-900 border-slate-300 dark:bg-slate-8
         <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">From date</label>
         <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`w-full ${DATE_INPUT_CLS}`} />
         <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">To date</label>
-        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`w-full ${DATE_INPUT_CLS}`} />
+        <Input type="date" value={dateTo} onChange={e => handleDateToChange(e.target.value)} className={`w-full ${DATE_INPUT_CLS}`} />
       </div>
       {(driverFilter !== 'all' || dateFrom || dateTo) && (
         <Button variant="outline" size="sm" className="w-full" onClick={() => { setDriverFilter('all'); setDateFrom(''); setDateTo(''); }}>Clear Filters</Button>
@@ -2124,7 +2132,7 @@ const DATE_INPUT_CLS = 'bg-white text-slate-900 border-slate-300 dark:bg-slate-8
                 <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">From</span>
                 <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`w-36 ${DATE_INPUT_CLS}`} />
                 <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">To</span>
-                <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`w-36 ${DATE_INPUT_CLS}`} />
+                <Input type="date" value={dateTo} onChange={e => handleDateToChange(e.target.value)} className={`w-36 ${DATE_INPUT_CLS}`} />
               </div>
               {(driverFilter !== 'all' || dateFrom || dateTo) && (
                 <Button variant="outline" size="sm" onClick={() => { setDriverFilter('all'); setDateFrom(''); setDateTo(''); }}>Clear Filters</Button>
