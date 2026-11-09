@@ -277,12 +277,13 @@ export async function resequenceTrackingNumbersForScope({
 export async function resequenceAllScopesForDate({
   deliveryDate, stores, patients, updateDeliveryLocal, companyId = null, fallbackDeliveries = []
 }) {
-  if (!deliveryDate) return [];
+  const dateKey = normalizeDateKey(deliveryDate);
+  if (!dateKey) return [];
   const { offlineDB } = await import('./offlineDatabase');
   let all = [];
   try { all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES); } catch (_) { all = []; }
-  if (!Array.isArray(all) || all.length === 0) all = Array.isArray(fallbackDeliveries) ? fallbackDeliveries : [];
-  let scope = (all || []).filter((d) => d && d.delivery_date === deliveryDate);
+  all = mergeDeliveryPool(all, fallbackDeliveries);
+  let scope = (all || []).filter((d) => d && normalizeDateKey(d.delivery_date) === dateKey);
   if (companyId) {
     const sameCompany = scope.filter((d) => !d.company_id || String(d.company_id) === String(companyId));
     if (sameCompany.length) scope = sameCompany;
