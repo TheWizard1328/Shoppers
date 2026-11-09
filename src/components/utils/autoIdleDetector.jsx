@@ -92,6 +92,7 @@ export default function AutoIdleDetector({ currentUser, enabled = true }) {
     pending: null,           // { kind:'break'|'offduty'|'resume', mark, askedAt, deadline, anchor }
     applied: null,           // { kind:'break'|'offduty', at, anchor }
     reaskAt: 0,
+    lastStatus: null,         // duty status seen on the previous tick
     lastFix: null,
     departedStopId: null,
     coordsCache: new Map(),
@@ -355,6 +356,26 @@ export default function AutoIdleDetector({ currentUser, enabled = true }) {
       const status = await readStatus();
       const pos = locationTracker.getCachedPosition();
       if (!pos) { log('no fix — skip'); return; }
+
+      // OWNER REPORT (Nov 9 2026): 45 minutes on break, set back on duty, and the
+      // break ask fired immediately because the parked window opened BEFORE the
+      // break and kept aging (the on-break ticks returned early and never closed
+      // it). Break / off-duty time is not parked-on-duty time: close the window
+      // and clear the re-ask clock whenever the driver is not on duty, and start a
+      // fresh window the moment they come back on duty.
+      if (status !== 'on_duty') {
+        if (s.window) { log('not on duty — parked window closed'); s.window = null; persist(); }
+        s.reaskAt = 0;
+        s.lastStatus = status;
+      } else if (s.lastStatus && s.lastStatus !== 'on_duty') {
+        log('back on duty from', s.lastStatus, '— parked window restarts now');
+        s.window = null;
+        s.reaskAt = 0;
+        s.lastStatus = status;
+        persist();
+      } else {
+        s.lastStatus = status;
+      }
 
       const prev = s.lastFix;
       s.lastFix = { latitude: pos.latitude, longitude: pos.longitude, at: nowMs() };
