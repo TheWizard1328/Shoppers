@@ -204,16 +204,28 @@ const decodeHereFlexiblePolyline = (encoded) => {
 // order of every route type is verified: gated stops bucket into 90-minute
 // bands from now and the list is stably re-sorted by band. In-band geography is
 // untouched, so a properly windowed HERE result comes back unchanged.
+// CLIENT PARITY (owner report Nov 9 2026): only correct a REAL ladder violation
+// (earlier stop's window later by more than the 30-minute window sway). The old
+// unconditional re-band flipped HERE's road-optimal order over a band boundary.
+const WINDOW_BAND_GRACE_MIN = 30;
 const enforceWindowBands = (stops: any[], nowMin: number) => {
   if (!Array.isArray(stops) || stops.length < 2) return stops;
-  const bandOf = (st: any) => {
+  const windowOf = (st: any) => {
     const m = parseTimeToMinutes(st?.windowStartRaw ?? st?.windowStart);
+    return Number.isFinite(m) ? (m as number) : null;
+  };
+  const bandOf = (st: any) => {
+    const m = windowOf(st);
     if (!Number.isFinite(m)) return 0;
     const base = Number.isFinite(nowMin) ? nowMin : (m as number);
     return Math.max(0, Math.floor(((m as number) - base) / 90));
   };
-  const keyed = stops.map((st, i) => ({ st, i, b: bandOf(st) }));
-  const inverted = keyed.some((a, idx) => keyed.slice(idx + 1).some((b) => b.b < a.b));
+  const keyed = stops.map((st, i) => ({ st, i, b: bandOf(st), w: windowOf(st) }));
+  const inverted = keyed.some((a, idx) => keyed.slice(idx + 1).some((b) =>
+    b.b < a.b
+    && Number.isFinite(a.w) && Number.isFinite(b.w)
+    && ((a.w as number) - (b.w as number)) > WINDOW_BAND_GRACE_MIN
+  ));
   if (!inverted) return stops;
   return keyed.sort((a, b) => a.b - b.b || a.i - b.i).map((x) => x.st);
 };

@@ -220,19 +220,36 @@ export const getDeliveryCoords = (delivery, patientMap, storeMap) => {
 // every fallback: gated stops are bucketed into 90-minute bands from now, and
 // the list is stably re-sorted by band. Geography is untouched inside a band, so
 // a fully windowed HERE result (already ascending) comes back unchanged.
+// WINDOW BAND GRACE (owner report Nov 9 2026): the guard was re-bucketing the
+// whole route on a coarse 90-minute ladder, so two stops a few minutes apart
+// across a band boundary (e.g. 13:55 and 14:00) counted as "inverted" and HERE's
+// road-optimal order was overwritten for the sake of a few minutes. The owner
+// reported the Start button "always optimizing the wrong order" for this reason.
+// A genuine ladder violation is now only acted on when the earlier stop's window
+// really is later by more than the 30-minute window sway the planner is allowed
+// to trade — the Nov 4 case (a 5:00 PM stop ahead of a 2:00 PM one) is still
+// corrected, a boundary artifact never is.
+const WINDOW_BAND_GRACE_MIN = 30;
 const enforceWindowBands = (stops, nowMin) => {
   if (!Array.isArray(stops) || stops.length < 2) return stops;
+  const windowOf = (st) => {
+    const m = parseTimeToMinutes(st?.windowStart);
+    return Number.isFinite(m) ? m : null;
+  };
   const bandOf = (st) => {
-    const raw = st?.windowStart;
-    const m = parseTimeToMinutes(raw);
+    const m = windowOf(st);
     if (!Number.isFinite(m)) return 0; // windowless rides with the current band
     const base = Number.isFinite(nowMin) ? nowMin : m;
     return Math.max(0, Math.floor((m - base) / 90));
   };
-  const keyed = stops.map((st, i) => ({ st, i, b: bandOf(st) }));
-  const inverted = keyed.some((a, idx) => keyed.slice(idx + 1).some((b) => b.b < a.b));
+  const keyed = stops.map((st, i) => ({ st, i, b: bandOf(st), w: windowOf(st) }));
+  const inverted = keyed.some((a, idx) => keyed.slice(idx + 1).some((b) =>
+    b.b < a.b
+    && Number.isFinite(a.w) && Number.isFinite(b.w)
+    && (a.w - b.w) > WINDOW_BAND_GRACE_MIN
+  ));
   if (!inverted) return stops;
-  console.warn(`🍞 [WindowBands] order violated the window ladder — re-banding ${stops.length} stop(s)`);
+  console.warn(`🍞 [WindowBands] real window-ladder violation (>${WINDOW_BAND_GRACE_MIN} min) — re-banding ${stops.length} stop(s)`);
   return keyed.sort((a, b) => a.b - b.b || a.i - b.i).map((x) => x.st);
 };
 
