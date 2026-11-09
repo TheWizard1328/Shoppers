@@ -49,29 +49,31 @@ const SEG_OFF = 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hove
 // bottom edge (the shell height is not definite on every chrome mode), so measure
 // the card's real top edge and cap it to the viewport instead of guessing a calc().
 function useViewportFit() {
-  const ref = React.useRef(null);
+  // Callback ref, not useRef: the measured node only mounts AFTER data loads
+  // (loading / empty branches render first), so an effect keyed on mount never
+  // saw it and the height was never applied. That is why the list would not
+  // scroll (owner report Nov 8 2026).
+  const [el, setEl] = React.useState(null);
   const [maxH, setMaxH] = React.useState(null);
-  React.useLayoutEffect(() => {
-    const el = ref.current;
+  React.useEffect(() => {
     if (!el) return undefined;
     const compute = () => {
       const top = el.getBoundingClientRect().top;
-      // Hidden tab (display:none) reports top 0 — keep the last good value.
+      // Hidden tab (display:none) reports top 0 - keep the last good value.
       if (top < 40) return;
-      const pad = 12;
-      setMaxH(Math.max(220, Math.round(window.innerHeight - top - pad)));
+      setMaxH(Math.max(220, Math.round(window.innerHeight - top - 12)));
     };
     compute();
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
-    const t = setTimeout(compute, 250);
+    const t = setTimeout(compute, 300);
     return () => {
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
       clearTimeout(t);
     };
-  }, []);
-  return [ref, maxH];
+  }, [el]);
+  return [setEl, maxH];
 }
 
 const BADGE_ON = 'bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white';
