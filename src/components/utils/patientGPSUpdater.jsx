@@ -7,6 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { locationTracker } from "@/components/utils/locationTracker";
 import { updatePatientLocal } from "@/components/utils/offlineMutations";
+import { stampGpsIntent } from "@/components/utils/patientGpsWatcher";
 import { updateStoreLocal, updateInterStoreLocationLocal } from "@/components/utils/offlineMutations";
 import { indexInterStoreLocation } from "@/components/utils/interStoreDisplayName";
 import { offlineDB } from "@/components/utils/offlineDatabase";
@@ -118,11 +119,12 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
 
     // 4) Update ONLY the selected patient through the durable local-first queue.
     const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, patientId).catch(() => null);
+    stampGpsIntent(preferCrosshair && mapCrosshairCoords ? 'crosshair' : 'gps_update');
     await updatePatientLocal(patientId, {
       latitude: nextLatitude,
       longitude: nextLongitude,
       distance_from_store: distanceKm,
-    }, { source: 'user' }); // deliberate GPS update - excluded from the silent-write audit
+    }, { source: 'user', action: preferCrosshair && mapCrosshairCoords ? 'crosshair' : 'gps_update' });
 
     // 4b) CRITICAL (Sep 6 2026): Register the self-write for WS echo suppression
     // (same pattern as broadcastMutation / __localDeliveryWrites). Without this, the

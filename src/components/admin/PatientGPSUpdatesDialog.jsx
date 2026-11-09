@@ -90,6 +90,15 @@ function LogEntryCard({ log, matchingPatients = [], onAction, stores = [], disab
 
         <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 grid grid-cols-2 gap-x-2">
           <div><span className="text-slate-600 dark:text-slate-400">By:</span> {log.updated_by_user_name || 'Unknown'}</div>
+          <div className="text-xs">
+            <span className="text-slate-600 dark:text-slate-400">How:</span>{' '}
+            <span className={log.change_source === 'user' ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-amber-600 dark:text-amber-400 font-medium'}>
+              {log.change_source || 'not logged'}
+            </span>
+            {log.change_action ? ` / ${log.change_action}` : ''}
+            {log.distance_m ? ` \u00b7 moved ${Math.round(log.distance_m)}m` : ''}
+          </div>
+          {log.device_identifier && <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Device: {log.device_identifier}</div>}
           <div>{new Date(timestamp).toLocaleString('en-CA', { timeZone: 'America/Edmonton', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</div>
         </div>
       </div>

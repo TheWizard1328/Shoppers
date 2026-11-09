@@ -71,7 +71,7 @@ export const logPatientGpsChange = async ({ existing, patient, source, action, u
 
     const stamp = takeStamp();
     const src = String(source || stamp?.source || 'background');
-    const act = String(action || stamp?.action || 'unstamped');
+    const act = String(action || stamp?.action || (src === 'user' ? 'user_gps_update' : 'unstamped'));
     const moved = distM(oldLat, oldLng, newLat, newLng);
     if (src !== 'user' && moved < MIN_MOVE_M) return null;
 

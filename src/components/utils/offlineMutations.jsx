@@ -301,6 +301,9 @@ export const updatePatientLocal = async (patientId, updates, options = {}) => {
 
     // ── GPS CHANGE LOG (owner spec Nov 9 2026) ──────────────────────────
     // One PatientGPSLog row per coordinate move, whoever wrote it.
+    if (String(options?.source || '') === 'user' && Object.prototype.hasOwnProperty.call(updates || {}, 'latitude')) {
+      import('./patientGpsWatcher').then(({ stampGpsIntent }) => stampGpsIntent(options?.action || 'user_gps_update')).catch(() => {});
+    }
     import('./patientGpsWatcher').then(({ logPatientGpsChange }) => logPatientGpsChange({
       existing: existingPatient,
       patient: { ...existingPatient, ...(updates || {}) },
