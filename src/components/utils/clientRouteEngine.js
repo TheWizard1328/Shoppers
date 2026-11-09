@@ -1410,7 +1410,15 @@ let _inheritedWindowCount = 0;
         const d = rs?.delivery;
         if (!d || d.isNextDelivery) continue; // next keeps its waypoints
         if (d.is_cycling_marker) continue; // cycling markers carry no vias
-        if (!['pending', 'in_transit', 'en_route'].includes(String(d?.status || ''))) continue; // terminal keeps history
+        // OWNER REPORT (Nov 9 2026): accepting stops redrew the leg from the last
+        // stop to the Beverly pickup straight along the road and lost the recorded
+        // deviation. Cause: this clear ran while the in-hand stop was momentarily
+        // NOT flagged isNextDelivery, so its driven path was wiped for good.
+        // A stop already in hand (en_route / in_transit) keeps its vias — they are
+        // the actual road the driver took. Only PENDING stops are cleared here;
+        // terminal stops keep history, and real moves are cleared centrally by
+        // applyMoveReset (date/driver change) as before.
+        if (!['pending'].includes(String(d?.status || ''))) continue;
         if (!Array.isArray(d.deviation_waypoints) || d.deviation_waypoints.length === 0) continue;
         d.deviation_waypoints = [];
         deviationTransferChanges.set(String(d.id), []);
