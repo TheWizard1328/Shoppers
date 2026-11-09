@@ -55,6 +55,14 @@ const getFeePeriodForMonth = (store, year, month) => {
 export default function StoreMetricsPanel() {
   const [metricsResponse, setMetricsResponse] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Nov 8 2026: this panel kept sending a null city, and the shared function now
+  // REJECTS a null/'all' city with HTTP 400 ("City selection is required"), so
+  // every load failed and the panel silently rendered zeros. It now owns a city
+  // picker (defaulting to the signed-in user's own city) and shows the real
+  // error instead of an empty table.
+  const [cities, setCities] = useState([]);
+  const [cityId, setCityId] = useState('');
+  const [loadError, setLoadError] = useState(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString());
   const [availableYears] = useState(() => {
@@ -62,30 +70,75 @@ export default function StoreMetricsPanel() {
     return [currentYear, currentYear - 1, currentYear - 2];
   });
 
+  // Resolve the city list + a sensible default (the user's own city first).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [cityRows, me] = await Promise.all([
+          base44.entities.City.list('sort_order', 200).catch(() => []),
+          base44.auth.me().catch(() => null)
+        ]);
+        const list = (cityRows || []).filter(Boolean);
+        let preferred = '';
+        if (me?.id) {
+          const rows = await base44.entities.AppUser.filter({ user_id: me.id }).catch(() => []);
+          const mine = rows?.[0];
+          preferred = mine?.city_id || (Array.isArray(mine?.city_ids) ? mine.city_ids[0] : '') || '';
+        }
+        if (!list.some((c) => c.id === preferred)) {
+          preferred = list[0]?.id || '';
+        }
+        if (cancelled) return;
+        setCities(list);
+        setCityId(preferred);
+        if (!preferred) {
+          setLoadError('No cities are available, so store metrics cannot be loaded.');
+          setIsLoading(false);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setLoadError(e?.message || 'Could not load the city list.');
+          setIsLoading(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const loadMetrics = useCallback(async () => {
+    if (!cityId) { setIsLoading(false); return; }
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         adminMetricsYear: parseInt(selectedYear, 10),
-        adminMetricsCityId: null,
+        adminMetricsCityId: cityId,
         // Oct 15: paged single-month payroll — this panel only reads the
         // year-wide refs (stores/appUsers); full-year responses exceed the
         // platform's function response limit (500).
         payrollYear: parseInt(selectedYear, 10),
-        payrollCityId: null,
+        payrollCityId: cityId,
         payrollPaginationMode: 'paged',
         payrollPageMonths: [new Date().getMonth() + 1]
       });
 
       const data = response?.data || response;
-      setMetricsResponse(data);
+      if (data?.error) {
+        setLoadError(String(data.error));
+        setMetricsResponse(null);
+      } else {
+        setMetricsResponse(data);
+      }
     } catch (error) {
-      console.error('Failed to load store metrics:', error);
+      const serverMsg = error?.response?.data?.error || error?.message || 'Unknown error';
+      console.error('Failed to load store metrics:', serverMsg);
+      setLoadError(serverMsg);
       setMetricsResponse(null);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedYear]);
+  }, [selectedYear, cityId]);
 
   useEffect(() => {
     loadMetrics();
@@ -352,6 +405,17 @@ export default function StoreMetricsPanel() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+              <Select value={cityId} onValueChange={setCityId}>
+                <SelectTrigger className="w-40 shrink-0">
+                  <SelectValue placeholder="Select city" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map((c) =>
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="w-24 shrink-0">
                   <SelectValue />
@@ -385,6 +449,11 @@ export default function StoreMetricsPanel() {
           </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden p-0">
+          {loadError &&
+          <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+              Could not load store metrics: {loadError}
+            </div>
+          }
           <div className="px-3 py-3 h-full overflow-x-auto overflow-y-auto">
             {metrics?.stores?.length > 0 ?
             <div className="border rounded-lg overflow-hidden">
