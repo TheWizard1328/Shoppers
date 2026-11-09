@@ -122,7 +122,7 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
       latitude: nextLatitude,
       longitude: nextLongitude,
       distance_from_store: distanceKm,
-    });
+    }, { source: 'user' }); // deliberate GPS update - excluded from the silent-write audit
 
     // 4b) CRITICAL (Sep 6 2026): Register the self-write for WS echo suppression
     // (same pattern as broadcastMutation / __localDeliveryWrites). Without this, the

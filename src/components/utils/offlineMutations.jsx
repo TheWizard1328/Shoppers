@@ -238,7 +238,7 @@ export const createPatientLocal = async (patientData) => {
 /**
  * Update a Patient (local-first)
  */
-export const updatePatientLocal = async (patientId, updates) => {
+export const updatePatientLocal = async (patientId, updates, options = {}) => {
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
     throw new Error('Mutations are paused during route optimization');
@@ -279,7 +279,10 @@ export const updatePatientLocal = async (patientId, updates) => {
     try {
       const hasLat = updates && Object.prototype.hasOwnProperty.call(updates, 'latitude');
       const hasLng = updates && Object.prototype.hasOwnProperty.call(updates, 'longitude');
-      if (hasLat || hasLng) {
+      // Only silent writes are audited. A coordinate write tagged as a user GPS
+      // update (stop card GPS button / crosshair) is deliberate and stays quiet.
+      const source = String(options?.source || 'unknown');
+      if ((hasLat || hasLng) && source !== 'user') {
         const oldLat = Number(existingPatient?.latitude);
         const oldLng = Number(existingPatient?.longitude);
         const newLat = hasLat ? Number(updates.latitude) : oldLat;
@@ -288,7 +291,7 @@ export const updatePatientLocal = async (patientId, updates) => {
           const caller = (new Error().stack || '')
             .split('\n').slice(2, 6).map((l) => l.trim().replace(/^at /, '')).join(' <- ').slice(0, 500);
           import('./remoteLogger').then(({ remoteLogger }) => remoteLogger.warn(
-            `[PATIENT_GPS_WRITE] ${patientId} ${existingPatient?.full_name || ''} old=${oldLat},${oldLng} new=${newLat},${newLng} address="${existingPatient?.address || ''}" caller=${caller}`
+            `[PATIENT_GPS_WRITE] ${patientId} ${existingPatient?.full_name || ''} old=${oldLat},${oldLng} new=${newLat},${newLng} source=${source} address="${existingPatient?.address || ''}" caller=${caller}`
           )).catch(() => {});
         }
       }
