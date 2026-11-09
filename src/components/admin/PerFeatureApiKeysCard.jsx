@@ -159,22 +159,21 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
 
   return (
     <Card
-      className="rounded-[14px] border border-[#3a2e24] transition-all"
-      style={{ backgroundColor: '#241c17', color: '#ffffff' }}
+      className="rounded-[14px] border border-slate-300 bg-white transition-all dark:border-[#3a2e24] dark:bg-[#241c17]"
     >
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight" style={{ color: '#ffffff' }}>
-          <MapPinned className="w-5 h-5 text-amber-500" />
+        <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight text-slate-900 dark:text-white">
+          <MapPinned className="w-5 h-5 text-amber-500 dark:text-amber-400" />
           API Provider Keys
         </CardTitle>
-        <CardDescription style={{ color: '#a89b8f' }}>
+        <CardDescription className="text-slate-500 dark:text-[#a89b8f]">
           Choose which API key each map feature uses. Each dropdown only lists keys whose provider that feature supports.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-2.5">
           {isLoading ? (
-            <div className="text-sm py-2" style={{ color: '#a89b8f' }}>Loading…</div>
+            <div className="text-sm py-2 text-slate-500 dark:text-[#a89b8f]">Loading…</div>
           ) : (
             FEATURE_SLOTS.map((slot) => {
               const value = perFeatureKeys[slot.key] || slot.defaultKey;
@@ -195,11 +194,10 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
                       ? 'border-amber-500 bg-amber-500/10'
                       : isSaving
                         ? 'border-amber-400 bg-amber-500/5'
-                        : 'border-[#3a2e24]'
+                        : 'border-slate-300 dark:border-[#3a2e24]'
                   }`}
-                  style={!isSaved && !isSaving ? { backgroundColor: '#1a1410' } : undefined}
                 >
-                  <Label className="text-sm font-medium flex-1 truncate" style={{ color: '#d6cfc7' }}>
+                  <Label className="text-sm font-medium flex-1 truncate text-slate-700 dark:text-[#d6cfc7]">
                     {slot.label}
                   </Label>
                   <Select
@@ -207,15 +205,11 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
                     onValueChange={(key) => handleFeatureChange(slot.key, key)}
                   >
                     <SelectTrigger
-                      className="w-[220px] h-9 border-[#3a2e24] focus:border-amber-500"
-                      style={{ backgroundColor: '#241c17', color: '#ffffff' }}
+                      className="w-[220px] h-9 border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#241c17] dark:text-white focus:border-amber-500"
                     >
                       <SelectValue placeholder="Select key" />
                     </SelectTrigger>
-                    <SelectContent
-                      className="border-[#3a2e24]"
-                      style={{ backgroundColor: '#241c17', color: '#ffffff' }}
-                    >
+                    <SelectContent className="border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#241c17] dark:text-white">
                       {showUnsupportedCurrent && (
                         <SelectItem
                           key={`__unsupported_${value}`}
@@ -226,7 +220,7 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
                           <span className="flex items-center gap-2">
                             <span className="text-amber-600/80">[{PROVIDER_LABEL[classifyKeyProvider(value)] || '?'}]</span>
                             <span>{value}</span>
-                            <span className="text-xs italic" style={{ color: '#a89b8f' }}>— switch provider</span>
+                            <span className="text-xs italic text-slate-500 dark:text-[#a89b8f]">— switch provider</span>
                           </span>
                         </SelectItem>
                       )}
@@ -249,10 +243,9 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
             })
           )}
           <div
-            className="rounded-[10px] border border-[#3a2e24] p-3 text-xs flex items-start gap-2"
-            style={{ backgroundColor: '#1a1410', color: '#a89b8f' }}
+            className="rounded-[10px] border border-slate-300 bg-slate-50 p-3 text-xs flex items-start gap-2 text-slate-600 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-[#a89b8f]"
           >
-            <KeyRound className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
+            <KeyRound className="w-4 h-4 mt-0.5 text-amber-500 shrink-0 dark:text-amber-400" />
             <span>
               HERE keys power routing, polylines and map tiles (plus HERE geocoding/distance when chosen); the Google key powers address lookup, Places, distance — and now polylines when assigned. Each dropdown only shows keys usable for that feature. Changes take effect within ~5 minutes as backend caches refresh.
             </span>

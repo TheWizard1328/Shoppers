@@ -259,13 +259,14 @@ export default function AppSettingsPanel() {
   return (
     <div className="warm-console h-full min-h-0 overflow-y-auto pb-4">
       <style>{`
-        .warm-console { color-scheme: dark; }
+        .warm-console { color-scheme: light; }
+        .dark .warm-console { color-scheme: dark; }
         .warm-console .bg-primary { background-color: #f59e0b !important; }
         .warm-console .bg-primary\\/20 { background-color: rgba(245,158,11,0.28) !important; }
         .warm-console .border-primary\\/50 { border-color: #f59e0b !important; }
         .warm-console .bg-background { background-color: #ffffff !important; }
       `}</style>
-      <div className="rounded-2xl bg-[#1a1410] p-4 md:p-6 shadow-xl">
+      <div className="rounded-2xl bg-slate-100 p-4 md:p-6 shadow-xl dark:bg-[#1a1410]">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 items-start">
           <PerFeatureApiKeysCard availableApiKeys={availableApiKeys} />
 
@@ -278,11 +279,9 @@ export default function AppSettingsPanel() {
                 ? 'border-amber-500'
                 : activeTopSection === 'adminSettings' && isTopSectionSaving
                   ? 'border-amber-400'
-                  : 'border-[#3a2e24]'
+                  : 'border-slate-300 dark:border-[#3a2e24]'
             }`}
             style={{
-              backgroundColor: '#241c17',
-              color: '#ffffff',
               boxShadow:
                 activeTopSection === 'adminSettings' && (topSectionSaved || isTopSectionSaving)
                   ? '0 0 0 1px rgba(245,158,11,0.35), 0 10px 30px -10px rgba(245,158,11,0.35)'
@@ -290,18 +289,18 @@ export default function AppSettingsPanel() {
             }}
           >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight" style={{ color: '#ffffff' }}>
+              <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight text-slate-900 dark:text-white">
                 <Settings className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                 Other Admin Settings
               </CardTitle>
-              <CardDescription style={{ color: '#a89b8f' }}>
+              <CardDescription className="text-slate-500 dark:text-[#a89b8f]">
                 Configure app-wide administrative settings.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="app_fees" className="text-sm font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
+                  <Label htmlFor="app_fees" className="text-sm font-medium mb-1.5 block text-slate-700 dark:text-[#d6cfc7]">
                     App Fees (Cost per Delivery)
                   </Label>
                   <div className="flex items-center gap-2">
@@ -323,18 +322,17 @@ export default function AppSettingsPanel() {
                         setAppFeesPerDelivery(parsed.toFixed(2));
                       }}
                       placeholder="0.00"
-                      className="w-32 border-[#3a2e24] focus-visible:border-amber-500 focus-visible:ring-amber-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                      className="w-32 border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-white focus-visible:border-amber-500 focus-visible:ring-amber-500/30"
                     />
-                    <span className="text-sm" style={{ color: '#a89b8f' }}>per finished delivery</span>
+                    <span className="text-sm text-slate-500 dark:text-[#a89b8f]">per finished delivery</span>
                   </div>
-                  <p className="text-xs mt-1" style={{ color: '#8a7e72' }}>
+                  <p className="text-xs mt-1 text-slate-500 dark:text-[#8a7e72]">
                     This fee will be used to calculate monthly charges for stores that are marked as paying app fees.
                   </p>
                 </div>
 
                 <div>
-                  <Label htmlFor="square_app_id" className="text-sm font-medium mb-1.5 block" style={{ color: '#d6cfc7' }}>
+                  <Label htmlFor="square_app_id" className="text-sm font-medium mb-1.5 block text-slate-700 dark:text-[#d6cfc7]">
                     Square Application ID
                   </Label>
                   <Input
@@ -343,10 +341,9 @@ export default function AppSettingsPanel() {
                     value={squareAppId}
                     onChange={(e) => setSquareAppId(e.target.value)}
                     placeholder="sq0idp-..."
-                    className="font-mono text-sm border-[#3a2e24] focus-visible:border-amber-500 focus-visible:ring-amber-500/30"
-                    style={{ backgroundColor: '#1a1410', color: '#f59e0b' }}
+                    className="font-mono text-sm border-slate-300 bg-white text-amber-600 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-amber-500 focus-visible:border-amber-500 focus-visible:ring-amber-500/30"
                   />
-                  <p className="text-xs mt-1" style={{ color: '#8a7e72' }}>
+                  <p className="text-xs mt-1 text-slate-500 dark:text-[#8a7e72]">
                     Required for the Square POS button on stop cards. Find this in your Square Developer Dashboard.
                   </p>
                 </div>
@@ -360,37 +357,35 @@ export default function AppSettingsPanel() {
               winterModeSaved ? 'border-amber-500' : isSavingWinterMode ? 'border-amber-400' : 'border-blue-500/60'
             }`}
             style={{
-              backgroundColor: '#241c17',
-              color: '#ffffff',
               boxShadow: '0 0 0 1px rgba(59,130,246,0.25), 0 10px 36px -10px rgba(59,130,246,0.35)',
             }}
           >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight" style={{ color: '#ffffff' }}>
+              <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight text-slate-900 dark:text-white">
                 <Snowflake className="w-5 h-5 text-blue-400" />
                 Winter Mode
               </CardTitle>
-              <CardDescription style={{ color: '#a89b8f' }}>
+              <CardDescription className="text-slate-500 dark:text-[#a89b8f]">
                 Pads ETAs, widens GPS-drift tolerances, and enables cold warnings in the daily driver briefing. Does not affect cycling routes.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="winter_enabled" className="text-sm font-medium" style={{ color: '#d6cfc7' }}>
+                  <Label htmlFor="winter_enabled" className="text-sm font-medium text-slate-700 dark:text-[#d6cfc7]">
                     Enabled
                   </Label>
                   <Switch
                     id="winter_enabled"
                     checked={winterMode.enabled === true}
                     onCheckedChange={(checked) => setWinterMode((w) => ({ ...w, enabled: checked }))}
-                    className="data-[state=checked]:bg-blue-500 data-[state=unchecked]:bg-[#3a2e24]"
+                    className="data-[state=checked]:bg-blue-500 data-[state=unchecked]:bg-slate-300 dark:data-[state=unchecked]:bg-[#3a2e24]"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <div className="mb-1.5">
-                      <Label htmlFor="winter_eta_factor" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                      <Label htmlFor="winter_eta_factor" className="text-xs font-medium block text-slate-700 dark:text-[#d6cfc7]">
                         ETA Factor (e.g. 1.25)
                       </Label>
                       <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.eta_factor}</span>
@@ -403,13 +398,12 @@ export default function AppSettingsPanel() {
                       max="3"
                       value={winterMode.eta_factor}
                       onChange={(e) => setWinterMode((w) => ({ ...w, eta_factor: e.target.value }))}
-                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                      className="border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-white focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                     />
                   </div>
                   <div>
                     <div className="mb-1.5">
-                      <Label htmlFor="winter_arrival_radius" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                      <Label htmlFor="winter_arrival_radius" className="text-xs font-medium block text-slate-700 dark:text-[#d6cfc7]">
                         Arrival Radius (m)
                       </Label>
                       <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.arrival_radius_m}</span>
@@ -422,13 +416,12 @@ export default function AppSettingsPanel() {
                       max="500"
                       value={winterMode.arrival_radius_m}
                       onChange={(e) => setWinterMode((w) => ({ ...w, arrival_radius_m: e.target.value }))}
-                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                      className="border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-white focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                     />
                   </div>
                   <div>
                     <div className="mb-1.5">
-                      <Label htmlFor="winter_snap_radius" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                      <Label htmlFor="winter_snap_radius" className="text-xs font-medium block text-slate-700 dark:text-[#d6cfc7]">
                         Proximity Snap (km)
                       </Label>
                       <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.gps_snap_km}</span>
@@ -441,13 +434,12 @@ export default function AppSettingsPanel() {
                       max="0.5"
                       value={winterMode.gps_snap_km}
                       onChange={(e) => setWinterMode((w) => ({ ...w, gps_snap_km: e.target.value }))}
-                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                      className="border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-white focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                     />
                   </div>
                   <div>
                     <div className="mb-1.5">
-                      <Label htmlFor="winter_breadcrumb_accuracy" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
+                      <Label htmlFor="winter_breadcrumb_accuracy" className="text-xs font-medium block text-slate-700 dark:text-[#d6cfc7]">
                         Breadcrumb Accuracy Gate (m)
                       </Label>
                       <span className="text-[10px] text-blue-300/80 block">Default: {DEFAULT_WINTER.breadcrumb_accuracy_gate_m}</span>
@@ -459,14 +451,13 @@ export default function AppSettingsPanel() {
                       min="20"
                       value={winterMode.breadcrumb_accuracy_gate_m}
                       onChange={(e) => setWinterMode((w) => ({ ...w, breadcrumb_accuracy_gate_m: e.target.value }))}
-                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                      className="border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-white focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                     />
                   </div>
                   <div>
                     <div className="mb-1.5">
-                      <Label htmlFor="winter_cold_min" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
-                        Cold Warning - Min/Enable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_min_c}</span>
+                      <Label htmlFor="winter_cold_min" className="text-xs font-medium block text-slate-700 dark:text-[#d6cfc7]">
+                        Cold Warning — Min / Enable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_min_c}</span>
                       </Label>
                     </div>
                     <Input
@@ -475,14 +466,13 @@ export default function AppSettingsPanel() {
                       step="1"
                       value={winterMode.cold_threshold_min_c}
                       onChange={(e) => setWinterMode((w) => ({ ...w, cold_threshold_min_c: e.target.value }))}
-                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                      className="border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-white focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                     />
                   </div>
                   <div>
                     <div className="mb-1.5">
-                      <Label htmlFor="winter_cold_max" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
-                        Cold Warning - Max/Disable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_max_c}</span>
+                      <Label htmlFor="winter_cold_max" className="text-xs font-medium block text-slate-700 dark:text-[#d6cfc7]">
+                        Cold Warning — Max / Disable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_max_c}</span>
                       </Label>
                     </div>
                     <Input
@@ -491,8 +481,7 @@ export default function AppSettingsPanel() {
                       step="1"
                       value={winterMode.cold_threshold_max_c}
                       onChange={(e) => setWinterMode((w) => ({ ...w, cold_threshold_max_c: e.target.value }))}
-                      className="border-[#3a2e24] focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                      className="border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-white focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
                     />
                   </div>
                 </div>
@@ -515,17 +504,15 @@ export default function AppSettingsPanel() {
               fridgeTempSaved ? 'border-amber-500' : isSavingFridgeTemp ? 'border-amber-400' : 'border-amber-500/60'
             }`}
             style={{
-              backgroundColor: '#241c17',
-              color: '#ffffff',
               boxShadow: '0 0 0 1px rgba(245,158,11,0.25), 0 10px 36px -10px rgba(245,158,11,0.35)',
             }}
           >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight" style={{ color: '#ffffff' }}>
+              <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight text-slate-900 dark:text-white">
                 <Thermometer className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                 Fridge Temp Ranges
               </CardTitle>
-              <CardDescription style={{ color: '#a89b8f' }}>
+              <CardDescription className="text-slate-500 dark:text-[#a89b8f]">
                 Set the safe zone and warning buffer for cooler temperature monitoring.
               </CardDescription>
             </CardHeader>
@@ -533,7 +520,7 @@ export default function AppSettingsPanel() {
               <div className="space-y-4">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm font-medium" style={{ color: '#d6cfc7' }}>Safe Zone (°C)</Label>
+                    <Label className="text-sm font-medium text-slate-700 dark:text-[#d6cfc7]">Safe Zone (°C)</Label>
                     <span className="text-sm font-mono font-semibold text-amber-400">
                       {fridgeTempSettings.safe_min}° – {fridgeTempSettings.safe_max}°
                     </span>
@@ -546,13 +533,13 @@ export default function AppSettingsPanel() {
                     step={0.5}
                     className="w-full"
                   />
-                  <div className="flex justify-between text-xs mt-1" style={{ color: '#8a7e72' }}>
+                  <div className="flex justify-between text-xs mt-1 text-slate-500 dark:text-[#8a7e72]">
                     <span>-10°C</span>
                     <span>25°C</span>
                   </div>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium" style={{ color: '#d6cfc7' }}>Danger Buffer (±°C)</Label>
+                  <Label className="text-sm font-medium text-slate-700 dark:text-[#d6cfc7]">Danger Buffer (±°C)</Label>
                   <div className="flex items-center gap-2 mt-1">
                     <Input
                       type="number"
@@ -560,14 +547,13 @@ export default function AppSettingsPanel() {
                       min="0"
                       value={fridgeTempSettings.danger_buffer}
                       onChange={(e) => setFridgeTempSettings(p => ({ ...p, danger_buffer: parseFloat(e.target.value) || 0 }))}
-                      className="w-24 font-mono border-[#3a2e24] focus-visible:border-amber-500 focus-visible:ring-amber-500/30"
-                      style={{ backgroundColor: '#1a1410', color: '#ffffff' }}
+                      className="w-24 font-mono border-slate-300 bg-white text-slate-900 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-white focus-visible:border-amber-500 focus-visible:ring-amber-500/30"
                     />
-                    <span className="text-xs" style={{ color: '#a89b8f' }}>warning ± safe zone</span>
+                    <span className="text-xs text-slate-500 dark:text-[#a89b8f]">warning ± safe zone</span>
                   </div>
                 </div>
               </div>
-              <div className="rounded-lg border border-[#3a2e24] p-3 text-xs space-y-1" style={{ backgroundColor: '#1a1410', color: '#a89b8f' }}>
+              <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-xs space-y-1 text-slate-600 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-[#a89b8f]">
                 <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Safe: {fridgeTempSettings.safe_min}°C – {fridgeTempSettings.safe_max}°C</div>
                 <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" /> Warning: {+(fridgeTempSettings.safe_min - fridgeTempSettings.danger_buffer).toFixed(1)}°C – {fridgeTempSettings.safe_min}°C & {fridgeTempSettings.safe_max}°C – {+(fridgeTempSettings.safe_max + fridgeTempSettings.danger_buffer).toFixed(1)}°C</div>
                 <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Out of range: below {+(fridgeTempSettings.safe_min - fridgeTempSettings.danger_buffer).toFixed(1)}°C or above {+(fridgeTempSettings.safe_max + fridgeTempSettings.danger_buffer).toFixed(1)}°C</div>
@@ -576,8 +562,8 @@ export default function AppSettingsPanel() {
                 onClick={handleSaveFridgeTemp}
                 disabled={isSavingFridgeTemp}
                 size="sm"
-                className="w-full gap-2 border-0 font-semibold focus-visible:ring-amber-500/40"
-                style={{ backgroundColor: '#eecfa8', color: '#1a1410' }}
+                className="w-full gap-2 border-0 font-semibold bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-[#eecfa8] dark:text-[#1a1410] focus-visible:ring-amber-500/40"
+                style={{}}
               >
                 {isSavingFridgeTemp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 {isSavingFridgeTemp ? 'Saving…' : fridgeTempSaved ? '✓ Saved' : 'Save Temp Ranges'}
