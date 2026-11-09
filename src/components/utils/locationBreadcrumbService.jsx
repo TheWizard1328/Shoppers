@@ -541,6 +541,7 @@ export const flushMasterTrailNow = async (driverId, deliveryDate) => {
     const outageTsArr = Array.from(_outageTimestampsCache.get(cacheKey) || []);
     const offlineKey = getTodayOfflineKey(driverId, deliveryDate);
 
+    const { offlineDB } = await import('./offlineDatabase');
     const releaseLock = await acquireBreadcrumbSyncLock();
     try {
       await base44.functions.invoke('syncPendingBreadcrumbs', {

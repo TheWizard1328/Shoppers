@@ -348,6 +348,23 @@ export async function handleStartDelivery({
       skipServerWrite: true,
     });
     console.log('✅ [handleStartDelivery] Steps 5+6 complete — coordinator success:', coordResult?.success);
+    // START-ORDER DIAGNOSTIC (Nov 9 2026): owner report — pressing Start appears to
+    // move only the started stop to position 1 and leaves the rest untouched. Log
+    // the before/after order (and the engine's own sequencing decisions) so the
+    // next Start tells us whether the engine produced a new order that a stale
+    // writer then reverted, or whether the engine returned the old order.
+    try {
+      const _before = (mutatedDeliveries || [])
+        .filter((d) => d && !['completed', 'failed', 'cancelled'].includes(String(d.status || '')))
+        .sort((a, b) => (Number(a.stop_order) || 9999) - (Number(b.stop_order) || 9999))
+        .map((d) => `${d.stop_order}:${d.id}`);
+      const _after = (Array.isArray(coordResult?.optimizeData?.writeBatch) ? coordResult.optimizeData.writeBatch : [])
+        .filter((u) => u?.data && u.data.stop_order !== undefined)
+        .sort((a, b) => (Number(a.data.stop_order) || 9999) - (Number(b.data.stop_order) || 9999))
+        .map((u) => `${u.data.stop_order}:${u.id}`);
+      console.warn(`[StartOrder] source=start_delivery degraded=${!!coordResult?.isDegraded} sequenced=${_after.length} orderChanged=${JSON.stringify(_before) !== JSON.stringify(_after)} before=${_before.join(',')} after=${_after.join(',')}`);
+    } catch (_) { /* diagnostic only */ }
+
 
     if (coordResult?.isDegraded) {
       console.warn('⚠️ [handleStartDelivery] Route optimization degraded — HERE routing unavailable, used straight-line approximation', {
