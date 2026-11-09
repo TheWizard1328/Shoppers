@@ -67,7 +67,35 @@ const getFeePeriodForMonth = (store, year, month) => {
   return null;
 };
 
+// Nov 8 2026: the flex height chain alone kept letting these tables run past the
+// bottom edge (the shell height is not definite on every chrome mode), so measure
+// the card's real top edge and cap it to the viewport instead of guessing a calc().
+function useViewportFit() {
+  const ref = React.useRef(null);
+  const [maxH, setMaxH] = React.useState(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const compute = () => {
+      const top = el.getBoundingClientRect().top;
+      const pad = 12;
+      setMaxH(Math.max(220, Math.round(window.innerHeight - top - pad)));
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('orientationchange', compute);
+    const t = setTimeout(compute, 250);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('orientationchange', compute);
+      clearTimeout(t);
+    };
+  }, []);
+  return [ref, maxH];
+}
+
 export default function StoreMetricsPanel() {
+  const [cardRef, cardMaxH] = useViewportFit();
   const [metricsResponse, setMetricsResponse] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   // Nov 8 2026: this panel kept sending a null city, and the shared function now
@@ -407,7 +435,7 @@ export default function StoreMetricsPanel() {
         </Card>
       </div>
 
-      <Card className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <Card ref={cardRef} style={{ maxHeight: cardMaxH ? `${cardMaxH}px` : undefined }} className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <CardHeader className="px-3 py-2 flex flex-col space-y-1.5 shrink-0">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -463,7 +491,7 @@ export default function StoreMetricsPanel() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 overflow-hidden p-0">
+        <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
           {loadError &&
           <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
               Could not load store metrics: {loadError}

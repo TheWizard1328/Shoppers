@@ -45,9 +45,37 @@ const SEG_ON = 'bg-white text-slate-900 shadow-sm border border-slate-300 hover:
 const SEG_OFF = 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700';
 // 'default' Badge / stat chips resolve to a near-white primary surface in dark
 // mode, so the label vanished (owner report Nov 8 2026). Pinned emerald here.
+// Nov 8 2026: the flex height chain alone kept letting these tables run past the
+// bottom edge (the shell height is not definite on every chrome mode), so measure
+// the card's real top edge and cap it to the viewport instead of guessing a calc().
+function useViewportFit() {
+  const ref = React.useRef(null);
+  const [maxH, setMaxH] = React.useState(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const compute = () => {
+      const top = el.getBoundingClientRect().top;
+      const pad = 12;
+      setMaxH(Math.max(220, Math.round(window.innerHeight - top - pad)));
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('orientationchange', compute);
+    const t = setTimeout(compute, 250);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('orientationchange', compute);
+      clearTimeout(t);
+    };
+  }, []);
+  return [ref, maxH];
+}
+
 const BADGE_ON = 'bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white';
 
 export default function UserSettingsTable({ appUsers, mergedUsers }) {
+  const [cardRef, cardMaxH] = useViewportFit();
   // Same treatment as the App Users table: a 10-column table on a 390px phone is
   // horizontal-scroll soup, so phones get stacked cards (owner report Nov 6 2026).
   const { isMobile } = useDevice();
@@ -136,7 +164,7 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
   const displayedSettings = viewMode === 'cloud' ? userSettings : localUserSettings;
 
   return (
-    <Card className="flex flex-col flex-1 min-h-0 bg-surface border-surface">
+    <Card ref={cardRef} style={{ maxHeight: cardMaxH ? `${cardMaxH}px` : undefined }} className="flex flex-col flex-1 min-h-0 bg-surface border-surface">
       <CardHeader className="shrink-0">
         <CardTitle className="flex flex-col gap-3 text-body sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -154,7 +182,7 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
         </CardTitle>
         <CardDescription className="text-soft">View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 min-h-0 overflow-hidden">
+      <CardContent className="flex-1 min-h-0 overflow-hidden p-4">
         {isLoading ? (
           <div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-emerald-500 dark:text-emerald-400" /><span className="ml-2 text-label">Loading user settings...</span></div>
         ) : displayedSettings.length === 0 ? (
