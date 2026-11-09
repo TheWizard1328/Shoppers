@@ -1547,7 +1547,7 @@ export default function PolylineViewer({ users = [] }) {
       <div
         key={item.id}
         className={`p-3 border-b transition-colors cursor-pointer ${
-          isFocused ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-l-blue-500' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'
+          isFocused ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-l-blue-500 text-slate-900 dark:text-slate-100' : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'
         }`}
       >
         <div className="flex items-start gap-2">
@@ -1583,10 +1583,10 @@ export default function PolylineViewer({ users = [] }) {
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="font-medium text-sm truncate">{getDriverName(item.driver_id)}</span>
                 {isBreadcrumb && item.imported_from_delivery && !item.saved_to_route && (
-                  <Badge className="text-xs flex-shrink-0 ml-auto bg-purple-100 text-purple-700 border-0">↓ Imported</Badge>
+                  <Badge className="text-xs flex-shrink-0 ml-auto bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 border-0">↓ Imported</Badge>
                 )}
                 {isBreadcrumb && item.saved_to_route && (
-                  <Badge className="text-xs flex-shrink-0 ml-auto bg-green-600 text-slate-600 border-0">✓ Saved</Badge>
+                  <Badge className="text-xs flex-shrink-0 ml-auto bg-green-600 text-white border-0">✓ Saved</Badge>
                 )}
                 <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className={`text-xs flex-shrink-0 ${!item.saved_to_route && !item.imported_from_delivery ? 'ml-auto' : ''}`}>
                   {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
@@ -1620,9 +1620,9 @@ export default function PolylineViewer({ users = [] }) {
                         <span className="text-slate-500 dark:text-slate-400">📏 {distStr}</span>
                       </div>
                       {isFocused && (
-                        <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
                           {isCleaningMode && focusedItem?.id === item.id && (
-                            <span className="text-xs text-orange-700 font-medium mr-1">
+                            <span className="text-xs text-orange-700 dark:text-orange-300 font-medium mr-1">
                               {cleanedPoints.length} pts
                             </span>
                           )}
@@ -1630,7 +1630,7 @@ export default function PolylineViewer({ users = [] }) {
                             <button
                               title={`Undo last removal (${undoStack.length} steps)`}
                               onClick={e => { e.stopPropagation(); handleUndo(); }}
-                              className="p-1 rounded hover:bg-slate-200 text-slate-600 dark:text-slate-400 transition-colors"
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
                             >
                               <Undo2 className="w-3.5 h-3.5" />
                             </button>
@@ -1640,7 +1640,7 @@ export default function PolylineViewer({ users = [] }) {
                             <button
                               title="Edit crumb points manually"
                               onClick={e => { e.stopPropagation(); handleToggleCleaningMode(item); }}
-                              className="p-1 rounded hover:bg-orange-100 text-orange-600 transition-colors"
+                              className="p-1 rounded hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-600 dark:text-orange-400 transition-colors"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -1650,7 +1650,7 @@ export default function PolylineViewer({ users = [] }) {
                             <button
                               title={isBrushPickMode ? 'Cancel brush — back to point edit' : 'Brush: click map to remove points within 25 m'}
                               onClick={e => { e.stopPropagation(); handleToggleBrushMode(); }}
-                              className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 text-amber-700'}`}
+                              className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700'}`}
                             >
                               <Brush className="w-3.5 h-3.5" />
                             </button>
@@ -1661,7 +1661,7 @@ export default function PolylineViewer({ users = [] }) {
                               title="Save crumb polyline to delivery"
                               onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(item); }}
                               disabled={isSavingCrumb}
-                              className="p-1 rounded hover:bg-green-100 text-green-700 disabled:opacity-50 transition-colors"
+                              className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 disabled:opacity-50 transition-colors"
                             >
                               {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                             </button>
@@ -1681,7 +1681,7 @@ export default function PolylineViewer({ users = [] }) {
                                 title="Import Delivery polyline → Breadcrumb"
                                 onClick={e => { e.stopPropagation(); setPendingImportItem(item); }}
                                 disabled={isImportingCrumb}
-                                className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors"
+                                className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-400 disabled:opacity-50 transition-colors"
                               >
                                 {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                               </button>
@@ -1691,12 +1691,12 @@ export default function PolylineViewer({ users = [] }) {
                             snapPreview?.itemId === item.id ? (
                               // Preview mode — show Accept (✓) and Cancel (✗)
                               <>
-                                <span className="text-xs text-cyan-700 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
+                                <span className="text-xs text-cyan-700 dark:text-cyan-300 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
                                 <button
                                   title="Accept snapped route & save"
                                   onClick={e => { e.stopPropagation(); handleSnapAccept(); }}
                                   disabled={snapPreview.isSaving}
-                                  className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50 transition-colors ml-auto"
+                                  className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 dark:text-green-400 disabled:opacity-50 transition-colors ml-auto"
                                 >
                                   {snapPreview.isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                                 </button>
@@ -1744,7 +1744,7 @@ export default function PolylineViewer({ users = [] }) {
                                   title="Resegment all stops from master breadcrumb timeline"
                                   onClick={e => { e.stopPropagation(); handleResegment(item); }}
                                   disabled={isResegmenting || !!snapPreview || !!snapAnalysis}
-                                  className="p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors"
+                                  className="p-1 rounded hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-600 disabled:opacity-50 transition-colors"
                                 >
                                   {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
                                 </button>
@@ -1806,7 +1806,7 @@ export default function PolylineViewer({ users = [] }) {
       <div
         key={key}
         className={`p-3 border-b transition-colors cursor-pointer ${
-          isFocused ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-l-blue-500' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'
+          isFocused ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-l-blue-500 text-slate-900 dark:text-slate-100' : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'
         }`}
       >
         <div onClick={handleClick}>
@@ -1815,7 +1815,7 @@ export default function PolylineViewer({ users = [] }) {
             <div className="flex items-center gap-1 flex-shrink-0">
               {hasPoly && <Badge variant="outline" className="text-xs py-0 px-1.5">🗺 Poly</Badge>}
               {hasCrumb && (
-                <Badge variant="secondary" className={`text-xs py-0 px-1.5 ${crumb.saved_to_route ? 'bg-green-600 text-slate-600' : crumb.imported_from_delivery ? 'bg-purple-600 text-slate-600' : ''}`}>
+                <Badge variant="secondary" className={`text-xs py-0 px-1.5 ${crumb.saved_to_route ? 'bg-green-600 text-white' : crumb.imported_from_delivery ? 'bg-purple-600 text-white' : ''}`}>
                   {crumb.saved_to_route ? '✓ BC' : crumb.imported_from_delivery ? '↓ BC' : '🛤 BC'}
                 </Badge>
               )}
@@ -1827,7 +1827,7 @@ export default function PolylineViewer({ users = [] }) {
               {stop_order != null && <span className="text-slate-500 dark:text-slate-400">Stop #{stop_order}</span>}
             </div>
             {hasPoly && delivery && (delivery.estimated_distance_km || delivery.estimated_duration_minutes) && (
-              <div className="flex items-center justify-between gap-2 text-blue-700">
+              <div className="flex items-center justify-between gap-2 text-blue-700 dark:text-blue-300">
                 <span>🕒 {delivery.estimated_duration_minutes?.toFixed(0) || '?'} min</span>
                 <span>📏 {delivery.estimated_distance_km?.toFixed(2) || '?'} km (planned)</span>
               </div>
@@ -1843,17 +1843,17 @@ export default function PolylineViewer({ users = [] }) {
 
         {/* Breadcrumb editing buttons — only when this group is focused and has a crumb */}
         {isFocused && crumb && (
-          <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
             {isEditingCrumb && (
-              <span className="text-xs text-orange-700 font-medium mr-1">{cleanedPoints.length} pts</span>
+              <span className="text-xs text-orange-700 dark:text-orange-300 font-medium mr-1">{cleanedPoints.length} pts</span>
             )}
             {isEditingCrumb && undoStack.length > 0 && (
-              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 text-slate-600 dark:text-slate-400 transition-colors">
+              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors">
                 <Undo2 className="w-3.5 h-3.5" />
               </button>
             )}
             {!isEditingCrumb && (
-              <button title="Edit crumb points manually" onClick={e => { e.stopPropagation(); handleToggleCleaningMode(crumb); setFocusedGroup(group); }} className="p-1 rounded hover:bg-orange-100 text-orange-600 transition-colors">
+              <button title="Edit crumb points manually" onClick={e => { e.stopPropagation(); handleToggleCleaningMode(crumb); setFocusedGroup(group); }} className="p-1 rounded hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-600 dark:text-orange-400 transition-colors">
                 <Pencil className="w-3.5 h-3.5" />
               </button>
             )}
@@ -1861,12 +1861,12 @@ export default function PolylineViewer({ users = [] }) {
               <button
                 title={isBrushPickMode ? 'Cancel brush' : 'Brush: click map to remove nearby points'}
                 onClick={e => { e.stopPropagation(); handleToggleBrushMode(); }}
-                className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 text-amber-700'}`}
+                className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700'}`}
               >
                 <Brush className="w-3.5 h-3.5" />
               </button>
             )}
-            <button title="Save crumb polyline to delivery" onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(crumb); }} disabled={isSavingCrumb} className="p-1 rounded hover:bg-green-100 text-green-700 disabled:opacity-50 transition-colors">
+            <button title="Save crumb polyline to delivery" onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(crumb); }} disabled={isSavingCrumb} className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 disabled:opacity-50 transition-colors">
               {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             </button>
             {!isEditingCrumb && (
@@ -1879,7 +1879,7 @@ export default function PolylineViewer({ users = [] }) {
                   isImporting={isImportingCrumb}
                 />
               ) : (
-                <button title="Import Delivery polyline → Breadcrumb" onClick={e => { e.stopPropagation(); setPendingImportItem(crumb); }} disabled={isImportingCrumb} className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors">
+                <button title="Import Delivery polyline → Breadcrumb" onClick={e => { e.stopPropagation(); setPendingImportItem(crumb); }} disabled={isImportingCrumb} className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-400 disabled:opacity-50 transition-colors">
                   {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                 </button>
               )
@@ -1887,8 +1887,8 @@ export default function PolylineViewer({ users = [] }) {
             {crumb.stop_order === -1 && (
               snapPreview?.itemId === crumb.id ? (
                 <>
-                  <span className="text-xs text-cyan-700 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
-                  <button title="Accept snapped route & save" onClick={e => { e.stopPropagation(); handleSnapAccept(); }} disabled={snapPreview.isSaving} className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50 transition-colors ml-auto">
+                  <span className="text-xs text-cyan-700 dark:text-cyan-300 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
+                  <button title="Accept snapped route & save" onClick={e => { e.stopPropagation(); handleSnapAccept(); }} disabled={snapPreview.isSaving} className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 dark:text-green-400 disabled:opacity-50 transition-colors ml-auto">
                     {snapPreview.isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   </button>
                   <button title="Cancel preview" onClick={e => { e.stopPropagation(); handleSnapCancel(); }} disabled={snapPreview.isSaving} className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 disabled:opacity-50 transition-colors">
@@ -1909,7 +1909,7 @@ export default function PolylineViewer({ users = [] }) {
                   <button title="Analyze gaps & snap master timeline" onClick={e => { e.stopPropagation(); handleSnapAnalyze(crumb); }} disabled={isAnalyzing || isSnappingMaster || !!snapPreview || !!snapAnalysis} className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto">
                     {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
                   </button>
-                  <button title="Resegment all stops from master breadcrumb" onClick={e => { e.stopPropagation(); handleResegment(crumb); }} disabled={isResegmenting || !!snapPreview || !!snapAnalysis} className="p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors">
+                  <button title="Resegment all stops from master breadcrumb" onClick={e => { e.stopPropagation(); handleResegment(crumb); }} disabled={isResegmenting || !!snapPreview || !!snapAnalysis} className="p-1 rounded hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-600 disabled:opacity-50 transition-colors">
                     {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
                   </button>
                 </>
@@ -2175,7 +2175,7 @@ const DATE_INPUT_CLS = 'bg-white text-slate-900 border-slate-300 dark:bg-slate-8
                         onCheckedChange={handleSelectFewCrumbs}
                         className="border-amber-400 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                       />
-                      <span className="text-xs text-amber-700 font-medium whitespace-nowrap">&lt; 5 crumbs ({fewCrumbItems.length})</span>
+                      <span className="text-xs text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">&lt; 5 crumbs ({fewCrumbItems.length})</span>
                     </label>
                   )}
                 </div>
