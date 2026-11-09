@@ -1627,10 +1627,27 @@ export default function DeliveryForm({
       const stagedItems = pendingDeliveries.length
         ? mapPendingDeliveriesToStaged({ pendingDeliveries, patients, stores, allDeliveries: pool, calculateDistance })
         : [];
+      // OWNER REPORT (Nov 8 2026): a projected patient added with the + icon (or a
+      // patient added through the search field) flashed in then vanished while the
+      // info side still showed it. This loader replaces the whole list from the
+      // pending pool, and unsaved rows are not in that pool, so every pool refresh
+      // wiped them. Unsaved rows (no server id) are now carried across every reload.
+      const mergeUnsaved = (prev) => {
+        // Only rows that still belong to THIS form's date/driver are carried over,
+        // so switching date or driver never drags a stale unsaved row along.
+        const unsaved = (prev || []).filter((it) => it && !it.id
+          && (!it.delivery_date || it.delivery_date === formDate)
+          && (!formDriverId || !it.driver_id || it.driver_id === formDriverId));
+        if (!unsaved.length) return stagedItems;
+        const poolIds = new Set(stagedItems.map((it) => String(it.id || '')).filter(Boolean));
+        const kept = unsaved.filter((it) => !(it.id && poolIds.has(String(it.id))));
+        const keptPatientIds = new Set(kept.map((it) => String(it.patient_id || '')).filter(Boolean));
+        return [...kept, ...stagedItems.filter((it) => !keptPatientIds.has(String(it.patient_id || '')))];
+      };
       const sig = stagedItems.map((it) => `${it.id || it._tempId}`).sort().join(',');
       if (sig === stagedSigRef.current) return; // identical set, do not repaint (kills the flicker)
       stagedSigRef.current = sig;
-      setStagedDeliveries(stagedItems);
+      setStagedDeliveries((prev) => mergeUnsaved(prev));
       setHasChanges(false);
       // A later effect can still clear the list right after this write (owner saw the
       // future rows appear and then vanish as the form finished loading). Re-assert the
@@ -1638,7 +1655,7 @@ export default function DeliveryForm({
       if (stagedItems.length) {
         setTimeout(() => {
           if (cancelled) return;
-          setStagedDeliveries((prev) => (prev.length === 0 ? stagedItems : prev));
+          setStagedDeliveries((prev) => (prev.length === 0 ? mergeUnsaved(prev) : prev));
         }, 500);
       }
     })();
