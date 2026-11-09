@@ -229,6 +229,22 @@ export const getDeliveryCoords = (delivery, patientMap, storeMap) => {
 // really is later by more than the 30-minute window sway the planner is allowed
 // to trade — the Nov 4 case (a 5:00 PM stop ahead of a 2:00 PM one) is still
 // corrected, a boundary artifact never is.
+// ── WINDOW TIE SNAPPING (owner report Nov 9 2026) ──────────────────────────
+// "Accepted four Londonderry stops and the far one got placed mid-route, then we
+// drove back." Cause: each accepted stop inherits its pickup's start + 5 min, so
+// siblings landed at 17:00 / 17:02 / 17:02 / 17:02 minutes and HERE treated the
+// 2-minute ladder as a real constraint, breaking geography for a difference no
+// patient asked for. Windows are now snapped DOWN to a 15-minute grid before they
+// reach the engine, so stops minutes apart tie and road geometry decides. A real
+// appointment (e.g. 09:39 promise) still keeps its order, and the 30-minute
+// band guard above still corrects a genuine ladder violation.
+const WINDOW_SNAP_MIN = 15;
+const snapWindow = (value) => {
+  if (value === null || value === undefined || value === '') return value;
+  const m = parseTimeToMinutes(value);
+  if (!Number.isFinite(m)) return value;
+  return formatMinutesToTime(Math.floor(m / WINDOW_SNAP_MIN) * WINDOW_SNAP_MIN);
+};
 const WINDOW_BAND_GRACE_MIN = 30;
 const enforceWindowBands = (stops, nowMin) => {
   if (!Array.isArray(stops) || stops.length < 2) return stops;
@@ -585,8 +601,8 @@ let _inheritedWindowCount = 0;
   const stops = optimizableDeliveries.map(delivery => {
     const coords = getDeliveryCoords(delivery, patientMap, storeMap);
     const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-    let windowStart = getEffectiveWindowStart(delivery, patient);
-    let windowEnd = getEffectiveWindowEnd(delivery, patient);
+    let windowStart = snapWindow(getEffectiveWindowStart(delivery, patient));
+    let windowEnd = snapWindow(getEffectiveWindowEnd(delivery, patient));
 
     // ── PICKUP-WINDOW INHERITANCE (today/shared path) ─────────────────────
     // Applies ONLY to deliveries with NO window of their own (no patient window,

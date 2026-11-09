@@ -381,6 +381,30 @@ Deno.serve(async (req) => {
     });
     if (!sourcePatient) return Response.json({ error: 'Patient not found' }, { status: 404 });
 
+    // GPS CHANGE LOG (owner spec Nov 9 2026): the backend used to move patient
+    // coordinates with no audit row at all, so a server-driven move was invisible.
+    try {
+      await base44.asServiceRole.entities.PatientGPSLog.create({
+        patient_id: patientId,
+        patient_name: sourcePatient.full_name || '',
+        patient_address: sourcePatient.address || '',
+        store_id: sourcePatient.store_id || storeId || '',
+        is_source_patient: true,
+        old_latitude: Number(sourcePatient.latitude),
+        old_longitude: Number(sourcePatient.longitude),
+        new_latitude: Number(newLatitude),
+        new_longitude: Number(newLongitude),
+        updated_by_user_name: 'backend',
+        updated_by_user_id: '',
+        normalized_address: sourcePatient.address || '',
+        related_patients_updated_count: 0,
+        matched_patient_ids: [],
+        change_source: 'user',
+        change_action: 'matching_gps_backend',
+        caller: 'updateMatchingPatientGPS/entry.ts',
+      });
+    } catch (_) { /* audit must never block the write */ }
+
     await base44.asServiceRole.entities.Patient.update(patientId, { latitude: newLatitude, longitude: newLongitude });
 
     return Response.json({ success: true, action: 'direct', updatedCount: 1 });
