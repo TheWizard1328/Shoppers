@@ -390,12 +390,20 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     });
     applyTimes(optimizedRoute);
 
+    // AM/PM: a pickup's own designation wins; a delivery's explicit slot is NEVER
+    // overwritten (owner report Nov 9 2026 — the old map took the last pickup per
+    // store and rewrote every delivery from it, so an AM choice saved as PM).
     const storeAMPMMap = {};
     for (const stop of optimizedRoute) {
-      if (stop && !stop.patient_id && !stop.is_cycling_marker && stop.delivery_time_start) storeAMPMMap[stop.store_id] = determineAMPMFromTime(stop.delivery_time_start);
+      if (stop && !stop.patient_id && !stop.is_cycling_marker && stop.ampm_deliveries) {
+        if (!storeAMPMMap[stop.store_id]) storeAMPMMap[stop.store_id] = stop.ampm_deliveries;
+      }
     }
     for (const stop of optimizedRoute) {
-      if (stop && !stop.is_cycling_marker) stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
+      if (!stop || stop.is_cycling_marker) continue;
+      if (!stop.ampm_deliveries) {
+        stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
+      }
     }
 
     let pickupTRCounter = 0;
