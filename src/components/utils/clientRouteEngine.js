@@ -1406,26 +1406,34 @@ let _inheritedWindowCount = 0;
     // writeBatch → atomic commit.
     try {
       const _clearedViaIds = [];
+      let _keptInHandVia = null;
       for (const rs of routeStops) {
         const d = rs?.delivery;
         if (!d || d.isNextDelivery) continue; // next keeps its waypoints
         if (d.is_cycling_marker) continue; // cycling markers carry no vias
-        // OWNER REPORT (Nov 9 2026): accepting stops redrew the leg from the last
-        // stop to the Beverly pickup straight along the road and lost the recorded
-        // deviation. Cause: this clear ran while the in-hand stop was momentarily
-        // NOT flagged isNextDelivery, so its driven path was wiped for good.
-        // A stop already in hand (en_route / in_transit) keeps its vias — they are
-        // the actual road the driver took. Only PENDING stops are cleared here;
-        // terminal stops keep history, and real moves are cleared centrally by
-        // applyMoveReset (date/driver change) as before.
-        if (!['pending'].includes(String(d?.status || ''))) continue;
+        // OWNER MODEL (Nov 9 2026): deviation points exist ONLY on finished stops
+        // and on the stop the driver is travelling to. Finished stops keep history;
+        // PENDING stops must never carry vias (nobody has driven to them yet), and a
+        // second in-hand stop cannot own the current leg either.
+        //
+        // The Beverly bug: this clear ran while the in-hand stop was momentarily NOT
+        // flagged isNextDelivery (the flag is only re-decided further down this same
+        // run), so the driven path was wiped for good. An en_route / in_transit stop
+        // IS the current target by definition, so the one such stop keeps its vias.
+        const _status = String(d?.status || '').toLowerCase();
+        const _inHand = _status === 'in_transit' || _status === 'en_route';
+        if (_inHand && !_keptInHandVia) {
+          _keptInHandVia = String(d.id);
+          continue; // the stop being travelled keeps the road actually taken
+        }
         if (!Array.isArray(d.deviation_waypoints) || d.deviation_waypoints.length === 0) continue;
         d.deviation_waypoints = [];
         deviationTransferChanges.set(String(d.id), []);
         _clearedViaIds.push(String(d.id));
       }
+      if (_keptInHandVia) console.log(`[clientRouteEngine] ${source} — kept deviation_waypoints on in-hand stop ${_keptInHandVia} (current leg)`);
       if (_clearedViaIds.length) {
-        console.log(`[clientRouteEngine] ${source} — pre-generation clear: emptied deviation_waypoints on ${_clearedViaIds.length} active non-next stop(s)`);
+        console.log(`[clientRouteEngine] ${source} — pre-generation clear: emptied deviation_waypoints on ${_clearedViaIds.length} future/extra stop(s)`);
       }
     } catch (_viaClearErr) {
       console.warn('[clientRouteEngine] pre-generation via clear skipped (non-fatal):', _viaClearErr?.message || _viaClearErr);
