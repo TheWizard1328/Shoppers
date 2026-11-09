@@ -16,6 +16,7 @@ import { patientMatchesSearch } from '@/components/utils/careProSearchHelper';
 
 import { ResizableColumnHeader, ColumnVisibilityControl } from './AdminTableControls';
 import { useDevice } from '@/components/utils/DeviceContext';
+import useViewportFillHeight from '@/components/utils/useViewportFillHeight';
 
 const parseFlexibleDate = (dateString) => {
   if (!dateString || typeof dateString !== 'string') return null;
@@ -282,6 +283,8 @@ export const PatientDataTable = ({
 // ── StoreDataTable ────────────────────────────────────────────────────────────
 export const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('stores');
+  // Fill from the grid's top edge to the bottom of the page (owner request Nov 8 2026).
+  const [scrollRef, gridMaxHeight] = useViewportFillHeight({ deps: [(stores || []).length, isLoadingData] });
   const [columnWidths, setColumnWidths] = useState(() => {
     const saved = localStorage.getItem('admin_store_column_widths');
     return saved ? JSON.parse(saved) : { checkbox: 50, id: 120, name: 200, abbreviation: 100, address: 300, phone: 140, city: 120, actions: 150 };
@@ -308,7 +311,7 @@ export const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isL
       </CardHeader>
       <CardContent>
         <div className="border rounded-md overflow-hidden border-surface">
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <div ref={scrollRef} className="overflow-x-auto overflow-y-auto" style={{ maxHeight: `${gridMaxHeight}px` }}>
             <table className="w-full text-sm table-fixed">
               <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
                 <tr>
