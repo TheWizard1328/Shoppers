@@ -23,9 +23,14 @@ export const resolvePatientDriverAssignment = ({
 
   const selectedDate = new Date(`${deliveryDate}T00:00:00`);
   const dayOfWeek = selectedDate.getDay();
+  // OWNER REPORT (Nov 8 2026): every new patient was landing on the PM pickup even
+  // when the store only runs AM, or runs both and AM is still open. The patient's own
+  // time window was outranking the store. The pickup a new stop attaches to is a
+  // STORE decision: AM while the AM pickup is still available, PM only when AM is
+  // gone/completed or the store has no AM assignment at all.
   const deliveryAMPM =
-    determineDeliveryAMPM(patient) ||
     getStoreAssignedTimeSlot(patientStore, deliveryDate, allDeliveries) ||
+    determineDeliveryAMPM(patient) ||
     'AM';
 
   // Priority 1: Driver who already has a store pickup for this store on this date/slot

@@ -284,14 +284,25 @@ export const handleBatchSaveDelivery = async ({
       if (!stop) continue;
 
       if (stop.patient_id !== null) {
-        // Find the corresponding pickup for this store
-        const correspondingPickup = optimizedRoute.find((p) =>
-        p && !p.patient_id && p.store_id === stop.store_id
-        );
+        // OWNER REPORT (Nov 8 2026): an AM <-> PM pickup change made on the edit form
+        // was silently reverted because this pass grabbed the FIRST pickup for the
+        // store, ignoring the slot just chosen. Match the stop's own pickup first
+        // (puid), then the pickup for its chosen slot, and only then fall back.
+        const storePickups = optimizedRoute.filter((p) => p && !p.patient_id && p.store_id === stop.store_id);
+        const correspondingPickup =
+          (stop.puid ? storePickups.find((p) => (p.stop_id || p.puid) === stop.puid) : null) ||
+          (stop.ampm_deliveries ? storePickups.find((p) => (p.ampm_deliveries || 'AM') === stop.ampm_deliveries) : null) ||
+          storePickups[0];
 
         if (correspondingPickup && correspondingPickup.ampm_deliveries) {
-          // CRITICAL: Use pickup's AM/PM designation, not delivery's own time
-          stop.ampm_deliveries = correspondingPickup.ampm_deliveries;
+          // Use the pickup's AM/PM designation, not the delivery's own time - but never
+          // clobber a slot the user picked when we only fell back to an unrelated pickup.
+          const matchedByChoice =
+            (stop.puid && (correspondingPickup.stop_id || correspondingPickup.puid) === stop.puid) ||
+            (!stop.ampm_deliveries || (correspondingPickup.ampm_deliveries || 'AM') === stop.ampm_deliveries);
+          if (matchedByChoice || !stop.ampm_deliveries) {
+            stop.ampm_deliveries = correspondingPickup.ampm_deliveries;
+          }
           if (!stop.puid && correspondingPickup.stop_id) {
             stop.puid = correspondingPickup.stop_id;
           }
