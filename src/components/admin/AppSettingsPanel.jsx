@@ -466,7 +466,7 @@ export default function AppSettingsPanel() {
                   <div>
                     <div className="mb-1.5">
                       <Label htmlFor="winter_cold_min" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
-                        Cold Warning — Min / Enable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_min_c}</span>
+                        Cold Warning - Min/Enable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_min_c}</span>
                       </Label>
                     </div>
                     <Input
@@ -482,7 +482,7 @@ export default function AppSettingsPanel() {
                   <div>
                     <div className="mb-1.5">
                       <Label htmlFor="winter_cold_max" className="text-xs font-medium block" style={{ color: '#d6cfc7' }}>
-                        Cold Warning — Max / Disable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_max_c}</span>
+                        Cold Warning - Max/Disable (°C)<span className="block text-[10px] font-normal text-blue-300/80">Default: {DEFAULT_WINTER.cold_threshold_max_c}</span>
                       </Label>
                     </div>
                     <Input
