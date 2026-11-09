@@ -110,7 +110,19 @@ class DriverLocationPoller {
      // is authoritative and only valid records get re-synced.
      const junkIds = (appUsers || []).filter(u => !(u && u.id && u.user_id && u.user_id !== 'undefined' && u.user_name && u.user_name !== 'undefined')).map(u => u?.id).filter(Boolean);
      const rejected = (appUsers?.length || 0) - usersData.length;
-     console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (missing user_id/user_name)`);
+     // SPAM FIX (owner report Nov 9 2026): londonderry.shoppers logged this line
+     // every single minute for hours. Only warn when the shape of the rejection
+     // actually changes (count + which records), so a device stuck with the same
+     // junk rows stops filling the remote log while a NEW problem still shows up.
+     try {
+       const sig = `${rejected}:${(appUsers || []).map((u) => (u && (u.user_id || '-')) || '∅').join('|')}`;
+       if (window.__junkAppUserWarnSig !== sig) {
+         window.__junkAppUserWarnSig = sig;
+         console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (missing user_id/user_name)`);
+       }
+     } catch (_) {
+       console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (missing user_id/user_name)`);
+     }
      // PERF (Oct 22 2026, owner report: 5s+ map gesture stalls): the local
      // app_users IDB store carries THOUSANDS of junk rows (missing
      // user_id/user_name). APP_USERS is a PHI store — every full-store read
