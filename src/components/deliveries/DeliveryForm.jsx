@@ -1523,7 +1523,9 @@ export default function DeliveryForm({
               ...transferTarget,
               stores,
               patients,
-              recalcTrackingNumbers: true,
+              // OWNER RULE (Nov 9 2026): a transferred delivery KEEPS its TR#
+              // and neither route gets renumbered. Only the ORDER changes.
+              recalcTrackingNumbers: false,
               source: 'transfer_new_route',
             });
           } catch (err) {

@@ -129,7 +129,7 @@ async function ensureOneNextFlag(route) {
  * @param {string} params.deliveryDate    - target date (YYYY-MM-DD)
  * @param {Array}  [params.stores]        - needed so TR# pickup bases resolve
  * @param {Array}  [params.patients]
- * @param {boolean} [params.recalcTrackingNumbers=true]
+ * @param {boolean} [params.recalcTrackingNumbers=false]  (owner rule Nov 9 2026: transfers never renumber)
  * @param {string} [params.source]
  */
 export async function optimizeTransferredStopRoute({
@@ -138,7 +138,7 @@ export async function optimizeTransferredStopRoute({
   deliveryDate,
   stores = null,
   patients = null,
-  recalcTrackingNumbers = true,
+  recalcTrackingNumbers = false,
   source = 'transferred_stop',
 } = {}) {
   if (!driverId || !deliveryDate) return { success: false, error: 'missing target route' };

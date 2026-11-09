@@ -141,40 +141,19 @@ export async function resolveTransferPlacement({
   const storesById = new Map((stores || []).filter((s) => s?.id).map((s) => [String(s.id), s]));
   const dayKey = `${String(targetDriverId)}::${nextDate}`;
 
-  // ── 1. the day's pickup skeleton (created first when the day is empty) ──────
-  let pickups = null;
-  let createdPickups = [];
-  if (cache && cache.has(dayKey)) {
-    const cached = cache.get(dayKey);
-    pickups = cached.pickups || [];
-    createdPickups = cached.createdPickups || [];
-  } else {
-    pickups = pickupsForDay(allDeliveries, nextDate, targetDriverId);
-    if (!pickups.length) {
-      createdPickups = await createDefaultPickups({ stores, targetDate: nextDate, targetDriverId, targetDriverName });
-      const working = createdPickups.length ? allDeliveries.concat(createdPickups) : allDeliveries;
-      pickups = pickupsForDay(working, nextDate, targetDriverId);
-    }
-    if (cache) cache.set(dayKey, { pickups, createdPickups });
-  }
-  if (!pickups.length) return null;
+  // ── 1. NO pickup skeleton, NO pickup creation (owner rule Nov 9 2026) ──────
+  // "For transferring to another driver's route there will never be a pickup for
+  // that driver for that transferred stop, and there shouldn't be a pickup
+  // created, because the delivery has already been picked up." The old code
+  // built the target driver's pickup skeleton and even created default pickups
+  // for an empty day; a transferred stop must never depend on that.
+  const skeleton = [];
 
-  const skeleton = pickups.map((p, i) => ({
-    stopId: p.stop_id || p.puid || p.id || null,
-    start: p.delivery_time_start || '',
-    lat: coordsOf(p, storesById)?.lat,
-    lng: coordsOf(p, storesById)?.lng,
-    store_id: p.store_id,
-    order: Number(p.stop_order) || i + 1,
-  })).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
-
-  // ── 2. PUID — date change re-points at the patient's store pickup ──────────
-  let nextPuid = null;
-  if (dateChanged) {
-    const sameStore = pickups.find((p) => String(p.store_id || '') === String(delivery.store_id || ''));
-    const fallback = sameStore || pickups[0];
-    nextPuid = fallback?.stop_id || fallback?.puid || null;
-  }
+  // ── 2. PUID never changes (owner rule Nov 9 2026) ─────────────────────────
+  // The delivery was already collected, so it keeps the pickup it was collected
+  // on. Re-pointing it at the receiving driver's store pickup stranded the stop
+  // under a pickup that does not exist on their route.
+  const nextPuid = null;
 
   // ── 3. route origin: home before duty, last-reached stop once running ──────
   const dayStops = (allDeliveries || []).filter((d) => d
@@ -191,8 +170,16 @@ export async function resolveTransferPlacement({
   const point = coordsOf({ ...delivery, latitude: delivery.latitude ?? patient?.latitude, longitude: delivery.longitude ?? patient?.longitude }, storesById);
   if (!point) return null;
 
-  // ── 5. start time from the shared corridor rule ────────────────────────────
-  const placement = resolveTransferStart({ point, origin, skeleton, options });
+  // ── 5. start time (owner rule Nov 9 2026) ──────────────────────────────────
+  // Already in the past → leave it exactly as it is (a collected stop must not
+  // look freshly scheduled). Otherwise → transfer time + 5 minutes.
+  const existingStart = String(delivery.delivery_time_start || '').slice(0, 16);
+  const existingMs = existingStart ? new Date(existingStart.replace(' ', 'T')).getTime() : NaN;
+  const placement = { startTime: existingStart };
+  if (!Number.isFinite(existingMs) || existingMs > Date.now()) {
+    const bumped = new Date(Date.now() + 5 * 60 * 1000);
+    placement.startTime = `${String(bumped.getHours()).padStart(2, '0')}:${String(bumped.getMinutes()).padStart(2, '0')}`;
+  }
 
   // Two stops moved to the same day must not share a clock minute.
   let startTime = placement.startTime || '';
