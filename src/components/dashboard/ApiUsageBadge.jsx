@@ -72,8 +72,22 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   }, [currentUser?.id]);
 
   const fetchCounts = async (attempt = 0) => {
-    if (attempt === 0 && secondaryRef.current && Date.now() - lastFetchAtRef.current < 3600_000) {
-      return; // hourly cap on secondary instances
+    // IDB FIRST (owner spec Nov 9 2026): a device only asks the server when its
+    // own cached copy is 5+ minutes old. The old secondary-instance hourly cap is
+    // gone — it could not stop the first fetch of a load, which is exactly the
+    // call that fed the 429 bursts on the editor instance.
+    if (attempt === 0) {
+      const cached = await readApiCounts();
+      if (!needsServerRefresh(cached)) {
+        if (cached.hasData) {
+          setGoogleCount(cached.google);
+          setHereRoutingCount(cached.hereRouting);
+          setHereTileCount(cached.hereTiles);
+          countsMissingRef.current = false;
+        }
+        lastFetchAtRef.current = cached.fetchedAt || 0;
+        return;
+      }
     }
     try {
       const { startISO, endISO } = getDayBoundsISO();
@@ -92,11 +106,16 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
       const activeKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
       setSelectedApiKey(activeKey);
+      const google = sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'google');
+      const hereRouting = sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_routing');
+      const hereTiles = sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_tiles');
       lastFetchAtRef.current = Date.now();
-      setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'google'));
-      setHereRoutingCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_routing'));
-      setHereTileCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_tiles'));
+      setGoogleCount(google);
+      setHereRoutingCount(hereRouting);
+      setHereTileCount(hereTiles);
       countsMissingRef.current = false;
+      // Mirror to IDB so the next load / page switch paints without the network.
+      writeApiCounts({ google, hereRouting, hereTiles }).catch(() => {});
     } catch (err) {
       const msg = String(err?.message || err);
       const status = Number(err?.status || err?.response?.status || 0);
@@ -114,6 +133,28 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       }
     }
   };
+
+  // IDB PAINT (owner spec Nov 9 2026): on load, on a dashboard remount and on a
+  // page switch the badge shows the cached counts immediately — no "..." and no
+  // network. A server pull only happens when the cached copy is 5+ minutes old.
+  useEffect(() => {
+    if (!currentUser || !isOwner) return undefined;
+    let alive = true;
+    (async () => {
+      const cached = await readApiCounts();
+      if (!alive) return;
+      if (cached.hasData) {
+        setGoogleCount(cached.google);
+        setHereRoutingCount(cached.hereRouting);
+        setHereTileCount(cached.hereTiles);
+        countsMissingRef.current = false;
+        lastFetchAtRef.current = cached.fetchedAt || 0;
+      }
+      if (needsServerRefresh(cached)) fetchCounts(0);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, isOwner]);
 
   useEffect(() => {
     if (!currentUser || !isOwner) return undefined;
@@ -164,6 +205,9 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       if (category === 'google') setGoogleCount((prev) => (prev ?? 0) + count);else
       if (category === 'here_routing') setHereRoutingCount((prev) => (prev ?? 0) + count);else
       if (category === 'here_tiles') setHereTileCount((prev) => (prev ?? 0) + count);
+      // Persist the broadcast increment too, so a later load paints from IDB with
+      // the numbers this device already saw over the socket.
+      bumpApiCounts(category, count).catch(() => {});
     };
 
     window.addEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
@@ -185,7 +229,17 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   // only while values are missing.
   useEffect(() => {
     const retryIfMissing = () => {
-      if (countsMissingRef.current) fetchCounts(0);
+      if (document.visibilityState === 'hidden') return;
+      (async () => {
+        const cached = await readApiCounts();
+        if (cached.hasData) {
+          setGoogleCount(cached.google);
+          setHereRoutingCount(cached.hereRouting);
+          setHereTileCount(cached.hereTiles);
+          countsMissingRef.current = false;
+        }
+        if (needsServerRefresh(cached)) fetchCounts(0);
+      })();
     };
     window.addEventListener('focus', retryIfMissing);
     document.addEventListener('visibilitychange', retryIfMissing);
