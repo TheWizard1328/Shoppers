@@ -43,6 +43,9 @@ const useColumnVisibility = () => {
 // Viewer). Explicit per-theme classes instead.
 const SEG_ON = 'bg-white text-slate-900 shadow-sm border border-slate-300 hover:bg-white dark:bg-slate-600 dark:text-white dark:border-slate-500 dark:hover:bg-slate-600';
 const SEG_OFF = 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700';
+// 'default' Badge / stat chips resolve to a near-white primary surface in dark
+// mode, so the label vanished (owner report Nov 8 2026). Pinned emerald here.
+const BADGE_ON = 'bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white';
 
 export default function UserSettingsTable({ appUsers, mergedUsers }) {
   // Same treatment as the App Users table: a 10-column table on a 390px phone is
@@ -133,13 +136,13 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
   const displayedSettings = viewMode === 'cloud' ? userSettings : localUserSettings;
 
   return (
-    <Card className="bg-surface border-surface">
-      <CardHeader>
+    <Card className="flex flex-col flex-1 min-h-0 bg-surface border-surface">
+      <CardHeader className="shrink-0">
         <CardTitle className="flex flex-col gap-3 text-body sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Settings className="w-5 h-5 shrink-0" />
             <span className="truncate">User Settings</span>
-            <Badge variant={viewMode === 'cloud' ? 'default' : 'secondary'}>
+            <Badge variant="secondary" className={viewMode === 'cloud' ? BADGE_ON : ''}>
               {viewMode === 'cloud' ? 'Cloud' : 'Local'} ({displayedSettings.length})
             </Badge>
           </div>
@@ -151,13 +154,13 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
         </CardTitle>
         <CardDescription className="text-soft">View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 min-h-0 overflow-hidden">
         {isLoading ? (
           <div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-emerald-500 dark:text-emerald-400" /><span className="ml-2 text-label">Loading user settings...</span></div>
         ) : displayedSettings.length === 0 ? (
           <div className="text-center py-8 text-soft">No {viewMode} user settings found.</div>
         ) : isMobile ? (
-          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+          <div className="space-y-2 h-full overflow-y-auto">
             {[...displayedSettings].sort((a, b) => {
               const aUpdated = a.updated ? new Date(a.updated).getTime() : 0;
               const bUpdated = b.updated ? new Date(b.updated).getTime() : 0;
@@ -176,9 +179,9 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
                     </Button>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    <Badge variant={setting.device_type === 'Mobile' ? 'default' : 'secondary'}>{setting.device_type || 'Unknown'}</Badge>
+                    <Badge variant="secondary" className={setting.device_type === 'Mobile' ? BADGE_ON : ''}>{setting.device_type || 'Unknown'}</Badge>
                     <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
-                    <Badge variant={setting.show_all_driver_markers ? 'default' : 'secondary'}>
+                    <Badge variant="secondary" className={setting.show_all_driver_markers ? BADGE_ON : ''}>
                       {setting.show_all_driver_markers ? 'All markers' : 'Selected only'}
                     </Badge>
                   </div>
@@ -192,10 +195,10 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
             })}
           </div>
         ) : (
-          <div className="border rounded-md overflow-hidden border-surface">
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <div className="h-full border rounded-md overflow-hidden border-surface">
+            <div className="h-full overflow-x-auto overflow-y-auto">
               <table className="w-full text-sm table-fixed">
-                <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
+                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800">
                   <tr>
                     {visibleColumns.includes('user_name') && <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}><span className="font-semibold">User</span></ResizableColumnHeader>}
                     {visibleColumns.includes('device_type') && <ResizableColumnHeader width={columnWidths.device_type} onResize={(w) => updateColumnWidth('device_type', w)}><span className="font-semibold">Device Type</span></ResizableColumnHeader>}

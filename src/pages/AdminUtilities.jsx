@@ -1919,7 +1919,7 @@ export default function AdminUtilities() {
             <StoreMetricsPanel />
           </TabsContent>
 
-          <TabsContent value="user-settings" className="space-y-4">
+          <TabsContent value="user-settings" className="mt-4 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden" style={{ height: 'calc(100vh - 220px)' }}>
             <AppUserMirrorPanel />
             <UserSettingsTable
               appUsers={appUsers || []}

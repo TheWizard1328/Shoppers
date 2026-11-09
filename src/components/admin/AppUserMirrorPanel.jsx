@@ -74,7 +74,7 @@ export default function AppUserMirrorPanel() {
   const pending = serverVersion > localVersion;
 
   return (
-    <Card className="bg-surface border-surface">
+    <Card className="shrink-0 bg-surface border-surface">
       <CardHeader className="p-4 sm:p-6">
         <CardTitle className="flex items-start gap-2 text-body text-base">
           <Database className="w-5 h-5 mt-0.5 shrink-0" />
@@ -91,7 +91,7 @@ export default function AppUserMirrorPanel() {
           {pending && <Badge variant="secondary" className="w-fit">Mirror pending on this device</Badge>}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button onClick={handleForce} disabled={busy} className="w-full sm:w-auto">
+          <Button onClick={handleForce} disabled={busy} className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500">
             {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Force mirror on all devices
           </Button>
