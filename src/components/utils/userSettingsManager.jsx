@@ -791,10 +791,15 @@ function applyAutoThemeClasses() {
  * Attaches the OS change listener exactly once (no duplicates on repeat calls).
  */
 function ensureAutoThemeListener() {
-  if (darkModeMediaQuery) return;
+  // ALWAYS rebind: a hot update creates a new applyAutoDarkMode identity, and the
+  // old guard ('if (darkModeMediaQuery) return') then left a dead listener attached
+  // that could never fire and could never be removed (Base44 dev note Nov 9 2026).
+  if (darkModeMediaQuery) {
+    try { darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode); } catch (_) { /* non-fatal */ }
+    darkModeMediaQuery = null;
+  }
   darkModeMediaQuery = window.matchMedia(DARK_MEDIA_QUERY);
   darkModeMediaQuery.addEventListener('change', applyAutoDarkMode);
-  console.log('🌓 [UserSettings] Auto dark mode monitoring initialized (syncs with system)');
 }
 
 /**
@@ -900,5 +905,29 @@ if (import.meta.hot) {
       darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
       darkModeMediaQuery = null;
     }
+  });
+}
+
+/**
+ * Boot safety net: the module is re-imported after a hot update, so re-apply the
+ * cached preference immediately. index.html's head script already painted before
+ * React, this just keeps the classes and listener in sync with that value.
+ */
+try {
+  const _cachedThemePref = localStorage.getItem('rxdeliver_theme_preference');
+  if (_cachedThemePref) applyThemePreference(_cachedThemePref);
+} catch (_) { /* non-fatal */ }
+
+/**
+ * Dev-only: never leave a matchMedia listener behind on a hot reload.
+ */
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    try {
+      if (darkModeMediaQuery) {
+        darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
+        darkModeMediaQuery = null;
+      }
+    } catch (_) { /* non-fatal */ }
   });
 }

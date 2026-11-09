@@ -396,6 +396,23 @@ export const handleBatchSaveDelivery = async ({
     const deliveriesToCreate = [];
     const deliveriesToUpdate = [];
 
+    // Sole-pickup rule (owner report Nov 9 2026): when a store has exactly ONE pickup
+    // for this driver/date, every delivery on it must carry that pickup's slot.
+    const solePickupByKey = new Map();
+    for (const p of optimizedRoute) {
+      if (!p || p.patient_id || p.is_cycling_marker) continue;
+      const key = `${p.store_id}__${p.delivery_date}__${p.driver_id || ''}`;
+      solePickupByKey.set(key, solePickupByKey.has(key) ? null : p);
+    }
+    for (const stop of optimizedRoute) {
+      if (!stop || !stop.patient_id) continue;
+      const sole = solePickupByKey.get(`${stop.store_id}__${stop.delivery_date}__${stop.driver_id || ''}`);
+      if (sole && sole.ampm_deliveries) {
+        stop.ampm_deliveries = sole.ampm_deliveries;
+        if (sole.stop_id) stop.puid = sole.stop_id;
+      }
+    }
+
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stop = optimizedRoute[i];
       if (!stop) continue; // Defensive check
