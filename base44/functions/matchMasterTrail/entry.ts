@@ -129,8 +129,22 @@ Deno.serve(async (req) => {
     let body0 = '';
     const body = { trace: traceOut.map((p) => ({ lat: p[0], lng: p[1] })), via: vias.map((v) => ({ index: v.index })) };
     const url = `https://router.hereapi.com/v8/import?apiKey=${key}&transportMode=car&return=polyline`;
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const txt = await res.text(); body0 = txt;
+    const post = async (b:any) => {
+      const r0 = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+      const t0 = await r0.text();
+      return { ok: r0.ok, status: r0.status, txt: t0 };
+    };
+    let usedVias = true;
+    let res = await post(body);
+    let txt0 = res.txt;
+    let parsed:any = {}; try { parsed = JSON.parse(txt0); } catch { parsed = {}; }
+    if (!(parsed.routes || []).length && vias.length) {
+      usedVias = false;
+      res = await post({ trace: body.trace });
+      txt0 = res.txt;
+      try { parsed = JSON.parse(txt0); } catch { parsed = {}; }
+    }
+    const txt = txt0; body0 = txt;
     if (!res.ok) return Response.json({ error: 'import failed', status: res.status, body: txt.slice(0, 400), tracePoints: traceOut.length, viaCount: vias.length, keyName });
 
     const j = JSON.parse(txt);
@@ -150,7 +164,7 @@ Deno.serve(async (req) => {
       sum += d; cnt += 1; if (d > mx) mx = d;
     }
     return Response.json({
-      ok: true, diag: { patientCount: pmap.size, stop0: stops[0] || null, trace0: trace[0] || null, sec0: (body0 || '').toString().slice(0,160) }, keyName, stopsUsed: stops.length, skippedStops, viaCount: vias.length,
+      ok: true, usedVias, diag: { patientCount: pmap.size, stop0: stops[0] || null, trace0: trace[0] || null, sec0: (body0 || '').toString().slice(0,160) }, keyName, stopsUsed: stops.length, skippedStops, viaCount: vias.length,
       rawPoints: raw.length, tracePoints: traceOut.length, matchedPoints: matched.length,
       sections: (route.sections || []).length, matchedKm: Math.round(km * 10) / 10,
       meanDevM: Math.round(sum / Math.max(1, cnt)), maxDevM: Math.round(mx),
