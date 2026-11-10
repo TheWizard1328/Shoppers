@@ -354,10 +354,14 @@ export const collectBreadcrumbForTracker = async ({
       if (distanceM <= radius && !turned) {
         return { deduped: true, reason: 'radius' };
       }
-      // A replayed position lands on one of the crumbs BEFORE the last one.
+      // A replayed position lands ON one of the crumbs before the last one, so
+      // it is a tight duplication test: 12m, not the adaptive radius. At the 2s
+      // capture cadence a real successor is 16m+ from the crumb two back, so
+      // this cannot eat legitimate detail.
+      const REPLAY_RADIUS_M = 12;
       for (let k = 2; k <= 3 && nPts - k >= 0; k++) {
         const rp = trailPoints[nPts - k];
-        if (haversineMeters(rp[0], rp[1], newLat, newLng) <= radius) {
+        if (haversineMeters(rp[0], rp[1], newLat, newLng) <= REPLAY_RADIUS_M) {
           return { deduped: true, reason: 'replay' };
         }
       }

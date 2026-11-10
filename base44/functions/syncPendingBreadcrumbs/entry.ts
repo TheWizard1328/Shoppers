@@ -41,8 +41,10 @@ function encodePolyline(points) {
 // ── TRAIL SANITIZER (owner directive Nov 9 2026) ─────────────────────────────
 // Runs on EVERY master sync so a replayed or cached point can neither enter nor
 // survive in the master timeline:
-//   1. a point within 20m of either of the previous two kept points is dropped
-//      (a stale fix lands on one of them, not on the tail);
+//   1. a point within 12m of either of the previous two kept points is dropped
+//      (a stale fix lands on one of them, not on the tail). At a 2s
+//      cadence a real successor sits 16m+ from the crumb two back, so
+//      legitimate detail is never eaten;
 //   2. a 'step back' spike is removed when both neighbours sit close to each
 //      other while the middle point sits far from both;
 //   3. a 5 minute or longer gap is never collapsed (stationary audit trail).
@@ -72,7 +74,7 @@ function sanitizeTrailPoints(points: any[]): any[] {
       }
       let replay = false;
       for (let k = 1; k <= 2 && n - k >= 0; k++) {
-        if (trailHaversine(kept[n - k], pt) <= 20) { replay = true; break; }
+        if (trailHaversine(kept[n - k], pt) <= 12) { replay = true; break; }
       }
       if (replay) { droppedReplay += 1; continue; }
       if (n >= 2) {
