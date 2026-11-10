@@ -112,6 +112,7 @@ Deno.serve(async (req) => {
     // Vias point AT the nearest crumb instead of splicing the stop coordinate in.
     // Splicing created zero-length pairs (a stop sits within metres of its crumb)
     // and HERE rejected the whole trace with "Failed to connect points".
+    const vias:any[] = [];
     const traceOut = trace.map((p) => [p[0], p[1]]);
     const capped = traceOut.length - 2;
     const seen = new Set();
