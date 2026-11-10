@@ -126,7 +126,10 @@ const GPS_NOISE_MIN_INTERVAL_MS = 5 * 60 * 1000;
 // per 5 min per device.
 const NATIVE_PLUGIN_NOISE_RX = /"code":"ALREADY_STARTED"|"code":"FOREGROUND_SERVICE_START_NOT_ALLOWED"|"Service already started"|Cannot start background location while the app is in the background/;
 let lastNativeNoiseSentAt = 0;
-const NATIVE_NOISE_MIN_INTERVAL_MS = 5 * 60 * 1000;
+// Nov 10 2026: 5 minutes still produced ~12 warn rows an hour across devices for
+// a condition that is benign by design (service already running). One per half
+// hour is enough to prove liveness without polluting the log.
+const NATIVE_NOISE_MIN_INTERVAL_MS = 30 * 60 * 1000;
 
 const fingerprintWindow = new Map(); // fingerprint -> { windowStart, count }
 const FINGERPRINT_MAX_PER_WINDOW = 5;

@@ -710,7 +710,12 @@ const save = async (storeName, record) => {
 // for several seconds (owner report Oct 6 2026). Chunking + yielding between
 // chunks releases the lock and the main thread periodically so reads/renders
 // can interleave instead of queueing behind the whole burst.
+// Deliveries are PHI: every record is encrypted before it is queued, so a
+// 300-record chunk held the store's write lock long enough to starve the reads
+// queued behind it (Nov 10 2026 timeout storm). Smaller chunks plus a yield
+// between them let readers interleave instead of waiting the lock out.
 const BULK_SAVE_CHUNK_SIZE = 300;
+const DELIVERY_SAVE_CHUNK_SIZE = 100;
 
 const bulkSave = async (storeName, records) => {
   if (!records || records.length === 0) {
@@ -776,8 +781,12 @@ const bulkSave = async (storeName, records) => {
   try {
     let successCount = 0;
 
-    for (let i = 0; i < deduplicatedRecords.length; i += BULK_SAVE_CHUNK_SIZE) {
-      const chunk = deduplicatedRecords.slice(i, i + BULK_SAVE_CHUNK_SIZE);
+    const chunkSize = storeName === STORES.DELIVERIES ? DELIVERY_SAVE_CHUNK_SIZE : BULK_SAVE_CHUNK_SIZE;
+    for (let i = 0; i < deduplicatedRecords.length; i += chunkSize) {
+      const chunk = deduplicatedRecords.slice(i, i + chunkSize);
+      // Yield to the event loop between chunks so queued reads get the lock
+      // between write transactions instead of timing out behind one long write.
+      if (i > 0) await new Promise((r) => setTimeout(r, 0));
       const chunkToWrite = (isPHI && isCryptoActive())
         ? await Promise.all(chunk.map(r => encryptRecord(r)))
         : chunk;
@@ -1360,30 +1369,113 @@ const countStore = async (storeName) => {
  * Get database statistics
  * CRITICAL: Always return valid stats object, never null
  */
+// ── Batched stats snapshot (owner report Nov 10 2026) ───────────────────────
+// getStats used to open ~15 separate readonly transactions (8 counts + 6 sync
+// rows) while a sync pull or a write burst was draining, so every one of them
+// queued behind the writer and tripped its 6s timeout. One readonly
+// transaction answers all of them at once, and if a write burst is still in
+// flight we serve the last snapshot instead of competing with it.
+let _lastStatsSnapshot = null;
+
+const _readStatsSnapshot = async () => {
+  const db = await openDatabase();
+  const countStores = [
+    STORES.PATIENTS, STORES.DELIVERIES, STORES.APP_USERS, STORES.CITIES,
+    STORES.STORES, STORES.COMPANIES, STORES.SQUARE_TRANSACTIONS,
+    STORES.DRIVER_OVERVIEW_STATS,
+  ];
+  const syncNames = ['Patient', 'Delivery', 'AppUser', 'City', 'Store', 'Company', 'SquareTransaction'];
+  const transactions = [...countStores, STORES.SYNC_STATUS];
+  const txn = db.transaction(transactions, 'readonly');
+  const counts = {};
+  const syncRows = {};
+  return await withTimeout(new Promise((resolve, reject) => {
+    txn.oncomplete = () => resolve({ counts, syncRows });
+    txn.onerror = () => reject(txn.error || new Error('stats txn error'));
+    txn.onabort = () => reject(txn.error || new Error('stats txn aborted'));
+    for (const storeName of countStores) {
+      try {
+        const request = txn.objectStore(storeName).count();
+        request.onsuccess = () => { counts[storeName] = request.result || 0; };
+      } catch (_) { counts[storeName] = 0; }
+    }
+    const statusStore = txn.objectStore(STORES.SYNC_STATUS);
+    for (const name of syncNames) {
+      try {
+        const request = statusStore.get(name);
+        request.onsuccess = () => { syncRows[name] = request.result || null; };
+      } catch (_) { syncRows[name] = null; }
+    }
+  }), IDB_OPERATION_TIMEOUT_MS, 'IDB stats snapshot (single txn)');
+};
+
 const getStats = async () => {
   try {
     // PERF: countStore (metadata-only) instead of getAll — the old full
     // getAll on 7 stores decrypted + parsed every record (tens of thousands)
     // every time the sync indicator refreshed, starving the main thread.
-    const [patients, deliveries, appUsers, cities, stores, companies, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, companySync, squareTxSync] = await Promise.all([
-      countStore(STORES.PATIENTS),
-      countStore(STORES.DELIVERIES),
-      countStore(STORES.APP_USERS),
-      countStore(STORES.CITIES),
-      countStore(STORES.STORES),
-      countStore(STORES.COMPANIES),
-      countStore(STORES.SQUARE_TRANSACTIONS),
-      countStore(STORES.DRIVER_OVERVIEW_STATS),
-      getSyncStatus('Patient'),
-      getSyncStatus('Delivery'),
-      getSyncStatus('AppUser'),
-      getSyncStatus('City'),
-      getSyncStatus('Store'),
-      getSyncStatus('Company'),
-      getSyncStatus('SquareTransaction')
-    ]);
+    // BUSY GATE: never fight an in-flight write burst for the lock (this is
+    // cosmetic UI data). Give the writer 1.5s to commit; if it is still busy,
+    // answer from the last snapshot instead of queuing 15 doomed reads.
+    const deliveriesBusy = (_activeWritesByStore.get(STORES.DELIVERIES) || 0) > 0;
+    if (deliveriesBusy) {
+      const drained = await waitForWritesToDrain(STORES.DELIVERIES, 1500).catch(() => false);
+      if (!drained && _lastStatsSnapshot) return _lastStatsSnapshot;
+    }
 
-    return {
+    let counts = {};
+    let syncRows = {};
+    try {
+      const snapshot = await _readStatsSnapshot();
+      counts = snapshot.counts || {};
+      syncRows = snapshot.syncRows || {};
+    } catch (snapshotError) {
+      console.warn('[OfflineDB] stats snapshot failed, using per-store fallback:', snapshotError?.message);
+      const [patients, deliveries, appUsers, cities, stores, companies, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, companySync, squareTxSync] = await Promise.all([
+        countStore(STORES.PATIENTS),
+        countStore(STORES.DELIVERIES),
+        countStore(STORES.APP_USERS),
+        countStore(STORES.CITIES),
+        countStore(STORES.STORES),
+        countStore(STORES.COMPANIES),
+        countStore(STORES.SQUARE_TRANSACTIONS),
+        countStore(STORES.DRIVER_OVERVIEW_STATS),
+        getSyncStatus('Patient'),
+        getSyncStatus('Delivery'),
+        getSyncStatus('AppUser'),
+        getSyncStatus('City'),
+        getSyncStatus('Store'),
+        getSyncStatus('Company'),
+        getSyncStatus('SquareTransaction')
+      ]);
+      counts = {
+        [STORES.PATIENTS]: patients, [STORES.DELIVERIES]: deliveries, [STORES.APP_USERS]: appUsers,
+        [STORES.CITIES]: cities, [STORES.STORES]: stores, [STORES.COMPANIES]: companies,
+        [STORES.SQUARE_TRANSACTIONS]: squareTx, [STORES.DRIVER_OVERVIEW_STATS]: driverStats,
+      };
+      syncRows = {
+        Patient: patientSync, Delivery: deliverySync, AppUser: appUserSync, City: citySync,
+        Store: storeSync, Company: companySync, SquareTransaction: squareTxSync,
+      };
+    }
+
+    const patients = counts[STORES.PATIENTS] || 0;
+    const deliveries = counts[STORES.DELIVERIES] || 0;
+    const appUsers = counts[STORES.APP_USERS] || 0;
+    const cities = counts[STORES.CITIES] || 0;
+    const stores = counts[STORES.STORES] || 0;
+    const companies = counts[STORES.COMPANIES] || 0;
+    const squareTx = counts[STORES.SQUARE_TRANSACTIONS] || 0;
+    const driverStats = counts[STORES.DRIVER_OVERVIEW_STATS] || 0;
+    const patientSync = syncRows.Patient;
+    const deliverySync = syncRows.Delivery;
+    const appUserSync = syncRows.AppUser;
+    const citySync = syncRows.City;
+    const storeSync = syncRows.Store;
+    const companySync = syncRows.Company;
+    const squareTxSync = syncRows.SquareTransaction;
+
+    const result = {
       patients: {
         count: patients || 0,
         lastSync: patientSync?.lastSync || patientSync?.lastSyncDate || 'Never'
@@ -1417,6 +1509,9 @@ const getStats = async () => {
         lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       }
     };
+    result.rawSyncStatus = syncRows;
+    _lastStatsSnapshot = result;
+    return result;
   } catch (error) {
     console.error('[OfflineDB] Error retrieving stats:', error);
     // CRITICAL: Return default stats structure instead of null

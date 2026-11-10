@@ -1491,13 +1491,17 @@ if (typeof window !== 'undefined' && !window.__rxdeliverReconnectSyncRegistered)
 export const getSyncStats = async () => {
   const stats = await offlineDB.getStats();
   const pendingMutations = await offlineDB.getPendingMutations();
-  const patientStatus = await offlineDB.getSyncStatus('Patient');
-  const deliveryStatus = await offlineDB.getSyncStatus('Delivery');
-  const cityStatus = await offlineDB.getSyncStatus('City');
-  const storeStatus = await offlineDB.getSyncStatus('Store');
-  const companyStatus = await offlineDB.getSyncStatus('Company');
-  const appUserStatus = await offlineDB.getSyncStatus('AppUser');
-  const squareTxStatus = await offlineDB.getSyncStatus('SquareTransaction');
+  // getStats already reads every sync-status row inside its single transaction
+  // (Nov 10 2026). Re-reading them here cost 7 more transactions per refresh of
+  // the offline indicator, which is exactly the read burst that was timing out.
+  const raw = stats.rawSyncStatus || {};
+  const patientStatus = raw.Patient || null;
+  const deliveryStatus = raw.Delivery || null;
+  const cityStatus = raw.City || null;
+  const storeStatus = raw.Store || null;
+  const companyStatus = raw.Company || null;
+  const appUserStatus = raw.AppUser || null;
+  const squareTxStatus = raw.SquareTransaction || null;
 
   return {
     ...stats,
