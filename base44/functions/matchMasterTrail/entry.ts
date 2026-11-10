@@ -41,6 +41,21 @@ function nearest(trace, p) {
   return { i: bi, d: bd };
 }
 
+const FA="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const FI:Record<string,number>={};for(let i=0;i<FA.length;i++){FI[FA[i]]=i;}
+function flexDecode(enc:string):number[][]{
+  const v:number[]=[];let cur=0,sh=0;
+  for(const ch of enc){const b=FI[ch];if(b===undefined)continue;cur|=(b&31)<<sh;if((b&32)===0){v.push(cur);cur=0;sh=0;}else sh+=5;}
+  if(v.length<3)return [];
+  const prec=v[1]&15, third=(v[1]>>4)&7, f=Math.pow(10,prec);
+  const out:number[][]=[];let la=0,ln=0;let i=2;
+  while(i+1<v.length){
+    const dla=v[i]&1?~(v[i]>>1):v[i]>>1, dln=v[i+1]&1?~(v[i+1]>>1):v[i+1]>>1;
+    la+=dla;ln+=dln;out.push([la/f,ln/f]);i+=third?3:2;
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -85,7 +100,7 @@ Deno.serve(async (req) => {
     const kept = [];
     let skippedStops = 0;
     for (const st of stops) {
-      if (anchor && hav([st.lat, st.lng], anchor) > 60000) { skippedStops += 1; continue; }
+      if (nearest(trace, [st.lat, st.lng]).d > 5000) { skippedStops += 1; continue; }
       kept.push(st);
     }
     stops.length = 0;
@@ -115,7 +130,7 @@ Deno.serve(async (req) => {
 
     let km = 0, matched = [];
     for (const sec of (route.sections || [])) {
-      const pts = dec(sec.polyline || '', 1e5);
+      const pts = flexDecode(sec.polyline || '').length ? flexDecode(sec.polyline || '') : dec(sec.polyline || '', 1e5);
       matched = matched.concat(pts);
       for (let i = 1; i < pts.length; i++) km += hav(pts[i - 1], pts[i]) / 1000;
     }

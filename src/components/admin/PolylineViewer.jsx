@@ -4,7 +4,7 @@ import { haversineKm as geoHaversineKm } from '@/components/utils/geoUtils';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Pencil, Undo2, Download, Magnet, Check, X, Brush, Scissors } from 'lucide-react';
+import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Pencil, Undo2, Download, Magnet, Check, X, Brush, Scissors, Zap } from 'lucide-react';
 import SnapAnalysisDialog from './SnapAnalysisDialog';
 import ImportConfirmInline from './ImportConfirmInline';
 import ResegmentStopsDialog from './ResegmentStopsDialog';
@@ -1386,6 +1386,24 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   // ── Auto-snap STEP 1: Analyze gaps (no API calls, no save) ──────────────
+  const handleImportSnapTest = async (item) => {
+    try {
+      const res = await base44.functions.invoke('matchMasterTrail', { driver_id: item.driver_id, delivery_date: item.delivery_date });
+      const d = res?.data || res || {};
+      if (d.error) { alert(`TEST /v8/import failed
+${d.error} (status ${d.status || '?'})
+${String(d.body || '').slice(0, 200)}`); return; }
+      alert(`TEST /v8/import ok
+raw ${d.rawPoints} -> trace ${d.tracePoints} pts
+matched ${d.matchedPoints} pts, ${d.matchedKm} km, ${d.sections} sections
+deviation mean ${d.meanDevM} m / max ${d.maxDevM} m
+stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}
+key ${d.keyName}`);
+    } catch (e) {
+      alert('TEST /v8/import error: ' + (e?.message || e));
+    }
+  };
+
   const handleSnapAnalyze = async (item) => {
     setIsAnalyzing(true);
     try {
@@ -1739,6 +1757,13 @@ export default function PolylineViewer({ users = [] }) {
                                   className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto"
                                 >
                                   {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  title="TEST: snap the whole master trace in ONE HERE /v8/import call"
+                                  onClick={e => { e.stopPropagation(); handleImportSnapTest(item); }}
+                                  className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 transition-colors"
+                                >
+                                  <Zap className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   title="Resegment all stops from master breadcrumb timeline"
