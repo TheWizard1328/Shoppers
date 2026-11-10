@@ -34,9 +34,9 @@ export function StopCardPhoneRow({ isPickup, finalDisplayPhone, alternateDisplay
       title={`Text this patient at ${formatPhoneNumber(phone)}`}
       onClick={(e) => { e.stopPropagation(); openSms(phone); }}
       aria-label="Text this patient"
-      className="inline-flex items-center justify-center w-5 h-5 rounded bg-emerald-500 hover:bg-emerald-600 text-white leading-none"
+      className="inline-flex items-center justify-center h-4 w-7 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white leading-none shrink-0"
     >
-      <MessageSquare className="w-3 h-3" />
+      <MessageSquare className="w-2.5 h-2.5" />
     </button>
   );
   if (isPickup || !finalDisplayPhone && !alternateDisplayPhone) return null;
