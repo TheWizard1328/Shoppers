@@ -1297,7 +1297,7 @@ export default function PatientForm({
                          (owner spec Nov 6 2026). The label and the chips share one
                          flex row so they always land on the same centre line —
                          absolute offsets drifted as soon as a chip changed height. */}
-                    <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
                       <Label htmlFor="address" className="text-sm font-medium leading-none text-body">Address *</Label>
                       <div className="flex items-center gap-1 shrink-0">
                       <AddressActionBadges
@@ -1413,7 +1413,7 @@ export default function PatientForm({
                 {/* Row 2: Phone + Alt. Phone (50/50) */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
-                    <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
                       <Label htmlFor="phone" className="text-sm font-medium text-body">Pr Phone</Label>
                       <TextBadge patient={patient || { ...formData, id: formData.id }} which="primary" disabled={disableOtherFieldsDuringAddressLookup} />
                     </div>
@@ -1427,7 +1427,7 @@ export default function PatientForm({
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
                   <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
-                    <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
                       <Label htmlFor="phone_secondary" className="text-sm font-medium text-body">Alt Phone</Label>
                       <TextBadge patient={patient || { ...formData, id: formData.id }} which="secondary" disabled={disableOtherFieldsDuringAddressLookup} />
                     </div>

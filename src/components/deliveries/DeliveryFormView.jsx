@@ -1801,14 +1801,14 @@ export default function DeliveryFormView({
                             </div>
                             <div className="flex gap-3">
                               <div className="flex-1 space-y-1">
-                                <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
                                   <Label className="text-sm font-semibold text-body">Pr Phone</Label>
                                   <TextBadge patient={selectedPatient} which="primary" disabled={isSaving} />
                                 </div>
                                 <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} disabled={isSaving} className="h-9 text-sm" />
                               </div>
                               <div className="flex-1 space-y-1">
-                                <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
                                   <Label className="text-sm font-semibold text-body">Alt Phone</Label>
                                   <TextBadge patient={selectedPatient} which="secondary" disabled={isSaving} />
                                 </div>
