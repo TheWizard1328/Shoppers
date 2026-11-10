@@ -33,10 +33,10 @@ export function StopCardPhoneRow({ isPickup, finalDisplayPhone, alternateDisplay
       type="button"
       title={`Text this patient at ${formatPhoneNumber(phone)}`}
       onClick={(e) => { e.stopPropagation(); openSms(phone); }}
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-semibold leading-none"
+      aria-label="Text this patient"
+      className="inline-flex items-center justify-center w-5 h-5 rounded bg-emerald-500 hover:bg-emerald-600 text-white leading-none"
     >
       <MessageSquare className="w-3 h-3" />
-      Text
     </button>
   );
   if (isPickup || !finalDisplayPhone && !alternateDisplayPhone) return null;
