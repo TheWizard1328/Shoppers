@@ -78,17 +78,18 @@ Deno.serve(async (req) => {
     }
     stops.sort((a, b) => a.order - b.order);
 
-    const traceOut = trace.map((p) => [...p]);
+    const assigned = stops.map((st) => { const n = nearest(trace, [st.lat, st.lng]); return { lat: st.lat, lng: st.lng, dist: Math.round(n.d), order: st.order, ni: n.i }; });
+    const byIdx = new Map();
+    for (const st of assigned) { if (!byIdx.has(st.ni)) byIdx.set(st.ni, []); byIdx.get(st.ni).push(st); }
+    const traceOut = [];
     const vias = [];
-    let inserted = 0;
-    for (const s of stops) {
-      const n = nearest(traceOut, [s.lat, s.lng]);
-      s.offset = inserted;
-      traceOut.splice(n.i + 1 + inserted, 0, [s.lat, s.lng]);
-      inserted += 1;
-      vias.push({ index: n.i + 2 + s.offset - 1, dist: Math.round(n.d), order: s.order });
+    for (let i = 0; i < trace.length; i++) {
+      traceOut.push([trace[i][0], trace[i][1]]);
+      const list = byIdx.get(i);
+      if (list) for (const st of list) { traceOut.push([st.lat, st.lng]); vias.push({ index: traceOut.length, dist: st.dist, order: st.order }); }
     }
-
+    const maxIdx = traceOut.length - 2;
+    for (const v of vias) if (v.index > maxIdx) v.index = Math.max(1, maxIdx);
     const body = { trace: traceOut.map((p) => ({ lat: p[0], lng: p[1] })), via: vias.map((v) => ({ index: v.index })) };
     const url = `https://router.hereapi.com/v8/import?apiKey=${key}&transportMode=car`;
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
