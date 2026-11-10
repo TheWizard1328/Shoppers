@@ -594,10 +594,27 @@ const _restoreStompedNextFlags = async (records) => {
   // A write that promotes SOME stop to next is a legitimate advance — the
   // previous holder is meant to be cleared in that same payload.
   const claimants = list.filter((r) => r?.id && r.isNextDelivery === true && _nextFlagActive(r));
+  // SCOPED READ (owner report Nov 10 2026): this guard used to decrypt the WHOLE
+  // deliveries store on every write batch, which on a bloated local store cost
+  // 6s+ per batch and produced the getAll(deliveries) timeout storms. Every
+  // lookup below is per route (delivery_date + driver_id), so we ask the
+  // date_driver index for exactly those routes and nothing else.
   let existingById = new Map();
   try {
-    const all = await getAll(STORES.DELIVERIES);
-    existingById = new Map((all || []).filter((d) => d?.id).map((d) => [String(d.id), d]));
+    const routeKeys = new Set();
+    for (const r of [...candidates, ...claimants]) {
+      const dId = String(r?.driver_id || '');
+      const dDate = String(r?.delivery_date || '');
+      if (dId && dDate) routeKeys.add(`${dDate}|${dId}`);
+    }
+    for (const rk of routeKeys) {
+      const [dDate, dId] = rk.split('|');
+      try {
+        const rows = await getByIndex(STORES.DELIVERIES, 'date_driver', [dDate, dId]);
+        for (const d of rows || []) if (d?.id) existingById.set(String(d.id), d);
+      } catch (_) { /* one bad route must not block the write */ }
+    }
+    if (existingById.size === 0) return records;
   } catch (_) { return records; }
   const claimedRouteKeys = new Set(claimants.map((r) => `${r.driver_id || ''}:${r.delivery_date || ''}`));
   const restored = new Map(); // id -> true
@@ -1926,28 +1943,35 @@ const deduplicateDeliveries = async () => {
  */
 const pruneOldDeliveries = async () => {
   try {
-    const allDeliveries = await getAll(STORES.DELIVERIES);
-
-    if (!allDeliveries || allDeliveries.length === 0) {
-      return { success: true, removed: 0 };
-    }
-
     // 1-year retention window — matches the historical sync backfill range
     const now = new Date();
     const cutoffDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
 
-    // Identify only the expired records — those with delivery_date older than 365 days.
-    // Records without a delivery_date are kept (may be in-progress, temp, or legacy).
-    // Records without a driver_id are also kept (shouldn't happen, but safety).
+    // SCOPED ENUMERATION (owner report Nov 10 2026): the old version decrypted the
+    // WHOLE deliveries store just to find the expired rows, which timed out on a
+    // bloated local store. Walk the delivery_date index with a key-only cursor up
+    // to the cutoff instead: metadata only, no values decrypted, cost is O(expired).
     const expiredIds = [];
-    for (const delivery of allDeliveries) {
-      if (!delivery?.driver_id) continue;
-      if (delivery.delivery_date && delivery.delivery_date < cutoffDateStr) {
-        if (delivery.id) {
-          expiredIds.push(delivery.id);
-        }
-      }
+    try {
+      const db = await openDatabase();
+      await new Promise((resolve, reject) => {
+        const txn = db.transaction([STORES.DELIVERIES], 'readonly');
+        const index = txn.objectStore(STORES.DELIVERIES).index('delivery_date');
+        const range = IDBKeyRange.upperBound(cutoffDateStr, true);
+        const req = index.openKeyCursor(range);
+        req.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            if (cursor.primaryKey) expiredIds.push(cursor.primaryKey);
+            cursor.continue();
+          } else resolve();
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn('[OfflineDB] prune index scan failed:', e?.message);
+      return { success: true, removed: 0 };
     }
 
     if (expiredIds.length === 0) {
