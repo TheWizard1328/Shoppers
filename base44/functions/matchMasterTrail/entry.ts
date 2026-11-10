@@ -78,6 +78,19 @@ Deno.serve(async (req) => {
     }
     stops.sort((a, b) => a.order - b.order);
 
+    // Guard: a patient row with a placeholder or swapped coordinate would drag
+    // the whole trace off the map, so every stop must sit within 60 km of the
+    // record's own crumbs.
+    const anchor = trace.length ? trace[Math.floor(trace.length / 2)] : null;
+    const kept = [];
+    let skippedStops = 0;
+    for (const st of stops) {
+      if (anchor && hav([st.lat, st.lng], anchor) > 60000) { skippedStops += 1; continue; }
+      kept.push(st);
+    }
+    stops.length = 0;
+    stops.push(...kept);
+
     const assigned = stops.map((st) => { const n = nearest(trace, [st.lat, st.lng]); return { lat: st.lat, lng: st.lng, dist: Math.round(n.d), order: st.order, ni: n.i }; });
     const byIdx = new Map();
     for (const st of assigned) { if (!byIdx.has(st.ni)) byIdx.set(st.ni, []); byIdx.get(st.ni).push(st); }
@@ -91,7 +104,7 @@ Deno.serve(async (req) => {
     const maxIdx = traceOut.length - 2;
     for (const v of vias) if (v.index > maxIdx) v.index = Math.max(1, maxIdx);
     const body = { trace: traceOut.map((p) => ({ lat: p[0], lng: p[1] })), via: vias.map((v) => ({ index: v.index })) };
-    const url = `https://router.hereapi.com/v8/import?apiKey=${key}&transportMode=car`;
+    const url = `https://router.hereapi.com/v8/import?apiKey=${key}&transportMode=car&return=polyline`;
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const txt = await res.text();
     if (!res.ok) return Response.json({ error: 'import failed', status: res.status, body: txt.slice(0, 400), tracePoints: traceOut.length, viaCount: vias.length, keyName });
@@ -113,7 +126,7 @@ Deno.serve(async (req) => {
       sum += d; cnt += 1; if (d > mx) mx = d;
     }
     return Response.json({
-      ok: true, keyName, stopsUsed: stops.length, viaCount: vias.length,
+      ok: true, keyName, stopsUsed: stops.length, skippedStops, viaCount: vias.length,
       rawPoints: raw.length, tracePoints: traceOut.length, matchedPoints: matched.length,
       sections: (route.sections || []).length, matchedKm: Math.round(km * 10) / 10,
       meanDevM: Math.round(sum / Math.max(1, cnt)), maxDevM: Math.round(mx),
