@@ -354,7 +354,7 @@ async function handleSyncCatalogItems(base44, payload={}) {
     return liveName===txName; // non-structured: require exact normalized text match
   });
   const extraIds=Array.from(new Set(toRemove.map((t)=>t.square_catalog_object_id).filter(Boolean))).filter((id)=>!deleteResult.deleted.includes(id));const extraDel=extraIds.length?await deleteCatalogObjects(extraIds,accessToken):{deleted:[],failed:[]};
-  const stale=(allTxAfter||[]).filter((t)=>{const tm=new Date(t?.created_date||t?.updated_date||0).getTime();return Number.isFinite(tm)&&tm<txRetentionMs;});for(const t of stale)await base44.asServiceRole.entities.SquareTransaction.delete(t.id);
+  const stale=(allTxAfter||[]).filter((t)=>{if(t?.sync_frozen===true)return false;const tm=new Date(t?.created_date||t?.updated_date||0).getTime();return Number.isFinite(tm)&&tm<txRetentionMs;});for(const t of stale)await base44.asServiceRole.entities.SquareTransaction.delete(t.id);
   return{success:true,scanned_deliveries:allCodDeliveries.length,catalog_items_seen:recentCatalogItems.length,paid_order_items_seen:paidOrderItems.length,deleted_catalog_items:deleteResult.deleted.length+extraDel.deleted.length,cancelled_transactions:Array.from(new Set(txToCancel.filter(Boolean))).length,completed_transactions:Array.from(new Set(txToComplete.filter(Boolean))).length,created_catalog_items:createdCount,updated_pending_transactions:updatedCount,pruned_transactions:stale.length,synced_square_catalog_items:0};
 }
 

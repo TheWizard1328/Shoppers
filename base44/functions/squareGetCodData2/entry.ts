@@ -1046,7 +1046,7 @@ mark('before_catalog_delete_api');
       // handleCreateCodItem to skip re-creation with a false "transaction_exists" —
       // trapping the delivery in a state where it can never get a new catalog item.
       const staleTxs = await base44.asServiceRole.entities.SquareTransaction.filter({ square_catalog_object_id: objId, status: 'pending' }).catch(() => []);
-      for (const r of staleTxs) { await base44.asServiceRole.entities.SquareTransaction.delete(r.id).catch(() => null); }
+      for (const r of staleTxs) { if (r?.sync_frozen === true) continue; await base44.asServiceRole.entities.SquareTransaction.delete(r.id).catch(() => null); }
     });
 mark('after_db_cleanup');
       await Promise.all(dbCleanupPromises);

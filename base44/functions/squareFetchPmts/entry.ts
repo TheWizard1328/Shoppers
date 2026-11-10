@@ -136,11 +136,43 @@ async function handleFetchPayments(base44, payload) {
   const matchDeliveryForItem=(item,resolvedStore)=>{const note=normalizeText(item?.note||'');const payIso=(item?.payment_date||item?.order_created_at||'').slice(0,10);const cands=getDeliveryCandidatesForItem(item,resolvedStore);if(!cands.length)return null;const ssc=resolvedStore?.id?cands.filter((d)=>d?.store_id===resolvedStore.id):[];const pri=ssc.length?[...ssc,...cands.filter((d)=>d?.store_id!==resolvedStore?.id)]:cands;const dm=note.match(/delivery\s*(id|#)?\s*[:=-]?\s*([a-f0-9]{24})/i);if(dm){const m=pri.find((d)=>d?.id===dm[2]);if(m)return m;}const sm=note.match(/\b(?:sid|stop\s*id)\s*[:=-]?\s*([a-z0-9-]+)/i);if(sm){const m=pri.find((d)=>normalizeText(d?.stop_id).toLowerCase()===normalizeText(sm[1]).toLowerCase());if(m)return m;}// Prefer candidate whose delivery date is within MATCH_DATE_STRICT_DAYS of the transaction date (txIsOnOrAfterDelivery already enforced in candidates)
   const withinWindow=(d)=>{if(!payIso||!d?.delivery_date)return false;const diffMs=new Date(payIso+'T00:00:00').getTime()-new Date(d.delivery_date+'T00:00:00').getTime();return diffMs>=0&&diffMs<=MATCH_DATE_STRICT_DAYS*86400000;};const closeByNote=pri.find((d)=>withinWindow(d)&&notesContainPatientName(note,patientsById.get(d?.patient_id)?.full_name||''));if(closeByNote)return closeByNote;const closeByName=pri.find((d)=>withinWindow(d)&&notesContainPatientName(item?.item_name,patientsById.get(d?.patient_id)?.full_name||''));if(closeByName)return closeByName;// Fall back to name match (no date window) — still sorted closest-first
   return pri.find((d)=>{const p=patientsById.get(d?.patient_id);return p&&notesContainPatientName(note,p.full_name);})||pri.find((d)=>{const p=patientsById.get(d?.patient_id);return p&&notesContainPatientName(item?.item_name,p.full_name);})||pri[0];};
+  const FROZEN_GRACE_DAYS = 14;
+  const FROZEN_WRITES_PER_RUN = 60;
+  const OPEN_DELIVERY_STATUSES = new Set(['pending','staged','en_route','in_transit']);
+  const deliveriesById = new Map((deliveries||[]).map((d)=>[d.id,d]));
+  const frozenIds = new Set((existingTransactions||[]).filter((t)=>t?.sync_frozen===true).map((t)=>t.id));
+  const isFreezeEligible = (t) => {
+    if (!t || t.sync_frozen === true) return false;
+    const payIso = t?.raw_square_data?.payment_date || t?.raw_square_data?.order_created_at || t?.created_date;
+    const tm = new Date(payIso || 0).getTime();
+    if (!Number.isFinite(tm)) return false;
+    if (Date.now() - tm < FROZEN_GRACE_DAYS * 86400000) return false;
+    const st = String(t?.status || '').toLowerCase();
+    if (st !== 'completed' && st !== 'settled') return false;
+    const d = t?.delivery_id ? deliveriesById.get(t.delivery_id) : null;
+    if (d && OPEN_DELIVERY_STATUSES.has(String(d?.status || '').toLowerCase())) return false;
+    return true;
+  };
   const transactionRecords=[];const seenKeys=new Set();
   for(const item of paidOrderItems){const ukey=`${item?.order_id}::${item?.line_item_uid}`;if(seenKeys.has(ukey))continue;seenKeys.add(ukey);const store=resolveStoreForItem(item?.item_name,item?.location_id,storesByLocationId);const md=matchDeliveryForItem(item,store);const mp=md?patientsById.get(md?.patient_id):null;const mdr=md?getDriverFromDelivery(md):null;// Use the matched delivery's actual store for the item name (it's the authoritative store)
-  const ms=md?(stores||[]).find((s)=>s?.id===md.store_id)||store:store;const isCustom=!normalizeText(item?.catalog_object_id);const fmtName=md?formatItemName(md.delivery_date,getPreferredStoreAbbreviation(ms),mp?.full_name||md?.patient_name):'';const dn=isCustom&&fmtName?fmtName:(item?.item_name||'');const existing=(existingTransactions||[]).find((t)=>normalizeText(t?.square_transaction_id)===normalizeText(item?.order_id)&&normalizeText(t?.raw_square_data?.line_item_uid)===normalizeText(item?.line_item_uid));const pr={square_transaction_id:item?.order_id||null,square_payment_id:`${item?.order_id||'order'}:${item?.line_item_uid||'line'}`,square_catalog_object_id:item?.catalog_object_id||null,item_name:dn,amount:toAmountCents(item?.amount_cents)/100,amount_cents:toAmountCents(item?.amount_cents),type:'collection',status:item?.transaction_status||'pending',delivery_id:md?.id||null,patient_id:mp?.id||md?.patient_id||null,store_id:md?.store_id||store?.id||null,location_id:item?.location_id||null,driver_id:md?.driver_id||mdr?.id||mdr?.user_id||null,dispatcher_id:md?.created_by_app_user_id||null,payment_method:'card',raw_square_data:{...(existing?.raw_square_data||{}),line_item_uid:item?.line_item_uid||null,payment_date:item?.payment_date||null,order_created_at:item?.order_created_at||null,order_state:item?.order_state||null,notes:item?.note||'',original_item_name:item?.item_name||'',is_custom_amount:isCustom,matched_by:md?'delivery_match':'unmatched'}};
-  if(existing){await base44.asServiceRole.entities.SquareTransaction.update(existing.id,pr);transactionRecords.push({id:existing.id,...pr});}else{const c=await base44.asServiceRole.entities.SquareTransaction.create(pr);transactionRecords.push(c);}}
-  return{success:true,paused:false,paymentsCount:transactionRecords.length,transactions:transactionRecords,soldItems:transactionRecords,soldCatalogItems:transactionRecords.filter((t)=>t?.square_catalog_object_id),catalogItems:[],catalogItemCount:0,dateRange:{start_at:lookbackStartAt,end_at:new Date().toISOString(),days_back:daysBack}};
+  const ms=md?(stores||[]).find((s)=>s?.id===md.store_id)||store:store;const isCustom=!normalizeText(item?.catalog_object_id);const fmtName=md?formatItemName(md.delivery_date,getPreferredStoreAbbreviation(ms),mp?.full_name||md?.patient_name):'';const dn=isCustom&&fmtName?fmtName:(item?.item_name||'');const existing=(existingTransactions||[]).find((t)=>normalizeText(t?.square_transaction_id)===normalizeText(item?.order_id)&&normalizeText(t?.raw_square_data?.line_item_uid)===normalizeText(item?.line_item_uid));if(existing&&frozenIds.has(existing.id))continue;const pr={square_transaction_id:item?.order_id||null,square_payment_id:`${item?.order_id||'order'}:${item?.line_item_uid||'line'}`,square_catalog_object_id:item?.catalog_object_id||null,item_name:dn,amount:toAmountCents(item?.amount_cents)/100,amount_cents:toAmountCents(item?.amount_cents),type:'collection',status:item?.transaction_status||'pending',delivery_id:md?.id||null,patient_id:mp?.id||md?.patient_id||null,store_id:md?.store_id||store?.id||null,location_id:item?.location_id||null,driver_id:md?.driver_id||mdr?.id||mdr?.user_id||null,dispatcher_id:md?.created_by_app_user_id||null,payment_method:'card',raw_square_data:{...(existing?.raw_square_data||{}),line_item_uid:item?.line_item_uid||null,payment_date:item?.payment_date||null,order_created_at:item?.order_created_at||null,order_state:item?.order_state||null,notes:item?.note||'',original_item_name:item?.item_name||'',is_custom_amount:isCustom,matched_by:md?'delivery_match':'unmatched'}};
+  if(existing&&Object.keys(pr).every((k)=>JSON.stringify(pr[k])===JSON.stringify(existing[k]))){transactionRecords.push(existing);continue;}  if(existing){await base44.asServiceRole.entities.SquareTransaction.update(existing.id,pr);transactionRecords.push({id:existing.id,...pr});}else{const c=await base44.asServiceRole.entities.SquareTransaction.create(pr);transactionRecords.push(c);}}
+  // ── FREEZE PASS (owner decision Nov 9 2026) ──────────────────────────────
+  // A settled row whose delivery is collected and whose refund window has closed
+  // can no longer change on the Square side, so it is marked frozen and every
+  // later sync skips it: no API compare, no rewrite, no prune. Bounded per run
+  // so a first pass over history never trips the platform write cap.
+  let frozenCount = 0;
+  try {
+    const eligible = (existingTransactions||[]).filter(isFreezeEligible).slice(0, FROZEN_WRITES_PER_RUN);
+    const stamp = new Date().toISOString();
+    for (const t of eligible) {
+      await base44.asServiceRole.entities.SquareTransaction.update(t.id, { sync_frozen: true, frozen_at: stamp }).catch(() => null);
+      frozenCount += 1;
+    }
+  } catch { /* freezing must never break a sync */ }
+
+  return{success:true,paused:false,frozenCount,paymentsCount:transactionRecords.length,transactions:transactionRecords,soldItems:transactionRecords,soldCatalogItems:transactionRecords.filter((t)=>t?.square_catalog_object_id),catalogItems:[],catalogItemCount:0,dateRange:{start_at:lookbackStartAt,end_at:new Date().toISOString(),days_back:daysBack}};
 }
 
 Deno.serve(async (req) => {

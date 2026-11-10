@@ -2,6 +2,14 @@
   "name": "SquareTransaction",
   "type": "object",
   "properties": {
+    "sync_frozen": {
+      "type": "boolean",
+      "description": "Set once a row is settled, its delivery is collected and it is past the refund grace window. Frozen rows are skipped by every Square sync and exempt from retention prune."
+    },
+    "frozen_at": {
+      "type": "string",
+      "description": "When the row was frozen by the sync."
+    },
     "square_transaction_id": {
       "type": "string",
       "description": "Square's unique ID for the transaction"
