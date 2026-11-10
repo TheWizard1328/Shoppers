@@ -357,8 +357,12 @@ function DeliveryMap({
           const heal = mapHealRef.current;
           if (st.map && el && el.clientWidth > 0 && heal.invalidated < 2) {
             heal.invalidated += 1;
-            st.map.invalidateSize();
-            console.warn(`[MapBoot] HEAL invalidateSize #${heal.invalidated}`);
+            try {
+              st.map.invalidateSize();
+              console.warn(`[MapBoot] HEAL invalidateSize #${heal.invalidated}`);
+            } catch (e) {
+              console.warn(`[MapBoot] HEAL invalidateSize #${heal.invalidated} THREW ${e?.message || e}`);
+            }
             setTimeout(() => {
               const now = mapBootWatchRef.current;
               const el2 = document.querySelector('.leaflet-container');
@@ -2185,10 +2189,24 @@ function DeliveryMap({
           if (!fanCanvasRenderer.current) {
             fanCanvasRenderer.current = L.canvas({ padding: 0.5, tolerance: 5 });
           }
-          requestAnimationFrame(() => {
+          // ── FRAME-INDEPENDENT READY (owner report Nov 9 2026) ────────────
+          // mapReady used to flip ONLY inside requestAnimationFrame. On the
+          // Meadows store computer that frame never arrives (window occluded /
+          // background tab / disconnected session), so whenReady fired, the
+          // HERE key was present, the container measured 1039x950, and the map
+          // still stayed blank all day while every other device was fine.
+          // The frame is still preferred (it lets Leaflet settle its bounds
+          // before vector children mount), but a 250 ms timer now wins the race
+          // so a machine that never paints a frame cannot keep the map dead.
+          let _mapSettled = false;
+          const settleMap = () => {
+            if (_mapSettled) return;
+            _mapSettled = true;
             setFanRendererReady(true);
             setMapReady(true);
-          });
+          };
+          requestAnimationFrame(settleMap);
+          setTimeout(settleMap, 250);
         }}
       >
         {tileLayerConfig?.base && (
