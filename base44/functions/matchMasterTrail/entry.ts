@@ -6,7 +6,7 @@ function dec(s, P = 1e7) {
     for (let k = 0; k < 2; k++) {
       let sh = 0, r = 0, b = 0;
       do { b = s.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32);
-      const d = r & 1 ? ~(r >> 1) : r >> 1;
+      const d = (r % 2 === 1) ? -Math.floor((r + 1) / 2) : Math.floor(r / 2);
       if (k === 0) la += d; else ln += d;
     }
     o.push([la / P, ln / P]);
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
     const body = { trace: traceOut.map((p) => ({ lat: p[0], lng: p[1] })), via: vias.map((v) => ({ index: v.index })) };
     const url = `https://router.hereapi.com/v8/import?apiKey=${key}&transportMode=car&return=polyline`;
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const txt = await res.text();
+    const txt = await res.text(); body0 = txt;
     if (!res.ok) return Response.json({ error: 'import failed', status: res.status, body: txt.slice(0, 400), tracePoints: traceOut.length, viaCount: vias.length, keyName });
 
     const j = JSON.parse(txt);
