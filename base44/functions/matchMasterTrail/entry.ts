@@ -5,7 +5,7 @@ function dec(s, P = 1e7) {
   while (i < s.length) {
     for (let k = 0; k < 2; k++) {
       let sh = 0, r = 0, b = 0;
-      do { b = s.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32);
+      do { b = s.charCodeAt(i++) - 63; r += (b & 31) * Math.pow(2, sh); sh += 5; } while (b >= 32);
       const d = (r % 2 === 1) ? -Math.floor((r + 1) / 2) : Math.floor(r / 2);
       if (k === 0) la += d; else ln += d;
     }
@@ -45,7 +45,7 @@ const FA="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const FI:Record<string,number>={};for(let i=0;i<FA.length;i++){FI[FA[i]]=i;}
 function flexDecode(enc:string):number[][]{
   const v:number[]=[];let cur=0,sh=0;
-  for(const ch of enc){const b=FI[ch];if(b===undefined)continue;cur|=(b&31)<<sh;if((b&32)===0){v.push(cur);cur=0;sh=0;}else sh+=5;}
+  for(const ch of enc){const b=FI[ch];if(b===undefined)continue;cur+=(b&31)*Math.pow(2,sh);if((b&32)===0){v.push(cur);cur=0;sh=0;}else sh+=5;}
   if(v.length<3)return [];
   const prec=v[1]&15, third=(v[1]>>4)&7, f=Math.pow(10,prec);
   const out:number[][]=[];let la=0,ln=0;let i=2;
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
 
     const j = JSON.parse(txt);
     const route = (j.routes || [])[0];
-    if (!route) return Response.json({ error: 'no route', notices: j.notices, tracePoints: traceOut.length, dbg: { a: traceOut[0], b: traceOut[1], z: traceOut[traceOut.length-1], url, bodyHead: JSON.stringify(body).slice(0,220) } });
+    if (!route) return Response.json({ error: 'no route', notices: j.notices, tracePoints: traceOut.length, dbg: { a: traceOut[0], b: traceOut[1], z: traceOut[traceOut.length-1], bodyHead: JSON.stringify(body).slice(0,180) } });
 
     let km = 0, matched = [];
     for (const sec of (route.sections || [])) {
