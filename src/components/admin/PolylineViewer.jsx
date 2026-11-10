@@ -1394,15 +1394,20 @@ export default function PolylineViewer({ users = [] }) {
 ${d.error} (status ${d.status || '?'})
 ${String(d.body || '').slice(0, 200)}`); return; }
       alert(`TEST /v8/import ok
-raw ${d.rawPoints} -> trace ${d.tracePoints} pts
+raw ${d.rawPoints} -> trace ${d.tracePoints} pts (${d.sampleM} m / ${d.turnDeg} deg)
 matched ${d.matchedPoints} pts, ${d.matchedKm} km, ${d.sections} sections
 deviation mean ${d.meanDevM} m / max ${d.maxDevM} m
-stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}
-key ${d.keyName}`);
+stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
+      if (!confirm('Save this snapped master? The current polyline is stashed in pre_snap_polyline first.')) return;
+      const res2 = await base44.functions.invoke('matchMasterTrail', { driver_id: item.driver_id, delivery_date: item.delivery_date, save: true });
+      const s2 = res2?.data || res2 || {};
+      if (s2.error) { alert('Save failed: ' + s2.error); return; }
+      if (s2.saved) alert(`Saved. ${s2.snappedPoints} points, ${s2.snappedTs} stamps, ${s2.matchedKm} km. Reload the viewer to see it.`);
+      else alert('Not saved: ' + (s2.saveErr || 'point/stamp count mismatch'));
     } catch (e) {
       alert('TEST /v8/import error: ' + (e?.message || e));
     }
-  };
+  };;
 
   const handleSnapAnalyze = async (item) => {
     setIsAnalyzing(true);

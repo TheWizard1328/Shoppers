@@ -56,13 +56,20 @@ function flexDecode(enc:string):number[][]{
   return out;
 }
 
+function encPts(pts:number[][], prec:number){
+  const f=Math.pow(10,prec);let la=0,ln=0,out='';
+  const cv=(v:number)=>{let x=v<0?-2*v-1:2*v;let s='';while(x>=32){s+=String.fromCharCode(((x%32)|32)+63);x=Math.floor(x/32);}return s+String.fromCharCode(x+63);};
+  for(const p of pts){const A=Math.round(p[0]*f),B=Math.round(p[1]*f);out+=cv(A-la)+cv(B-ln);la=A;ln=B;}
+  return out;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const q = await req.json().catch(() => ({}));
     const driverId = q.driver_id || '68570f3cd01bfa2d2408a9d7';
     const date = q.delivery_date || '2026-11-09';
-    const sm = Number(q.sample_m) || 100, td = Number(q.turn_deg) || 20;
+    const sm = Number(q.sample_m) || 60, td = Number(q.turn_deg) || 12;
 
     let key = null, keyName = null;
     for (const n of ['Here_API_Key_2', 'HERE_API_KEY', 'Here_API_Key_3']) {
@@ -163,8 +170,58 @@ Deno.serve(async (req) => {
       const d = nearest(matched, traceOut[i]).d;
       sum += d; cnt += 1; if (d > mx) mx = d;
     }
+    // ── SAVE PATH (owner approved Nov 10 2026) ────────────────────────────────
+    // Snapped shape is encoded back at 1e7 so the record keeps its existing
+    // precision, and timestamps are re-derived from the ORIGINAL day by
+    // cumulative-distance mapping, so the trail still starts and ends at the
+    // real clock times. The previous polyline is stashed in pre_snap_* fields
+    // before the overwrite, which is the revert path.
+    const snapped: number[][] = [];
+    for (const pt of matched) {
+      const last = snapped[snapped.length - 1];
+      if (last && hav(last, pt) < 1) continue;
+      snapped.push(pt);
+    }
+    const rawTs = String(master.timestamps || '').split(',').map(Number).filter((n: number) => Number.isFinite(n));
+    const cum = (arr: number[][]) => {
+      const out = [0];
+      for (let i = 1; i < arr.length; i++) out.push(out[i - 1] + hav(arr[i - 1], arr[i]));
+      return out;
+    };
+    let newTs: number[] = [];
+    if (snapped.length > 1 && rawTs.length > 1) {
+      const rc = cum(raw), sc = cum(snapped);
+      const rt = rc[rc.length - 1] || 1, st = sc[sc.length - 1] || 1;
+      const n = Math.min(rawTs.length, raw.length);
+      for (let i = 0; i < snapped.length; i++) {
+        const f = sc[i] / st;
+        let lo = 0, hi = n - 1;
+        while (lo < hi) { const mid = Math.floor((lo + hi) / 2); if (rc[mid] / rt < f) lo = mid + 1; else hi = mid; }
+        const j = Math.max(1, lo);
+        const segLen = rc[j] - rc[j - 1] || 1;
+        const frac = Math.min(1, Math.max(0, (f * rt - rc[j - 1]) / segLen));
+        newTs.push(Math.round(rawTs[j - 1] + (rawTs[j] - rawTs[j - 1]) * frac));
+      }
+      for (let i = 1; i < newTs.length; i++) if (newTs[i] <= newTs[i - 1]) newTs[i] = newTs[i - 1] + 1;
+    }
+    const encoded = snapped.length > 1 ? encPts(snapped, 7) : '';
+    let saved = false, saveErr: any = null;
+    if (q.save === true && encoded && newTs.length === snapped.length) {
+      try {
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(master.id, {
+          encoded_polyline: encoded,
+          timestamps: newTs.join(','),
+          point_count: snapped.length,
+          is_snapped: true,
+          snapped_at: new Date().toISOString(),
+          pre_snap_polyline: master.encoded_polyline || '',
+          pre_snap_timestamps: master.timestamps || '',
+        });
+        saved = true;
+      } catch (e: any) { saveErr = String(e?.message || e); }
+    }
     return Response.json({
-      ok: true, usedVias, diag: { patientCount: pmap.size, stop0: stops[0] || null, trace0: trace[0] || null, sec0: (body0 || '').toString().slice(0,160) }, keyName, stopsUsed: stops.length, skippedStops, viaCount: vias.length,
+      ok: true, usedVias, saved, saveErr, snappedPoints: snapped.length, snappedTs: newTs.length, sampleM: sm, turnDeg: td, diag: { patientCount: pmap.size, stop0: stops[0] || null, trace0: trace[0] || null, sec0: (body0 || '').toString().slice(0,160) }, keyName, stopsUsed: stops.length, skippedStops, viaCount: vias.length,
       rawPoints: raw.length, tracePoints: traceOut.length, matchedPoints: matched.length,
       sections: (route.sections || []).length, matchedKm: Math.round(km * 10) / 10,
       meanDevM: Math.round(sum / Math.max(1, cnt)), maxDevM: Math.round(mx),

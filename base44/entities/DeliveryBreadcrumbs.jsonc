@@ -2,6 +2,18 @@
   "name": "DeliveryBreadcrumbs",
   "type": "object",
   "properties": {
+    "pre_snap_polyline": {
+      "type": "string",
+      "description": "Encoded master polyline captured immediately before a road snap, kept as the revert path"
+    },
+    "pre_snap_timestamps": {
+      "type": "string",
+      "description": "Timestamps string that belonged to pre_snap_polyline"
+    },
+    "snapped_at": {
+      "type": "string",
+      "description": "ISO time the master trail was last road-snapped"
+    },
     "driver_id": {
       "type": "string",
       "description": "ID of the driver this breadcrumb leg belongs to"
