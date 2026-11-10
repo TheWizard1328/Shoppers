@@ -139,7 +139,9 @@ export default function StopCardBody({
               <StopCardPhoneRow
               isPickup={isPickup}
               finalDisplayPhone={finalDisplayPhone}
-              alternateDisplayPhone={alternateDisplayPhone} />
+              alternateDisplayPhone={alternateDisplayPhone}
+              patient={patient}
+              patientName={delivery?.patient_name || ''} />
             
 
               <StopCardCodSection

@@ -2,6 +2,14 @@
   "name": "Patient",
   "type": "object",
   "properties": {
+    "sms_primary": {
+      "type": "boolean",
+      "description": "Primary phone accepts SMS. Drives the Text badge on delivery and patient forms and the Text button on mobile stop cards."
+    },
+    "sms_secondary": {
+      "type": "boolean",
+      "description": "Alternate phone accepts SMS. Same behaviour as sms_primary for the secondary number."
+    },
     "store_id": {
       "type": "string",
       "description": "ID of the store this patient is assigned to"

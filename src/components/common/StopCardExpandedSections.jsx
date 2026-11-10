@@ -10,13 +10,41 @@ import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 import StopCardCODCollection from "./StopCardCODCollection";
 import { useIsDeliveryPatientWatching } from "../utils/portalWatchers";
 import { useAppData } from "../utils/AppDataContext";
+import { useDevice } from "../utils/DeviceContext";
+import { isCurrentDevicePrimary } from "../utils/deviceManager";
+import { MessageSquare } from "lucide-react";
 
-export function StopCardPhoneRow({ isPickup, finalDisplayPhone, alternateDisplayPhone }) {
+export function StopCardPhoneRow({ isPickup, finalDisplayPhone, alternateDisplayPhone, patient = null, patientName = '' }) {
+  // SMS handoff (owner spec Nov 10 2026): only a PRIMARY mobile device offers it.
+  // A primary device is the driver's own phone or tablet, which is the device
+  // that actually has a texting app; the PC and any secondary device never show
+  // the button. Body is prefilled with "Hello <first name>," plus a newline.
+  const device = useDevice();
+  const canText = !!device?.isMobile && isCurrentDevicePrimary();
+  const firstName = String(patient?.full_name || patientName || '').trim().split(/\s+/)[0] || '';
+  const openSms = (phone) => {
+    const digits = String(phone || '').replace(/[^0-9+]/g, '');
+    if (!digits) return;
+    const body = encodeURIComponent(`Hello ${firstName},\n`);
+    window.location.href = `sms:${digits}?body=${body}`;
+  };
+  const TextBtn = ({ phone }) => (
+    <button
+      type="button"
+      title={`Text this patient at ${formatPhoneNumber(phone)}`}
+      onClick={(e) => { e.stopPropagation(); openSms(phone); }}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-semibold leading-none"
+    >
+      <MessageSquare className="w-3 h-3" />
+      Text
+    </button>
+  );
   if (isPickup || !finalDisplayPhone && !alternateDisplayPhone) return null;
 
   return (
     <div className="flex items-center gap-2 text-lg flex-wrap text-label">
       {finalDisplayPhone && <span className="font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>}
+      {canText && finalDisplayPhone && patient?.sms_primary === true && <TextBtn phone={finalDisplayPhone} />}
       {finalDisplayPhone && alternateDisplayPhone && <span>•</span>}
       {alternateDisplayPhone && (
         <a
@@ -27,6 +55,7 @@ export function StopCardPhoneRow({ isPickup, finalDisplayPhone, alternateDisplay
           {formatPhoneNumber(alternateDisplayPhone)}
         </a>
       )}
+      {canText && alternateDisplayPhone && patient?.sms_secondary === true && <TextBtn phone={alternateDisplayPhone} />}
     </div>);
 
 }

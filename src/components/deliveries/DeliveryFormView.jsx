@@ -29,6 +29,7 @@ import { getAddButtonStatus } from './Add2RouteStatusHelper';
 import LargeBarcodePreview from './LargeBarcodePreview';
 import DeliveryStatusAndTiming from './DeliveryStatusAndTiming';
 import AddressActionBadges from '../common/AddressActionBadges';
+import TextBadge from '../common/TextBadge';
 import DistanceFromStoreBadge from '../common/DistanceFromStoreBadge';
 import DeliveryCameraOverlay from './DeliveryCameraOverlay';
 import { DeliveryStagedPanelDesktop, DeliveryStagedPanelMobile, DeliveryDeleteConfirmDialog } from './DeliveryStagedPanel';
@@ -1800,11 +1801,17 @@ export default function DeliveryFormView({
                             </div>
                             <div className="flex gap-3">
                               <div className="flex-1 space-y-1">
-                                <Label className="text-sm font-semibold text-body">Phone</Label>
+                                <div className="flex items-center justify-between gap-1">
+                                  <Label className="text-sm font-semibold text-body">Pr Phone</Label>
+                                  <TextBadge patient={selectedPatient} which="primary" disabled={isSaving} />
+                                </div>
                                 <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} disabled={isSaving} className="h-9 text-sm" />
                               </div>
                               <div className="flex-1 space-y-1">
-                                <Label className="text-sm font-semibold text-body">Alternate Phone</Label>
+                                <div className="flex items-center justify-between gap-1">
+                                  <Label className="text-sm font-semibold text-body">Alt Phone</Label>
+                                  <TextBadge patient={selectedPatient} which="secondary" disabled={isSaving} />
+                                </div>
                                 <PhoneInput value={formData.patient_phone_secondary || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone_secondary: v }))} disabled={isSaving} className="h-9 text-sm" />
                               </div>
                             </div>

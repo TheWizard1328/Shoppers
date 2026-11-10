@@ -14,6 +14,7 @@ import { X, Save, UserPlus, Plus, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { generatePatientId, validateId, formatId } from '@/components/utils/idGenerator';
 import { PhoneInput } from "@/components/ui/phone-input";
+import TextBadge from "@/components/common/TextBadge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { sortStores } from "@/components/utils/sorting";
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
@@ -1412,7 +1413,10 @@ export default function PatientForm({
                 {/* Row 2: Phone + Alt. Phone (50/50) */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
-                    <Label htmlFor="phone" className="text-sm font-medium text-body">Prim. Phone</Label>
+                    <div className="flex items-center justify-between gap-1">
+                      <Label htmlFor="phone" className="text-sm font-medium text-body">Pr Phone</Label>
+                      <TextBadge patient={patient || { ...formData, id: formData.id }} which="primary" disabled={disableOtherFieldsDuringAddressLookup} />
+                    </div>
                     <PhoneInput
                       id="phone"
                       value={formData.phone}
@@ -1423,7 +1427,10 @@ export default function PatientForm({
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
                   <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
-                    <Label htmlFor="phone_secondary" className="text-sm font-medium text-body">Alt. Phone</Label>
+                    <div className="flex items-center justify-between gap-1">
+                      <Label htmlFor="phone_secondary" className="text-sm font-medium text-body">Alt Phone</Label>
+                      <TextBadge patient={patient || { ...formData, id: formData.id }} which="secondary" disabled={disableOtherFieldsDuringAddressLookup} />
+                    </div>
                     <PhoneInput
                       id="phone_secondary"
                       value={formData.phone_secondary}
