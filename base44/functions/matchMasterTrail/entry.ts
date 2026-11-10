@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
 
     const j = JSON.parse(txt);
     const route = (j.routes || [])[0];
-    if (!route) return Response.json({ error: 'no route', notices: j.notices, tracePoints: traceOut.length });
+    if (!route) return Response.json({ error: 'no route', notices: j.notices, tracePoints: traceOut.length, dbg: { a: traceOut[0], b: traceOut[1], z: traceOut[traceOut.length-1], url, bodyHead: JSON.stringify(body).slice(0,220) } });
 
     let km = 0, matched = [];
     for (const sec of (route.sections || [])) {
