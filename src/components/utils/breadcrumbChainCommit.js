@@ -68,6 +68,16 @@ export function shouldDropByAccuracy(accuracy, gateM = getAccuracyGateM()) {
 export function selectChainCommitPoint(buffer, lastCommitted, capM = CHAIN_COMMIT_CAP_M) {
   if (!buffer || buffer.length === 0) return { commit: null, carryForward: [] };
 
+  // OWNER RULE Nov 9 2026: only fixes NEWER than the last stored crumb may be
+  // committed. Without this the buffer can hand back a fix that arrived late
+  // but sits behind the last crumb, which is what drew the 'one step back'
+  // diamonds. A fix with no stamp is kept (older callers).
+  const lastTs = Number(lastCommitted?.ts) || 0;
+  if (lastTs > 0) {
+    buffer = buffer.filter((f) => Number(f?.ts) > lastTs);
+    if (buffer.length === 0) return { commit: null, carryForward: [] };
+  }
+
   // First crumb of the day (no last committed point) → commit the latest fix.
   if (!lastCommitted) {
     return { commit: { ...buffer[buffer.length - 1], outage: false }, carryForward: [] };

@@ -37,6 +37,64 @@ function encodePolyline(points) {
 
 // Auto-detect 1e5 (legacy) vs 1e7 (current) precision so unmigrated master records
 // being merged decode correctly during the transition window.
+
+// ── TRAIL SANITIZER (owner directive Nov 9 2026) ─────────────────────────────
+// Runs on EVERY master sync so a replayed or cached point can neither enter nor
+// survive in the master timeline:
+//   1. a point within 20m of either of the previous two kept points is dropped
+//      (a stale fix lands on one of them, not on the tail);
+//   2. a 'step back' spike is removed when both neighbours sit close to each
+//      other while the middle point sits far from both;
+//   3. a 5 minute or longer gap is never collapsed (stationary audit trail).
+// The timestamps string is rebuilt from the surviving points below, so the
+// polyline and its timestamps can never drift apart again.
+function trailHaversine(a: any, b: any): number {
+  const R = 6371000;
+  const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+  const dLon = ((b[1] - a[1]) * Math.PI) / 180;
+  const x = Math.sin(dLat / 2) ** 2 +
+    Math.cos((a[0] * Math.PI) / 180) * Math.cos((b[0] * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function sanitizeTrailPoints(points: any[]): any[] {
+  const kept: any[] = [];
+  let droppedReplay = 0;
+  let droppedSpike = 0;
+  for (const pt of points) {
+    const n = kept.length;
+    if (n > 0) {
+      const last = kept[n - 1];
+      const dt = Number(pt?.[2]) - Number(last?.[2]);
+      if (Number.isFinite(dt) && dt >= 5 * 60 * 1000) {
+        kept.push(pt);
+        continue;
+      }
+      let replay = false;
+      for (let k = 1; k <= 2 && n - k >= 0; k++) {
+        if (trailHaversine(kept[n - k], pt) <= 20) { replay = true; break; }
+      }
+      if (replay) { droppedReplay += 1; continue; }
+      if (n >= 2) {
+        const prev = kept[n - 2];
+        const cur = kept[n - 1];
+        const diag = trailHaversine(prev, cur);
+        const gap = trailHaversine(cur, pt);
+        const back = trailHaversine(prev, pt);
+        if (gap > 20 && diag > 30 && back < 0.7 * (diag + gap)) {
+          kept.pop();
+          droppedSpike += 1;
+        }
+      }
+    }
+    kept.push(pt);
+  }
+  if (droppedReplay || droppedSpike) {
+    console.log(`[syncPendingBreadcrumbs] sanitizer dropped ${droppedReplay} replayed and ${droppedSpike} spike points`);
+  }
+  return kept;
+}
+
 function decodePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
@@ -202,7 +260,8 @@ Deno.serve(async (req) => {
       for (const pt of incomingPoints) { if (pt[2]) tsMap.set(pt[2], pt); }
     }
 
-    const mergedPoints = Array.from(tsMap.values()).sort((a, b) => a[2] - b[2]);
+    let mergedPoints = Array.from(tsMap.values()).sort((a, b) => a[2] - b[2]);
+    mergedPoints = sanitizeTrailPoints(mergedPoints);
 
     // ── Outage marker merge ────────────────────────────────────────────────
     // outage_timestamps are the ms timestamps of force-committed points (genuine

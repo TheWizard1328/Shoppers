@@ -256,7 +256,9 @@ export function getLastCommittedCrumb(driverId, deliveryDate) {
   const trail = _masterTrailCache.get(cacheKey);
   if (!trail || trail.length === 0) return null;
   const last = trail[trail.length - 1];
-  return { lat: last[0], lng: last[1] };
+  // ts is carried so the chain-commit can refuse a fix that is not NEWER than
+  // the last stored crumb (owner rule Nov 9 2026).
+  return { lat: last[0], lng: last[1], ts: Number(last[2]) || 0 };
 }
 
 export const collectBreadcrumbForTracker = async ({
@@ -291,37 +293,94 @@ export const collectBreadcrumbForTracker = async ({
   // subsequent breadcrumbs push to the in-memory array — no IDB read, no decode.
   const trailPoints = await loadTrailIntoCache(currentUser.id, deliveryDate, offlineKey);
 
-  const breadcrumbPoint = [
-    Math.round(latitude * 1e7) / 1e7,
-    Math.round(longitude * 1e7) / 1e7,
-    timestamp,
-  ];
+  // ── TRAIL SANITIZATION (owner directive Nov 9 2026) ───────────────────────
+  // Root cause of the 'one step back' crumbs (Whitemud / Terwillegar section,
+  // points 2296-2325): a device delivers a stale cached fix AFTER a fresh one,
+  // and the old code only compared against the LAST stored point, so a fix 50m
+  // behind sailed through and the next fresh fix leapt forward — 13, 14, 15,
+  // 14, 15, 18. Rules now, in order:
+  //   1. Time must move forward. A fix at or before the last stored stamp is
+  //      refused, so a cached position can never be written as new.
+  //   2. Radius test against the last THREE crumbs, not one. Adaptive: 8m
+  //      under 20 km/h, 15m above, so a slow corner is not over-collapsed.
+  //   3. Heading exception: 5m+ away and turned 20 deg or more is kept even
+  //      inside the radius — that is a real corner, not jitter.
+  //   4. Spike removal: when this fix proves the previous crumb was a spike
+  //      (both neighbours close to each other, that crumb far from both), the
+  //      spike is deleted instead of a new crumb being stored.
+  // No stored or cached coordinate is ever used as a crumb position.
+  const PREC = 1e7;
+  const newLat = Math.round(latitude * PREC) / PREC;
+  const newLng = Math.round(longitude * PREC) / PREC;
+  const nPts = trailPoints.length;
+  const lastStoredTs = nPts > 0 ? Number(trailPoints[nPts - 1][2]) || 0 : 0;
+  if (lastStoredTs && Number(timestamp) <= lastStoredTs) {
+    return { deduped: true, reason: 'stale_fix_time' };
+  }
+  const bearingDeg = (a, b) => {
+    const toRad = (d) => (d * Math.PI) / 180;
+    const y = Math.sin(toRad(b[1] - a[1])) * Math.cos(toRad(b[0]));
+    const x = Math.cos(toRad(a[0])) * Math.sin(toRad(b[0])) -
+      Math.sin(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.cos(toRad(b[1] - a[1]));
+    return (Math.atan2(y, x) * 180) / Math.PI;
+  };
+  if (nPts > 0) {
+    const lastPoint = trailPoints[nPts - 1];
+    const prevPoint = nPts > 1 ? trailPoints[nPts - 2] : null;
+    const timeSinceLast = Number(timestamp) - lastStoredTs;
+    const distanceM = haversineMeters(lastPoint[0], lastPoint[1], newLat, newLng);
 
-  // Distance filter: LOG large GPS jumps but still ACCEPT the point.
-  if (trailPoints.length > 0) {
-    const lastPoint = trailPoints[trailPoints.length - 1];
-    const timeSinceLast = timestamp - (lastPoint[2] || 0);
-
+    // Long stationary gap (5 min heartbeat): keep the audit trail, skip the
+    // radius/replay tests that would otherwise suppress it.
     if (timeSinceLast < MAX_BREADCRUMB_STALENESS_MS) {
-      // Consolidated into geoUtils — identical math, single source of truth.
-      const distanceM = haversineMeters(lastPoint[0], lastPoint[1], latitude, longitude);
+      let speedMps = null;
+      if (prevPoint) {
+        const dtSec = (Number(lastPoint[2]) - Number(prevPoint[2])) / 1000;
+        if (dtSec > 0) {
+          speedMps = haversineMeters(prevPoint[0], prevPoint[1], lastPoint[0], lastPoint[1]) / dtSec;
+        }
+      }
+      const radius = speedMps !== null && speedMps < 5.6 ? 8 : 15;
 
-      // ── Stationary dedup ───────────────────────────────────────────────────
-      // Skip storing when the new fix is within the dedup radius of the last
-      // stored point — collapses piles at stops, red lights, traffic without
-      // needing geofence logic. The 5-min heartbeat exception (below) still
-      // leaves an audit trail for long stationary stays.
-      if (distanceM <= STATIONARY_DEDUP_RADIUS_M) {
-        return { deduped: true };
+      let turned = false;
+      if (prevPoint && distanceM >= 5) {
+        const legA = bearingDeg([prevPoint[0], prevPoint[1]], [lastPoint[0], lastPoint[1]]);
+        const legB = bearingDeg([lastPoint[0], lastPoint[1]], [newLat, newLng]);
+        let delta = Math.abs(legB - legA);
+        if (delta > 180) delta = 360 - delta;
+        turned = delta >= 20;
       }
 
-      if (distanceM > MAX_BREADCRUMB_DISTANCE_M) {
-        console.warn(`🍞 [Breadcrumbs] Large GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m — accepting${outage ? ' (forced outage commit)' : ''}`);
+      if (distanceM <= radius && !turned) {
+        return { deduped: true, reason: 'radius' };
+      }
+      // A replayed position lands on one of the crumbs BEFORE the last one.
+      for (let k = 2; k <= 3 && nPts - k >= 0; k++) {
+        const rp = trailPoints[nPts - k];
+        if (haversineMeters(rp[0], rp[1], newLat, newLng) <= radius) {
+          return { deduped: true, reason: 'replay' };
+        }
+      }
+    }
+
+    if (distanceM > MAX_BREADCRUMB_DISTANCE_M) {
+      console.warn(`🍞 [Breadcrumbs] Large GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m — accepting${outage ? ' (forced outage commit)' : ''}`);
+    }
+
+    // Spike removal: the PREVIOUS crumb is a spike when this fix sits close to
+    // the one before it while that crumb was far from both.
+    if (prevPoint) {
+      const diag = haversineMeters(prevPoint[0], prevPoint[1], lastPoint[0], lastPoint[1]);
+      const gap = haversineMeters(lastPoint[0], lastPoint[1], newLat, newLng);
+      const back = haversineMeters(prevPoint[0], prevPoint[1], newLat, newLng);
+      if (gap > 20 && diag > 30 && back < 0.7 * (diag + gap)) {
+        trailPoints.pop();
+        console.warn('🍞 [Breadcrumbs] dropped a spike crumb (step back)');
       }
     }
   }
 
-  // O(1) append to in-memory array
+  const breadcrumbPoint = [newLat, newLng, timestamp];
   trailPoints.push(breadcrumbPoint);
 
   // ── Outage marker ─────────────────────────────────────────────────────────

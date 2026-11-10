@@ -1910,6 +1910,11 @@ class LocationTracker {
       lastCommitted = getLastCommittedCrumb(this.currentUser.id, this.currentDeliveryDate);
       if (lastCommitted) this._lastCommittedCrumb = lastCommitted;
     }
+    // Monotonic time source for the chain commit (owner rule Nov 9 2026).
+    if (lastCommitted?.ts) this._lastCommittedCrumbTs = Number(lastCommitted.ts) || 0;
+    if (this._lastCommittedCrumbTs && lastCommitted && !lastCommitted.ts) {
+      lastCommitted = { ...lastCommitted, ts: this._lastCommittedCrumbTs };
+    }
 
     // ── Conditional chain-commit (250m) ─────────────────────────────────────
     // Walk the buffered fixes and commit the furthest one strictly < 250m
@@ -1949,7 +1954,8 @@ class LocationTracker {
         return;
       }
 
-      this._lastCommittedCrumb = { lat: commit.lat, lng: commit.lng };
+      this._lastCommittedCrumb = { lat: commit.lat, lng: commit.lng, ts: commit.ts };
+      this._lastCommittedCrumbTs = Number(commit.ts) || this._lastCommittedCrumbTs;
       this.lastBreadcrumbPosition = { latitude: commit.lat, longitude: commit.lng, timestamp: commit.ts };
       this.lastBreadcrumbSavedAt = timestamp;
     } catch (error) {
@@ -2565,16 +2571,10 @@ if (typeof document !== 'undefined') {
       locationTracker.lastPosition = { latitude, longitude, accuracy };
       locationTracker.collectBreadcrumb(latitude, longitude, Date.now()).catch(() => {});
     }).catch((err) => {
-      // Fallback: use last known position if fresh fix fails
-      if (locationTracker.lastPosition?.latitude) {
-        locationTracker.collectBreadcrumb(
-          locationTracker.lastPosition.latitude,
-          locationTracker.lastPosition.longitude,
-          Date.now()
-        ).catch(() => {});
-      } else {
-        console.warn('🍞 [LocationTracker] Post-completion breadcrumb failed — no GPS fix', err?.message);
-      }
+      // OWNER RULE Nov 9 2026: a cached position must never be written as a new
+      // crumb — that is how the stale 50m-behind points entered the master. If
+      // the fresh fix fails, skip this crumb and let the next tick try.
+      console.warn('🍞 [LocationTracker] Post-completion breadcrumb skipped — no fresh GPS fix', err?.message);
     });
   });
 }
