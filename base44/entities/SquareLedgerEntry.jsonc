@@ -2,6 +2,11 @@
   "name": "SquareLedgerEntry",
   "type": "object",
   "properties": {
+    "sync_frozen": {
+      "type": "boolean",
+      "description": "Set once the entry is settled and past the refund grace window. Frozen entries are never rewritten by the ledger sync."
+    },
+    "frozen_at": { "type": "string" },
     "square_id": {
       "type": "string",
       "description": "Unique dedupe key: Square payment ID, tender ID, refund ID or payout ID"

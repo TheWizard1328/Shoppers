@@ -2065,8 +2065,35 @@ Deno.serve(async (req) => {
     // hits "Rate limit" pauses 30s and retries (up to 2 extra passes), so a
     // big window self-heals instead of losing rows. Normal 10-minute windows
     // never hit this path.
+    // ── FROZEN + UNCHANGED ROWS (owner decision Nov 9 2026) ────────────────
+    // The nightly rebuild re-upserted every row in the window, which is how 914
+    // writes ran into the platform's 210-per-60s cap twice in a row. Two rules
+    // now cut the write volume: a row already frozen (settled, delivery
+    // collected, past the 14 day refund window) is never written again, and a
+    // row whose computed payload matches what is stored is left untouched.
+    const FROZEN_GRACE_MS = 14 * 86400000;
+    const OPEN_STATUSES = new Set(['pending', 'staged', 'en_route', 'in_transit']);
+    const LEDGER_COMPARE_KEYS = [
+      'entry_kind', 'tender_type', 'sale_class', 'amount_cents', 'fee_cents',
+      'folder_cents', 'loan_cents', 'settled_cents', 'status', 'occurred_at',
+      'location_id', 'delivery_id', 'patient_id', 'cod_item_name',
+      'attributed_location_id',
+    ];
+    const sameLedgerValue = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    let skippedUnchanged = 0;
+    const isLedgerFreezeEligible = (exRow: any): boolean => {
+      if (!exRow || exRow.sync_frozen === true) return false;
+      const when = exRow?.occurred_at || exRow?.updated_date || exRow?.created_date;
+      const tm = new Date(when || 0).getTime();
+      if (!Number.isFinite(tm) || Date.now() - tm < FROZEN_GRACE_MS) return false;
+      const st = String(exRow?.status || '').toLowerCase();
+      if (st === 'pending' || st === '' || st === 'open') return false;
+      return true;
+    };
     const persistOne = async (record: any): Promise<boolean> => {
       const existingId = existingIdBySquareId.get(record.square_id);
+      const preRow = existingRowsBySquareId.get(record.square_id)?.[0];
+      if (preRow?.sync_frozen === true) { skippedUnchanged += 1; return true; }
       if (existingId) {
         // Never wipe a previously stamped COD link when this run's rebuild
         // failed to resolve it (e.g. catalog item since deleted).
@@ -2078,6 +2105,10 @@ Deno.serve(async (req) => {
           patient_id: record.patient_id || exRow.patient_id || null,
           cod_item_name: record.cod_item_name || exRow.cod_item_name || null,
         } : record;
+        if (exRow && LEDGER_COMPARE_KEYS.every((k: string) => sameLedgerValue(merged?.[k], exRow?.[k]))) {
+          skippedUnchanged += 1;
+          return true;
+        }
         return base44.asServiceRole.entities.SquareLedgerEntry.update(existingId, merged).then(() => true).catch((e: any) => { throw e; });
       }
       return base44.asServiceRole.entities.SquareLedgerEntry.create(record).then(() => true).catch((e: any) => { throw e; });
@@ -2113,6 +2144,20 @@ Deno.serve(async (req) => {
       }
     }
     failedUpserts = Math.max(0, failedUpserts);
+
+    // Freeze settled, past-grace rows so they leave the rebuild forever
+    // (bounded per run: a first pass over history never trips the write cap).
+    let frozenLedgerCount = 0;
+    try {
+      const stamp = new Date().toISOString();
+      for (const rows of existingRowsBySquareId.values()) {
+        if (frozenLedgerCount >= 60) break;
+        const exRow = Array.isArray(rows) ? rows[0] : null;
+        if (!isLedgerFreezeEligible(exRow)) continue;
+        await base44.asServiceRole.entities.SquareLedgerEntry.update(exRow.id, { sync_frozen: true, frozen_at: stamp }).catch(() => null);
+        frozenLedgerCount += 1;
+      }
+    } catch { /* freezing must never break a sync */ }
 
     // ── CARD-SPEND STAMP HEALING (owner report Oct 26 2026) ──────────────
     // Past-dated COD deliveries swiped TODAY only enter Collected Today via
