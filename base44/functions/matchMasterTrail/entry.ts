@@ -109,13 +109,20 @@ Deno.serve(async (req) => {
     const assigned = stops.map((st) => { const n = nearest(trace, [st.lat, st.lng]); return { lat: st.lat, lng: st.lng, dist: Math.round(n.d), order: st.order, ni: n.i }; });
     const byIdx = new Map();
     for (const st of assigned) { if (!byIdx.has(st.ni)) byIdx.set(st.ni, []); byIdx.get(st.ni).push(st); }
-    const traceOut = [];
-    const vias = [];
-    for (let i = 0; i < trace.length; i++) {
-      traceOut.push([trace[i][0], trace[i][1]]);
-      const list = byIdx.get(i);
-      if (list) for (const st of list) { traceOut.push([st.lat, st.lng]); vias.push({ index: traceOut.length, dist: st.dist, order: st.order }); }
+    // Vias point AT the nearest crumb instead of splicing the stop coordinate in.
+    // Splicing created zero-length pairs (a stop sits within metres of its crumb)
+    // and HERE rejected the whole trace with "Failed to connect points".
+    const traceOut = trace.map((p) => [p[0], p[1]]);
+    const capped = traceOut.length - 2;
+    const seen = new Set();
+    for (const st of assigned) {
+      let idx = Math.min(Math.max(st.ni + 1, 1), Math.max(1, capped));
+      while (seen.has(idx) && idx < capped) idx += 1;
+      if (seen.has(idx)) continue;
+      seen.add(idx);
+      vias.push({ index: idx, dist: st.dist, order: st.order });
     }
+    vias.sort((x, y) => x.index - y.index);
     const maxIdx = traceOut.length - 2;
     for (const v of vias) if (v.index > maxIdx) v.index = Math.max(1, maxIdx);
     let body0 = '';
