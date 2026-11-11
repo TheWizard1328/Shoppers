@@ -166,7 +166,14 @@ export default function GuideAssistant() {
   // Tracks the FAB's vertical position dynamically (it moves when stop cards expand/collapse,
   // immersive mode toggles, etc.) but stays pinned to right:0 (the actual screen edge),
   // never the FAB's own right edge.
-  const [guideBottomPx, setGuideBottomPx] = useState('50%');
+  // Anchor model (owner spec Nov 10 2026): the tab belongs UNDER a top panel, never
+  // above the map-cycle FAB. Normal dashboard → just below the stats panel (cards +
+  // driver legend). Immersive mode → the stats panel slides up off-screen while the
+  // immersive top overlay takes its place, so the tab slides up with it and sits just
+  // below THAT panel. The space above the FAB is reserved for the flashlight FAB.
+  // mode 'panel' positions from the top edge, mode 'fab' is the last-resort fallback
+  // on pages with no panel at all.
+  const [guideAnchor, setGuideAnchor] = useState({ mode: 'panel', top: '50%' });
 
   useEffect(() => {
     // PERF FIX (Oct 21 2026, owner: entire app glitchy; maps jittery when
@@ -188,17 +195,43 @@ export default function GuideAssistant() {
     const compute = () => {
       idleId = null;
       if ((window._userMapControlUntil || 0) > Date.now()) return;
+      // A panel qualifies as the anchor only while it is actually on screen. The
+      // stats wrapper is translated -100% in immersive mode, so its measured bottom
+      // goes negative and it drops out; the immersive overlay then wins. Measuring
+      // beats reading flags here because the slide is a CSS transform, not a mount.
+      const panelBottom = (selector) => {
+        const el = document.querySelector(selector);
+        if (!el || el.offsetParent === null) return null;
+        const rect = el.getBoundingClientRect();
+        if (rect.height <= 0) return null;
+        if (rect.bottom <= 8 || rect.bottom >= window.innerHeight - 40) return null;
+        return rect.bottom;
+      };
+
+      // Immersive overlay first (it is the only top panel on screen in that mode).
+      const immersiveBottom = panelBottom('[data-immersive-top-panel="true"]');
+      if (immersiveBottom !== null) {
+        setGuideAnchor({ mode: 'panel', top: `${immersiveBottom + 6}px` });
+        return;
+      }
+
+      // Normal dashboard: stats cards + driver legend panel.
+      const statsBottom = panelBottom('[data-stats-panel="true"]');
+      if (statsBottom !== null) {
+        setGuideAnchor({ mode: 'panel', top: `${statsBottom + 6}px` });
+        return;
+      }
+
+      // Last resort (no panel on this page): keep the old above-FAB behaviour.
       const fabEl = document.querySelector('[data-map-cycle-fab="true"]');
       if (fabEl && fabEl.offsetParent !== null) {
         const rect = fabEl.getBoundingClientRect();
         if (rect.top > 0 && rect.top < window.innerHeight) {
-          // Position just above the FAB with a 6px gap
-          setGuideBottomPx(`${window.innerHeight - rect.top + 6}px`);
+          setGuideAnchor({ mode: 'fab', bottom: `${window.innerHeight - rect.top + 6}px` });
           return;
         }
       }
-      // Fallback: no FAB found (non-dashboard pages or FAB hidden)
-      setGuideBottomPx('50%');
+      setGuideAnchor({ mode: 'panel', top: '50%' });
     };
     const schedule = () => {
       if (idleId !== null) return;
@@ -1022,9 +1055,11 @@ export default function GuideAssistant() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 60, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20, opacity: { duration: 0.2, ease: 'easeInOut' } }}
-            className="fixed z-[10060]"
+            className="fixed z-[10060] transition-[top,bottom] duration-500 ease-in-out"
             style={{
-              bottom: typeof guideBottomPx === 'string' ? guideBottomPx : `${guideBottomPx}px`,
+              ...(guideAnchor.mode === 'panel'
+                ? { top: guideAnchor.top, bottom: 'auto' }
+                : { bottom: guideAnchor.bottom, top: 'auto' }),
               right: 0,
               pointerEvents: 'auto',
             }}

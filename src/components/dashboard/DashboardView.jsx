@@ -395,6 +395,7 @@ function DashboardView({
 
       <div ref={mapAreaRef} className="flex-1 w-full relative min-h-0 overflow-hidden">
         <div
+          data-stats-panel="true"
           className="absolute top-0 left-0 right-0 z-[230] transition-transform duration-500 ease-in-out"
           style={{
             transform: immersiveHidden ? 'translateY(calc(-100% - 1rem))' : 'translateY(0)',
