@@ -171,6 +171,11 @@ export default function AppSidebar({
   // link opens a dialog that asks the App Owner for more money on a card.
   const [showBalanceRequest, setShowBalanceRequest] = useState(false);
   const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore, storeNames: sqStoreNames, dailyRemainingByStore: sqDailyRemaining } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null, isAppOwner(currentUser));
+  // Owner spec (Nov 11 2026): the badge scope follows the SELECTED date in the
+  // global filters (never the current date). Falls back to today only when no
+  // date is set at all.
+  const sqSelectedDate = String(globalFilters.getSelectedDate?.() || '').slice(0, 10) ||
+    edmontonWallString(new Date()).slice(0, 10);
   const sqBadge = useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
     let storeIds = null;
@@ -179,12 +184,11 @@ export default function AppSidebar({
       // assigned stores falls back to today's route stores.
       storeIds = (currentUser?.store_ids || []).map(String).filter(Boolean);
       if (!storeIds.length && sqIsDriver) {
-        // Driver AppUser records carry empty store_ids, so the route resolves
-        // the scope. resolveDriverRouteStoreIds keeps today's route first but
-        // survives a day rollover (owner report Nov 11 2026 00:31: Anna's badge
-        // sat on "…" because her route was Nov 10 and "today" had no stops yet).
-        const today = edmontonWallString(new Date()).slice(0, 10);
-        storeIds = resolveDriverRouteStoreIds(deliveries, currentUser?.id, today);
+        // Driver AppUser records carry empty store_ids, so the SELECTED date's
+        // route resolves the scope (owner spec Nov 11 2026: the gate is the
+        // selected date, never the current date). No stops on that date means
+        // an empty scope, which renders "N/A" rather than a stale value.
+        storeIds = resolveDriverRouteStoreIds(deliveries, currentUser?.id, sqSelectedDate);
       }
     }
     let total = 0,avg = 0,found = false;
@@ -236,8 +240,20 @@ export default function AppSidebar({
     filter(Boolean).
     sort((a, b) => a.name.localeCompare(b.name));
     return { total, avg, level: getBalanceLevel(total, avg), lines, remaining };
-  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqDailyRemaining, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries]);
-  const sqBadgeLabel = sqBadge == null ? '…' : `$${Math.round(sqBadge.total).toLocaleString()}`;
+  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqDailyRemaining, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries, sqSelectedDate]);
+  // "N/A" = loaded but nothing in scope for the selected date. "…" is reserved
+  // for the brief load window, so a driver with no stops that day never sits on
+  // an endless ellipsis (owner report Nov 11 2026).
+  const sqScopeEmpty = useMemo(() => {
+    if (sqIsAdmin) return false;
+    const assigned = (currentUser?.store_ids || []).map(String).filter(Boolean);
+    if (assigned.length) return false;
+    if (sqIsDriver) return resolveDriverRouteStoreIds(deliveries, currentUser?.id, sqSelectedDate).length === 0;
+    return true; // dispatcher with no store assigned
+  }, [sqIsAdmin, sqIsDriver, currentUser, deliveries, sqSelectedDate]);
+  const sqBadgeLabel = sqBadge != null ?
+  `$${Math.round(sqBadge.total).toLocaleString()}` :
+  sqReady && sqScopeEmpty ? 'N/A' : '…';
   const sqBadgeStyle = sqBadge == null ? { background: 'var(--bg-slate-200)' } : BALANCE_LEVELS[sqBadge.level] ? { background: BALANCE_LEVELS[sqBadge.level].chipBg, color: BALANCE_LEVELS[sqBadge.level].chipText } : { background: 'var(--bg-slate-200)' };
 
   // Pending doc access requests badge

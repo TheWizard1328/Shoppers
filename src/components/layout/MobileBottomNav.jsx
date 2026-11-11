@@ -57,10 +57,13 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
         if (assigned.length || !isDriverNav) { if (alive) setDriverNavStoreIds(assigned); return; }
         const { getAllDeliveriesIdb, resolveDriverRouteStoreIds } = await import('@/components/square/useSquareBalancesSummary');
         const { edmontonWallString } = await import('@/components/utils/albertaTime');
-        const today = edmontonWallString(new Date()).slice(0, 10);
+        const { globalFilters } = await import('@/components/utils/globalFilters');
+        // Owner spec (Nov 11 2026): scope follows the SELECTED date, never the
+        // current date. No stops that day means an empty scope -> "N/A".
+        const selectedDate = String(globalFilters.getSelectedDate?.() || '').slice(0, 10) ||
+          edmontonWallString(new Date()).slice(0, 10);
         const rows = (await getAllDeliveriesIdb()) || [];
-        // Today's route first, with a day-rollover fallback (Nov 11 2026).
-        const routeIds = resolveDriverRouteStoreIds(rows, currentUser.id, today);
+        const routeIds = resolveDriverRouteStoreIds(rows, currentUser.id, selectedDate);
         if (alive) setDriverNavStoreIds(routeIds);
         // Boot-lag retry: only when the IDB mirror itself was empty (not yet
         // hydrated) — a hydrated mirror with no route today is a real empty.
@@ -80,9 +83,14 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
     if (isAdminNav || (!isDriverNav && !isDispatcherNav)) {
       for (const row of sqByLocId.values()) total += Number(row?.cardEstimate || 0);
     } else {
+      // Still resolving the driver's route scope — stay blank rather than
+      // flashing "N/A" before the IDB resolve finishes.
+      if (isDriverNav && driverNavStoreIds === null) return null;
       const storeIds = driverNavStoreIds ?? ((currentUser?.store_ids || []).map(String).filter(Boolean));
       const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc?.get(String(sid))).filter(Boolean))];
-      if (locIds.length === 0) return null; // no resolved cards — show the label, not a false $0.00
+      // Loaded, but nothing in scope for the selected date -> explicit "N/A"
+      // (never a false $0.00 and never an endless blank).
+      if (locIds.length === 0) return 'N/A';
       for (const lid of locIds) { const row = sqByLocId.get(lid); if (row) total += Number(row.cardEstimate || 0); }
     }
     if (!Number.isFinite(total)) return null;
