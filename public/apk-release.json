@@ -1,11 +1,11 @@
 {
-  "buildNumber": 372,
-  "successCount": 341,
-  "apkUpdates": 24,
-  "releaseVersion": "2.24.0",
-  "apkDigit": 24,
-  "apkFileName": "rxdeliver-v2.24.0-b372.apk",
-  "apkUrl": "https://github.com/TheWizard1328/Shoppers/releases/download/apk-latest/rxdeliver-v2.24.0-b372.apk",
-  "publishedAt": "2026-11-11T01:09:31Z",
+  "buildNumber": 373,
+  "successCount": 342,
+  "apkUpdates": 25,
+  "releaseVersion": "2.25.0",
+  "apkDigit": 25,
+  "apkFileName": "rxdeliver-v2.25.0-b373.apk",
+  "apkUrl": "https://github.com/TheWizard1328/Shoppers/releases/download/apk-latest/rxdeliver-v2.25.0-b373.apk",
+  "publishedAt": "2026-11-11T01:41:14Z",
   "notes": "Written by .github/workflows/build-apk.yml on every successful APK build. Read by src/components/utils/useBuildInfo.js from the app's own origin so update detection never depends on the GitHub API rate limit."
 }
