@@ -70,7 +70,7 @@ function daysSince(iso) {
 // invalidated by the catalog subscription.
 const CATALOG_SWEEP_TTL_MS = 90 * 1000;
 let _catalogSweep = { at: 0, rows: null };
-const invalidateCatalogSweep = () => { _catalogSweep = { at: 0, rows: null }; };
+const invalidateCatalogSweep = () => {_catalogSweep = { at: 0, rows: null };};
 
 // Fallback when a SquareCatalogItems row has no patient_id (older rows created
 // by a path that didn't persist it — Oct 2 2026 report: name shows briefly
@@ -216,215 +216,215 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
         }, { fee: 0, folder: 0, loan: 0 }) : null;
         const hasFeeTotal = !!feeTotal && (feeTotal.fee > 0 || feeTotal.folder > 0 || feeTotal.loan > 0);
         return (
-      <div key={sec.label} className="space-y-1">
+          <div key={sec.label} className="space-y-1">
           <div className="flex items-center justify-between gap-2 font-medium text-[13px]">
             <span className="shrink-0" style={{ color: sec.color }}>{sec.label}</span>
             {hasFeeTotal &&
-            <span className="flex-1 min-w-0 text-center tabular-nums text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              <span className="flex-1 min-w-0 text-center tabular-nums text-[11px] text-slate-500 dark:text-slate-400 truncate">
               S: {feeTotal.fee.toFixed(2)} · F: {feeTotal.folder.toFixed(2)} · L: {feeTotal.loan.toFixed(2)}
             </span>}
             <span className="text-slate-400 tabular-nums shrink-0">{sec.rows.length} · {fmtMoney(sec.total)}</span>
           </div>
           {sec.rows.length === 0 && <div className="text-slate-400 text-[13px]">none</div>}
           {sec.rows.map((r) => {
-          // Owner spec (Oct 5 2026): left side is identity (name+store on
-          // top, date/time below); right side is a 2x2 value/badge grid so
-          // every number and pill stays lined up on the far right —
-          // row 1 = amount to collect + Card Spend flag, row 2 = (once
-          // collected) the net amount returned to the card + the status
-          // badge, whose word itself names the real tender (Cash / Debit /
-          // Credit). Cash never shows a net amount — no card fees applied.
-          // Cash-already-collected rows (owner spec, Oct 6 2026): the
-          // catalog item deliberately stays alive after a cash collection
-          // until the deposit is processed back to the Square card — so the
-          // row stays in Uncollected / Past uncollected, but its status
-          // pill reads 'Cash' (emerald, same as a collected Cash row) so it
-          // looks visibly different from a COD nobody has collected yet
-          // (amber 'Pending'). Card Spend pills still render on these rows.
-          // OWNER SPEC (Oct 8 2026): pending-status rows read 'Awaiting Pickup';
-          // in_transit rows read 'In Transit'; FAILED deliveries read a red
-          // 'Failed' badge — the COD stays in Uncollected and stays deducted off
-          // the card until a Square refund is registered (owner rule: a failed
-          // delivery must NOT put the amount back on the card); everything else
-          // uncollected stays 'Pending' (e.g., en_route, catalog rows without
-          // status).
-          const statusLabel = r.collected ?
-          r.collectedLabel || 'Collected' :
-          r.cashAwaitingSquare ? 'Cash' : r.failed ? 'Failed' : r.pendingPickup ? 'Awaiting Pickup' : r.inTransit ? 'In Transit' : 'Pending';
-          const emeraldCls = 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300';
-          const redCls = 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300';
-          const roseCls = 'bg-rose-100 dark:bg-rose-900/30 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300';
-          const statusColorCls = r.collected ?
-          statusLabel === 'Refunded' ? roseCls : emeraldCls :
-          r.cashAwaitingSquare ? emeraldCls : r.failed ? redCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
-          const showNetAmount = r.collected && statusLabel !== 'Cash' && statusLabel !== 'Refunded' && r.netAmount != null;
-          // OWNER LAYOUT (Oct 22 2026): ONE ROW PER COD ITEM — store badge,
-          // patient name, amount, Card Spend badge per row, exactly like the
-          // original layout; a combined swipe simply adds one row per included
-          // COD. ONE final footer row per transaction: time | S/F/L fees |
-          // settled net | tender badge (combined cards carry the transaction's
-          // true summed fees). No x2·1-swipe chip (owner: "without the new
-          // purple badge").
-          const combinedList = Array.isArray(r.combinedItems) && r.combinedItems.length > 1;
-          const rowItems = combinedList
-            ? r.combinedItems
-            : [{ storeAbbrev: r.storeAbbrev, storeColor: r.storeColor, patientName: r.patientName, amount: r.amount, sub: r.sub }];
-          const spendPill =
-            r.collected ? (r.hasCardSpend || r.manualCardSpend || r.notTapped) && canMarkSpend && !!r.delivery_id && onMarkSpend ?
-                  // COLLECTED rows toggle exactly like uncollected ones (owner
-                  // rule Nov 3 2026: "I need to still be able to click the Card
-                  // Spend badges for Collected Today items to change them to
-                  // Not Tapped"). No role="button" - same 44px min-height trap.
-                  <span
-                    onClick={() => onMarkSpend(r.delivery_id)}
-                    title={r.notTapped ? 'Mark this COD as tapped in your Square app (Card Spend)' : 'Mark this collected COD as Not Tapped in your Square app'}
-                    className={r.notTapped ?
-                    "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]" :
-                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]"}>
+              // Owner spec (Oct 5 2026): left side is identity (name+store on
+              // top, date/time below); right side is a 2x2 value/badge grid so
+              // every number and pill stays lined up on the far right —
+              // row 1 = amount to collect + Card Spend flag, row 2 = (once
+              // collected) the net amount returned to the card + the status
+              // badge, whose word itself names the real tender (Cash / Debit /
+              // Credit). Cash never shows a net amount — no card fees applied.
+              // Cash-already-collected rows (owner spec, Oct 6 2026): the
+              // catalog item deliberately stays alive after a cash collection
+              // until the deposit is processed back to the Square card — so the
+              // row stays in Uncollected / Past uncollected, but its status
+              // pill reads 'Cash' (emerald, same as a collected Cash row) so it
+              // looks visibly different from a COD nobody has collected yet
+              // (amber 'Pending'). Card Spend pills still render on these rows.
+              // OWNER SPEC (Oct 8 2026): pending-status rows read 'Awaiting Pickup';
+              // in_transit rows read 'In Transit'; FAILED deliveries read a red
+              // 'Failed' badge — the COD stays in Uncollected and stays deducted off
+              // the card until a Square refund is registered (owner rule: a failed
+              // delivery must NOT put the amount back on the card); everything else
+              // uncollected stays 'Pending' (e.g., en_route, catalog rows without
+              // status).
+              const statusLabel = r.collected ?
+              r.collectedLabel || 'Collected' :
+              r.cashAwaitingSquare ? 'Cash' : r.failed ? 'Failed' : r.pendingPickup ? 'Awaiting Pickup' : r.inTransit ? 'In Transit' : 'Pending';
+              const emeraldCls = 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300';
+              const redCls = 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300';
+              const roseCls = 'bg-rose-100 dark:bg-rose-900/30 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300';
+              const statusColorCls = r.collected ?
+              statusLabel === 'Refunded' ? roseCls : emeraldCls :
+              r.cashAwaitingSquare ? emeraldCls : r.failed ? redCls : 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300';
+              const showNetAmount = r.collected && statusLabel !== 'Cash' && statusLabel !== 'Refunded' && r.netAmount != null;
+              // OWNER LAYOUT (Oct 22 2026): ONE ROW PER COD ITEM — store badge,
+              // patient name, amount, Card Spend badge per row, exactly like the
+              // original layout; a combined swipe simply adds one row per included
+              // COD. ONE final footer row per transaction: time | S/F/L fees |
+              // settled net | tender badge (combined cards carry the transaction's
+              // true summed fees). No x2·1-swipe chip (owner: "without the new
+              // purple badge").
+              const combinedList = Array.isArray(r.combinedItems) && r.combinedItems.length > 1;
+              const rowItems = combinedList ?
+              r.combinedItems :
+              [{ storeAbbrev: r.storeAbbrev, storeColor: r.storeColor, patientName: r.patientName, amount: r.amount, sub: r.sub }];
+              const spendPill =
+              r.collected ? (r.hasCardSpend || r.manualCardSpend || r.notTapped) && canMarkSpend && !!r.delivery_id && onMarkSpend ?
+              // COLLECTED rows toggle exactly like uncollected ones (owner
+              // rule Nov 3 2026: "I need to still be able to click the Card
+              // Spend badges for Collected Today items to change them to
+              // Not Tapped"). No role="button" - same 44px min-height trap.
+              <span
+                onClick={() => onMarkSpend(r.delivery_id)}
+                title={r.notTapped ? 'Mark this COD as tapped in your Square app (Card Spend)' : 'Mark this collected COD as Not Tapped in your Square app'}
+                className={r.notTapped ?
+                "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]" :
+                "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]"}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
-                  r.hasCardSpend ?
-                  <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span> :
-                  r.manualCardSpend ?
-                  <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]">Card Spend</span> :
-                  canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend ?
-                  <span
-                    onClick={() => onMarkSpend(r.delivery_id)}
-                    title="Mark this COD as having a Card Spend in your Square app"
-                    // NOTE (Oct 6 2026): deliberately NO role="button" here —
-                    // src/index.css has a global accessibility rule,
-                    // [role="button"] { min-height: 44px }, that forced this
-                    // pill to a tap-target height far taller than every other
-                    // badge on the row. Plain onClick on a bare span keeps it
-                    // visually identical to the Pending/Collected/Card Spend
-                    // pills (same classes), just clickable.
-                    className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center leading-none min-w-[60px]">
+              r.hasCardSpend ?
+              <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span> :
+              r.manualCardSpend ?
+              <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]">Card Spend</span> :
+              canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend ?
+              <span
+                onClick={() => onMarkSpend(r.delivery_id)}
+                title="Mark this COD as having a Card Spend in your Square app"
+                // NOTE (Oct 6 2026): deliberately NO role="button" here —
+                // src/index.css has a global accessibility rule,
+                // [role="button"] { min-height: 44px }, that forced this
+                // pill to a tap-target height far taller than every other
+                // badge on the row. Plain onClick on a bare span keeps it
+                // visually identical to the Pending/Collected/Card Spend
+                // pills (same classes), just clickable.
+                className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center leading-none min-w-[60px]">
                     Mark Spend</span> :
-                  null :
-                  // UNCOLLECTED rows (owner spec Oct 6 2026): the pill is a
-                  // toggle — every COD defaults to "Card Spend"; tapping it
-                  // flips to "Not Tapped" (the COD is added back to the card
-                  // balance), tapping again flips back. Owner-only tappable;
-                  // drivers see the static state.
-                  canMarkSpend && !!r.delivery_id && onMarkSpend ?
-                  <span
-                    onClick={() => onMarkSpend(r.delivery_id)}
-                    className={r.notTapped ?
-                    "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none px-2 py-1 min-w-[80px]" :
-                    "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none px-2 py-1 min-w-[80px]"}>
+              null :
+              // UNCOLLECTED rows (owner spec Oct 6 2026): the pill is a
+              // toggle — every COD defaults to "Card Spend"; tapping it
+              // flips to "Not Tapped" (the COD is added back to the card
+              // balance), tapping again flips back. Owner-only tappable;
+              // drivers see the static state.
+              canMarkSpend && !!r.delivery_id && onMarkSpend ?
+              <span
+                onClick={() => onMarkSpend(r.delivery_id)}
+                className={r.notTapped ?
+                "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none px-2 py-1 min-w-[80px]" :
+                "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none px-2 py-1 min-w-[80px]"}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
 
-                  <span className={r.notTapped ?
-                  'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]' :
-                  'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]'}>
+              <span className={r.notTapped ?
+              'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]' :
+              'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]'}>
                     {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>;
-          const statusBadge =
-            r.failed && !r.collected && canMarkSpend && !!r.delivery_id && onMarkRefunded ?
-                  <span
-                    onClick={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const below = window.innerHeight - rect.bottom > 150;
-                      // OWNER SPEC (Nov 10 2026): a failed delivery's badge opens
-                      // the same Set tender menu so it can become Debit, Credit or
-                      // Refunded — it no longer jumps straight to the refund mark.
-                      setCashPick({ row: r, label: 'Failed', kind: 'failed', cashRows: [], tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
-                    }}
-                    title="Tap to set this failed COD to Debit, Credit or Refunded"
-                    // No role="button" (same min-height CSS trap as the pills).
-                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span> :
-                  (r.collected || r.cashAwaitingSquare) && ['Cash', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ?
-                  <span
-                    onClick={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const below = window.innerHeight - rect.bottom > 150;
-                      // COMBINE INTO ONE SWIPE (owner rule Oct 9 2026): other
-                      // same-store, same-day cash-collected items can join
-                      // this conversion as ONE swipe — fees/loan/folder are
-                      // computed on the swipe TOTAL (owner report: marking
-                      // $1.18 and $28.36 separately charged the flat $0.07
-                      // twice and left the settled amount off by $0.05).
-                      // COMBINE CANDIDATES (owner rule Oct 9 2026): the
-                      // checkbox list is every UNCOLLECTED item on the card —
-                      // but ONE swipe runs on ONE physical card, so candidates
-                      // are limited to the TAPPED card (owner correction Oct 9
-                      // 23:44: combining across different cards is impossible
-                      // at the POS anyway).
-                      const candSrc = Array.isArray(combineCandidates) && combineCandidates.length ?
-                      combineCandidates :
-                      (sections || []).flatMap((sec) => (sec?.rows || []).filter((x) => x && x.cashAwaitingSquare));
-                      const cashRows = statusLabel === 'Cash' ?
-                      candSrc.filter((x) => x && !!x.delivery_id && String(x.delivery_id) !== String(r.delivery_id) && String(x.locId || cardLocId || '') === String(cardLocId || '')) : [];
-                      setCashPick({ row: r, label: statusLabel, kind: 'cash', cashRows, tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
-                    }}
-                    title="Tap to change this tender (Debit / Credit / Cash)"
-                    // No role="button" (same min-height CSS trap as the pills).
-                    className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ${statusLabel === 'Cash' ? 'ring-emerald-400/60 dark:ring-emerald-500/50' : 'ring-sky-400/60 dark:ring-sky-500/50'}`}>{statusLabel}</span> :
+              const statusBadge =
+              r.failed && !r.collected && canMarkSpend && !!r.delivery_id && onMarkRefunded ?
+              <span
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const below = window.innerHeight - rect.bottom > 150;
+                  // OWNER SPEC (Nov 10 2026): a failed delivery's badge opens
+                  // the same Set tender menu so it can become Debit, Credit or
+                  // Refunded — it no longer jumps straight to the refund mark.
+                  setCashPick({ row: r, label: 'Failed', kind: 'failed', cashRows: [], tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                }}
+                title="Tap to set this failed COD to Debit, Credit or Refunded"
+                // No role="button" (same min-height CSS trap as the pills).
+                className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span> :
+              (r.collected || r.cashAwaitingSquare) && ['Cash', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ?
+              <span
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const below = window.innerHeight - rect.bottom > 150;
+                  // COMBINE INTO ONE SWIPE (owner rule Oct 9 2026): other
+                  // same-store, same-day cash-collected items can join
+                  // this conversion as ONE swipe — fees/loan/folder are
+                  // computed on the swipe TOTAL (owner report: marking
+                  // $1.18 and $28.36 separately charged the flat $0.07
+                  // twice and left the settled amount off by $0.05).
+                  // COMBINE CANDIDATES (owner rule Oct 9 2026): the
+                  // checkbox list is every UNCOLLECTED item on the card —
+                  // but ONE swipe runs on ONE physical card, so candidates
+                  // are limited to the TAPPED card (owner correction Oct 9
+                  // 23:44: combining across different cards is impossible
+                  // at the POS anyway).
+                  const candSrc = Array.isArray(combineCandidates) && combineCandidates.length ?
+                  combineCandidates :
+                  (sections || []).flatMap((sec) => (sec?.rows || []).filter((x) => x && x.cashAwaitingSquare));
+                  const cashRows = statusLabel === 'Cash' ?
+                  candSrc.filter((x) => x && !!x.delivery_id && String(x.delivery_id) !== String(r.delivery_id) && String(x.locId || cardLocId || '') === String(cardLocId || '')) : [];
+                  setCashPick({ row: r, label: statusLabel, kind: 'cash', cashRows, tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                }}
+                title="Tap to change this tender (Debit / Credit / Cash)"
+                // No role="button" (same min-height CSS trap as the pills).
+                className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ${statusLabel === 'Cash' ? 'ring-emerald-400/60 dark:ring-emerald-500/50' : 'ring-sky-400/60 dark:ring-sky-500/50'}`}>{statusLabel}</span> :
 
-                  <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>;
-          return (
-            <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
-              {rowItems.map((it, iIdx) => (
-              <div key={iIdx} className="flex items-center justify-between gap-2">
+              <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>;
+              return (
+                <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+              {rowItems.map((it, iIdx) =>
+                  <div key={iIdx} className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0 my-1">
                   <span
-                    className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                    style={{ backgroundColor: it.storeColor || '#64748b' }}>
+                        className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                        style={{ backgroundColor: it.storeColor || '#64748b' }}>
                     {it.storeAbbrev || '—'}
                   </span>
                   <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] truncate flex-1 min-w-0">{it.patientName || 'COD'}</p>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
                   {canEditNotes && r.delivery_id &&
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onEditNote?.(r); }}
-                    title={balanceNotesById?.[String(r.delivery_id)]?.note ? `Note: ${balanceNotesById[String(r.delivery_id)].note}` : 'Add a note to this COD'}
-                    className={`shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-colors ${balanceNotesById?.[String(r.delivery_id)]?.note ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                      <button
+                        type="button"
+                        onClick={(e) => {e.stopPropagation();onEditNote?.(r);}}
+                        title={balanceNotesById?.[String(r.delivery_id)]?.note ? `Note: ${balanceNotesById[String(r.delivery_id)].note}` : 'Add a note to this COD'}
+                        className={`shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-colors ${balanceNotesById?.[String(r.delivery_id)]?.note ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                     <PenLine className="w-3.5 h-3.5" />
                   </button>
-                  }
+                      }
                   {r.delivery_id && driverNotesById?.[String(r.delivery_id)] &&
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onViewDriverNote?.(r, driverNotesById[String(r.delivery_id)]); }}
-                    title="Driver note on this delivery"
-                    className="shrink-0 w-6 h-6 rounded-md border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                      <button
+                        type="button"
+                        onClick={(e) => {e.stopPropagation();onViewDriverNote?.(r, driverNotesById[String(r.delivery_id)]);}}
+                        title="Driver note on this delivery"
+                        className="shrink-0 w-6 rounded-md border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 flex items-center justify-center h-3">
                     <StickyNote className="w-3.5 h-3.5" />
                   </button>
-                  }
+                      }
                   <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(it.amount)}</span>
-                  {combinedList
-                    ? <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span>
-                    : spendPill}
+                  {combinedList ?
+                      <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span> :
+                      spendPill}
                 </div>
               </div>
-              ))}
+                  )}
               {/* FINAL ROW — one per transaction: time, combined fee breakdown, settled net, tender badge */}
               <div className="flex items-center justify-between text-lg gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="text-[13px] text-slate-500 dark:text-slate-400 tabular-nums shrink-0">{r.sub}</span>
                   {/* ASSIGNED DRIVER (owner request Nov 1 2026): the empty space
-                      between the date and the status pill now names the driver
-                      this COD is assigned to. Truncates on narrow cards so the
-                      status pill keeps its place. */}
+                           between the date and the status pill now names the driver
+                           this COD is assigned to. Truncates on narrow cards so the
+                           status pill keeps its place. */}
                   {r.driverName &&
-                  <span
-                    title={`Assigned to ${r.driverName}`}
-                    className="inline-flex items-center gap-0.5 min-w-0 rounded-full border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 text-[11px] font-medium leading-none text-slate-600 dark:text-slate-300">
+                      <span
+                        title={`Assigned to ${r.driverName}`}
+                        className="inline-flex items-center gap-0.5 min-w-0 rounded-full border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 text-[11px] font-medium leading-none text-slate-600 dark:text-slate-300">
                     <UserRound className="w-3 h-3 shrink-0" />
                     <span className="truncate max-w-[76px]">{r.driverName}</span>
                   </span>}
                 </div>
                 <div className="flex items-center gap-1.5">
                   {showNetAmount &&
-                  <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>}
+                      <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>}
                   {statusBadge}
                 </div>
               </div>
               {/* FEE BREAKDOWN (owner spec Nov 10 2026): the Square fee / folder
-                  / loan split is now its OWN last row on the card, spaced out
-                  instead of being squeezed between the date and the net amount. */}
+                       / loan split is now its OWN last row on the card, spaced out
+                       instead of being squeezed between the date and the net amount. */}
               {showNetAmount && isOwner && r.feeParts &&
-              <div className="flex items-center justify-center gap-2 text-[12px] tabular-nums text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-center gap-2 text-[12px] tabular-nums text-slate-500 dark:text-slate-400">
                   <span>S: {r.feeParts.fee.toFixed(2)}</span>
                   <span className="text-slate-300 dark:text-slate-600">·</span>
                   <span>F: {r.feeParts.folder.toFixed(2)}</span>
@@ -433,14 +433,14 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                 </div>}
             </div>);
 
-        })}
-        </div>
-      );
+            })}
+        </div>);
+
       })}
       {/* Quick anchored popup (owner spec, Oct 8 2026 late): tapping a
-             Cash badge opens the Debit / Credit choice as a small button menu
-             right at the badge — below it when there's room, above when it sits
-             near the bottom of the screen. Tap anywhere else to dismiss. */}
+              Cash badge opens the Debit / Credit choice as a small button menu
+              right at the badge — below it when there's room, above when it sits
+              near the bottom of the screen. Tap anywhere else to dismiss. */}
       {cashPick &&
       <>
         <div className="fixed inset-0 z-40" onClick={() => !cashPickBusy && setCashPick(null)} />
@@ -456,16 +456,16 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
             {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
-                   (/_at) so the fee/loan/folder credit and ledger confirmation
-                   stop counting it (owner rule Oct 9 2026). */}
+                    (/_at) so the fee/loan/folder credit and ledger confirmation
+                    stop counting it (owner rule Oct 9 2026). */}
             {cashPick.kind !== 'failed' &&
             <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>}
             {/* Refunded (owner spec Nov 8 2026): clears the COD amount, collected
-                amount and Type, notes the refund, then refreshes the page. */}
+                 amount and Type, notes the refund, then refreshes the page. */}
             {/* Refunded — ONLY for a completed-as-cash COD or a failed delivery
-                (owner spec Nov 10 2026). A failed COD uses the failed-refund
-                mark (amount returns to the card balance); a cash COD uses the
-                full refund (amount + payments + stamps cleared). */}
+                 (owner spec Nov 10 2026). A failed COD uses the failed-refund
+                 mark (amount returns to the card balance); a cash COD uses the
+                 full refund (amount + payments + stamps cleared). */}
             {(cashPick.kind === 'cash' || cashPick.kind === 'failed') &&
             <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || (cashPick.kind === 'failed' ? !onMarkRefunded : !onRefundCod)} onClick={async () => {setCashPickBusy(true);try {
                 if (cashPick.kind === 'failed') {await onMarkRefunded?.(cashPick.row.delivery_id);setCashPick(null);} else
@@ -499,7 +499,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                   if (a === tapped && b !== tapped) return -1;
                   if (b === tapped && a !== tapped) return 1;
                 }
-                const ia = order.indexOf(a), ib = order.indexOf(b);
+                const ia = order.indexOf(a),ib = order.indexOf(b);
                 return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
               });
               return keys.map((k, gi) =>
@@ -644,16 +644,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const rows = await base44.entities.SquareBalanceNote.list('-updated_date', 1000, 0);
         if (cancelled) return;
         const map = {};
-        for (const r of rows || []) { if (r?.delivery_id) map[String(r.delivery_id)] = r; }
+        for (const r of rows || []) {if (r?.delivery_id) map[String(r.delivery_id)] = r;}
         setBalanceNotesById(map);
-      } catch { /* notes are best-effort — the page works without them */ }
+      } catch {/* notes are best-effort — the page works without them */}
     };
     void load();
     let unsub = null;
     try {
-      unsub = base44.entities.SquareBalanceNote.subscribe(() => { void load(); });
-    } catch { /* subscription is optional */ }
-    return () => { cancelled = true; try { unsub?.(); } catch { /* noop */ } };
+      unsub = base44.entities.SquareBalanceNote.subscribe(() => {void load();});
+    } catch {/* subscription is optional */}
+    return () => {cancelled = true;try {unsub?.();} catch {/* noop */}};
   }, []);
 
   // Driver notes come straight off the COD items (delivery_notes), so no extra
@@ -686,22 +686,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // Empty note + existing record = delete it (an empty note is no note).
       if (!clean && existing?.id) {
         await base44.entities.SquareBalanceNote.delete(existing.id);
-        setBalanceNotesById((prev) => { const next = { ...prev }; delete next[deliveryId]; return next; });
+        setBalanceNotesById((prev) => {const next = { ...prev };delete next[deliveryId];return next;});
         toast.success('Note removed');
         return true;
       }
-      if (!clean) { return true; }
+      if (!clean) {return true;}
       const payload = {
         delivery_id: deliveryId,
         location_id: target?.cardLocId || null,
         patient_name: target?.patientName || null,
         note: clean,
         author_id: currentUser?.id || null,
-        author_name: currentUser?.full_name || currentUser?.email || null,
+        author_name: currentUser?.full_name || currentUser?.email || null
       };
-      const saved = existing?.id
-        ? await base44.entities.SquareBalanceNote.update(existing.id, payload)
-        : await base44.entities.SquareBalanceNote.create(payload);
+      const saved = existing?.id ?
+      await base44.entities.SquareBalanceNote.update(existing.id, payload) :
+      await base44.entities.SquareBalanceNote.create(payload);
       setBalanceNotesById((prev) => ({ ...prev, [deliveryId]: { ...(existing || {}), ...payload, ...(saved || {}) } }));
       toast.success('Note saved');
       return true;
@@ -905,9 +905,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // is applied as ONE card swipe — exactly the Cash badge popup flow on the
       // store cards. `cashToCard` already accepts extra delivery ids and splits
       // ONE swipe's fee/folder/loan cents across them.
-      const extras = (Array.isArray(linkedDeliveryIds) ? linkedDeliveryIds : [])
-        .map((x) => String(x || ''))
-        .filter((x) => x && x !== String(rec.delivery_id));
+      const extras = (Array.isArray(linkedDeliveryIds) ? linkedDeliveryIds : []).
+      map((x) => String(x || '')).
+      filter((x) => x && x !== String(rec.delivery_id));
       let ok = false;
       if (rec.discrepancy_kind === 'cash_swiped') {
         ok = await cashToCard(rec.delivery_id, tender, extras);
@@ -928,9 +928,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       const byName = currentUser?.full_name || currentUser?.email || null;
       const touched = [String(rec.id), ...extras];
       await Promise.all(touched.map((chgId) =>
-        base44.entities.CodBadgeChangeLog.update(String(chgId), {
-          status: 'confirmed', confirmed_at: nowIso, confirmed_by_name: byName
-        }).catch(() => {})));
+      base44.entities.CodBadgeChangeLog.update(String(chgId), {
+        status: 'confirmed', confirmed_at: nowIso, confirmed_by_name: byName
+      }).catch(() => {})));
       const linkedSet = new Set(extras);
       setPaymentDiscrepancies((prev) => prev.filter((x) => {
         if (String(x.id) === String(rec.id)) return false;
@@ -938,8 +938,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         return !linkedSet.has(String(x.delivery_id || ''));
       }));
       toast.success(extras.length ?
-        `Confirmed as one ${tender.toLowerCase()} swipe — ${extras.length + 1} discrepancies` :
-        'Discrepancy confirmed and applied');
+      `Confirmed as one ${tender.toLowerCase()} swipe — ${extras.length + 1} discrepancies` :
+      'Discrepancy confirmed and applied');
     } finally {
       setDiscrepancyBusy(false);
     }
@@ -1102,7 +1102,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (dd?.id && dd?.driver_name) driverNameByDelivery.set(String(dd.id), String(dd.driver_name));
         });
       } catch {/* fall through — unstamped catalog rows are driver-hidden */}
-      const _cacheWarm = _catalogSweep.rows && (Date.now() - _catalogSweep.at) < CATALOG_SWEEP_TTL_MS;
+      const _cacheWarm = _catalogSweep.rows && Date.now() - _catalogSweep.at < CATALOG_SWEEP_TTL_MS;
       let itemsRaw;
       let anyFetchFailed = false;
       if (_cacheWarm) {
@@ -1125,8 +1125,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // OFFLINE FIRST (owner report Nov 6 2026): both lists live in the offline
       // DB; they were re-pulled from the server on every balances compute.
       const [storesRaw, patientsRaw] = await Promise.all([
-      offlineDB.getAll(offlineDB.STORES.STORES).then((r) => (r && r.length ? r : base44.entities.Store.list().catch(() => []))).catch(() => base44.entities.Store.list().catch(() => [])),
-      offlineDB.getAll(offlineDB.STORES.PATIENTS).then((r) => (r && r.length ? r : base44.entities.Patient.list().catch(() => []))).catch(() => base44.entities.Patient.list().catch(() => []))]
+      offlineDB.getAll(offlineDB.STORES.STORES).then((r) => r && r.length ? r : base44.entities.Store.list().catch(() => [])).catch(() => base44.entities.Store.list().catch(() => [])),
+      offlineDB.getAll(offlineDB.STORES.PATIENTS).then((r) => r && r.length ? r : base44.entities.Patient.list().catch(() => [])).catch(() => base44.entities.Patient.list().catch(() => []))]
       );
       const resolvePatientName = buildPatientResolver(patientsRaw);
       const storeById = new Map();
@@ -1265,7 +1265,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               if (d && isCashCompleted(d)) cashCollectedDeliveryIds.add(String(id));
               if (d && isCardPaid(d)) cardPaidDeliveryIds.add(String(id));
             }
-          } catch { /* IDB read failed — rows stay untagged until the next pass */ }
+          } catch {/* IDB read failed — rows stay untagged until the next pass */}
         }
         // Refresh the build-time filter (full recompute each pass — a badge
         // flipped BACK to Cash re-shows the register row on the next pass).
@@ -1401,7 +1401,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // set comes from the LOCAL mirror at zero API cost. Server fallback only
       // when IDB itself is unavailable.
       let idbAll = null;
-      try { idbAll = (await getAllDeliveriesIdb()) || null; } catch { idbAll = null; }
+      try {idbAll = (await getAllDeliveriesIdb()) || null;} catch {idbAll = null;}
       if (idbAll) {
         collect(idbAll.filter((d) => [today, yesterdayEdm].includes(String(d?.delivery_date || ''))));
       } else {
@@ -1419,7 +1419,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         collect(spentRows);
       } else if (idbAll) {
         const spendFloor = `${yesterdayEdm}T00:00:00Z`;
-        collect(idbAll.filter((d) => { const sp = String(d?.cod_card_spend_at || ''); return sp && sp >= spendFloor; }));
+        collect(idbAll.filter((d) => {const sp = String(d?.cod_card_spend_at || '');return sp && sp >= spendFloor;}));
         console.log('[SquareBalances] collected-today spend set from IDB (server read rate-limited)');
       } else {
         return; // both sources failed — keep previous rows
@@ -1446,7 +1446,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             '-occurred_at', 500, 0
           ).catch(() => null);
           if (rows === null) {
-            if (attempt === 0) { await new Promise((r) => setTimeout(r, 2500)); continue; }
+            if (attempt === 0) {await new Promise((r) => setTimeout(r, 2500));continue;}
             console.warn('[SquareBalances] cash-swiped ledger read failed — Collected today keeps card rows only this pass');
             break;
           }
@@ -1459,7 +1459,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           }
           break;
         }
-      } catch (e) { console.warn('[SquareBalances] cash-swiped ledger pass skipped:', e?.message || e); }
+      } catch (e) {console.warn('[SquareBalances] cash-swiped ledger pass skipped:', e?.message || e);}
 
       for (const d of deliveryList) {
         if (d?.status !== 'completed') continue;
@@ -1520,7 +1520,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // card money — never dropped by the cash rule above.
         if (!isCard && !swipedEntry && !refundedAt) continue;
         const effLabel = refundedAt ? 'Refunded' : isCard ? label :
-          (String(swipedEntry?.card_brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit');
+        String(swipedEntry?.card_brand || '').toUpperCase() === 'INTERAC' ? 'Debit' : 'Credit';
 
         const gross = refundedAt ? Number(d?.cod_refunded_amount || 0) : (required > 0 ? required : paidSum) / 100;
         const mark = manualSpendMarksRef.current?.[String(d.id)];
@@ -1552,8 +1552,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             if (mark?.notTapped !== true) return false;
             const markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
             const spendAt = d?.cod_card_spend_at ? new Date(d.cod_card_spend_at).getTime() : null;
-            if (spendAt != null && Number.isFinite(spendAt) &&
-            (markAt == null || !Number.isFinite(markAt) || spendAt >= markAt)) return false;
+            if (spendAt != null && Number.isFinite(spendAt) && (
+            markAt == null || !Number.isFinite(markAt) || spendAt >= markAt)) return false;
             return true;
           })(),
           collectedLabel: effLabel,
@@ -1605,17 +1605,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const swSettled = Number(swipedEntry.settled_cents);
           const sumSplit = (Number.isFinite(swFee) ? swFee : 0) + (Number.isFinite(swFolder) ? swFolder : 0) + (Number.isFinite(swLoan) ? swLoan : 0);
           rowObj.netAmount = Number.isFinite(swSettled) && swSettled > 0 ?
-            swSettled / 100 :
-            Math.max(0, Math.round(rowObj.amount * 100) - sumSplit) / 100;
+          swSettled / 100 :
+          Math.max(0, Math.round(rowObj.amount * 100) - sumSplit) / 100;
           rowObj.feeParts = Number.isFinite(swFee) || Number.isFinite(swFolder) || Number.isFinite(swLoan) ?
-            { fee: (Number(swFee) || 0) / 100, folder: (Number(swFolder) || 0) / 100, loan: (Number(swLoan) || 0) / 100 } :
-            estimateCardFeeCents(Math.round(rowObj.amount * 100), effLabel) != null ?
-              { fee: estimateCardFeeCents(Math.round(rowObj.amount * 100), effLabel) / 100, folder: folderCentsFor(Math.round(rowObj.amount * 100), folderRateNow) / 100, loan: Math.round(rowObj.amount * 100 * Number(loanRateByLoc.get(locId) || 0)) / 100 } :
-              null;
+          { fee: (Number(swFee) || 0) / 100, folder: (Number(swFolder) || 0) / 100, loan: (Number(swLoan) || 0) / 100 } :
+          estimateCardFeeCents(Math.round(rowObj.amount * 100), effLabel) != null ?
+          { fee: estimateCardFeeCents(Math.round(rowObj.amount * 100), effLabel) / 100, folder: folderCentsFor(Math.round(rowObj.amount * 100), folderRateNow) / 100, loan: Math.round(rowObj.amount * 100 * Number(loanRateByLoc.get(locId) || 0)) / 100 } :
+          null;
           try {
             const swMoment = edmontonWallString(parseAnyTimestamp(swipedEntry.occurred_at));
             if (swMoment) rowObj.sub = String(swMoment).slice(11, 16);
-          } catch (_) { /* keep the completion time */ }
+          } catch (_) {/* keep the completion time */}
         }
         aggFor(locId).push(rowObj);
       }
@@ -1660,7 +1660,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           ledgerRaw.push(...list);
           if (list.length < 500) break;
         }
-        if (ledgerReadFailed) { /* rows stay separate this pass; next pass retries */ }
+        if (ledgerReadFailed) {/* rows stay separate this pass; next pass retries */}
         const entryByDelivery = new Map(); // delivery_id -> first matching entry
         const entriesBySquare = new Map(); // TRANSACTION key -> [entries]
         const seenEntryId = new Set();
@@ -1708,70 +1708,70 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           }
         }
         for (const locId of byLoc.keys()) byLoc.set(locId, []);
-        for (const r of ungrouped) { const { __locId, ...rest } = r; byLoc.get(__locId)?.push(rest); }
+        for (const r of ungrouped) {const { __locId, ...rest } = r;byLoc.get(__locId)?.push(rest);}
         for (const [sq, group] of groupsBySquare) {
           const locId = (() => {
             const swLoc = String(entryByDelivery.get(String(group.find((r) => r.delivery_id)?.delivery_id))?.location_id || '');
             return byLoc.has(swLoc) ? swLoc : group[0].__locId;
           })();
-            // Same-driver check (driver scoping rule) — enforced ONLY for
-            // driver viewers (scopeId set): their rows are already filtered to
-            // their own deliveries, so mixed groups can't form for them anyway.
-            // OWNER REPORT (Oct 24 2026, Beverly Dickie + Burton Demeriez —
-            // one swipe, two drivers, two dates): for unscoped viewers
-            // (owner/dispatcher, driverScopeId null) a mixed-driver group is
-            // the REAL transaction and MUST merge into one combined card.
-            // HOTFIX (01:26 MDT): v1.9.70 referenced a scopeId variable that
-            // does NOT exist in this closure — the ReferenceError was caught
-            // by the surrounding try and DISABLED combining entirely (12
-            // 'scopeId is not defined' warns). Component-level driverScopeId
-            // is the correct viewer-scoping source.
-            const scopeIds = [...new Set(group.map((r) => String(r.driver_id || 'null')))];
-            if (driverScopeId && scopeIds.length > 1) { for (const r of group) { const { __locId, ...rest } = r; byLoc.get(__locId)?.push(rest); } continue; }
-            if (group.length <= 1) { const { __locId, ...rest } = group[0]; byLoc.get(__locId)?.push(rest); continue; }
-            // Per-item ledger entries for THIS group's deliveries only —
-            // sibling items collected on another day keep their own share.
-            const groupDelIds = new Set(group.map((r) => String(r.delivery_id)));
-            const groupEntries = (entriesBySquare.get(sq) || []).filter((e) => groupDelIds.has(String(e.delivery_id)));
-            const grossC = Math.round(group.reduce((s, r) => s + r.amount, 0) * 100);
-            const label = group.find((r) => r.collectedLabel === 'Debit')?.collectedLabel || group[0].collectedLabel || 'Debit';
-            const feeC = sumCents(groupEntries, 'fee_cents');
-            const folderC = sumCents(groupEntries, 'folder_cents');
-            const loanC = sumCents(groupEntries, 'loan_cents');
-            const settledC = sumCents(groupEntries, 'settled_cents');
-            const hasLedgerCents = groupEntries.length > 0 && (feeC > 0 || folderC > 0 || loanC > 0 || settledC > 0);
-            const names = [...new Set(group.map((r) => r.patientName).filter(Boolean))];
-            const mergedRow = {
-              key: `tx-${sq}`,
-              delivery_id: null, // combined card — per-delivery actions don't apply
-              combinedCount: group.length,
-              combinedItems: group.map((r) => ({ storeAbbrev: r.storeAbbrev || null, storeColor: r.storeColor || null, patientName: r.patientName || null, amount: r.amount, sub: r.sub || null })),
-              driver_id: group[0].driver_id || null,
-              driverName: group[0].driverName || null,
-              patientName: names.join(' + ') || 'COD',
-              storeAbbrev: group[0].storeAbbrev || null,
-              storeColor: group[0].storeColor || null,
-              amount: grossC / 100,
-              sub: group.map((r) => r.sub).filter(Boolean).sort()[0] || group[0].sub || '',
-              collected: true,
-              hasCardSpend: true,
-              manualCardSpend: group.some((r) => r.manualCardSpend),
-              collectedLabel: label,
-              netAmount: hasLedgerCents && settledC > 0
-                ? settledC / 100
-                : group.reduce((s, r) => s + (Number(r.netAmount) || 0), 0),
-              feeParts: hasLedgerCents
-                ? { fee: feeC / 100, folder: folderC / 100, loan: loanC / 100 }
-                : (group[0].feeParts
-                  ? { // no ledger cents — sum the stored per-item splits
-                      fee: group.reduce((s, r) => s + (r.feeParts?.fee || 0), 0),
-                      folder: group.reduce((s, r) => s + (r.feeParts?.folder || 0), 0),
-                      loan: group.reduce((s, r) => s + (r.feeParts?.loan || 0), 0) }
-                  : { // last resort: estimate fees ONCE on the combined total
-                      fee: estimateCardFeeCents(grossC, label) / 100,
-                      folder: folderCentsFor(grossC, folderRateNow) / 100,
-                      loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100 })
-            };
+          // Same-driver check (driver scoping rule) — enforced ONLY for
+          // driver viewers (scopeId set): their rows are already filtered to
+          // their own deliveries, so mixed groups can't form for them anyway.
+          // OWNER REPORT (Oct 24 2026, Beverly Dickie + Burton Demeriez —
+          // one swipe, two drivers, two dates): for unscoped viewers
+          // (owner/dispatcher, driverScopeId null) a mixed-driver group is
+          // the REAL transaction and MUST merge into one combined card.
+          // HOTFIX (01:26 MDT): v1.9.70 referenced a scopeId variable that
+          // does NOT exist in this closure — the ReferenceError was caught
+          // by the surrounding try and DISABLED combining entirely (12
+          // 'scopeId is not defined' warns). Component-level driverScopeId
+          // is the correct viewer-scoping source.
+          const scopeIds = [...new Set(group.map((r) => String(r.driver_id || 'null')))];
+          if (driverScopeId && scopeIds.length > 1) {for (const r of group) {const { __locId, ...rest } = r;byLoc.get(__locId)?.push(rest);}continue;}
+          if (group.length <= 1) {const { __locId, ...rest } = group[0];byLoc.get(__locId)?.push(rest);continue;}
+          // Per-item ledger entries for THIS group's deliveries only —
+          // sibling items collected on another day keep their own share.
+          const groupDelIds = new Set(group.map((r) => String(r.delivery_id)));
+          const groupEntries = (entriesBySquare.get(sq) || []).filter((e) => groupDelIds.has(String(e.delivery_id)));
+          const grossC = Math.round(group.reduce((s, r) => s + r.amount, 0) * 100);
+          const label = group.find((r) => r.collectedLabel === 'Debit')?.collectedLabel || group[0].collectedLabel || 'Debit';
+          const feeC = sumCents(groupEntries, 'fee_cents');
+          const folderC = sumCents(groupEntries, 'folder_cents');
+          const loanC = sumCents(groupEntries, 'loan_cents');
+          const settledC = sumCents(groupEntries, 'settled_cents');
+          const hasLedgerCents = groupEntries.length > 0 && (feeC > 0 || folderC > 0 || loanC > 0 || settledC > 0);
+          const names = [...new Set(group.map((r) => r.patientName).filter(Boolean))];
+          const mergedRow = {
+            key: `tx-${sq}`,
+            delivery_id: null, // combined card — per-delivery actions don't apply
+            combinedCount: group.length,
+            combinedItems: group.map((r) => ({ storeAbbrev: r.storeAbbrev || null, storeColor: r.storeColor || null, patientName: r.patientName || null, amount: r.amount, sub: r.sub || null })),
+            driver_id: group[0].driver_id || null,
+            driverName: group[0].driverName || null,
+            patientName: names.join(' + ') || 'COD',
+            storeAbbrev: group[0].storeAbbrev || null,
+            storeColor: group[0].storeColor || null,
+            amount: grossC / 100,
+            sub: group.map((r) => r.sub).filter(Boolean).sort()[0] || group[0].sub || '',
+            collected: true,
+            hasCardSpend: true,
+            manualCardSpend: group.some((r) => r.manualCardSpend),
+            collectedLabel: label,
+            netAmount: hasLedgerCents && settledC > 0 ?
+            settledC / 100 :
+            group.reduce((s, r) => s + (Number(r.netAmount) || 0), 0),
+            feeParts: hasLedgerCents ?
+            { fee: feeC / 100, folder: folderC / 100, loan: loanC / 100 } :
+            group[0].feeParts ?
+            { // no ledger cents — sum the stored per-item splits
+              fee: group.reduce((s, r) => s + (r.feeParts?.fee || 0), 0),
+              folder: group.reduce((s, r) => s + (r.feeParts?.folder || 0), 0),
+              loan: group.reduce((s, r) => s + (r.feeParts?.loan || 0), 0) } :
+            { // last resort: estimate fees ONCE on the combined total
+              fee: estimateCardFeeCents(grossC, label) / 100,
+              folder: folderCentsFor(grossC, folderRateNow) / 100,
+              loan: Math.round(grossC * Number(loanRateByLoc.get(locId) || 0)) / 100 }
+          };
           byLoc.get(locId)?.push(mergedRow);
         }
       } catch (e) {
@@ -1804,7 +1804,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     try {
       const rec = await getCurrentDevice(currentUser?.id);
       isEditorHostRef.current = rec?.device_name === EDITOR_HOST_DEVICE_NAME;
-    } catch { isEditorHostRef.current = false; }
+    } catch {isEditorHostRef.current = false;}
     return isEditorHostRef.current;
   }, [currentUser?.id]);
 
@@ -1829,7 +1829,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (data.codOutstandingDetailed && Object.keys(data.codOutstandingDetailed).length) setLocalOutstanding(data.codOutstandingDetailed);
         return true;
       }
-    } catch { /* snapshot is best-effort */ }
+    } catch {/* snapshot is best-effort */}
     return false;
   }, []);
 
@@ -1862,10 +1862,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (await resolveIsEditorHost()) return; // host computes locally — no self-echo repaint
       unsub = subscribeSharedSnapshot(() => {
         clearTimeout(pending);
-        pending = setTimeout(() => { if (!cancelled) void paintLatestSharedSnapshot(); }, 2000);
+        pending = setTimeout(() => {if (!cancelled) void paintLatestSharedSnapshot();}, 2000);
       });
     })();
-    return () => { cancelled = true; clearTimeout(pending); unsub?.(); };
+    return () => {cancelled = true;clearTimeout(pending);unsub?.();};
   }, [currentUser?.id, resolveIsEditorHost, paintLatestSharedSnapshot]);
 
   // Fresh numbers every visit: load config, pull new Square sales since the
@@ -2049,7 +2049,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         try {
           const res = await base44.functions.invoke('squareLedgerSync', { startDate, includeCodOutstanding: true });
           const out = res?.codOutstanding || [];
-          const byLoc = {}; out.forEach((o) => {byLoc[o.location_id] = o;});
+          const byLoc = {};out.forEach((o) => {byLoc[o.location_id] = o;});
           setCodOutstandingByLoc(byLoc);
           // The sync wrote NEW ledger rows service-side (no WS echo reaches
           // us) — drop the windows cache before the computes below re-read.
@@ -2081,12 +2081,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               // this reconcile performed — "Adding/Deleting [name - amount]".
               const fmt = (arr, verb) => (arr || []).map((c) => `${verb} ${c.name} - $${(Math.round(Number(c.amount_cents || 0)) / 100).toFixed(2)}`);
               const detail = [
-                ...fmt(codRes?.catalogCreated, 'Adding'),
-                ...fmt(codRes?.catalogDeleted, 'Deleting'),
-              ];
-              setSyncStatusText(detail.length
-                ? `Syncing Catalog Items. (${detail.join(', ')})`
-                : 'Syncing Catalog Items. (no changes)');
+              ...fmt(codRes?.catalogCreated, 'Adding'),
+              ...fmt(codRes?.catalogDeleted, 'Deleting')];
+
+              setSyncStatusText(detail.length ?
+              `Syncing Catalog Items. (${detail.join(', ')})` :
+              'Syncing Catalog Items. (no changes)');
             } finally {
               localStorage.removeItem(LS_INFLIGHT);
             }
@@ -2378,11 +2378,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         return true;
       };
       const displayItems = [...(codOut?.items || []), ...(codOut?.deductItems || []).filter((it) => it?.in_window !== false)].filter(isChargedRow);
-      let displayDeductCents = 0; let displayDeductCount = 0;
+      let displayDeductCents = 0;let displayDeductCount = 0;
       for (const it of displayItems) {
         const c = Math.round(Number(it?.amount || 0) * 100);
         if (!(c > 0)) continue;
-        displayDeductCents += c; displayDeductCount += 1;
+        displayDeductCents += c;displayDeductCount += 1;
       }
       return {
         ...loc,
@@ -2447,7 +2447,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       pendingDeducted: p.pendingDeducted || 0,
       pendingDeductCount: p.pendingDeductCount || 0,
       storeCardSpend: p.storeCardSpend || 0,
-      level: p.level,
+      level: p.level
     }]));
     const codOutstandingDetailed = {};
     for (const loc of config.locations || []) {
@@ -2458,18 +2458,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       byLocId,
       deliveryCredits, payouts, codOutstandingDetailed,
       config, configRecordId,
-      weeklyByLoc: weeklyCodAvgByLoc,
+      weeklyByLoc: weeklyCodAvgByLoc
     };
     const now = Date.now();
     const since = now - pagePublishLastRef.current;
-    if (since >= 60_000) { runPagePublish(); return; }
+    if (since >= 60_000) {runPagePublish();return;}
     if (pagePublishTimerRef.current) return;
     pagePublishTimerRef.current = setTimeout(() => {
       pagePublishTimerRef.current = null;
       if (Date.now() - pagePublishLastRef.current >= 60_000) runPagePublish();
     }, 60_000 - since + 250);
   }, [ownerCanEdit, config, perLocation, deliveryCredits, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, configRecordId, runPagePublish]);
-  useEffect(() => () => { if (pagePublishTimerRef.current) clearTimeout(pagePublishTimerRef.current); }, []);
+  useEffect(() => () => {if (pagePublishTimerRef.current) clearTimeout(pagePublishTimerRef.current);}, []);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder
   const folderTotal = useMemo(() => {
@@ -2610,11 +2610,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         return Number.isFinite(amt) ? s + amt : s;
       }, 0);
       toast.success(
-        totalTopUp === 0
-          ? 'No amounts entered — nothing changed'
-          : totalTopUp > 0
-            ? `Cards topped up (+${fmtMoney(totalTopUp)} split across cards)`
-            : `Deducted ${fmtMoney(Math.abs(totalTopUp))} from cards`
+        totalTopUp === 0 ?
+        'No amounts entered — nothing changed' :
+        totalTopUp > 0 ?
+        `Cards topped up (+${fmtMoney(totalTopUp)} split across cards)` :
+        `Deducted ${fmtMoney(Math.abs(totalTopUp))} from cards`
       );
     } catch (err) {
       console.error('top-up save failed:', err);
@@ -2821,7 +2821,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         </div>
         <div className="ml-auto flex gap-2 items-center">
           {ownerCanEdit && (syncStatusText || isSyncing) &&
-            <span data-square-sync-status className="text-xs italic text-blue-600 dark:text-blue-400 whitespace-nowrap overflow-hidden text-ellipsis max-w-[300px] sm:max-w-[420px]" title={syncStatusText}>
+          <span data-square-sync-status className="text-xs italic text-blue-600 dark:text-blue-400 whitespace-nowrap overflow-hidden text-ellipsis max-w-[300px] sm:max-w-[420px]" title={syncStatusText}>
               {syncStatusText || 'Syncing…'}
             </span>
           }
@@ -2885,14 +2885,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Location cards — CENTERED per row (owner request Oct 9 2026):
-           no matter how many store cards exist, each row's cards are
-           horizontally centered (flex-wrap + justify-center so a lone last
-           card sits mid-row instead of hugging the left edge).
-           WIDTH BAND (owner request Oct 9 2026): each card is 320px min /
-           380px max (basis 340px) — a slight spread so cards flex a little
-           to fill a row, but never squeeze the data (names truncating to
-           'Joanne ...'). When three can't fit at 320px+ the row wraps and
-           the extra card drops to a new centered row. Phones: full width. */}
+            no matter how many store cards exist, each row's cards are
+            horizontally centered (flex-wrap + justify-center so a lone last
+            card sits mid-row instead of hugging the left edge).
+            WIDTH BAND (owner request Oct 9 2026): each card is 320px min /
+            380px max (basis 340px) — a slight spread so cards flex a little
+            to fill a row, but never squeeze the data (names truncating to
+            'Joanne ...'). When three can't fit at 320px+ the row wraps and
+            the extra card drops to a new centered row. Phones: full width. */}
       <div className="flex flex-wrap justify-center gap-3">
         {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => {
           const lvl = BALANCE_LEVELS[loc.level] || null;
@@ -2929,7 +2929,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 patientName: it?.patient || it?.patientName || null,
                 amount,
                 sub: day ? `${day.slice(5, 7)}/${day.slice(8, 10)}` : '',
-                driverName: it?.driver_name || it?.driverName || null,
+                driverName: it?.driver_name || it?.driverName || null
               });
             };
             for (const it of src.items || []) addRow(it, 'o');
@@ -2956,20 +2956,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 </div>
                 {ownerCanEdit && <div className="shrink-0 flex items-center gap-1">
                   <button
-                    type="button"
-                    title="Fees by day"
-                    aria-label={`Fees by day for ${loc.name || loc.location_id}`}
-                    className={`shrink-0 w-7 h-7 rounded-md border flex items-center justify-center transition-colors ${feesByDayLoc === loc.location_id ? 'border-teal-500 text-teal-600 dark:text-teal-400 bg-teal-500/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500'}`}
-                    onClick={(e) => {e.stopPropagation(); setFeesByDayLoc((prev) => prev === loc.location_id ? null : loc.location_id);}}>
+                      type="button"
+                      title="Fees by day"
+                      aria-label={`Fees by day for ${loc.name || loc.location_id}`}
+                      className={`shrink-0 w-7 h-7 rounded-md border flex items-center justify-center transition-colors ${feesByDayLoc === loc.location_id ? 'border-teal-500 text-teal-600 dark:text-teal-400 bg-teal-500/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500'}`}
+                      onClick={(e) => {e.stopPropagation();setFeesByDayLoc((prev) => prev === loc.location_id ? null : loc.location_id);}}>
                     <BarChart3 className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    type="button"
-                    title="Funds transfer"
-                    aria-label={`Funds transfer from ${loc.name || loc.location_id}`}
-                    className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
-                    onClick={(e) => {e.stopPropagation();openTransfer(loc);}}
-                    disabled={isSaving || isLoading}>
+                      type="button"
+                      title="Funds transfer"
+                      aria-label={`Funds transfer from ${loc.name || loc.location_id}`}
+                      className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors"
+                      onClick={(e) => {e.stopPropagation();openTransfer(loc);}}
+                      disabled={isSaving || isLoading}>
 
                     <ArrowLeftRight className="w-3.5 h-3.5" />
                   </button>
@@ -3019,22 +3019,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                         <div className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">−{fmtMoney(shownTotal)}</div>
                       </summary>
                       {rows.length === 0 &&
-                        <div className="mt-1 pl-5 text-[11px] text-slate-400">settled earlier — no open rows</div>
+                      <div className="mt-1 pl-5 text-[11px] text-slate-400">settled earlier — no open rows</div>
                       }
                       {rows.length > 0 &&
-                        <div className="mt-1 space-y-0.5 pl-5 pr-1">
-                          {rows.map((r) => (
-                            <div key={r.key} className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      <div className="mt-1 space-y-0.5 pl-5 pr-1">
+                          {rows.map((r) =>
+                        <div key={r.key} className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                               <span className="truncate">
                                 {r.patientName || 'COD'}{r.sub ? ` · ${r.sub}` : ''}{r.driverName ? ` · ${r.driverName}` : ''}
                               </span>
                               <span className="tabular-nums shrink-0">{fmtMoney(r.amount)}</span>
                             </div>
-                          ))}
+                        )}
                         </div>
                       }
-                    </details>
-                  );
+                    </details>);
+
                 })()}
               {loc.storeCardSpend > 0 &&
                 <div className="flex items-center justify-between text-xs">
@@ -3048,7 +3048,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
                 
               {/* Fees by day now opens as a larger popout dialog (owner
-                  spec Oct 27 2026 night) — no longer crammed inside the card. */}
+                     spec Oct 27 2026 night) — no longer crammed inside the card. */}
               {(() => {
                   // Collected/Uncollected/Past uncollected list — owner request
                   // Oct 4 2026: drivers see this full section too (same as the
@@ -3122,7 +3122,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   // no delivery link always show.
                   const srcDeliveryIds = new Set(deliveryRows.map((it) => String(it.delivery_id)).filter((it) => it !== 'null' && it !== 'undefined'));
                   const catRows = (catalogUncollectedByLoc?.[loc.location_id] || []).
-                  filter((it) => !it.delivery_id || (!srcDeliveryIds.has(String(it.delivery_id)) && !coveredRetryIds.has(String(it.delivery_id)))).
+                  filter((it) => !it.delivery_id || !srcDeliveryIds.has(String(it.delivery_id)) && !coveredRetryIds.has(String(it.delivery_id))).
                   map((it) => ({
                     key: it.key || `cat-${it.delivery_id || it.patientName}`,
                     delivery_id: it.delivery_id || null,
@@ -3158,8 +3158,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   // dated today. Past-dated pending rows stay in Uncollected Past
                   // (they are overdue, not merely scheduled).
                   const isAwaitingPickupRow = (it) => !!it && !it.cashAwaitingSquare && !it.failed && (
-                    (it.date && it.date > todayStr) || (!!it.pendingPickup && (!it.date || it.date === todayStr))
-                  );
+                  it.date && it.date > todayStr || !!it.pendingPickup && (!it.date || it.date === todayStr));
+
                   const awaitingPickupRows = combinedSrc.filter(isAwaitingPickupRow).map((it) => ({
                     key: it.key || `f-${it.delivery_id}`,
                     delivery_id: it.delivery_id || null,
@@ -3268,7 +3268,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                         manualCardSpend: true,
                         notTapped: true,
                         collectedLabel: 'COD',
-                        carriedOver: true,
+                        carriedOver: true
                       });
                     }
                     return out;
@@ -3284,7 +3284,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       canEditNotes={canEditBalanceNotes}
                       balanceNotesById={balanceNotesById}
                       driverNotesById={driverNotesById}
-                      onEditNote={(row) => { setNoteTarget({ ...row, cardLocId: loc.location_id }); setNoteDraft(String(balanceNotesById[String(row.delivery_id)]?.note || '')); }}
+                      onEditNote={(row) => {setNoteTarget({ ...row, cardLocId: loc.location_id });setNoteDraft(String(balanceNotesById[String(row.delivery_id)]?.note || ''));}}
                       onViewDriverNote={(row, note) => setDriverNoteView({ patientName: row?.patientName || null, sub: row?.sub || null, amount: row?.amount, note })}
                       combineCandidates={combineCandidates} locationOrder={(config?.locations || []).map((l) => l.location_id)} cardLocId={loc.location_id}
                       onMarkSpend={markCardSpend}
@@ -3308,9 +3308,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* ADMIN NOTE DIALOG (owner request Nov 3 2026): pen icon on a COD
-          delivery item card opens this; the note saves to that balance item
-          and shows on the row for every admin/device. */}
-      <Dialog open={!!noteTarget} onOpenChange={(o) => { if (!o) { setNoteTarget(null); setNoteDraft(''); } }}>
+           delivery item card opens this; the note saves to that balance item
+           and shows on the row for every admin/device. */}
+      <Dialog open={!!noteTarget} onOpenChange={(o) => {if (!o) {setNoteTarget(null);setNoteDraft('');}}}>
         <DialogContent className="sm:max-w-md w-[94vw]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -3327,24 +3327,24 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             rows={5}
             autoFocus
             placeholder="Add a note about this COD (visible to admins on this row)…"
-            className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
+            className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] text-slate-400">Empty and saved = note removed</span>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled={noteSaving} onClick={() => { setNoteTarget(null); setNoteDraft(''); }}>Cancel</Button>
+              <Button variant="outline" size="sm" disabled={noteSaving} onClick={() => {setNoteTarget(null);setNoteDraft('');}}>Cancel</Button>
               <Button size="sm" disabled={noteSaving} onClick={async () => {
-                  const ok = await saveBalanceNote(noteTarget, noteDraft);
-                  if (ok) { setNoteTarget(null); setNoteDraft(''); }
-                }}>{noteSaving ? 'Saving…' : 'Save note'}</Button>
+                const ok = await saveBalanceNote(noteTarget, noteDraft);
+                if (ok) {setNoteTarget(null);setNoteDraft('');}
+              }}>{noteSaving ? 'Saving…' : 'Save note'}</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* DRIVER NOTE VIEWER (owner request Nov 3 2026): tapping the note-paper
-          icon shows the note the driver left on that delivery. Read only. */}
-      <Dialog open={!!driverNoteView} onOpenChange={(o) => { if (!o) setDriverNoteView(null); }}>
+           icon shows the note the driver left on that delivery. Read only. */}
+      <Dialog open={!!driverNoteView} onOpenChange={(o) => {if (!o) setDriverNoteView(null);}}>
         <DialogContent className="sm:max-w-md w-[94vw]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -3364,54 +3364,54 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </Dialog>
 
       {/* FEES BY DAY POPOUT DIALOG (owner spec Oct 27 2026 night): the
-          per-store fee breakdown opens as a larger dialog instead of being
-          stuck inside the store card. */}
-      <Dialog open={!!feesByDayLoc} onOpenChange={(o) => { if (!o) { setFeesByDayLoc(null); setFeesViewMode('month'); } }}>
+           per-store fee breakdown opens as a larger dialog instead of being
+           stuck inside the store card. */}
+      <Dialog open={!!feesByDayLoc} onOpenChange={(o) => {if (!o) {setFeesByDayLoc(null);setFeesViewMode('month');}}}>
         <DialogContent className="sm:max-w-2xl w-[94vw] max-h-[88vh] flex flex-col gap-3 overflow-hidden">
           <DialogHeader>
             <div className="flex items-start justify-between gap-2 pr-6">
               <div className="min-w-0">
-                <DialogTitle>{feesViewMode === 'year' ? 'Fees by month' : 'Fees by day'} — {feesByDayLoc ? ((config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name || 'card') : ''}</DialogTitle>
+                <DialogTitle>{feesViewMode === 'year' ? 'Fees by month' : 'Fees by day'} — {feesByDayLoc ? (config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name || 'card' : ''}</DialogTitle>
                 <DialogDescription className="mt-1.5">
-                  {feesViewMode === 'year'
-                    ? 'Month-by-month fees for collected CODs, full year, per store.'
-                    : 'Daily Square fee and Loan fee for collected CODs on this card, by month.'}
+                  {feesViewMode === 'year' ?
+                  'Month-by-month fees for collected CODs, full year, per store.' :
+                  'Daily Square fee and Loan fee for collected CODs on this card, by month.'}
                 </DialogDescription>
               </div>
               {/* VIEW TOGGLE (owner spec Oct 28 2026): single month <-> full year */}
               <div className="shrink-0 inline-flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-xs" role="group" aria-label="Fees view">
-                {[['month', 'Month'], ['year', 'Year']].map(([val, lbl]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setFeesViewMode(val)}
-                    aria-pressed={feesViewMode === val}
-                    className={`px-2.5 py-1 transition-colors ${feesViewMode === val ? 'bg-teal-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                  >
+                {[['month', 'Month'], ['year', 'Year']].map(([val, lbl]) =>
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setFeesViewMode(val)}
+                  aria-pressed={feesViewMode === val}
+                  className={`px-2.5 py-1 transition-colors ${feesViewMode === val ? 'bg-teal-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                  
                     {lbl}
                   </button>
-                ))}
+                )}
               </div>
             </div>
           </DialogHeader>
-          {feesByDayLoc && (
-            <div className="flex-1 min-h-0 flex flex-col">
+          {feesByDayLoc &&
+          <div className="flex-1 min-h-0 flex flex-col">
               <StoreFeesByDay
-                locationId={feesByDayLoc}
-                locationName={(config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name}
-                locations={config?.locations || []}
-                viewMode={feesViewMode}
-              />
+              locationId={feesByDayLoc}
+              locationName={(config?.locations || []).find((l) => l.location_id === feesByDayLoc)?.name}
+              locations={config?.locations || []}
+              viewMode={feesViewMode} />
+            
             </div>
-          )}
+          }
         </DialogContent>
       </Dialog>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                                   Square Cards, pulled from the card (MOBILE) locations the per-store
-                                   sync never saw before. Attributed = fed by that store's sale
-                                   (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                                   unattributed = folder / manual transfer with no sale link yet. */}
+                                    Square Cards, pulled from the card (MOBILE) locations the per-store
+                                    sync never saw before. Attributed = fed by that store's sale
+                                    (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                                    unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -3543,7 +3543,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                                   card (does not reset the window). One-way only — never card → folder. */}
+                                    card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -3641,9 +3641,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* HOW THE BADGES WORK (owner request Oct 9 2026): short usage guide
-             for the clickable badges, collapsed by default at the bottom of the
-             page. The S/F/L line is owner-only (drivers see settled amounts
-             only). Drivers see a scope note — they only see their own rows. */}
+              for the clickable badges, collapsed by default at the bottom of the
+              page. The S/F/L line is owner-only (drivers see settled amounts
+              only). Drivers see a scope note — they only see their own rows. */}
       <details className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
         <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
           How the badges work
@@ -3684,19 +3684,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </details>
 
       {/* PAYMENT DISCREPANCIES (owner spec Oct 9 2026 night): every COD whose
-           recorded collection type disagrees with what Square actually saw
-           (60-day scan, flagged by the backend balances updater — no in-app
-           auto-updates). ALWAYS visible while open flags exist; Confirm
-           applies the recorded→actual fix with normal fee/loan/folder math,
-           Dismiss closes it after review. Owner-only. */}
+            recorded collection type disagrees with what Square actually saw
+            (60-day scan, flagged by the backend balances updater — no in-app
+            auto-updates). ALWAYS visible while open flags exist; Confirm
+            applies the recorded→actual fix with normal fee/loan/folder math,
+            Dismiss closes it after review. Owner-only. */}
       {ownerCanEdit && paymentDiscrepancies.length > 0 &&
       <PaymentDiscrepanciesList
-         discrepancies={paymentDiscrepancies}
-         discrepancyBusy={discrepancyBusy}
-         onConfirm={confirmDiscrepancy}
-         onDismiss={dismissDiscrepancy}
-         onRefresh={loadPaymentDiscrepancies}
-       />
+        discrepancies={paymentDiscrepancies}
+        discrepancyBusy={discrepancyBusy}
+        onConfirm={confirmDiscrepancy}
+        onDismiss={dismissDiscrepancy}
+        onRefresh={loadPaymentDiscrepancies} />
+
       }
       </div>);
 
