@@ -227,22 +227,37 @@ export default function GuideAssistant() {
         return;
       }
 
-      // PLACEMENT RULE (owner spec Nov 10 2026):
-      //   phone (narrow)      → top of the screen, right edge, 6px under the
-      //                         stats panel + driver legend container;
-      //   immersive (phone)   → 6px under the immersive top panel (handled above);
-      //   tablet + desktop    → just above the map-cycle FAB, as before.
-      // Read the width live so a rotation or a resized sidebar re-anchors on the
-      // very next idle tick instead of waiting for a state update.
+      // PLACEMENT RULE (owner spec Nov 10 2026, marked-up screenshot):
+      //   PRIMARY DRIVER PHONE → pin the tab at the TOP RIGHT of the map area,
+      //     6px in from the top of the stats panel container (i.e. the top of the
+      //     screen, just under the header). This is the red circle in the
+      //     owner's markup.
+      //   IMMERSIVE on that phone → 6px under the immersive top panel (above).
+      //   Everything else (viewer phones, tablets, desktop) → unchanged floating
+      //     position just above the map-cycle FAB. The flashlight FAB is an APK
+      //     feature of the primary driver device, which is exactly the device
+      //     that now anchors at the top, so the two can no longer collide.
+      // Widths and the primary flag are read live so a rotation or a device
+      // role change re-anchors on the next idle tick.
+      const primaryDevice = typeof window !== 'undefined' && window.__isPrimaryDevice === true;
       const narrowScreen = window.innerWidth < 850;
-      const statsBottom = panelBottom('[data-stats-panel="true"]');
+      const statsRect = (() => {
+        const el = document.querySelector('[data-stats-panel="true"]');
+        if (!el || el.offsetParent === null) return null;
+        const rect = el.getBoundingClientRect();
+        if (rect.height <= 0) return null;
+        return rect;
+      })();
+      const statsBottom = statsRect && statsRect.bottom > 8 && statsRect.bottom < window.innerHeight - 40
+        ? statsRect.bottom
+        : null;
 
-      if (narrowScreen && statsBottom !== null) {
-        applyAnchor({ mode: 'panel', top: `${statsBottom + 6}px` }, 'stats-phone');
+      if (primaryDevice && narrowScreen && statsRect && statsRect.top > 0) {
+        applyAnchor({ mode: 'panel', top: `${Math.round(statsRect.top + 6)}px` }, 'primary-top');
         return;
       }
 
-      // Wider screens keep the original floating position above the FAB.
+      // Wider screens, viewers, and other pages keep the original above-FAB spot.
       const fabEl = document.querySelector('[data-map-cycle-fab="true"]');
       if (fabEl && fabEl.offsetParent !== null) {
         const rect = fabEl.getBoundingClientRect();
@@ -252,7 +267,7 @@ export default function GuideAssistant() {
         }
       }
 
-      // No FAB on this page (non-dashboard): still prefer a top panel if present.
+      // No FAB on this page (non-dashboard): still prefer the stats panel.
       if (statsBottom !== null) {
         applyAnchor({ mode: 'panel', top: `${statsBottom + 6}px` }, 'stats');
         return;
