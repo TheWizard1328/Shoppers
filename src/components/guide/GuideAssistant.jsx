@@ -192,6 +192,18 @@ export default function GuideAssistant() {
     //   3. Poll every 500ms instead of 250ms (the tab visually tracks FAB phase
     //      changes; 500ms is imperceptible for a side-tab position).
     let idleId = null;
+    // One-shot diagnostic (console.warn survives the production build, log/info
+    // do not) so a device that still shows the tab in the wrong place tells us
+    // which anchor it picked instead of guessing.
+    let lastAnchorKey = '';
+    const applyAnchor = (next, source) => {
+      const key = `${next.mode}:${next.top || next.bottom}`;
+      if (key !== lastAnchorKey) {
+        lastAnchorKey = key;
+        console.warn('[GuideTab] anchor', source, key);
+      }
+      setGuideAnchor(next);
+    };
     const compute = () => {
       idleId = null;
       if ((window._userMapControlUntil || 0) > Date.now()) return;
@@ -211,14 +223,29 @@ export default function GuideAssistant() {
       // Immersive overlay first (it is the only top panel on screen in that mode).
       const immersiveBottom = panelBottom('[data-immersive-top-panel="true"]');
       if (immersiveBottom !== null) {
-        setGuideAnchor({ mode: 'panel', top: `${immersiveBottom + 6}px` });
+        applyAnchor({ mode: 'panel', top: `${immersiveBottom + 6}px` }, 'immersive');
         return;
+      }
+
+      // TOP OF THE SCREEN (owner report Nov 10 2026, with screenshot): "AI
+      // assisted tab is still sitting above the map cycle Fab instead of at the
+      // top of the screen like I requested". Anchoring under the stats panel
+      // reads as "still in the middle of the map" on a phone, because that panel
+      // fills the whole top half. The tab now pins to the right edge at the very
+      // top of the content, directly under the mobile header.
+      const headerEl = document.querySelector('header.mobile-header');
+      if (headerEl && headerEl.offsetParent !== null) {
+        const hRect = headerEl.getBoundingClientRect();
+        if (hRect.height > 0 && hRect.bottom > 0 && hRect.bottom < window.innerHeight * 0.5) {
+          applyAnchor({ mode: 'panel', top: `${Math.round(hRect.bottom + 6)}px` }, 'header');
+          return;
+        }
       }
 
       // Normal dashboard: stats cards + driver legend panel.
       const statsBottom = panelBottom('[data-stats-panel="true"]');
       if (statsBottom !== null) {
-        setGuideAnchor({ mode: 'panel', top: `${statsBottom + 6}px` });
+        applyAnchor({ mode: 'panel', top: `${statsBottom + 6}px` }, 'stats');
         return;
       }
 
@@ -227,11 +254,11 @@ export default function GuideAssistant() {
       if (fabEl && fabEl.offsetParent !== null) {
         const rect = fabEl.getBoundingClientRect();
         if (rect.top > 0 && rect.top < window.innerHeight) {
-          setGuideAnchor({ mode: 'fab', bottom: `${window.innerHeight - rect.top + 6}px` });
+          applyAnchor({ mode: 'fab', bottom: `${window.innerHeight - rect.top + 6}px` }, 'fab');
           return;
         }
       }
-      setGuideAnchor({ mode: 'panel', top: '50%' });
+      applyAnchor({ mode: 'panel', top: '50%' }, 'default');
     };
     const schedule = () => {
       if (idleId !== null) return;
