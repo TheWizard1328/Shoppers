@@ -216,7 +216,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
         }, { fee: 0, folder: 0, loan: 0 }) : null;
         const hasFeeTotal = !!feeTotal && (feeTotal.fee > 0 || feeTotal.folder > 0 || feeTotal.loan > 0);
         return (
-          <div key={sec.label} className="space-y-1">
+          <div key={sec.label} className="space-y-0.5">
           <div className="flex items-center justify-between gap-2 font-medium text-[13px]">
             <span className="shrink-0" style={{ color: sec.color }}>{sec.label}</span>
             {hasFeeTotal &&
@@ -361,10 +361,10 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
 
               <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>;
               return (
-                <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+                <div key={r.key} className="flex flex-col gap-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1">
               {rowItems.map((it, iIdx) =>
                   <div key={iIdx} className="flex items-center justify-between gap-1">
-                <div className="flex items-center gap-1.5 min-w-0 my-1">
+                <div className="flex items-center gap-1.5 min-w-0">
                   <span
                         className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
                         style={{ backgroundColor: it.storeColor || '#64748b' }}>
@@ -378,7 +378,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                         type="button"
                         onClick={(e) => {e.stopPropagation();onEditNote?.(r);}}
                         title={balanceNotesById?.[String(r.delivery_id)]?.note ? `Note: ${balanceNotesById[String(r.delivery_id)].note}` : 'Add a note to this COD'}
-                        className={`shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-colors ${balanceNotesById?.[String(r.delivery_id)]?.note ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                        className={`shrink-0 w-6 h-6 !min-h-6 rounded-md border flex items-center justify-center transition-colors ${balanceNotesById?.[String(r.delivery_id)]?.note ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                     <PenLine className="w-3.5 h-3.5" />
                   </button>
                       }
@@ -387,7 +387,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                         type="button"
                         onClick={(e) => {e.stopPropagation();onViewDriverNote?.(r, driverNotesById[String(r.delivery_id)]);}}
                         title="Driver note on this delivery"
-                        className="shrink-0 w-6 rounded-md border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 flex items-center justify-center h-3">
+                        className="shrink-0 w-6 h-6 !min-h-6 rounded-md border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 flex items-center justify-center">
                     <StickyNote className="w-3.5 h-3.5" />
                   </button>
                       }

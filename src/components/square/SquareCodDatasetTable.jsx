@@ -308,7 +308,8 @@ export default function SquareCodDatasetTable({
   headerActions,
   headerStatus,
   newCatalogRows,
-  archivedRows
+  archivedRows,
+  onTenderChange
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const term = searchTerm.trim().toLowerCase();
