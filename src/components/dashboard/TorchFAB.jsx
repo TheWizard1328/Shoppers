@@ -164,6 +164,10 @@ export default function TorchFAB({
               {hint}
             </div>
           )}
+          {/* OWNER SPEC (Nov 10 2026): identical size and shape to the map cycle
+              FAB (h-10 w-10 rounded-lg shadow-2xl: the same classes that FAB
+              uses). OFF = transparent with a white border, ON = filled green
+              like the map cycle FAB's green phase. */}
           <button
             type="button"
             onClick={toggle}
@@ -172,10 +176,10 @@ export default function TorchFAB({
             aria-pressed={isOn}
             data-torch-on={isOn ? 'true' : 'false'}
             style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-lg p-0 shadow-2xl transition-all duration-200 ${
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-lg p-0 shadow-2xl border transition-all duration-200 ${
               isOn
-                ? 'bg-amber-400 text-slate-900 hover:bg-amber-300'
-                : 'bg-slate-800 text-white hover:bg-slate-700'
+                ? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
+                : 'bg-transparent border-white text-white hover:bg-white/15'
             }`}
           >
             {isOn ? <Flashlight className="h-5 w-5" /> : <FlashlightOff className="h-5 w-5" />}
