@@ -366,7 +366,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                   <div key={iIdx} className="flex items-center justify-between gap-1">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
-                        className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                        className="inline-flex items-center justify-center rounded-full border border-transparent px-1.5 py-0.5 text-[11px] font-bold leading-none text-white flex-shrink-0"
                         style={{ backgroundColor: it.storeColor || '#64748b' }}>
                     {it.storeAbbrev || '—'}
                   </span>
