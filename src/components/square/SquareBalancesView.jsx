@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3, UserRound, ChevronDown, PenLine, StickyNote } from "lucide-react";
+import { RefreshCw, Wallet, Landmark, PiggyBank, Receipt, ArrowLeftRight, CreditCard, Loader2, BarChart3, ChevronDown, PenLine, StickyNote } from "lucide-react";
 import StoreFeesByDay from "./StoreFeesByDay";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
@@ -17,10 +17,10 @@ import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 import { EDITOR_HOST_DEVICE_NAME, getCurrentDevice } from "@/components/utils/deviceManager";
 import PaymentDiscrepanciesList from "./PaymentDiscrepanciesList";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { StoreAbbrevBadge, DriverBadge } from "./CodCardBadges";
 
 /**
  * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
- *
  * Tracks, per Square location (OWNER SPEC, Oct 7 2026 — STRICTLY DELIVERY DATA):
  *   - Card balance estimate: starting balance + Σ(finished delivery's Debit/Credit
  *     cod_payment − fee (rate sheet) − loan% − folder 2%) − bank sweeps − pending COD deductions
@@ -365,11 +365,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               {rowItems.map((it, iIdx) =>
                   <div key={iIdx} className="flex items-center justify-between gap-1">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span
-                        className="inline-flex items-center justify-center rounded-full border border-transparent px-1.5 py-0.5 text-[11px] font-bold leading-none text-white flex-shrink-0"
-                        style={{ backgroundColor: it.storeColor || '#64748b' }}>
-                    {it.storeAbbrev || '—'}
-                  </span>
+                  <StoreAbbrevBadge abbrev={it.storeAbbrev} color={it.storeColor} />
                   <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] truncate flex-1 min-w-0">{it.patientName || 'COD'}</p>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
@@ -407,12 +403,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                                 this COD is assigned to. Truncates on narrow cards so the
                                 status pill keeps its place. */}
                   {r.driverName &&
-                      <span
-                        title={`Assigned to ${r.driverName}`}
-                        className="inline-flex items-center gap-0.5 min-w-0 rounded-full border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 text-[11px] font-medium leading-none text-slate-600 dark:text-slate-300">
-                    <UserRound className="w-3 h-3 shrink-0" />
-                    <span className="truncate max-w-[76px]">{r.driverName}</span>
-                  </span>}
+                      <DriverBadge name={r.driverName} />}
                 </div>
                 <div className="flex items-center gap-1.5">
                   {showNetAmount &&
