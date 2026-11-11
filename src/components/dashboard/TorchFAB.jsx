@@ -176,7 +176,12 @@ export default function TorchFAB({
             aria-pressed={isOn}
             data-torch-on={isOn ? 'true' : 'false'}
             style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-lg p-0 shadow-2xl border transition-all duration-200 ${
+            /* The map cycle FAB is a <Button>, whose base classes carry
+               min-h-11 min-w-11 (44px). Its h-10 w-10 is therefore clamped up to
+               44x44, which is why a plain h-10 w-10 torch looked narrower. These
+               classes reproduce the Button base exactly, so both FABs render at
+               44x44 with the same rounded-lg corners. */
+            className={`inline-flex h-11 w-11 min-h-11 min-w-11 items-center justify-center rounded-lg p-0 shadow-2xl border transition-all duration-200 ${
               isOn
                 ? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
                 : 'bg-transparent border-white text-white hover:bg-white/15'

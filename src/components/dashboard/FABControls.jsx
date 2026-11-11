@@ -78,10 +78,11 @@ export default function FABControls({
   const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
   const tempBadgeBottom = (hasVisibleCards && !immersiveHidden ? stopCardsBaseHeight + bottomNavHeight : bottomNavHeight) + 10;
   // Flashlight FAB rides directly above the map-cycle FAB: same bottom formula
-  // MapViewCycleFAB uses (stop cards + nav, or just nav), plus its 40px height
-  // and an 8px gap. APK + primary device only — see TorchFAB.
+  // MapViewCycleFAB uses (stop cards + nav, or just nav), plus that FAB's real
+  // 44px height (Button base min-h-11) and an 8px gap. APK + primary device
+  // only — see TorchFAB.
   const mapCycleFabBottom = ((hasVisibleCards && !immersiveHidden) ? stopCardsBaseHeight + bottomNavHeight : bottomNavHeight) + 10;
-  const torchFabBottom = mapCycleFabBottom + 48;
+  const torchFabBottom = mapCycleFabBottom + 52;
 
   // Compute selectedDate string for LiveTempBadge
   const selectedDateStr = selectedDate instanceof Date
