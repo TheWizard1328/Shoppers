@@ -177,7 +177,7 @@ export function buildDateQualifier(deliveryDateStr) {
   const dayDiff = Math.round((targetMid - todayMid) / 86400000);
 
   if (dayDiff <= 0) return '';              // today (or past) → blank
-  if (dayDiff === 1) return 'for Tomorr ';  // tomorrow
+  if (dayDiff === 1) return 'for Tomorrow ';  // tomorrow (was truncated to 'Tomorr')
   const dt = new Date(targetMid);
   const day = DATE_QUALIFIER_DAYS[dt.getUTCDay()];
   const month = DATE_QUALIFIER_MONTHS[dt.getUTCMonth()];
@@ -369,6 +369,12 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
 
   const results = [];
   const matchedRules = [];
+  // ONE MESSAGE PER PERSON PER EVENT (owner report Nov 11 2026): the "Stops
+  // Assigned" rules are split by audience (driver copy, App Owner oversight
+  // copy). A rule that listed BOTH audiences made the driver receive a copy of
+  // the App Owner's message, and two matching rules for one person sent the
+  // same event twice. This set spans every matching rule in the run.
+  const deliveredTo = new Set();
 
   for (const rule of rules) {
     if (!rule.enabled) continue;
@@ -410,12 +416,18 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
         continue;
       }
 
+      if (deliveredTo.has(String(userId))) {
+        results.push({ ruleId: rule.id, userId, skipped: 'duplicate_recipient' });
+        continue;
+      }
+
       // Cooldown check
       if (isInCooldown(rule, userId)) {
         results.push({ ruleId: rule.id, userId, skipped: 'cooldown' });
         continue;
       }
       markFired(rule, userId);
+      deliveredTo.add(String(userId));
 
       const isShadow = rule.shadow_mode;
       const channels = rule.channels || ['in_app'];
