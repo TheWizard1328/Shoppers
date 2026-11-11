@@ -115,9 +115,13 @@ function ChatWindow({
         // IDB FIRST (owner directive Nov 4 2026): switching threads must not
         // spend an entity read. The cache paints instantly; a background read
         // reconciles at most once every 5 minutes per conversation.
+        // currentUserId enables the participant-pair fallback (fix Nov 10 2026:
+        // a thread must never open empty because its cached rows were written
+        // before the conversation_id index carried plaintext).
         const allMessages = await loadConversationMessages({
           conversationId,
           otherUserId,
+          currentUserId: currentUser?.id,
           force: false,
         });
         const visibleMessages = (allMessages || []).filter(

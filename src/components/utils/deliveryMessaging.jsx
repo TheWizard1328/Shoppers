@@ -227,13 +227,15 @@ export function buildSpecialBadges(delivery, patient, { iconsOnly = false } = {}
   const hasFridge = delivery?.fridge_item === true;
   const hasSignature = delivery?.signature_needed === true;
 
-  if (hasCOD) badges.push(iconsOnly ? '💵' : '💵 COD');
+  // ORDER (owner spec Nov 10 2026): the 🆕 New badge always leads the set.
   if (isFirstDelivery) badges.push(iconsOnly ? '🆕' : '🆕 New');
+  if (hasCOD) badges.push(iconsOnly ? '💵' : '💵 COD');
   if (hasOversized) badges.push(iconsOnly ? '📦' : '📦 Oversized');
   if (hasFridge) badges.push(iconsOnly ? '❄️' : '❄️ Fridge');
   if (hasSignature) badges.push(iconsOnly ? '✍️' : '✍️ Signature');
 
-  return badges.length > 0 ? ` [${badges.join(', ')}]` : '';
+  // No spaces after the commas in the icon-only form (owner spec Nov 10 2026).
+  return badges.length > 0 ? ` [${badges.join(iconsOnly ? ',' : ', ')}]` : '';
 }
 
 /**
@@ -268,6 +270,40 @@ export function buildETAString(delivery) {
  * Calculate distance between two coordinates in km
  */
 // Consolidated into geoUtils (Sep 6 2026) — falsy coords -> null (previous semantics).
+
+/**
+ * Build the bulleted stop list used by the Stops Assigned messages.
+ *
+ * OWNER SPEC (Nov 10 2026): the badges and the distance are right-justified so
+ * the distances line up down the list, and the "New" badge leads the badge set.
+ * Columns are sized from the longest row, so every line stays aligned without
+ * relying on a monospace font:
+ *   • Roberta              [🆕,💵] [3.5 km]
+ *   • Barbara Bishop       [💵] [3.0 km]
+ */
+export function buildAlignedDeliveryList(deliveries, patients, store) {
+  const rows = (deliveries || []).map((delivery) => {
+    const patient = patients?.find((p) => p?.id === delivery?.patient_id);
+    return {
+      name: patient?.full_name || delivery?.patient_name || 'Unknown',
+      badges: buildSpecialBadges(delivery, patient, { iconsOnly: true }).trim(),
+      distance: buildDistanceBadge(patient, store).trim(),
+    };
+  });
+  if (!rows.length) return '';
+  const nameW = Math.max(...rows.map((r) => r.name.length));
+  const badgeW = Math.max(...rows.map((r) => r.badges.length));
+  const distW = Math.max(...rows.map((r) => r.distance.length));
+  const lines = rows.map((r) => {
+    const left = `• ${r.name.padEnd(nameW)}`;
+    const mid = badgeW ? ` ${r.badges.padEnd(badgeW)}` : '';
+    const right = r.distance ? ` ${r.distance.padStart(distW)}` : '';
+    return `${(left + mid + right).replace(/\s+$/, '')}`;
+  });
+  // Leading newline: the message templates append the list directly after the
+  // "has assigned You N more deliverie(s)" line.
+  return `\n${lines.join('\n')}`;
+}
 
 /**
  * Build distance badge from store
@@ -405,14 +441,7 @@ export async function notifyDispatcherAssignedAll({
 
   const storeName = store?.name || 'Store';
   
-  let deliveryList = '';
-  for (const delivery of deliveries) {
-    const patient = patients?.find(p => p?.id === delivery.patient_id);
-    const patientName = patient?.full_name || 'Unknown';
-    const badges = buildSpecialBadges(delivery, patient, { iconsOnly: true });
-    const distance = buildDistanceBadge(patient, store);
-    deliveryList += `\n• ${patientName}${badges}${distance}`;
-  }
+  const deliveryList = buildAlignedDeliveryList(deliveries, patients, store);
 
   const messageData = { storeName, deliveryList, pendingCount: deliveries.length };
 

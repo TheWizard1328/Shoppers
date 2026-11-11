@@ -31,6 +31,7 @@ import {
   getStoreUser,
   buildSpecialBadges,
   buildDistanceBadge,
+  buildAlignedDeliveryList,
 } from '../utils/deliveryMessaging';
 
 // ── Context aggregation helpers ─────────────────────────────────────────────
@@ -209,14 +210,8 @@ export async function notifyDispatcherAssignedStops({
   }
 
   // Build the patient delivery list with badges + distance (legacy format)
-  let deliveryList = '';
-  for (const delivery of deliveries) {
-    const patient = patients?.find((p) => p?.id === delivery?.patient_id);
-    const patientName = patient?.full_name || delivery?.patient_name || 'Unknown';
-    const badges = buildSpecialBadges(delivery, patient, { iconsOnly: true });
-    const distance = buildDistanceBadge(patient, store);
-    deliveryList += `\n• ${patientName}${badges}${distance}`;
-  }
+  // Aligned badges + right-justified distances (owner spec Nov 10 2026).
+  const deliveryList = buildAlignedDeliveryList(deliveries, patients, store);
 
   // Resolve sender lazily (needed for in-app messages)
   let senderPromise = null;

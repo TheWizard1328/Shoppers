@@ -37,6 +37,15 @@ const INDEX_FIELDS = {
   payroll: ['id', 'driver_id', 'pay_period_start', 'pay_period_end', 'updated_date'],
   square_transactions: ['id', 'delivery_id', 'updated_date', 'status'],
   rx_temp_logs: ['id', 'driver_id', 'delivery_date', 'updated_date'],
+  // MESSAGES (fix Nov 10 2026, owner report "clicking a thread shows no
+  // messages"): the messages store is PHI-encrypted but had NO index-field
+  // entry here, so every encrypted row was stored as {id, __encrypted,
+  // __data} with none of its query metadata in plaintext. The store's
+  // conversation_id / patient_id / driver_id / created_date indexes were
+  // therefore empty, every thread open missed the cache and fell back to a
+  // network read, and a throttled read painted an empty thread even though
+  // the list still showed the thread's date stamp.
+  messages: ['id', 'conversation_id', 'patient_id', 'driver_id', 'store_id', 'sender_id', 'receiver_id', 'created_date', 'updated_date'],
 };
 const KEY_VERSION_KEY = 'rxdeliver_idb_key_v';
 

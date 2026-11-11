@@ -94,23 +94,62 @@ export async function readCachedPatientThread(patientId, user = null) {
   } catch { return []; }
 }
 
-/** Cache-first read of one staff conversation (1:1 or group). */
-export async function loadConversationMessages({ conversationId, otherUserId = null, limit = 500, force = false }) {
+/**
+ * Read one conversation out of the local mirror.
+ *
+ * HISTORY (fix Nov 10 2026, owner report: "clicking a thread shows no messages
+ * even though the thread cards show a recent date stamp for today"): the
+ * messages store is PHI-encrypted, and its index fields were not carried in
+ * plaintext, so the conversation_id index held nothing and every open fell
+ * through to a network read. A throttled/failed read then painted an empty
+ * thread. Three defences now live here:
+ *   1. index read, then a plain scan of the store filtered by conversation_id
+ *      (rescues rows cached before the index fix),
+ *   2. a sender/receiver pair read when the conversation id turns up nothing,
+ *   3. rows are stamped with their conversation_id before caching, so the index
+ *      keeps working for every future open.
+ */
+export async function loadConversationMessages({ conversationId, otherUserId = null, currentUserId = null, limit = 500, force = false }) {
   if (!conversationId) return [];
-  let cached = [];
-  try {
-    const rows = await offlineDB.getByIndex(STORE, 'conversation_id', conversationId);
-    cached = (rows || []).sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
-  } catch { cached = []; }
+
+  const byDate = (a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0);
+  const matchesConversation = (m) => String(m?.conversation_id || '') === String(conversationId);
+
+  const readCache = async () => {
+    let rows = [];
+    try {
+      rows = await offlineDB.getByIndex(STORE, 'conversation_id', conversationId);
+    } catch { rows = []; }
+    if (!rows || rows.length === 0) {
+      // Index miss (legacy encrypted rows) — scan and filter instead.
+      try {
+        const all = await offlineDB.getAll(STORE);
+        rows = (all || []).filter(matchesConversation);
+      } catch { rows = []; }
+    }
+    return (rows || []).filter(Boolean).sort(byDate);
+  };
+
+  let cached = await readCache();
 
   const scope = `conversation:${conversationId}:${otherUserId || ''}`;
   const refresh = async () => {
     try {
-      const rows = await base44.entities.Message.filter({ conversation_id: conversationId }, '-created_date', limit);
-      const list = (rows || []).filter(Boolean);
+      let rows = await base44.entities.Message.filter({ conversation_id: conversationId }, '-created_date', limit).catch(() => null);
+      if (!rows || rows.length === 0) {
+        // Legacy rows may not carry a conversation_id — fall back to the
+        // participant pair so a 1:1 thread can never open empty.
+        const pair = [];
+        if (currentUserId && otherUserId) {
+          pair.push(...(await base44.entities.Message.filter({ sender_id: currentUserId, receiver_id: otherUserId }, '-created_date', limit).catch(() => []) || []));
+          pair.push(...(await base44.entities.Message.filter({ sender_id: otherUserId, receiver_id: currentUserId }, '-created_date', limit).catch(() => []) || []));
+        }
+        rows = pair;
+      }
+      const list = (rows || []).filter(Boolean).map((m) => (m.conversation_id ? m : { ...m, conversation_id: conversationId }));
       await cacheMessages(list);
       notifyMessagesChanged({ conversationId });
-      return list.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+      return list.sort(byDate);
     } catch { return null; }
   };
 
@@ -119,7 +158,7 @@ export async function loadConversationMessages({ conversationId, otherUserId = n
     return cached;
   }
   const fresh = await refresh();
-  return fresh || cached;
+  return (fresh && fresh.length > 0 ? fresh : cached) || [];
 }
 
 const PRUNE_STAMP = 'rxdeliver_messages_pruned_at';

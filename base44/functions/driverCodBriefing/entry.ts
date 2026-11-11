@@ -170,7 +170,10 @@ const extractPatientName = (itemName) => {
   return m ? m[1].trim() : (String(itemName || '').trim() || 'Unknown');
 };
 // MM/DD from a YYYY-MM-DD date for compact display
-const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[2]}/${m[3]}` : (iso || ''); };
+// MONTH NAME + DAY (owner spec Nov 10 2026): the briefing's first line reads
+// "Nov 10", not "11/10". Built from the ISO parts so no timezone can shift it.
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const shortDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${MONTH_ABBR[Number(m[2]) - 1] || m[2]} ${Number(m[3])}` : (iso || ''); };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const monthDay = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}` : (iso || ''); };
 // v2 wrap-up classification (owner spec, Sep 28 2026): cash collected is NOT
