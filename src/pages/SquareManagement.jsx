@@ -18,6 +18,8 @@ import SyncStatusInline from "@/components/square/SyncStatusInline";
 import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgressBar";
 import SquareCodViewSwitcher from "@/components/square/SquareCodViewSwitcher";
 import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
+import { changeCodTender, refundCodDelivery } from "@/components/square/codTenderActions";
+import { markFailedCodRefunded } from "@/components/square/useSquareBalancesSummary";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import * as squareCODOfflineManager from "@/components/utils/squareCODOfflineManager";
@@ -253,6 +255,30 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
     await loadSyncStatus();
   }, [getSourceWindow, loadReconciliationFromOffline, loadSyncStatus]);
+
+  // COD TENDER CHANGE from the Deliveries tab badges (owner spec Nov 10 2026):
+  // tapping a Cash badge or a failed delivery's badge lets the owner switch it to
+  // Debit, Credit or Refunded. The write itself is the SAME shared implementation
+  // the Square Balances page uses, so fees / loan / folder never drift between
+  // the two screens. A failed delivery's Refunded uses the failed-refund mark
+  // (the amount returns to the card balance); a cash COD's Refunded clears the
+  // COD outright and pulls its Square catalog item.
+  const handleDatasetTenderChange = useCallback(async (row, type) => {
+    const deliveryId = row?.rawDelivery?.id || row?.id;
+    if (!deliveryId) return;
+    const failed = String(row?.rawDelivery?.status || '').toLowerCase() === 'failed';
+    if (type === 'Refunded' && failed) {
+      await markFailedCodRefunded(deliveryId, currentUser?.id || null);
+      toast.success('Marked refunded — amount returned to the card balance');
+    } else if (type === 'Refunded') {
+      const res = await refundCodDelivery({ deliveryId });
+      if (res.ok) toast.success(res.message); else toast.error(res.message);
+    } else {
+      const res = await changeCodTender({ deliveryId, toType: type });
+      if (res.ok) toast.success(res.message); else toast.error(res.message);
+    }
+    await refreshUiFromOfflineOnly?.();
+  }, [currentUser?.id, refreshUiFromOfflineOnly]);
 
   useEffect(() => {
     locationConfigsRef.current = locationConfigs || [];
@@ -3257,7 +3283,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
           undefined} /> :
 
         activeView === 'deliveries' ?
-        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected showCatalogColumn archivedRows={archivedDeliveryRows} /> :
+        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected showCatalogColumn archivedRows={archivedDeliveryRows} onTenderChange={handleDatasetTenderChange} /> :
         activeView === 'transactions' ?
         <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected /> :
 

@@ -53,7 +53,93 @@ const isRowCollected = (row) => {
   return cls.includes('bg-emerald-100') || cls.includes('bg-emerald-900');
 };
 
-const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) => {
+// ── TENDER BADGE (owner spec Nov 10 2026) ───────────────────────────────
+// The badge that rides under the amount on the Deliveries tab now names the
+// tender by colour: Debit & Credit green, Cheque orange, Cash red, Refunded
+// rose. Tapping a Cash badge, or the badge on a failed delivery, opens a tiny
+// Debit / Credit / Refunded menu. The badge keeps its exact padding, radius and
+// font size in every state, so switching the tender never changes its size or
+// shape — only its colour.
+const tenderTokensOf = (row) => String(row?.collectionType || '').
+split(',').
+map((t) => t.trim()).
+filter(Boolean);
+
+const tenderColorCls = (tender) => {
+  const k = String(tender || '').toLowerCase();
+  if (k.includes('cash')) return 'border-red-300 dark:border-red-700 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
+  if (k.includes('cheq') || k.includes('check')) return 'border-orange-300 dark:border-orange-700 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300';
+  if (k.includes('debit') || k.includes('credit')) return 'border-emerald-300 dark:border-emerald-700 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300';
+  if (k.includes('refund')) return 'border-rose-300 dark:border-rose-700 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300';
+  return 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+};
+
+const isFailedDeliveryRow = (row) => String(row?.rawDelivery?.status || row?.status || '').toLowerCase() === 'failed';
+
+const TenderBadge = ({ row, onTenderChange }) => {
+  const [menu, setMenu] = useState(null);
+  const tokens = tenderTokensOf(row);
+  if (!tokens.length) return null;
+  const failed = isFailedDeliveryRow(row);
+  const cashLike = tokens.some((t) => t.toLowerCase().includes('cash'));
+  const clickable = !!onTenderChange && !!row?.id && (cashLike || failed);
+  const label = tokens.join(', ');
+  const cls = `inline-flex mt-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${tenderColorCls(tokens[0])}${clickable ? ' cursor-pointer' : ''}`;
+
+  const open = (e) => {
+    if (!clickable) return;
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom > 160;
+    setMenu({ x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+  };
+
+  const pick = async (type) => {
+    setMenu(null);
+    try {
+      await onTenderChange(row, type);
+    } catch (err) {
+      console.error('tender change failed:', err);
+    }
+  };
+
+  return (
+    <>
+      <span
+        onClick={open}
+        title={clickable ? 'Tap to change this tender (Debit / Credit / Refunded)' : undefined}
+        className={cls}>
+        {label}
+      </span>
+      {menu &&
+        <>
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setMenu(null); }} />
+          <div
+            className="fixed z-50 w-32 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-2 space-y-1"
+            style={{
+              left: Math.max(8, Math.min(menu.x, window.innerWidth - 140)),
+              top: menu.anchorBottom ? undefined : menu.y,
+              bottom: menu.anchorBottom ? Math.max(8, window.innerHeight - menu.y + 6) : undefined,
+            }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center">Set tender</div>
+            {['Debit', 'Credit', 'Refunded'].map((type) =>
+              <button
+                key={type}
+                type="button"
+                onClick={() => pick(type)}
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1.5 text-[12px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                {type}
+              </button>
+            )}
+          </div>
+        </>
+      }
+    </>
+  );
+};
+
+const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed, onTenderChange }) => {
   const driverColor = row.driverColor || null;
   const rowStyle = driverColor ? { borderLeft: `3px solid ${driverColor}`, background: hexToRgba(driverColor, 0.03) } : {};
   return (
@@ -68,11 +154,9 @@ const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
       </td>
       <td className="p-3 whitespace-nowrap">
         <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
-        {row.collectionType &&
-          <div className={`inline-flex mt-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${String(row.collectionType).toLowerCase().includes('cash') ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-            {row.collectionType}
-          </div>
-        }
+        <div onClick={(e) => e.stopPropagation()}>
+          <TenderBadge row={row} onTenderChange={onTenderChange} />
+        </div>
       </td>
       <td className="p-3 whitespace-nowrap">
         <div className="text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</div>
@@ -121,7 +205,7 @@ const SectionDivider = ({ label, colSpan }) =>
   </tr>;
 
 
-const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) => {
+const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed, onTenderChange }) => {
   const [expanded, setExpanded] = useState(false);
   const actionClassName = row.actions?.props?.className || '';
   const isCollected = actionClassName.includes('emerald');
@@ -153,6 +237,9 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
             {formatDate(row.collectionDate || row.deliveryDate)}
             <span className="mx-1 text-slate-300 dark:text-slate-600">·</span>
             <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</span>
+            <span className="ml-1 align-middle" onClick={(e) => e.stopPropagation()}>
+              <TenderBadge row={row} onTenderChange={onTenderChange} />
+            </span>
           </p>
         </div>
         {row.actions
@@ -337,25 +424,25 @@ export default function SquareCodDatasetTable({
                   <SectionDivider label={`New Catalog Items (${dedupedNewCatalogRows.length})`} colSpan={colSpan} />
                   }
                     {hasNewCatalogRows && dedupedNewCatalogRows.map((row, index) =>
-                  <DesktopRow key={getRowKey(row, index)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
+                  <DesktopRow key={getRowKey(row, index)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} onTenderChange={onTenderChange} />
                   )}
                     {groupByCollected && notCollected.length > 0 &&
                   <SectionDivider label={`Not Collected (${notCollected.length})`} colSpan={colSpan} />
                   }
                     {notCollected.map((row, index) =>
-                  <DesktopRow key={getRowKey(row, index)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
+                  <DesktopRow key={getRowKey(row, index)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} onTenderChange={onTenderChange} />
                   )}
                     {groupByCollected && collected.length > 0 &&
                   <SectionDivider label={`Collected (${collected.length})`} colSpan={colSpan} />
                   }
                     {collected.map((row, index) =>
-                  <DesktopRow key={getRowKey(row, notCollected.length + index)} row={row} index={notCollected.length + index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
+                  <DesktopRow key={getRowKey(row, notCollected.length + index)} row={row} index={notCollected.length + index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed onTenderChange={onTenderChange} />
                   )}
                     {hasArchivedRows &&
                   <SectionDivider label={`Archived (${filteredArchivedRows.length})`} colSpan={colSpan} />
                   }
                     {hasArchivedRows && filteredArchivedRows.map((row, index) =>
-                  <DesktopRow key={getRowKey(row, `archived-${index}`)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
+                  <DesktopRow key={getRowKey(row, `archived-${index}`)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed onTenderChange={onTenderChange} />
                   )}
                   </tbody>
                 </table>
@@ -372,7 +459,7 @@ export default function SquareCodDatasetTable({
                 </div>
             }
               {hasNewCatalogRows && dedupedNewCatalogRows.map((row, index) =>
-            <MobileCard key={row.id || `${row.itemName}-new-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
+            <MobileCard onTenderChange={onTenderChange} key={row.id || `${row.itemName}-new-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
             )}
               {groupByCollected && notCollected.length > 0 &&
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider py-1">
@@ -382,7 +469,7 @@ export default function SquareCodDatasetTable({
                 </div>
             }
               {notCollected.map((row, index) =>
-            <MobileCard key={row.id || `${row.itemName}-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
+            <MobileCard onTenderChange={onTenderChange} key={row.id || `${row.itemName}-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
             )}
               {groupByCollected && collected.length > 0 &&
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider py-1 mt-2">
@@ -392,7 +479,7 @@ export default function SquareCodDatasetTable({
                 </div>
             }
               {collected.map((row, index) =>
-            <MobileCard key={row.id || `${row.itemName}-${notCollected.length + index}`} row={row} index={notCollected.length + index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
+            <MobileCard onTenderChange={onTenderChange} key={row.id || `${row.itemName}-${notCollected.length + index}`} row={row} index={notCollected.length + index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
             )}
               {hasArchivedRows &&
             <div className="flex items-center gap-2 text-xs font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider py-1">
@@ -402,7 +489,7 @@ export default function SquareCodDatasetTable({
                 </div>
             }
               {hasArchivedRows && filteredArchivedRows.map((row, index) =>
-            <MobileCard key={row.id || `${row.itemName}-archived-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
+            <MobileCard onTenderChange={onTenderChange} key={row.id || `${row.itemName}-archived-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} dimmed />
             )}
             </div>
           </div>

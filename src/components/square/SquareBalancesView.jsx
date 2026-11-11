@@ -9,6 +9,7 @@ import StoreFeesByDay from "./StoreFeesByDay";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
+import { changeCodTender, refundCodDelivery } from "./codTenderActions";
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage, healDeliveryMirror } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { fetchLatestSharedSnapshot, subscribeSharedSnapshot } from "./squareBalancesSharedSnapshot";
@@ -201,11 +202,28 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
   if (!hasRows) return null;
   return (
     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-      {sections.map((sec) =>
+      {sections.map((sec) => {
+        // DAY FEES (owner spec Nov 10 2026): the section header carries the
+        // day's total fees, centred between the section label and the
+        // "count · amount" summary. Only rows that actually store fee parts
+        // (card tenders) contribute.
+        const feeTotal = isOwner ? (sec.rows || []).reduce((acc, fr) => {
+          if (!fr?.feeParts) return acc;
+          acc.fee += Number(fr.feeParts.fee) || 0;
+          acc.folder += Number(fr.feeParts.folder) || 0;
+          acc.loan += Number(fr.feeParts.loan) || 0;
+          return acc;
+        }, { fee: 0, folder: 0, loan: 0 }) : null;
+        const hasFeeTotal = !!feeTotal && (feeTotal.fee > 0 || feeTotal.folder > 0 || feeTotal.loan > 0);
+        return (
       <div key={sec.label} className="space-y-1">
-          <div className="flex items-center justify-between font-medium text-[13px]">
-            <span style={{ color: sec.color }}>{sec.label}</span>
-            <span className="text-slate-400 tabular-nums">{sec.rows.length} · {fmtMoney(sec.total)}</span>
+          <div className="flex items-center justify-between gap-2 font-medium text-[13px]">
+            <span className="shrink-0" style={{ color: sec.color }}>{sec.label}</span>
+            {hasFeeTotal &&
+            <span className="flex-1 min-w-0 text-center tabular-nums text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              S: {feeTotal.fee.toFixed(2)} · F: {feeTotal.folder.toFixed(2)} · L: {feeTotal.loan.toFixed(2)}
+            </span>}
+            <span className="text-slate-400 tabular-nums shrink-0">{sec.rows.length} · {fmtMoney(sec.total)}</span>
           </div>
           {sec.rows.length === 0 && <div className="text-slate-400 text-[13px]">none</div>}
           {sec.rows.map((r) => {
@@ -302,8 +320,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
           const statusBadge =
             r.failed && !r.collected && canMarkSpend && !!r.delivery_id && onMarkRefunded ?
                   <span
-                    onClick={() => onMarkRefunded(r.delivery_id)}
-                    title="Mark this failed COD as refunded — the amount returns to the card balance"
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const below = window.innerHeight - rect.bottom > 150;
+                      // OWNER SPEC (Nov 10 2026): a failed delivery's badge opens
+                      // the same Set tender menu so it can become Debit, Credit or
+                      // Refunded — it no longer jumps straight to the refund mark.
+                      setCashPick({ row: r, label: 'Failed', kind: 'failed', cashRows: [], tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                    }}
+                    title="Tap to set this failed COD to Debit, Credit or Refunded"
                     // No role="button" (same min-height CSS trap as the pills).
                     className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span> :
                   (r.collected || r.cashAwaitingSquare) && ['Cash', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ?
@@ -328,7 +353,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                       (sections || []).flatMap((sec) => (sec?.rows || []).filter((x) => x && x.cashAwaitingSquare));
                       const cashRows = statusLabel === 'Cash' ?
                       candSrc.filter((x) => x && !!x.delivery_id && String(x.delivery_id) !== String(r.delivery_id) && String(x.locId || cardLocId || '') === String(cardLocId || '')) : [];
-                      setCashPick({ row: r, label: statusLabel, cashRows, tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                      setCashPick({ row: r, label: statusLabel, kind: 'cash', cashRows, tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
                     }}
                     title="Tap to change this tender (Debit / Credit / Cash)"
                     // No role="button" (same min-height CSS trap as the pills).
@@ -389,21 +414,29 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                     <span className="truncate max-w-[76px]">{r.driverName}</span>
                   </span>}
                 </div>
-                {showNetAmount && isOwner && r.feeParts &&
-                <span className="tabular-nums text-slate-500 dark:text-slate-400 text-[13px]">
-                  S:{r.feeParts.fee.toFixed(2)} F:{r.feeParts.folder.toFixed(2)} L:{r.feeParts.loan.toFixed(2)}
-                </span>}
                 <div className="flex items-center gap-1.5">
                   {showNetAmount &&
                   <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-[13px]">{fmtMoney(r.netAmount)}</span>}
                   {statusBadge}
                 </div>
               </div>
+              {/* FEE BREAKDOWN (owner spec Nov 10 2026): the Square fee / folder
+                  / loan split is now its OWN last row on the card, spaced out
+                  instead of being squeezed between the date and the net amount. */}
+              {showNetAmount && isOwner && r.feeParts &&
+              <div className="flex items-center justify-center gap-2 text-[12px] tabular-nums text-slate-500 dark:text-slate-400">
+                  <span>S: {r.feeParts.fee.toFixed(2)}</span>
+                  <span className="text-slate-300 dark:text-slate-600">·</span>
+                  <span>F: {r.feeParts.folder.toFixed(2)}</span>
+                  <span className="text-slate-300 dark:text-slate-600">·</span>
+                  <span>L: {r.feeParts.loan.toFixed(2)}</span>
+                </div>}
             </div>);
 
         })}
         </div>
-      )}
+      );
+      })}
       {/* Quick anchored popup (owner spec, Oct 8 2026 late): tapping a
              Cash badge opens the Debit / Credit choice as a small button menu
              right at the badge — below it when there's room, above when it sits
@@ -425,10 +458,19 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
                    (/_at) so the fee/loan/folder credit and ledger confirmation
                    stop counting it (owner rule Oct 9 2026). */}
-            <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>
+            {cashPick.kind !== 'failed' &&
+            <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>}
             {/* Refunded (owner spec Nov 8 2026): clears the COD amount, collected
                 amount and Type, notes the refund, then refreshes the page. */}
-            <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || !onRefundCod} onClick={async () => {setCashPickBusy(true);try {const ok = await onRefundCod?.(cashPick.row.delivery_id);if (ok !== false) setCashPick(null);} finally {setCashPickBusy(false);}}}>Refunded</Button>
+            {/* Refunded — ONLY for a completed-as-cash COD or a failed delivery
+                (owner spec Nov 10 2026). A failed COD uses the failed-refund
+                mark (amount returns to the card balance); a cash COD uses the
+                full refund (amount + payments + stamps cleared). */}
+            {(cashPick.kind === 'cash' || cashPick.kind === 'failed') &&
+            <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || (cashPick.kind === 'failed' ? !onMarkRefunded : !onRefundCod)} onClick={async () => {setCashPickBusy(true);try {
+                if (cashPick.kind === 'failed') {await onMarkRefunded?.(cashPick.row.delivery_id);setCashPick(null);} else
+                {const ok = await onRefundCod?.(cashPick.row.delivery_id);if (ok !== false) setCashPick(null);}
+              } finally {setCashPickBusy(false);}}}>Refunded</Button>}
           </div>
           {cashPick.label === 'Cash' && (cashPick.cashRows || []).length > 0 &&
           <div className="pt-1 border-t border-slate-100 dark:border-slate-700 space-y-0.5">
@@ -774,199 +816,34 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // holds a COD: clear the amount to collect, the collected payments (amount +
   // Type) and every collection stamp, add the audit note, then refresh the page.
   // Distinct from markFailedCodRefunded (failed COD returned to the card balance).
+  // OWNER SPEC (Oct 8 2026, night): correct a cash-collected completed COD to
+  // Debit or Credit. OWNER SPEC (Nov 8 2026): Refunded is a 4th tender in the
+  // Set tender popup. Both writes now live in the shared codTenderActions module
+  // so the Square COD page's Deliveries tab runs the exact same math.
   const refundCod = useCallback(async (deliveryId) => {
-    try {
-      const rows = await base44.entities.Delivery.filter({ id: String(deliveryId) }, undefined, 1, 0).catch(() => []);
-      const d = (rows || [])[0];
-      if (!d) {toast.error('Could not find that delivery');return false;}
-      const payments = Array.isArray(d.cod_payments) ? d.cod_payments : [];
-      const requiredNum = Number(d.cod_total_amount_required || 0);
-      const paidNum = payments.reduce((sm, pm) => sm + (Number(pm?.amount) || 0), 0);
-      // The COD amount for the note: what was required, else what was collected.
-      const amount = requiredNum > 0 ? requiredNum : paidNum;
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-      const noteSuffix = `Original COD of $${amount.toFixed(2)} was refunded on ${today}.`;
-      const existingNote = String(d.delivery_notes || '');
-      const updatePayload = {
-        cod_total_amount_required: 0,
-        cod_payments: [],
-        cod_card_spend_at: '',
-        cod_confirmed_collected: false,
-        cod_confirmed_collected_at: '',
-        cod_refunded_at: new Date().toISOString(),
-        cod_refunded_amount: amount,
-        // OWNER RULE (Nov 8 2026): an existing note is preserved and the refund
-        // note starts on its OWN new line.
-        delivery_notes: existingNote ? `${existingNote}\n${noteSuffix}` : noteSuffix
-      };
-      await base44.entities.Delivery.update(String(d.id), updatePayload);
-      // Mirror first (our own WS echo is suppressed for 5 min), then drop caches
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, ...updatePayload }]).catch(() => {});
-      invalidateIdbReadCache('deliveries');
-      // SQUARE CATALOG (owner spec Nov 8 2026): a refunded COD must leave the
-      // register catalog too, otherwise the COD item keeps sitting on the POS
-      // and can be rung again. squareDeleteCodItem deletes the Square object
-      // and cleans its bookkeeping rows.
-      let catalogNote = '';
-      try {
-        const delRes = await base44.functions.invoke('squareDeleteCodItem', {
-          deliveryId: String(d.id),
-          reason: 'COD refunded from Square Balances Set tender'
-        }).catch((e) => {console.warn('squareDeleteCodItem failed:', e?.message || e);return null;});
-        if (delRes === null) catalogNote = ' (catalog item delete failed — run a catalog reconcile)';
-      } catch (e) {
-        console.warn('squareDeleteCodItem failed:', e?.message || e);
-        catalogNote = ' (catalog item delete failed — run a catalog reconcile)';
-      }
-      toast.success(`COD of $${amount.toFixed(2)} marked refunded${catalogNote}`);
-      // Full page refresh, same path as the Refresh button
-      await syncRef.current?.();
-      return true;
-    } catch (e) {
-      console.error('refundCod failed:', e);
-      toast.error('Could not mark the COD as refunded');
-      return false;
-    }
+    const res = await refundCodDelivery({ deliveryId });
+    if (!res.ok) {toast.error(res.message);return false;}
+    toast.success(res.message);
+    await syncRef.current?.();
+    return true;
   }, []);
 
   const cashToCardSyncTimerRef = useRef(null);
   const cashToCard = useCallback(async (deliveryId, newType, combineIds = []) => {
-    const toType = String(newType || '');
-    const target = toType.toLowerCase();
-    try {
-      const mainId = String(deliveryId);
-      const others = Array.from(new Set((combineIds || []).map(String).filter((x) => x && x !== mainId)));
-      const rows = await base44.entities.Delivery.filter({ id: mainId }, undefined, 1, 0).catch(() => []);
-      const d = (rows || [])[0];
-      if (!d) {toast.error('Could not find that delivery');return false;}
-      const otherRecs = [];
-      for (const xid of others) {
-        const xr = await base44.entities.Delivery.filter({ id: xid }, undefined, 1, 0).catch(() => []);
-        const xd = (xr || [])[0];
-        if (!xd) {toast.error('Could not find a combined delivery');return false;}
-        otherRecs.push(xd);
-      }
-      // Cash -> Debit/Credit converts cash payments; Debit/Credit -> Cash
-      // (owner rule Oct 9 2026) converts card payments back to drawer cash.
-      const convertible = target === 'cash' ? ['debit', 'credit'] : ['cash'];
-      const allRecs = [d, ...otherRecs];
-      const plan = allRecs.map((rec) => {
-        const recPayments = Array.isArray(rec.cod_payments) ? rec.cod_payments : [];
-        const convIdx = [];
-        const nextPayments = recPayments.map((p, i) => {
-          if (p && convertible.includes(String(p?.type || '').toLowerCase())) {convIdx.push(i);return { ...p, type: toType };}
-          return p;
-        });
-        // UNCOLLECTED ITEM IN A COMBINED SWIPE (owner rule Oct 9 2026): a
-        // pending COD has no payments yet — the swipe IS its collection.
-        // Create its card payment for the outstanding amount so it joins the
-        // swipe's fee/loan/folder split like any cash item.
-        if (!convIdx.length && target !== 'cash') {
-          const requiredC = Math.round(Number(rec?.cod_total_amount_required || 0) * 100);
-          const nonCashC = recPayments.filter((p) => ['debit', 'credit', 'cheque'].includes(String(p?.type || '').toLowerCase())).reduce((sm, p) => sm + Math.round(Number(p?.amount || 0) * 100), 0);
-          const addC = Math.max(0, requiredC - nonCashC);
-          if (addC > 0) {
-            nextPayments.push({ type: toType, amount: addC / 100 });
-            convIdx.push(nextPayments.length - 1);
-          }
-        }
-        // convCents reads nextPayments (not the original record) — created
-        // entries for uncollected items only exist there.
-        return { rec, nextPayments, convIdx, convCents: convIdx.reduce((sm, i) => sm + Math.round(Number(nextPayments[i]?.amount || 0) * 100), 0), changed: convIdx.length > 0 };
-      });
-      if (!plan[0].changed) {toast.error(`Payment is already ${toType}`);return false;}
-      if (others.length && !plan.every((x) => x.changed)) {toast.error('A combined item has no matching payment');return false;}
-      const totalCents = plan.reduce((sm, x) => sm + x.convCents, 0);
-      let feeTotC = 0,loanTotC = 0,folderTotC = 0;
-      if (target !== 'cash') {
-        // ONE SWIPE, ONE FEE SET (owner rule Oct 9 2026): fees / loan / folder
-        // are computed on the COMBINED swipe total — (Del1+Del2) x 0.75% +
-        // $0.07, NOT per item — then split proportionally across the items
-        // (parts sum exactly to the whole). Owner report: marking $1.18 and
-        // $28.36 separately charged the flat $0.07 twice and left the
-        // Londonderry settled amount $0.05 low.
-        const storeToLoc = await buildStoreToLocMap().catch(() => new Map());
-        const loanRateByLoc = new Map((config?.locations || []).map((l) => [String(l.location_id), Number(l.loan_rate) || 0]));
-        const folderRateNow = Number.isFinite(Number(config?.folder_rate)) ? Number(config.folder_rate) : 0.02;
-        const feeC = estimateCardFeeCents(totalCents, toType);
-        const locId = storeToLoc.get(String(d.store_id || '')) || null;
-        const loanC = Math.round(totalCents * (locId ? loanRateByLoc.get(String(locId)) || 0 : 0));
-        const folderC = folderCentsFor(totalCents, folderRateNow);
-        feeTotC = feeC;loanTotC = loanC;folderTotC = folderC;
-        const itemWeights = plan.map((x) => x.convCents);
-        const feeSplit = splitSwipeCents(feeC, itemWeights);
-        const loanSplit = splitSwipeCents(loanC, itemWeights);
-        const folderSplit = splitSwipeCents(folderC, itemWeights);
-        plan.forEach((x, k) => {
-          // spread this item's share across its converted payments
-          const pWeights = x.convIdx.map((i) => Math.round(Number(x.rec.cod_payments[i]?.amount || 0) * 100));
-          const feeP = splitSwipeCents(feeSplit[k], pWeights);
-          const loanP = splitSwipeCents(loanSplit[k], pWeights);
-          const folderP = splitSwipeCents(folderSplit[k], pWeights);
-          x.convIdx.forEach((pi, j) => {
-            const grossP = Math.round(Number(x.rec.cod_payments[pi]?.amount || 0) * 100);
-            const f = feeP[j],l = loanP[j],fo = folderP[j];
-            x.nextPayments[pi] = { ...x.nextPayments[pi], fee_c: f, loan_c: l, folder_c: fo, settled_c: Math.max(0, grossP - f - l - fo), swipe_total_c: totalCents };
-          });
-        });
-      } else {
-        // CARD -> CASH: strip the stored swipe-split cents as well — drawer
-        // money has no card fee math.
-        plan.forEach((x) => x.convIdx.forEach((pi) => {
-          const { fee_c, folder_c, loan_c, settled_c, swipe_total_c, ...rest } = x.nextPayments[pi];
-          x.nextPayments[pi] = rest;
-        }));
-      }
-      const noteSuffix = target === 'cash' ? 'Collected in cash.' : `Paid Via Drivers ${toType} card${others.length ? ` (combined swipe $${(totalCents / 100).toFixed(2)})` : ''}.`;
-      // CARD -> CASH: drawer money is NOT card money — clear every collection
-      // stamp (owner rule Oct 9 2026) so the fee/loan/folder credit stops
-      // counting it (cod_card_spend_at) and any ledger confirmation
-      // (cod_confirmed_collected / _at) no longer holds. CASH -> CARD: stamp
-      // the conversion instant — this card payment is NEW money the true-up
-      // did not bake in, so the credit math must count it even when the
-      // delivery finished before trued_up_at (see loadDeliveryCardCredits).
-      const stampUpdate = target === 'cash' ?
-      { cod_card_spend_at: '', cod_confirmed_collected: false, cod_confirmed_collected_at: '' } :
-      { cod_card_spend_at: new Date().toISOString() };
-      const updatedRecs = [];
-      for (const x of plan) {
-        const existingNote = String(x.rec.delivery_notes || '');
-        const nextNote = existingNote ? `${existingNote} ${noteSuffix}` : noteSuffix;
-        const updatePayload = { cod_payments: x.nextPayments, delivery_notes: nextNote, ...stampUpdate };
-        await base44.entities.Delivery.update(String(x.rec.id), updatePayload);
-        updatedRecs.push({ ...x.rec, ...updatePayload });
-      }
-      // ROOT-CAUSE FIX (owner report Oct 8 2026 late: fees didn't update, page
-      // "lost other items", UI inconsistent): the fee / outstanding math reads
-      // the local IDB delivery mirror, and our own write's WS echo is
-      // suppressed for 5 minutes — so the mirror still said CASH while the
-      // server said Debit. The row then double-showed (cash in the
-      // IDB-driven lists, card in Collected today) and the fee values
-      // (Square fee / folder / loan) kept the old math. Update the mirror +
-      // drop the read cache FIRST so every recompute below sees fresh data.
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedRecs).catch(() => {});
-      invalidateIdbReadCache('deliveries');
-      toast.success(target === 'cash' ? 'COD payment set to Cash' : `COD payment set to ${toType}${others.length ? ` (${plan.length} items, one swipe)` : ''}`);
-      // Recompute the collected rows, balance estimate (fees/net) and the
-      // outstanding lists from the updated delivery.
-      computeCodCollectedTodayRef.current?.();
-      refreshDeliveryCreditsRef.current?.();
-      computeLocalOutstandingRef.current?.();
-      computeCatalogUncollectedRef.current?.();
-      // Square sync (same path as a fresh debit/credit collection: ledger
-      // match stamps cod_confirmed_collected, catalog reconcile clears the
-      // register item) on the SAME 20s debounce as a card-collected WS
-      // event — running it inline mid-render churned the whole page's sales
-      // state and made sections blink empty; the local recomputes above
-      // already refresh the fees immediately.
-      clearTimeout(cashToCardSyncTimerRef.current);
-      cashToCardSyncTimerRef.current = setTimeout(() => {syncRef.current?.();}, 20000);
-      return true;
-    } catch (e) {
-      console.error('cash→card update failed:', e);
-      toast.error('Could not update the COD payment');
-      return false;
-    }
+    const res = await changeCodTender({ deliveryId, toType: newType, combineIds, config });
+    if (!res.ok) {toast.error(res.message);return false;}
+    toast.success(res.message);
+    // Recompute the collected rows, balance estimate (fees/net) and the
+    // outstanding lists from the updated delivery.
+    computeCodCollectedTodayRef.current?.();
+    refreshDeliveryCreditsRef.current?.();
+    computeLocalOutstandingRef.current?.();
+    computeCatalogUncollectedRef.current?.();
+    // Square sync runs on the same 20s debounce as a card-collected WS event;
+    // the local recomputes above already refresh the fees immediately.
+    clearTimeout(cashToCardSyncTimerRef.current);
+    cashToCardSyncTimerRef.current = setTimeout(() => {syncRef.current?.();}, 20000);
+    return true;
   }, [config]);
 
   // PAYMENT DISCREPANCY CONFIRM (owner spec Oct 9 2026 night): applies the
