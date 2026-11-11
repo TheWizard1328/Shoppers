@@ -235,24 +235,45 @@ export default function GuideAssistant() {
         return;
       }
 
-      // PLACEMENT RULE (owner spec Nov 10 2026 — 8th request, now UNCONDITIONAL):
-      // "let's make it so that it's moved to the top for all devices if that
-      // makes it easier for you". No device gating, no primary flag, no width
-      // check: the tab always sits at the top right, 6px below the top of the
-      // stats panel container (the top of the map area, just under the header).
-      // The primary-device flag was the reason it kept dropping back to the FAB
-      // position: window.__isPrimaryDevice is not reliably set when this effect
-      // measures, so the top branch never won on the owner's phone.
-      const statsRect = (() => {
-        const el = document.querySelector('[data-stats-panel="true"]');
+      // PLACEMENT RULE (owner spec, final): on NARROW screens the tab sits 6px
+      // BELOW the stats cards + driver legend container, i.e. right under the
+      // "Robert / Sharuk / Anna / Erin" legend row. On WIDE screens it keeps the
+      // position the owner confirmed as correct.
+      //
+      // Why the earlier attempts landed in the wrong place: the position was
+      // measured off the stats panel WRAPPER ([data-stats-panel]), which is an
+      // absolutely positioned, full-height layer inside the map area. Its bottom
+      // is near the bottom of the screen, so "6px below the panel" put the tab
+      // down by the FABs, and its top put the tab on top of the cards. The
+      // legend row ([data-stats-legend]) is a real content element, so it gives
+      // the true bottom of the stats + legend block on any screen size.
+      const rectOf = (selector) => {
+        const el = document.querySelector(selector);
         if (!el || el.offsetParent === null) return null;
         const rect = el.getBoundingClientRect();
         if (rect.height <= 0) return null;
         return rect;
-      })();
+      };
 
-      if (statsRect && statsRect.top > 0) {
+      const narrowScreen = window.innerWidth < 850;
+      const legendRect = rectOf('[data-stats-legend="true"]');
+      const statsRect = rectOf('[data-stats-panel="true"]');
+
+      if (narrowScreen && legendRect && legendRect.bottom > 0) {
+        const top = Math.min(Math.round(legendRect.bottom + 6), Math.round(window.innerHeight * 0.72));
+        applyAnchor({ mode: 'panel', top: `${top}px` }, 'below-legend');
+        return;
+      }
+
+      if (!narrowScreen && statsRect && statsRect.top > 0) {
         applyAnchor({ mode: 'panel', top: `${Math.round(statsRect.top + 6)}px` }, 'top-of-stats');
+        return;
+      }
+
+      // Phone with no legend row (finished date, no drivers): fall back to the
+      // panel top so the tab stays in the upper part of the screen.
+      if (statsRect && statsRect.top > 0) {
+        applyAnchor({ mode: 'panel', top: `${Math.round(statsRect.top + 6)}px` }, 'stats-fallback');
         return;
       }
 
@@ -267,15 +288,11 @@ export default function GuideAssistant() {
         }
       }
 
-      // Desktop without a header: sit at the top of the content area.
-      if (window.innerWidth >= 850) {
+      if (!narrowScreen) {
         applyAnchor({ mode: 'panel', top: '16px' }, 'top-fixed');
         return;
       }
 
-      // Last resort stays at the TOP as well. The above-FAB position and the 50%
-      // default are gone for good: no measurement failure can drop the tab back
-      // down into the map again.
       applyAnchor({ mode: 'panel', top: '76px' }, 'default');
     };
     const schedule = () => {
