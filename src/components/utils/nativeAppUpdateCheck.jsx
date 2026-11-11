@@ -17,6 +17,10 @@ import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
  * Shared by the Settings page Native App section AND the sidebar User Settings
  * link so both light up the same "New" badge at the same time.
  */
+// How long a finished APK release may be held back waiting for the matching web
+// publish before the in-app notice opens on its own (6 hours).
+const APK_NOTICE_HOLD_MAX_MS = 6 * 60 * 60 * 1000;
+
 export function useAndroidAppUpdateCheck(latestBuildNumber) {
   // PUBLISH GATE source: the newest APK release's own digit (what this device
   // could install) — held until the LIVE published bundle advertises it.
@@ -63,12 +67,34 @@ export function useAndroidAppUpdateCheck(latestBuildNumber) {
         // stranded on an old APK.
         let publishGateOpen = true;
         try {
-          const announced = Number(getPublishedApkDigitSync()?.apkDigit) || 0;
+          // OWNER CORRECTION (Nov 10 2026): "my phone is on the preview path".
+          // The gate used to read the LIVE deployment's digit only, so a device
+          // sitting on PREVIEW — which already serves the new digit — was still
+          // held back by the stale live number and never got the blue arrow.
+          // Read the digit the deployment this device actually runs advertises
+          // (same origin), and only fall back to the live lookup when the served
+          // bundle predates apkDigit.
+          let announced = 0;
+          try {
+            const own = await fetch(`/version.json?cb=${Date.now()}`, { cache: 'no-store' });
+            if (own.ok) {
+              const ownData = await own.json();
+              announced = Number(ownData?.apkDigit) || 0;
+            }
+          } catch { /* fall through to the live lookup */ }
+          if (!announced) announced = Number(getPublishedApkDigitSync()?.apkDigit) || 0;
           const releaseMid = Number(String(latestBuildInfo?.releaseVersion || '').split('.')[1]) || 0;
           if (announced > 0 && releaseMid > 0) {
-            publishGateOpen = announced >= releaseMid;
+            // BOUNDED HOLD: the gate still honours the owner rule (wait for the
+            // matching web publish), but it can no longer go silent forever — a
+            // finished release is announced anyway once the hold window passes.
+            const releasedAt = Date.parse(latestBuildInfo?.publishedAt || '') || 0;
+            const heldTooLong = releasedAt > 0 && Date.now() - releasedAt > APK_NOTICE_HOLD_MAX_MS;
+            publishGateOpen = announced >= releaseMid || heldTooLong;
             if (!publishGateOpen) {
-              console.log(`[nativeUpdate] holding APK notice: release digit ${releaseMid} not published yet (live advertises ${announced})`);
+              console.log(`[nativeUpdate] holding APK notice: release digit ${releaseMid} not published yet (device deployment advertises ${announced})`);
+            } else if (heldTooLong && announced < releaseMid) {
+              console.log(`[nativeUpdate] release digit ${releaseMid} unpublished after the hold window — announcing anyway`);
             }
           }
         } catch { /* fail open */ }

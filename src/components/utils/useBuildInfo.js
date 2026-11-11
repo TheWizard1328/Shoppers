@@ -22,6 +22,35 @@ import { isCapacitorNativeApp, getCapacitorPlatform, isPlayStoreBuild } from './
 // buildNumber stays null and the "New" update badge never appears. Caching
 // the last successful fetch in localStorage ensures the badge still works
 // even when the API is rate-limited or the network is flaky.
+// ── OWN-ORIGIN APK RELEASE INFO (owner report Nov 10 2026) ─────────────────
+// "the flashlight got built but there was no notification for the APK update".
+// The APK poll went straight to api.github.com UNAUTHENTICATED: 60 requests per
+// hour per IP, and the pharmacy runs several devices behind one IP at 2 calls
+// per 5-minute poll. Once that budget is gone the poll returns null, the badge
+// silently disappears and (because the localStorage mirror expires after an
+// hour) devices stop learning that a new APK exists at all. Logs from Nov 10
+// 01:09Z show exactly that: "[BuildInfo] GitHub API rate limit low (5
+// remaining) — skipping this poll".
+//
+// The build-apk.yml workflow now writes public/apk-release.json into the repo on
+// every successful build, so every device reads the release straight from its
+// own deployment — same origin, no rate limit, no CORS, works offline from the
+// localStorage mirror. GitHub remains only as a fallback for a deploy whose
+// bundle predates the JSON file.
+const APK_RELEASE_PATH = '/apk-release.json';
+
+async function fetchOwnApkRelease() {
+  try {
+    const res = await fetch(`${APK_RELEASE_PATH}?cb=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!Number.isFinite(Number(data?.buildNumber)) || Number(data.buildNumber) <= 0) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 const BUILD_CACHE_KEY = 'rxdeliver_latest_apk_build';
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -39,6 +68,7 @@ function loadCachedBuildInfo() {
       successCount: Number.isFinite(Number(parsed.successCount)) ? Number(parsed.successCount) : null,
       apkUrl: parsed.apkUrl || null,
       releaseVersion: parsed.releaseVersion || null,
+      publishedAt: parsed.publishedAt || null,
       etagRelease: parsed.etagRelease || null,
       etagRuns: parsed.etagRuns || null,
     };
@@ -102,6 +132,33 @@ export function useLatestApkBuildInfo() {
 
     const fetchData = async () => {
       const cached = loadCachedBuildInfo();
+
+      // OWN ORIGIN FIRST (Nov 10 2026): the deployment publishes the newest APK
+      // release as static JSON. No GitHub API, no per-IP budget, no 429 void.
+      const own = await fetchOwnApkRelease();
+      if (cancelled) return;
+      if (own) {
+        const rawDate = own.publishedAt || null;
+        const ownInfo = {
+          dateStr: rawDate
+            ? new Date(rawDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : (cached?.dateStr || ''),
+          buildNumber: Number(own.buildNumber),
+          successCount: Number.isFinite(Number(own.successCount)) ? Number(own.successCount) : (cached?.successCount ?? null),
+          apkUrl: own.apkUrl || cached?.apkUrl || null,
+          releaseVersion: own.releaseVersion || cached?.releaseVersion || null,
+          publishedAt: rawDate || cached?.publishedAt || null,
+          etagRelease: cached?.etagRelease || null,
+          etagRuns: cached?.etagRuns || null,
+        };
+        saveCachedBuildInfo(ownInfo);
+        setBuildInfo((prev) => {
+          if (prev && prev.buildNumber === ownInfo.buildNumber && prev.releaseVersion === ownInfo.releaseVersion && prev.dateStr === ownInfo.dateStr) return prev;
+          return ownInfo;
+        });
+        return;
+      }
+
       const [releaseRes, runsRes] = await Promise.all([
         fetchGithubCached('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest', cached?.etagRelease),
         fetchGithubCached('https://api.github.com/repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1', cached?.etagRuns),
@@ -115,6 +172,7 @@ export function useLatestApkBuildInfo() {
       let successCount = cached?.successCount || null;
       let apkUrl = cached?.apkUrl || null;
       let releaseVersion = cached?.releaseVersion || null;
+      let publishedAt = cached?.publishedAt || null;
       let etagRelease = cached?.etagRelease || null;
       let etagRuns = cached?.etagRuns || null;
 
@@ -136,6 +194,7 @@ export function useLatestApkBuildInfo() {
         // RELEASE ASSET NAME (rxdeliver-v1.5.336-b347.apk), so sidebar,
         // Settings and the downloaded APK all show the same version.
         releaseVersion = (() => { const m = /v(\d+\.\d+\.\d+)/.exec(asset?.name || ''); return m ? m[1] : null; })();
+        publishedAt = rawDate || publishedAt;
         etagRelease = releaseRes.etag || etagRelease;
       }
       const runsData = runsRes?.notModified ? null : runsRes?.json || null;
@@ -149,7 +208,7 @@ export function useLatestApkBuildInfo() {
 
       // If we got valid data, update cache and state
       if (buildNumber != null || apkUrl != null) {
-        const newInfo = { dateStr, buildNumber, successCount, apkUrl, releaseVersion, etagRelease, etagRuns };
+        const newInfo = { dateStr, buildNumber, successCount, apkUrl, releaseVersion, publishedAt, etagRelease, etagRuns };
         saveCachedBuildInfo(newInfo);
         if (!cancelled) {
           setBuildInfo((prev) => {

@@ -30,6 +30,9 @@ const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
  * index.html pulls the fresh hashed chunks. Production hosts are untouched.
  */
 const PREVIEW_RELOAD_KEY = 'rxdeliver_preview_autoreload';
+// Notice window before the preview self-reload applies (owner must SEE the
+// update: green arrow on the header/sidebar and the balloon at the bottom).
+const PREVIEW_RELOAD_DELAY_MS = 90 * 1000;
 const maybeAutoReloadPreview = (buildId) => {
   try {
     const host = String(window?.location?.hostname || '').toLowerCase();
@@ -37,10 +40,20 @@ const maybeAutoReloadPreview = (buildId) => {
     const seen = sessionStorage.getItem(PREVIEW_RELOAD_KEY) || '';
     if (!buildId || seen === buildId) return;
     sessionStorage.setItem(PREVIEW_RELOAD_KEY, buildId);
-    const url = new URL(window.location.href);
-    url.searchParams.set('b', buildId);
-    console.info('[Update] preview host is serving a newer build, reloading once:', buildId);
-    setTimeout(() => { window.location.replace(url.toString()); }, 1500);
+    console.info('[Update] preview host is serving a newer build — announcing it, reload in', PREVIEW_RELOAD_DELAY_MS / 1000, 's:', buildId);
+    // OWNER REPORT (Nov 10 2026): "my phone is on the preview path, so every
+    // time we make a change I should be seeing the arrow and the pop-up". This
+    // reload fired 1.5s after detection, so the green arrow and the balloon were
+    // replaced by the new bundle before the eye ever got there and nothing
+    // announced it afterwards. The reload now waits out the notice window and
+    // stamps the auto-updated flag, so the tab shows update-available first and
+    // the "your app was just updated" balloon greets the next foreground.
+    setTimeout(() => {
+      try { localStorage.setItem('rxdeliver_auto_updated_at', String(Date.now())); } catch { /* storage unavailable */ }
+      const url = new URL(window.location.href);
+      url.searchParams.set('b', buildId);
+      window.location.replace(url.toString());
+    }, PREVIEW_RELOAD_DELAY_MS);
   } catch { /* never break the app for a convenience reload */ }
 };
 
