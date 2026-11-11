@@ -227,20 +227,14 @@ export default function GuideAssistant() {
         return;
       }
 
-      // PLACEMENT RULE (owner spec Nov 10 2026, marked-up screenshot):
-      //   PRIMARY DRIVER PHONE → pin the tab at the TOP RIGHT of the map area,
-      //     6px in from the top of the stats panel container (i.e. the top of the
-      //     screen, just under the header). This is the red circle in the
-      //     owner's markup.
-      //   IMMERSIVE on that phone → 6px under the immersive top panel (above).
-      //   Everything else (viewer phones, tablets, desktop) → unchanged floating
-      //     position just above the map-cycle FAB. The flashlight FAB is an APK
-      //     feature of the primary driver device, which is exactly the device
-      //     that now anchors at the top, so the two can no longer collide.
-      // Widths and the primary flag are read live so a rotation or a device
-      // role change re-anchors on the next idle tick.
-      const primaryDevice = typeof window !== 'undefined' && window.__isPrimaryDevice === true;
-      const narrowScreen = window.innerWidth < 850;
+      // PLACEMENT RULE (owner spec Nov 10 2026 — 8th request, now UNCONDITIONAL):
+      // "let's make it so that it's moved to the top for all devices if that
+      // makes it easier for you". No device gating, no primary flag, no width
+      // check: the tab always sits at the top right, 6px below the top of the
+      // stats panel container (the top of the map area, just under the header).
+      // The primary-device flag was the reason it kept dropping back to the FAB
+      // position: window.__isPrimaryDevice is not reliably set when this effect
+      // measures, so the top branch never won on the owner's phone.
       const statsRect = (() => {
         const el = document.querySelector('[data-stats-panel="true"]');
         if (!el || el.offsetParent === null) return null;
@@ -248,16 +242,30 @@ export default function GuideAssistant() {
         if (rect.height <= 0) return null;
         return rect;
       })();
-      const statsBottom = statsRect && statsRect.bottom > 8 && statsRect.bottom < window.innerHeight - 40
-        ? statsRect.bottom
-        : null;
 
-      if (primaryDevice && narrowScreen && statsRect && statsRect.top > 0) {
-        applyAnchor({ mode: 'panel', top: `${Math.round(statsRect.top + 6)}px` }, 'primary-top');
+      if (statsRect && statsRect.top > 0) {
+        applyAnchor({ mode: 'panel', top: `${Math.round(statsRect.top + 6)}px` }, 'top-of-stats');
         return;
       }
 
-      // Wider screens, viewers, and other pages keep the original above-FAB spot.
+      // No stats panel on this page (Route Viewer, admin pages): use the header
+      // edge so the tab still reads as pinned to the top.
+      const headerEl = document.querySelector('header.mobile-header');
+      if (headerEl && headerEl.offsetParent !== null) {
+        const hRect = headerEl.getBoundingClientRect();
+        if (hRect.height > 0 && hRect.bottom > 0 && hRect.bottom < window.innerHeight * 0.5) {
+          applyAnchor({ mode: 'panel', top: `${Math.round(hRect.bottom + 6)}px` }, 'under-header');
+          return;
+        }
+      }
+
+      // Desktop without a header: sit at the top of the content area.
+      if (window.innerWidth >= 850) {
+        applyAnchor({ mode: 'panel', top: '16px' }, 'top-fixed');
+        return;
+      }
+
+      // True last resort (no panel, no header): the old above-FAB position.
       const fabEl = document.querySelector('[data-map-cycle-fab="true"]');
       if (fabEl && fabEl.offsetParent !== null) {
         const rect = fabEl.getBoundingClientRect();
@@ -265,12 +273,6 @@ export default function GuideAssistant() {
           applyAnchor({ mode: 'fab', bottom: `${window.innerHeight - rect.top + 6}px` }, 'fab');
           return;
         }
-      }
-
-      // No FAB on this page (non-dashboard): still prefer the stats panel.
-      if (statsBottom !== null) {
-        applyAnchor({ mode: 'panel', top: `${statsBottom + 6}px` }, 'stats');
-        return;
       }
       applyAnchor({ mode: 'panel', top: '50%' }, 'default');
     };
