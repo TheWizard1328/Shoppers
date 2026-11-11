@@ -55,13 +55,12 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
       try {
         const assigned = (currentUser?.store_ids || []).map(String).filter(Boolean);
         if (assigned.length || !isDriverNav) { if (alive) setDriverNavStoreIds(assigned); return; }
-        const { getAllDeliveriesIdb } = await import('@/components/square/useSquareBalancesSummary');
+        const { getAllDeliveriesIdb, resolveDriverRouteStoreIds } = await import('@/components/square/useSquareBalancesSummary');
         const { edmontonWallString } = await import('@/components/utils/albertaTime');
         const today = edmontonWallString(new Date()).slice(0, 10);
         const rows = (await getAllDeliveriesIdb()) || [];
-        const routeIds = [...new Set((rows)
-          .filter((d) => String(d?.driver_id || '') === String(currentUser.id) && String(d?.delivery_date || '') === today && d?.status !== 'cancelled' && d?.store_id)
-          .map((d) => String(d.store_id)))];
+        // Today's route first, with a day-rollover fallback (Nov 11 2026).
+        const routeIds = resolveDriverRouteStoreIds(rows, currentUser.id, today);
         if (alive) setDriverNavStoreIds(routeIds);
         // Boot-lag retry: only when the IDB mirror itself was empty (not yet
         // hydrated) — a hydrated mirror with no route today is a real empty.

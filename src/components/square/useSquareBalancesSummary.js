@@ -178,6 +178,56 @@ async function loadServerDeliveryOverlay() {
 // IDB covers everything else, and the next fetch delta-fetches cheaply.
 export function invalidateServerOverlay() { serverOverlay.at = 0; serverOverlay.rows = null; }
 
+/**
+ * Resolve the store ids a driver's card badge should be scoped to.
+ *
+ * Owner spec: a driver sees the cards for the stores on THEIR route today.
+ * Driver AppUser records carry EMPTY store_ids, so this is the only scope
+ * source — and "today" alone broke the badge (owner report Nov 11 2026, 00:31:
+ * Anna's sidebar Square Balances badge sat on "…" because her last route was
+ * Nov 10 and the clock had just rolled into Nov 11, so no delivery matched
+ * "today" and the badge resolved zero cards).
+ *
+ * Order: today's route stores → the most recent route day (max 3 days back, so
+ * an overnight or pre-route morning keeps the card visible) → any stop still
+ * live regardless of date.
+ */
+const LIVE_STOP_STATUSES = new Set(['pending', 'staged', 'en_route', 'in_transit']);
+
+export function resolveDriverRouteStoreIds(rows, driverId, today) {
+  const list = (rows || []).filter(
+    (d) => d && String(d?.driver_id || '') === String(driverId || '') &&
+      String(d?.status || '').toLowerCase() !== 'cancelled' && d?.store_id
+  );
+  if (!list.length) return [];
+  const dayOf = (d) => String(d?.delivery_date || '').slice(0, 10);
+  const idsFor = (dateStr) => [...new Set(list.filter((d) => dayOf(d) === dateStr).map((d) => String(d.store_id)))];
+
+  const todayStr = String(today || '').slice(0, 10);
+  const todayIds = todayStr ? idsFor(todayStr) : [];
+  if (todayIds.length) return todayIds;
+
+  const targetMs = Date.parse(`${todayStr}T00:00:00Z`);
+  if (Number.isFinite(targetMs)) {
+    const recentDay = list
+      .map(dayOf)
+      .filter((ds) => {
+        const t = Date.parse(`${ds}T00:00:00Z`);
+        return Number.isFinite(t) && t <= targetMs && targetMs - t <= 3 * 86400000;
+      })
+      .sort()
+      .pop();
+    if (recentDay) {
+      const recentIds = idsFor(recentDay);
+      if (recentIds.length) return recentIds;
+    }
+  }
+
+  return [...new Set(
+    list.filter((d) => LIVE_STOP_STATUSES.has(String(d?.status || '').toLowerCase())).map((d) => String(d.store_id))
+  )];
+}
+
 export async function getAllDeliveriesIdb() {
   const idbRows = await getAllDeliveriesIdbRaw();
   try {

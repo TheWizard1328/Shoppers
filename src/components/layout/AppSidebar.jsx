@@ -20,7 +20,7 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
   } catch (_) {}
 })();
 import { userHasRole, isAppOwner } from '../utils/userRoles';
-import { useSquareBalancesSummary, getBalanceLevel, BALANCE_LEVELS } from '../square/useSquareBalancesSummary';
+import { useSquareBalancesSummary, getBalanceLevel, BALANCE_LEVELS, resolveDriverRouteStoreIds } from '../square/useSquareBalancesSummary';
 import SquareBalanceRequestDialog from '../square/SquareBalanceRequestDialog';
 import SquareLowBalanceAlert from '../square/SquareLowBalanceAlert';
 import { edmontonWallString } from '../utils/albertaTime';
@@ -179,12 +179,12 @@ export default function AppSidebar({
       // assigned stores falls back to today's route stores.
       storeIds = (currentUser?.store_ids || []).map(String).filter(Boolean);
       if (!storeIds.length && sqIsDriver) {
+        // Driver AppUser records carry empty store_ids, so the route resolves
+        // the scope. resolveDriverRouteStoreIds keeps today's route first but
+        // survives a day rollover (owner report Nov 11 2026 00:31: Anna's badge
+        // sat on "…" because her route was Nov 10 and "today" had no stops yet).
         const today = edmontonWallString(new Date()).slice(0, 10);
-        storeIds = [...new Set(
-          (deliveries || []).
-          filter((d) => d?.driver_id === currentUser?.id && d?.delivery_date === today && d?.status !== 'cancelled').
-          map((d) => String(d?.store_id || ''))
-        )].filter(Boolean);
+        storeIds = resolveDriverRouteStoreIds(deliveries, currentUser?.id, today);
       }
     }
     let total = 0,avg = 0,found = false;
