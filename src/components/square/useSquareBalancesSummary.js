@@ -200,6 +200,72 @@ export function resolveDriverRouteStoreIds(rows, driverId, dateStr) {
   return [...new Set(ids)];
 }
 
+/** Selected-date scheduled stores for a driver (DriverScheduleOverride). */
+let _schedCache = { at: 0, rows: null };
+export async function getScheduleOverrides() {
+  if (_schedCache.rows && Date.now() - _schedCache.at < 30_000) return _schedCache.rows;
+  let rows = null;
+  try { rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_SCHEDULE_OVERRIDES); } catch (_) { rows = null; }
+  if (!rows || !rows.length) {
+    rows = await base44.entities.DriverScheduleOverride.list().catch(() => []);
+  }
+  _schedCache = { at: Date.now(), rows: rows || [] };
+  return _schedCache.rows;
+}
+
+/**
+ * Resolve the store scope for a DRIVER's Square Balances badge.
+ *
+ * Owner spec (Nov 11 2026), gates in order:
+ *   1. the driver's DEFAULT assigned stores (AppUser.store_ids);
+ *   2. the stores they are SCHEDULED at for the SELECTED date (DriverScheduleOverride);
+ *   3. the stores on the deliveries actually assigned to them that date;
+ *   4. nothing → empty scope, and the badge shows "N/A".
+ * The gate date is always the SELECTED date, never the current date.
+ *
+ * STAT HOLIDAY RULE (mirrors DriverScheduleCalendar): on a stat holiday the
+ * default weekly schedule and slot overrides do not apply — only stops that
+ * really exist for that day count. So gates 1 and 2 are skipped and the day is
+ * delivery-driven; no stops means "N/A".
+ */
+export async function resolveDriverBadgeStoreIds({ driverId, dateStr, defaultStoreIds, deliveries }) {
+  const day = String(dateStr || '').slice(0, 10);
+  const id = String(driverId || '');
+  if (!day || !id) return { storeIds: [], source: 'no_date' };
+
+  let holiday = null;
+  try {
+    const { loadStatHolidays } = await import('@/components/utils/statHolidayResolver');
+    const holidays = await loadStatHolidays();
+    holiday = (holidays || []).find((h) => String(h?.date || '').slice(0, 10) === day) || null;
+  } catch (_) { holiday = null; }
+
+  const routeIds = resolveDriverRouteStoreIds(deliveries, id, day);
+
+  if (holiday) {
+    return {
+      storeIds: routeIds,
+      source: routeIds.length ? 'holiday_route' : 'holiday_none',
+      holiday: holiday.holiday_name || 'Stat holiday',
+    };
+  }
+
+  const defaults = (defaultStoreIds || []).map(String).filter(Boolean);
+  if (defaults.length) return { storeIds: defaults, source: 'default' };
+
+  try {
+    const rows = await getScheduleOverrides();
+    const sched = [...new Set((rows || [])
+      .filter((o) => o && String(o?.driver_id || '') === id &&
+        String(o?.date || '').slice(0, 10) === day && o?.store_id &&
+        String(o?.driver_id || '') !== '__booked_off__')
+      .map((o) => String(o.store_id)))];
+    if (sched.length) return { storeIds: sched, source: 'schedule' };
+  } catch (_) { /* fall through to the route stores */ }
+
+  return { storeIds: routeIds, source: routeIds.length ? 'route' : 'none' };
+}
+
 export async function getAllDeliveriesIdb() {
   const idbRows = await getAllDeliveriesIdbRaw();
   try {

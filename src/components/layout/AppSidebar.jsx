@@ -20,7 +20,7 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
   } catch (_) {}
 })();
 import { userHasRole, isAppOwner } from '../utils/userRoles';
-import { useSquareBalancesSummary, getBalanceLevel, BALANCE_LEVELS, resolveDriverRouteStoreIds } from '../square/useSquareBalancesSummary';
+import { useSquareBalancesSummary, getBalanceLevel, BALANCE_LEVELS, resolveDriverBadgeStoreIds } from '../square/useSquareBalancesSummary';
 import SquareBalanceRequestDialog from '../square/SquareBalanceRequestDialog';
 import SquareLowBalanceAlert from '../square/SquareLowBalanceAlert';
 import { edmontonWallString } from '../utils/albertaTime';
@@ -176,6 +176,23 @@ export default function AppSidebar({
   // date is set at all.
   const sqSelectedDate = String(globalFilters.getSelectedDate?.() || '').slice(0, 10) ||
     edmontonWallString(new Date()).slice(0, 10);
+  // Driver badge scope resolved against the SELECTED date (gates: default
+  // assigned stores -> scheduled stores -> that date's stops -> N/A).
+  const [sqDriverScope, setSqDriverScope] = useState(null);
+  useEffect(() => {
+    if (!sqIsDriver || !currentUser?.id) { setSqDriverScope(null); return; }
+    let alive = true;
+    resolveDriverBadgeStoreIds({
+      driverId: currentUser?.id,
+      dateStr: sqSelectedDate,
+      defaultStoreIds: currentUser?.store_ids,
+      deliveries,
+    })
+      .then((res) => { if (alive) setSqDriverScope(res); })
+      .catch(() => { if (alive) setSqDriverScope({ storeIds: [], source: 'error' }); });
+    return () => { alive = false; };
+  }, [sqIsDriver, currentUser?.id, sqSelectedDate, deliveries]);
+
   const sqBadge = useMemo(() => {
     if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
     let storeIds = null;
@@ -183,12 +200,11 @@ export default function AppSidebar({
       // The driver's own stores come first (fixed assignments); a route with no
       // assigned stores falls back to today's route stores.
       storeIds = (currentUser?.store_ids || []).map(String).filter(Boolean);
-      if (!storeIds.length && sqIsDriver) {
-        // Driver AppUser records carry empty store_ids, so the SELECTED date's
-        // route resolves the scope (owner spec Nov 11 2026: the gate is the
-        // selected date, never the current date). No stops on that date means
-        // an empty scope, which renders "N/A" rather than a stale value.
-        storeIds = resolveDriverRouteStoreIds(deliveries, currentUser?.id, sqSelectedDate);
+      if (sqIsDriver) {
+        // Gates (owner spec Nov 11 2026, selected date only): default assigned
+        // stores -> stores scheduled that date -> stores on that date's stops
+        // -> empty scope ("N/A"). Stat holidays skip the schedule gates.
+        storeIds = sqDriverScope?.storeIds || [];
       }
     }
     let total = 0,avg = 0,found = false;
@@ -240,17 +256,16 @@ export default function AppSidebar({
     filter(Boolean).
     sort((a, b) => a.name.localeCompare(b.name));
     return { total, avg, level: getBalanceLevel(total, avg), lines, remaining };
-  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqDailyRemaining, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries, sqSelectedDate]);
+  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqDailyRemaining, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries, sqSelectedDate, sqDriverScope]);
   // "N/A" = loaded but nothing in scope for the selected date. "…" is reserved
   // for the brief load window, so a driver with no stops that day never sits on
   // an endless ellipsis (owner report Nov 11 2026).
   const sqScopeEmpty = useMemo(() => {
     if (sqIsAdmin) return false;
+    if (sqIsDriver) return !!sqDriverScope && (sqDriverScope.storeIds || []).length === 0;
     const assigned = (currentUser?.store_ids || []).map(String).filter(Boolean);
-    if (assigned.length) return false;
-    if (sqIsDriver) return resolveDriverRouteStoreIds(deliveries, currentUser?.id, sqSelectedDate).length === 0;
-    return true; // dispatcher with no store assigned
-  }, [sqIsAdmin, sqIsDriver, currentUser, deliveries, sqSelectedDate]);
+    return assigned.length === 0; // dispatcher with no store assigned
+  }, [sqIsAdmin, sqIsDriver, sqDriverScope, currentUser]);
   const sqBadgeLabel = sqBadge != null ?
   `$${Math.round(sqBadge.total).toLocaleString()}` :
   sqReady && sqScopeEmpty ? 'N/A' : '…';

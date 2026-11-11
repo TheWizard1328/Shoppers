@@ -55,18 +55,26 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
       try {
         const assigned = (currentUser?.store_ids || []).map(String).filter(Boolean);
         if (assigned.length || !isDriverNav) { if (alive) setDriverNavStoreIds(assigned); return; }
-        const { getAllDeliveriesIdb, resolveDriverRouteStoreIds } = await import('@/components/square/useSquareBalancesSummary');
+        const { getAllDeliveriesIdb, resolveDriverBadgeStoreIds } = await import('@/components/square/useSquareBalancesSummary');
         const { edmontonWallString } = await import('@/components/utils/albertaTime');
         const { globalFilters } = await import('@/components/utils/globalFilters');
         // Owner spec (Nov 11 2026): scope follows the SELECTED date, never the
-        // current date. No stops that day means an empty scope -> "N/A".
+        // current date, through the same gates as the sidebar badge (default
+        // assigned stores -> scheduled stores -> that date's stops -> N/A).
+        // Stat holidays skip the schedule gates.
         const selectedDate = String(globalFilters.getSelectedDate?.() || '').slice(0, 10) ||
           edmontonWallString(new Date()).slice(0, 10);
         const rows = (await getAllDeliveriesIdb()) || [];
-        const routeIds = resolveDriverRouteStoreIds(rows, currentUser.id, selectedDate);
+        const scope = await resolveDriverBadgeStoreIds({
+          driverId: currentUser.id,
+          dateStr: selectedDate,
+          defaultStoreIds: currentUser.store_ids,
+          deliveries: rows,
+        });
+        const routeIds = scope?.storeIds || [];
         if (alive) setDriverNavStoreIds(routeIds);
         // Boot-lag retry: only when the IDB mirror itself was empty (not yet
-        // hydrated) — a hydrated mirror with no route today is a real empty.
+        // hydrated) — a hydrated mirror with no route is a real empty.
         if (!routeIds.length && !rows.length && attempts < 6) {
           setTimeout(() => { if (alive) resolve(); }, 60000);
         }
