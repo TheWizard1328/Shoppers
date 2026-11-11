@@ -363,7 +363,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               return (
                 <div key={r.key} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
               {rowItems.map((it, iIdx) =>
-                  <div key={iIdx} className="flex items-center justify-between gap-2">
+                  <div key={iIdx} className="flex items-center justify-between gap-1">
                 <div className="flex items-center gap-1.5 min-w-0 my-1">
                   <span
                         className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
@@ -403,9 +403,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="text-[13px] text-slate-500 dark:text-slate-400 tabular-nums shrink-0">{r.sub}</span>
                   {/* ASSIGNED DRIVER (owner request Nov 1 2026): the empty space
-                           between the date and the status pill now names the driver
-                           this COD is assigned to. Truncates on narrow cards so the
-                           status pill keeps its place. */}
+                                between the date and the status pill now names the driver
+                                this COD is assigned to. Truncates on narrow cards so the
+                                status pill keeps its place. */}
                   {r.driverName &&
                       <span
                         title={`Assigned to ${r.driverName}`}
@@ -421,8 +421,8 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                 </div>
               </div>
               {/* FEE BREAKDOWN (owner spec Nov 10 2026): the Square fee / folder
-                       / loan split is now its OWN last row on the card, spaced out
-                       instead of being squeezed between the date and the net amount. */}
+                            / loan split is now its OWN last row on the card, spaced out
+                            instead of being squeezed between the date and the net amount. */}
               {showNetAmount && isOwner && r.feeParts &&
                   <div className="flex items-center justify-center gap-2 text-[12px] tabular-nums text-slate-500 dark:text-slate-400">
                   <span>S: {r.feeParts.fee.toFixed(2)}</span>
@@ -438,9 +438,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
 
       })}
       {/* Quick anchored popup (owner spec, Oct 8 2026 late): tapping a
-              Cash badge opens the Debit / Credit choice as a small button menu
-              right at the badge — below it when there's room, above when it sits
-              near the bottom of the screen. Tap anywhere else to dismiss. */}
+               Cash badge opens the Debit / Credit choice as a small button menu
+               right at the badge — below it when there's room, above when it sits
+               near the bottom of the screen. Tap anywhere else to dismiss. */}
       {cashPick &&
       <>
         <div className="fixed inset-0 z-40" onClick={() => !cashPickBusy && setCashPick(null)} />
@@ -456,16 +456,16 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
             <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
             {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
-                    (/_at) so the fee/loan/folder credit and ledger confirmation
-                    stop counting it (owner rule Oct 9 2026). */}
+                     (/_at) so the fee/loan/folder credit and ledger confirmation
+                     stop counting it (owner rule Oct 9 2026). */}
             {cashPick.kind !== 'failed' &&
             <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || cashPick.label === 'Cash'} onClick={async () => {setCashPickBusy(true);try {await onCashToCard?.(cashPick.row.delivery_id, 'Cash');setCashPick(null);} finally {setCashPickBusy(false);}}}>Cash</Button>}
             {/* Refunded (owner spec Nov 8 2026): clears the COD amount, collected
-                 amount and Type, notes the refund, then refreshes the page. */}
+                  amount and Type, notes the refund, then refreshes the page. */}
             {/* Refunded — ONLY for a completed-as-cash COD or a failed delivery
-                 (owner spec Nov 10 2026). A failed COD uses the failed-refund
-                 mark (amount returns to the card balance); a cash COD uses the
-                 full refund (amount + payments + stamps cleared). */}
+                  (owner spec Nov 10 2026). A failed COD uses the failed-refund
+                  mark (amount returns to the card balance); a cash COD uses the
+                  full refund (amount + payments + stamps cleared). */}
             {(cashPick.kind === 'cash' || cashPick.kind === 'failed') &&
             <Button size="sm" className="h-9 px-0" variant="outline" disabled={cashPickBusy || (cashPick.kind === 'failed' ? !onMarkRefunded : !onRefundCod)} onClick={async () => {setCashPickBusy(true);try {
                 if (cashPick.kind === 'failed') {await onMarkRefunded?.(cashPick.row.delivery_id);setCashPick(null);} else
@@ -2885,14 +2885,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* Location cards — CENTERED per row (owner request Oct 9 2026):
-            no matter how many store cards exist, each row's cards are
-            horizontally centered (flex-wrap + justify-center so a lone last
-            card sits mid-row instead of hugging the left edge).
-            WIDTH BAND (owner request Oct 9 2026): each card is 320px min /
-            380px max (basis 340px) — a slight spread so cards flex a little
-            to fill a row, but never squeeze the data (names truncating to
-            'Joanne ...'). When three can't fit at 320px+ the row wraps and
-            the extra card drops to a new centered row. Phones: full width. */}
+             no matter how many store cards exist, each row's cards are
+             horizontally centered (flex-wrap + justify-center so a lone last
+             card sits mid-row instead of hugging the left edge).
+             WIDTH BAND (owner request Oct 9 2026): each card is 320px min /
+             380px max (basis 340px) — a slight spread so cards flex a little
+             to fill a row, but never squeeze the data (names truncating to
+             'Joanne ...'). When three can't fit at 320px+ the row wraps and
+             the extra card drops to a new centered row. Phones: full width. */}
       <div className="flex flex-wrap justify-center gap-3">
         {(restricted ? perLocation.filter((l) => visibleLocationIds.includes(l.location_id)) : perLocation).map((loc) => {
           const lvl = BALANCE_LEVELS[loc.level] || null;
@@ -3048,7 +3048,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
                 
               {/* Fees by day now opens as a larger popout dialog (owner
-                     spec Oct 27 2026 night) — no longer crammed inside the card. */}
+                        spec Oct 27 2026 night) — no longer crammed inside the card. */}
               {(() => {
                   // Collected/Uncollected/Past uncollected list — owner request
                   // Oct 4 2026: drivers see this full section too (same as the
@@ -3308,8 +3308,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </div>
 
       {/* ADMIN NOTE DIALOG (owner request Nov 3 2026): pen icon on a COD
-           delivery item card opens this; the note saves to that balance item
-           and shows on the row for every admin/device. */}
+            delivery item card opens this; the note saves to that balance item
+            and shows on the row for every admin/device. */}
       <Dialog open={!!noteTarget} onOpenChange={(o) => {if (!o) {setNoteTarget(null);setNoteDraft('');}}}>
         <DialogContent className="sm:max-w-md w-[94vw]">
           <DialogHeader>
@@ -3343,7 +3343,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </Dialog>
 
       {/* DRIVER NOTE VIEWER (owner request Nov 3 2026): tapping the note-paper
-           icon shows the note the driver left on that delivery. Read only. */}
+            icon shows the note the driver left on that delivery. Read only. */}
       <Dialog open={!!driverNoteView} onOpenChange={(o) => {if (!o) setDriverNoteView(null);}}>
         <DialogContent className="sm:max-w-md w-[94vw]">
           <DialogHeader>
@@ -3364,8 +3364,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </Dialog>
 
       {/* FEES BY DAY POPOUT DIALOG (owner spec Oct 27 2026 night): the
-           per-store fee breakdown opens as a larger dialog instead of being
-           stuck inside the store card. */}
+            per-store fee breakdown opens as a larger dialog instead of being
+            stuck inside the store card. */}
       <Dialog open={!!feesByDayLoc} onOpenChange={(o) => {if (!o) {setFeesByDayLoc(null);setFeesViewMode('month');}}}>
         <DialogContent className="sm:max-w-2xl w-[94vw] max-h-[88vh] flex flex-col gap-3 overflow-hidden">
           <DialogHeader>
@@ -3408,10 +3408,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </Dialog>
 
       {/* Card transfers (owner request, Oct 3 2026): fund moves ONTO the
-                                    Square Cards, pulled from the card (MOBILE) locations the per-store
-                                    sync never saw before. Attributed = fed by that store's sale
-                                    (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
-                                    unattributed = folder / manual transfer with no sale link yet. */}
+                                     Square Cards, pulled from the card (MOBILE) locations the per-store
+                                     sync never saw before. Attributed = fed by that store's sale
+                                     (SQUARE_STORED_BALANCE payout wrapping the sale's charge);
+                                     unattributed = folder / manual transfer with no sale link yet. */}
       {topups.length > 0 &&
       <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
           <div className="flex items-center justify-between mb-2">
@@ -3543,7 +3543,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* Folder Transfer overlay: move money from the shared folder onto a
-                                    card (does not reset the window). One-way only — never card → folder. */}
+                                     card (does not reset the window). One-way only — never card → folder. */}
       {folderTransferOpen &&
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setFolderTransferOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -3641,9 +3641,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       }
 
       {/* HOW THE BADGES WORK (owner request Oct 9 2026): short usage guide
-              for the clickable badges, collapsed by default at the bottom of the
-              page. The S/F/L line is owner-only (drivers see settled amounts
-              only). Drivers see a scope note — they only see their own rows. */}
+               for the clickable badges, collapsed by default at the bottom of the
+               page. The S/F/L line is owner-only (drivers see settled amounts
+               only). Drivers see a scope note — they only see their own rows. */}
       <details className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 p-3">
         <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
           How the badges work
@@ -3684,11 +3684,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       </details>
 
       {/* PAYMENT DISCREPANCIES (owner spec Oct 9 2026 night): every COD whose
-            recorded collection type disagrees with what Square actually saw
-            (60-day scan, flagged by the backend balances updater — no in-app
-            auto-updates). ALWAYS visible while open flags exist; Confirm
-            applies the recorded→actual fix with normal fee/loan/folder math,
-            Dismiss closes it after review. Owner-only. */}
+             recorded collection type disagrees with what Square actually saw
+             (60-day scan, flagged by the backend balances updater — no in-app
+             auto-updates). ALWAYS visible while open flags exist; Confirm
+             applies the recorded→actual fix with normal fee/loan/folder math,
+             Dismiss closes it after review. Owner-only. */}
       {ownerCanEdit && paymentDiscrepancies.length > 0 &&
       <PaymentDiscrepanciesList
         discrepancies={paymentDiscrepancies}
