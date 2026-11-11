@@ -227,29 +227,22 @@ export default function GuideAssistant() {
         return;
       }
 
-      // TOP OF THE SCREEN (owner report Nov 10 2026, with screenshot): "AI
-      // assisted tab is still sitting above the map cycle Fab instead of at the
-      // top of the screen like I requested". Anchoring under the stats panel
-      // reads as "still in the middle of the map" on a phone, because that panel
-      // fills the whole top half. The tab now pins to the right edge at the very
-      // top of the content, directly under the mobile header.
-      const headerEl = document.querySelector('header.mobile-header');
-      if (headerEl && headerEl.offsetParent !== null) {
-        const hRect = headerEl.getBoundingClientRect();
-        if (hRect.height > 0 && hRect.bottom > 0 && hRect.bottom < window.innerHeight * 0.5) {
-          applyAnchor({ mode: 'panel', top: `${Math.round(hRect.bottom + 6)}px` }, 'header');
-          return;
-        }
-      }
-
-      // Normal dashboard: stats cards + driver legend panel.
+      // PLACEMENT RULE (owner spec Nov 10 2026):
+      //   phone (narrow)      → top of the screen, right edge, 6px under the
+      //                         stats panel + driver legend container;
+      //   immersive (phone)   → 6px under the immersive top panel (handled above);
+      //   tablet + desktop    → just above the map-cycle FAB, as before.
+      // Read the width live so a rotation or a resized sidebar re-anchors on the
+      // very next idle tick instead of waiting for a state update.
+      const narrowScreen = window.innerWidth < 850;
       const statsBottom = panelBottom('[data-stats-panel="true"]');
-      if (statsBottom !== null) {
-        applyAnchor({ mode: 'panel', top: `${statsBottom + 6}px` }, 'stats');
+
+      if (narrowScreen && statsBottom !== null) {
+        applyAnchor({ mode: 'panel', top: `${statsBottom + 6}px` }, 'stats-phone');
         return;
       }
 
-      // Last resort (no panel on this page): keep the old above-FAB behaviour.
+      // Wider screens keep the original floating position above the FAB.
       const fabEl = document.querySelector('[data-map-cycle-fab="true"]');
       if (fabEl && fabEl.offsetParent !== null) {
         const rect = fabEl.getBoundingClientRect();
@@ -257,6 +250,12 @@ export default function GuideAssistant() {
           applyAnchor({ mode: 'fab', bottom: `${window.innerHeight - rect.top + 6}px` }, 'fab');
           return;
         }
+      }
+
+      // No FAB on this page (non-dashboard): still prefer a top panel if present.
+      if (statsBottom !== null) {
+        applyAnchor({ mode: 'panel', top: `${statsBottom + 6}px` }, 'stats');
+        return;
       }
       applyAnchor({ mode: 'panel', top: '50%' }, 'default');
     };
