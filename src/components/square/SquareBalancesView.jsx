@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from "@/api/base44Client";
 import { offlineDB } from '@/components/utils/offlineDatabase';
@@ -373,15 +373,6 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                   <p className="font-semibold leading-4 text-slate-900 dark:text-slate-50 text-[13px] truncate flex-1 min-w-0">{it.patientName || 'COD'}</p>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
-                  {canEditNotes && r.delivery_id &&
-                      <button
-                        type="button"
-                        onClick={(e) => {e.stopPropagation();onEditNote?.(r);}}
-                        title={balanceNotesById?.[String(r.delivery_id)]?.note ? `Note: ${balanceNotesById[String(r.delivery_id)].note}` : 'Add a note to this COD'}
-                        className={`shrink-0 w-6 h-6 !min-h-6 rounded-md border flex items-center justify-center transition-colors ${balanceNotesById?.[String(r.delivery_id)]?.note ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                    <PenLine className="w-3.5 h-3.5" />
-                  </button>
-                      }
                   {r.delivery_id && driverNotesById?.[String(r.delivery_id)] &&
                       <button
                         type="button"
@@ -389,6 +380,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                         title="Driver note on this delivery"
                         className="shrink-0 w-6 h-6 !min-h-6 rounded-md border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 flex items-center justify-center">
                     <StickyNote className="w-3.5 h-3.5" />
+                  </button>
+                      }
+                  {canEditNotes && r.delivery_id &&
+                      <button
+                        type="button"
+                        onClick={(e) => {e.stopPropagation();onEditNote?.(r);}}
+                        title={balanceNotesById?.[String(r.delivery_id)]?.note ? `Note: ${balanceNotesById[String(r.delivery_id)].note}` : 'Add a note to this COD'}
+                        className={`shrink-0 w-6 h-6 !min-h-6 rounded-md border flex items-center justify-center transition-colors ${balanceNotesById?.[String(r.delivery_id)]?.note ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                    <PenLine className="w-3.5 h-3.5" />
                   </button>
                       }
                   <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(it.amount)}</span>
