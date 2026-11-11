@@ -4,6 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useDevice } from '@/components/utils/DeviceContext';
 import MapViewCycleFAB from '@/components/dashboard/MapViewCycleFAB';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
+import TorchFAB from '@/components/dashboard/TorchFAB';
 import { Phone, Navigation } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -22,6 +23,7 @@ export default function FABControls({
   isMapViewLocked,
   setIsMapViewLocked,
   driverLocation,
+  isPrimaryDevice,
   cardsReadyForFAB,
   stopCardsBaseHeight,
   mapLockTimeoutRef,
@@ -75,6 +77,11 @@ export default function FABControls({
   const fabPosition = 'absolute';
   const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
   const tempBadgeBottom = (hasVisibleCards && !immersiveHidden ? stopCardsBaseHeight + bottomNavHeight : bottomNavHeight) + 10;
+  // Flashlight FAB rides directly above the map-cycle FAB: same bottom formula
+  // MapViewCycleFAB uses (stop cards + nav, or just nav), plus its 40px height
+  // and an 8px gap. APK + primary device only — see TorchFAB.
+  const mapCycleFabBottom = ((hasVisibleCards && !immersiveHidden) ? stopCardsBaseHeight + bottomNavHeight : bottomNavHeight) + 10;
+  const torchFabBottom = mapCycleFabBottom + 48;
 
   // Compute selectedDate string for LiveTempBadge
   const selectedDateStr = selectedDate instanceof Date
@@ -171,6 +178,14 @@ export default function FABControls({
           </button>
         </motion.div>
       )}
+      <TorchFAB
+        key="torch-fab"
+        enabled={isPrimaryDevice === true && isDriver === true}
+        bottomPx={torchFabBottom}
+        rightPx={immersiveHidden ? 12 : 16}
+        driverLocation={driverLocation}
+        hideForExpandedCard={isStopCardExpanded}
+      />
       <MapViewCycleFAB
         key="map-view-cycle-fab"
         currentUser={currentUser}

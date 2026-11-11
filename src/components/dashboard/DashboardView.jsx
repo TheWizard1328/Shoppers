@@ -25,7 +25,7 @@ import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
 
 function DashboardView({
   // User & roles
-  currentUser, isDriver, isAdmin, isDispatcher, isMobile,
+  currentUser, isDriver, isAdmin, isDispatcher, isMobile, isPrimaryDevice,
   // Data
   deliveries, patients, stores, drivers, appUsers, cities,
   filteredDeliveries, deliveriesWithStopOrder, stats, driversList,
@@ -616,7 +616,7 @@ function DashboardView({
           isReoptimizing={isReoptimizing} setIsReoptimizing={setIsReoptimizing}
           optimizationMessage={optimizationMessage} setOptimizationMessage={setOptimizationMessage}
           setIsEntityUpdating={setIsEntityUpdating}
-          isAIEnabled={isAIEnabled} showAIAssistant={showAIAssistant}
+          isAIEnabled={isAIEnabled} showAIAssistant={showAIAssistant} isPrimaryDevice={isPrimaryDevice}
           refreshData={refreshData}
           immersiveHidden={immersiveHidden}
           topOverlayHeight={immersiveHidden ? 0 : statsCardBaseHeight}

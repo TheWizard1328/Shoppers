@@ -41,6 +41,8 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.CapConfig;
 import com.getcapacitor.WebViewListener;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import java.io.File;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
@@ -106,6 +108,102 @@ public class MainActivity extends BridgeActivity {
     // shapes the hook already consumes.
     private SpeechRecognizer nativeRecognizer = null;
     private static final int RECORD_AUDIO_REQUEST = 4715;
+
+    // ── Flashlight / torch bridge (owner request Nov 10 2026) ────────────────
+    // The WebView has no torch API and a PWA cannot hold a CameraManager torch
+    // at all, so the FAB only ships on the APK. CameraManager.setTorchMode()
+    // toggles the back camera's flash unit directly: no preview stream, no
+    // camera lock, so the GPS foreground service and the map keep running.
+    private static final int TORCH_CAMERA_REQUEST = 4717;
+    private boolean pendingTorchEnable = false;
+    private boolean torchOn = false;
+    private CameraManager torchCameraManager = null;
+    private String torchCameraId = null;
+
+    private CameraManager getTorchCameraManager() {
+        if (torchCameraManager == null) {
+            torchCameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        }
+        return torchCameraManager;
+    }
+
+    // Back camera only: on dual/triple camera phones the front flash (if any)
+    // is not what a driver pointing the phone at a doorway wants.
+    private String resolveTorchCameraId() {
+        if (torchCameraId != null) return torchCameraId;
+        try {
+            CameraManager cm = getTorchCameraManager();
+            if (cm == null) return null;
+            for (String id : cm.getCameraIdList()) {
+                CameraCharacteristics ch = cm.getCameraCharacteristics(id);
+                Boolean flash = ch.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                Integer facing = ch.get(CameraCharacteristics.LENS_FACING);
+                if (Boolean.TRUE.equals(flash)
+                        && (facing == null || facing == CameraCharacteristics.LENS_FACING_BACK)) {
+                    torchCameraId = id;
+                    break;
+                }
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+        return torchCameraId;
+    }
+
+    public class TorchInterface {
+        @JavascriptInterface
+        public boolean isAvailable() {
+            return resolveTorchCameraId() != null;
+        }
+
+        @JavascriptInterface
+        public boolean isOn() {
+            return torchOn;
+        }
+
+        // Returns: "on" | "off" | "permission" | "no_torch" | "error".
+        // "permission" means the CAMERA grant is missing and was just requested;
+        // the torch turns on automatically in onRequestPermissionsResult.
+        @JavascriptInterface
+        public String set(final boolean enable) {
+            try {
+                String id = resolveTorchCameraId();
+                if (id == null) return "no_torch";
+                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    pendingTorchEnable = enable;
+                    runOnUiThread(() -> {
+                        try {
+                            requestPermissions(new String[]{Manifest.permission.CAMERA},
+                                    TORCH_CAMERA_REQUEST);
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                        }
+                    });
+                    return "permission";
+                }
+                getTorchCameraManager().setTorchMode(id, enable);
+                torchOn = enable;
+                return enable ? "on" : "off";
+            } catch (Throwable t) {
+                t.printStackTrace();
+                return "error";
+            }
+        }
+    }
+
+    // Never leave the light burning: backgrounding the app releases the torch.
+    @Override
+    protected void onStop() {
+        super.onStop();
+        try {
+            if (torchOn) {
+                String id = resolveTorchCameraId();
+                if (id != null) getTorchCameraManager().setTorchMode(id, false);
+            }
+        } catch (Throwable ignored) {}
+        torchOn = false;
+    }
 
     // JavaScript interface for direct APK download from web app.
     // Bypasses the WebView DownloadListener entirely, which can be
@@ -663,6 +761,22 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == TORCH_CAMERA_REQUEST) {
+            boolean torchGranted = grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            boolean wantOn = pendingTorchEnable;
+            pendingTorchEnable = false;
+            if (torchGranted && wantOn) {
+                try {
+                    String id = resolveTorchCameraId();
+                    if (id != null) {
+                        getTorchCameraManager().setTorchMode(id, true);
+                        torchOn = true;
+                    }
+                } catch (Throwable ignored) {}
+            }
+            return;
+        }
         if (requestCode == RECORD_AUDIO_REQUEST) {
             boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
             if (granted) {
@@ -728,6 +842,8 @@ public class MainActivity extends BridgeActivity {
         WebView webView = this.bridge.getWebView();
         if (webView != null) {
             webView.addJavascriptInterface(new NativeDownloadInterface(), "AndroidNative");
+            // window.RxTorch.set(true|false) / isAvailable() / isOn()
+            webView.addJavascriptInterface(new TorchInterface(), "RxTorch");
         }
 
         // ── Safe-area inset injection for edge-to-edge mode ──────────
