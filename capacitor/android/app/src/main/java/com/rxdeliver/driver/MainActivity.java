@@ -194,7 +194,7 @@ public class MainActivity extends BridgeActivity {
 
     // Never leave the light burning: backgrounding the app releases the torch.
     @Override
-    protected void onStop() {
+    public void onStop() {
         super.onStop();
         try {
             if (torchOn) {
