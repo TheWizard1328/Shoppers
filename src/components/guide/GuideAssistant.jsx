@@ -173,7 +173,14 @@ export default function GuideAssistant() {
   // below THAT panel. The space above the FAB is reserved for the flashlight FAB.
   // mode 'panel' positions from the top edge, mode 'fab' is the last-resort fallback
   // on pages with no panel at all.
-  const [guideAnchor, setGuideAnchor] = useState({ mode: 'panel', top: '50%' });
+  // Owner report Nov 10 2026 (9th request): "it seems to be placing the AI
+  // assistant tab before the stats panel parent container has been rendered. We
+  // need to wait to render the AI assistant tab." The tab is now held invisible
+  // until a real anchor has been measured, and the pre-measure default is a TOP
+  // position (never the old 50% / above-FAB spot), so a slow dashboard can only
+  // ever make the tab appear late, not appear in the wrong place.
+  const [guideAnchor, setGuideAnchor] = useState({ mode: 'panel', top: '76px' });
+  const [guideAnchorReady, setGuideAnchorReady] = useState(false);
 
   useEffect(() => {
     // PERF FIX (Oct 21 2026, owner: entire app glitchy; maps jittery when
@@ -203,6 +210,7 @@ export default function GuideAssistant() {
         console.warn('[GuideTab] anchor', source, key);
       }
       setGuideAnchor(next);
+      if (source !== 'default') setGuideAnchorReady(true);
     };
     const compute = () => {
       idleId = null;
@@ -265,16 +273,10 @@ export default function GuideAssistant() {
         return;
       }
 
-      // True last resort (no panel, no header): the old above-FAB position.
-      const fabEl = document.querySelector('[data-map-cycle-fab="true"]');
-      if (fabEl && fabEl.offsetParent !== null) {
-        const rect = fabEl.getBoundingClientRect();
-        if (rect.top > 0 && rect.top < window.innerHeight) {
-          applyAnchor({ mode: 'fab', bottom: `${window.innerHeight - rect.top + 6}px` }, 'fab');
-          return;
-        }
-      }
-      applyAnchor({ mode: 'panel', top: '50%' }, 'default');
+      // Last resort stays at the TOP as well. The above-FAB position and the 50%
+      // default are gone for good: no measurement failure can drop the tab back
+      // down into the map again.
+      applyAnchor({ mode: 'panel', top: '76px' }, 'default');
     };
     const schedule = () => {
       if (idleId !== null) return;
@@ -286,12 +288,16 @@ export default function GuideAssistant() {
     };
 
     schedule();
+    // Safety valve: if nothing measurable ever shows up, reveal the tab at the
+    // top default rather than leaving it invisible forever.
+    const revealTimer = setTimeout(() => setGuideAnchorReady(true), 4000);
     // Poll for FAB position changes — the FAB moves dynamically with stop card state
     const interval = setInterval(schedule, 500);
     window.addEventListener('resize', schedule);
     window.addEventListener('orientationchange', schedule);
 
     return () => {
+      clearTimeout(revealTimer);
       clearInterval(interval);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
@@ -1092,20 +1098,26 @@ export default function GuideAssistant() {
     <>
       {/* Collapsed Side Tab — always visible on the right edge */}
       <AnimatePresence>
-        {!isOpen && (
+        {!isOpen && guideAnchorReady && (
           <motion.div
             initial={{ x: 60, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 60, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20, opacity: { duration: 0.2, ease: 'easeInOut' } }}
-            className="fixed z-[10060] transition-[top,bottom] duration-500 ease-in-out"
+            className={`fixed z-[10060] ease-in-out ${guideAnchorReady ? 'transition-[top,bottom] duration-500' : 'transition-none'}`}
             style={{
               ...(guideAnchor.mode === 'panel'
                 ? { top: guideAnchor.top, bottom: 'auto' }
                 : { bottom: guideAnchor.bottom, top: 'auto' }),
               right: 0,
-              pointerEvents: 'auto',
+              // Hold the tab invisible (and untappable) until a real anchor has
+              // been measured, so it can never paint in a stale position while
+              // the dashboard is still mounting. No slide animation on the first
+              // reveal either.
+              opacity: guideAnchorReady ? 1 : 0,
+              pointerEvents: guideAnchorReady ? 'auto' : 'none',
             }}
+            aria-hidden={!guideAnchorReady}
           >
             <button
               onClick={handleOpen}
