@@ -483,7 +483,14 @@ function Dashboard() {
       sortKey = ((sortKey << 5) + sortKey) ^ (d.delivery_time_start?.length || 0);
       sortKey = ((sortKey << 5) + sortKey) ^ (d.is_cycling_marker ? 1 : 0);
     }
-    sortKey = String(sortKey);
+    // The fingerprint MUST include the row count: adding rows (a transfer that
+    // moves a pickup and its stops onto the selected date) can hash identically
+    // when the mix is XOR-based, and then the cards kept serving the old array
+    // while the MAP (which reads filteredDeliveries directly) already showed the
+    // new stops. Owner report Nov 11 2026: 4 transferred Kingsway rows drew on
+    // the map but stayed absent from the pickup card until another stop was
+    // added to the store.
+    sortKey = `${String(sortKey)}|${filteredDeliveries.length}`;
 
     if (sortKey === _dwsoSortKeyRef.current) {
       // Sort order hasn't changed, but the delivery objects themselves may have
@@ -496,6 +503,13 @@ function Dashboard() {
       const refreshed = _dwsoCachedResult.current.map(d =>
         freshMap.has(d?.id) ? { ...freshMap.get(d.id), display_stop_order: d.display_stop_order } : d
       );
+      // NEVER drop a row that exists in filteredDeliveries but not in the cached
+      // order (new / transferred stops). They are re-sorted by the caller, so
+      // appending is safe and keeps every stop reachable from the cards.
+      const seenIds = new Set(refreshed.map(d => d?.id));
+      filteredDeliveries.forEach((d) => {
+        if (d && !seenIds.has(d.id)) refreshed.push(d);
+      });
       _dwsoCachedResult.current = refreshed;
       return refreshed;
     }
