@@ -207,7 +207,7 @@ export default function GuideAssistant() {
       const key = `${next.mode}:${next.top || next.bottom}`;
       if (key !== lastAnchorKey) {
         lastAnchorKey = key;
-        console.warn('[GuideTab] anchor', source, key);
+        console.debug('[GuideTab] anchor', source, key);
       }
       setGuideAnchor(next);
       if (source !== 'default') setGuideAnchorReady(true);

@@ -332,13 +332,12 @@ const enqueue = async (level, args, extra = {}) => {
   }
   let _effectiveLevel = level;
   if (NATIVE_PLUGIN_NOISE_RX.test(message)) {
-    const _natNoiseNow = Date.now();
-    if (_natNoiseNow - lastNativeNoiseSentAt < NATIVE_NOISE_MIN_INTERVAL_MS) return;
-    lastNativeNoiseSentAt = _natNoiseNow; // deploy/reload noise heartbeat only
-    // Benign by design (foreground service still running during a reload).
-    // Ship the heartbeat as a warn so it stops counting as an app ERROR while
-    // still being visible in the log trail (owner digest noise, Nov 6 2026).
-    if (_effectiveLevel === 'error') _effectiveLevel = 'warn';
+    // OWNER DIRECTIVE (Nov 12 2026): stop shipping this at all. ALREADY_STARTED
+    // and the background-location refusal are benign by design (the foreground
+    // GPS service is still running during a reload), and even the one-per-30-min
+    // heartbeat kept them in every hourly digest as warn rows, drowning the real
+    // failures. Local console output is untouched; nothing reaches RemoteLogEntry.
+    return;
   }
   if (shouldSkipDuplicateLog(_effectiveLevel, message)) return;
 

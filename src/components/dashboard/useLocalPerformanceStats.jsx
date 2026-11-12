@@ -619,7 +619,7 @@ export function useLocalPerformanceStats({
               const _lastWarn = _dutyWarnAt.get(_warnKey) || 0;
               if (Date.now() - _lastWarn > 600000) {
                 _dutyWarnAt.set(_warnKey, Date.now());
-                console.warn('[DutyTime] activity record exists but has no legs for', segDriverId, segDate, '— holding the current value while retrying');
+                console.debug('[DutyTime] activity record exists but has no legs for', segDriverId, segDate, '— holding the current value while retrying');
               }
             }
           }

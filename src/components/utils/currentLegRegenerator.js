@@ -180,7 +180,7 @@ async function _regenCurrentLegPolylineInner({
       ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) } : null,
     firstTargetCoords: { lat: Number(stopCoords.lat), lon: Number(stopCoords.lng) },
     gpsPosition: { lat: Number(gps.latitude), lon: Number(gps.longitude) },
-    log: (msg) => console.warn(`[currentLegRegenerator] origin: ${msg}`),
+    log: (msg) => console.debug(`[currentLegRegenerator] origin: ${msg}`),
   });
   let origin = _pick.origin;
   let originSource = _pick.source;
