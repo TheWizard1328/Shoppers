@@ -163,12 +163,12 @@ export default function DateListPanel({
                   className="text-xs text-body-2 inline-flex items-center justify-center shrink-0"
                   style={{
                     background: 'var(--bg-slate-200)',
+                    // WIDTH ONLY (owner spec Nov 12 2026): fixed to the print /
+                    // delete buttons' 24px width, natural height left alone.
                     width: '24px',
-                    height: '24px',
                     minWidth: '24px',
                     maxWidth: '24px',
-                    padding: 0,
-                    lineHeight: 1,
+                    padding: '2px 0',
                     textAlign: 'center',
                     fontVariantNumeric: 'tabular-nums',
                   }}

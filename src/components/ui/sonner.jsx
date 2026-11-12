@@ -14,11 +14,24 @@ const Toaster = ({
   const [theme, setTheme] = useState(() => isAppDarkTheme() ? "dark" : "light");
 
   useEffect(() => {
-    const sync = () => setTheme(isAppDarkTheme() ? "dark" : "light");
+    // Coalesced with requestAnimationFrame so a theme flip (which rewrites the
+    // <html> class list several times) cannot trigger a burst of re-renders.
+    let raf = 0;
+    const sync = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const next = isAppDarkTheme() ? "dark" : "light";
+        setTheme((prev) => (prev === next ? prev : next));
+      });
+    };
     sync();
     const observer = new MutationObserver(sync);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (

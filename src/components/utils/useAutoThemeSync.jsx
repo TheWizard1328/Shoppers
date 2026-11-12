@@ -68,19 +68,42 @@ export default function useAutoThemeSync(themePreference) {
       return sysDark ? ['auto-theme', 'dark'] : ['auto-theme'];
     };
     let fixing = false;
+    // FIGHT GUARD (owner report Nov 12 2026: picking a theme froze the app).
+    // The Base44 editor preview writes its own theme classes onto <html>, so
+    // reassert removed them and the editor put them straight back — an endless
+    // class ping-pong that pegged the main thread. Re-asserts are now coalesced
+    // and, once something external keeps rewriting the class list, this backs
+    // off for a few seconds instead of fighting it forever.
+    let applyCount = 0;
+    let windowStart = Date.now();
+    let backoffUntil = 0;
+    let scheduled = 0;
     const reassert = () => {
       if (fixing) return;
+      const now = Date.now();
+      if (now < backoffUntil) return;
+      if (now - windowStart > 2000) { windowStart = now; applyCount = 0; }
       const pref = savedPreference();
       const want = expectedClasses(pref);
       const missing = want.some((c) => !root.classList.contains(c));
       const foreign = ALL.some((c) => !want.includes(c) && root.classList.contains(c));
       if (!missing && !foreign) return;
+      applyCount += 1;
+      if (applyCount > 12) {
+        backoffUntil = now + 4000;
+        console.warn('[theme] external writer keeps rewriting <html> classes — backing off 4s');
+        return;
+      }
       fixing = true;
       applyThemePreference(pref || themeRef.current || 'auto');
       fixing = false;
     };
+    const scheduleReassert = () => {
+      if (scheduled) return;
+      scheduled = requestAnimationFrame(() => { scheduled = 0; reassert(); });
+    };
     reassert();
-    const observer = new MutationObserver(reassert);
+    const observer = new MutationObserver(scheduleReassert);
     observer.observe(root, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
