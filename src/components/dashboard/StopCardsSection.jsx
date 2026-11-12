@@ -124,10 +124,14 @@ function StopCardsSection({
     // after Accept All, because v29 only re-added live statuses). This matches
     // the pre-w18 behaviour: pending is the ONLY status hidden, and it is hidden
     // because it is projected inside its pickup card.
+    // Rule (owner, Nov 12 2026): pending and staged stops are the ONLY ones
+    // without a card. Everything else - in_transit, en_route, accepted,
+    // completed, cancelled, failed, returned - keeps its card.
+    const NO_CARD_STATUSES = ['pending', 'staged'];
     const cardIds = new Set(containerList.map((c) => c && c.id));
     deliveriesWithStopOrder.forEach((d) => {
       if (!d || !d.patient_id || d.is_cycling_marker) return;
-      if (d.status === 'pending') return;
+      if (NO_CARD_STATUSES.includes(d.status)) return;
       cardIds.add(d.id);
     });
     const cardList = deliveriesWithStopOrder.filter((d) => d && cardIds.has(d.id));
