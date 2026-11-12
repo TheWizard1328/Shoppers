@@ -388,22 +388,33 @@ Deno.serve(async (req) => {
         const period = effectiveAmpm === 'PM' ? 'PM' : 'AM';
         items = items.filter((d) => d?.ampm_deliveries === period && !finished.includes(d?.status));
       }
-      // Sort by driver first (AppUser.sort_order, then name, then driver_id), sub-sort by stop_order — drives "each driver on a new page" in the same order the driver list shows
+      // OWNER REQUEST (Nov 12 2026): all drivers print as ONE continuous list
+      // ordered by TIME, not as a separate page per driver. The key is the stop's
+      // real clock time (finished -> arrival -> scheduled start -> ETA) and only
+      // stops with no time at all fall back to driver order / stop order.
+      const manifestTimeMinutes = (d) => {
+        const raw = d?.actual_delivery_time || d?.arrival_time || d?.delivery_time_start || d?.delivery_time_eta || '';
+        const t = extractTime(raw);
+        if (!t) return null;
+        const [hh, mm] = String(t).split(':').map(Number);
+        if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+        return hh * 60 + mm;
+      };
       items.sort((a, b) => {
+        const ta = manifestTimeMinutes(a);
+        const tb = manifestTimeMinutes(b);
+        if (ta !== null && tb !== null && ta !== tb) return ta - tb;
+        if (ta !== null && tb === null) return -1;
+        if (ta === null && tb !== null) return 1;
+        // Same time (or both untimed): keep each driver's own stops in route order.
         const dsoA = driverSortOrderMap.get(a?.driver_id) ?? Number.MAX_SAFE_INTEGER;
         const dsoB = driverSortOrderMap.get(b?.driver_id) ?? Number.MAX_SAFE_INTEGER;
         if (dsoA !== dsoB) return dsoA - dsoB;
         const dnc = String(driverNameMap.get(a?.driver_id) || a?.driver_id || '').localeCompare(String(driverNameMap.get(b?.driver_id) || b?.driver_id || ''));
         if (dnc !== 0) return dnc;
-        const didC = String(a?.driver_id || '').localeCompare(String(b?.driver_id || ''));
-        if (didC !== 0) return didC;
         const stopDiff = (a?.stop_order ?? 9999) - (b?.stop_order ?? 9999);
         if (stopDiff !== 0) return stopDiff;
-        const tA = a?.actual_delivery_time || a?.arrival_time || a?.delivery_time_start || a?.updated_date || '';
-        const tB = b?.actual_delivery_time || b?.arrival_time || b?.delivery_time_start || b?.updated_date || '';
-        if (tA && tB) return tA.localeCompare(tB);
-        if (tA || tB) return tA ? -1 : 1;
-        return 0;
+        return String(a?.delivery_id || '').localeCompare(String(b?.delivery_id || ''));
       });
 
       // Fetch patients, stores, and fridge temp logs for this date
@@ -567,51 +578,19 @@ Deno.serve(async (req) => {
         y = snap(y + 4);
       };
 
-      // Initial page title — show the first driver's name when no explicit driver filter
-      const firstDriverName = items[0] ? (driverNameMap.get(items[0].driver_id) || String(items[0].driver_id || '')) : '';
-      renderPageTitle(firstDriverName);
+      renderPageTitle(null);
       addHeader();
 
-      // Each driver starts on its own page (items are sorted by driver, so transitions are contiguous)
-      let previousDriverId = items[0]?.driver_id ?? null;
-      let currentDriverStops = 0;
-      let currentDriverDeliveries = 0;
-      let currentDriverFailed = 0;
-      let currentDriverReturned = 0;
-      let currentDriverCpEnvelopes = 0;
-      let currentDriverCodCount = 0;
-      let currentDriverCodAmount = 0;
-      const FMT_MONEY = (n) => `$${Number(n || 0).toFixed(2)}`;
-      const startDriverPage = (driverNameForTitle) => {
-        doc.addPage();
-        renderPageTitle(driverNameForTitle);
-        y = CONTENT_TOP;
-        addHeader();
-      };
-
-      // Per-driver subtotal, emitted at the end of that driver's section (before the next driver's page)
-      const renderDriverSubtotal = (s) => {
-        doc.setFontSize(9);
-        doc.setFont(undefined, 'bold');
-        y = snap(y + 4);
-        if (y > CONTENT_BOTTOM) { doc.addPage(); y = CONTENT_TOP; addHeader(); }
-        // Each metric is a separate doc.text() call so none can be dropped/truncated together,
-        // and the full breakdown is always visible (admins, dispatchers, drivers).
-        doc.text(`Total stops: ${s.stops}`, 14, y);
-        doc.text(`Deliveries: ${s.deliveries}`, 70, y);
-        doc.text(`Failed: ${s.failed}`, 115, y);
-        doc.text(`Returns: ${s.returns}`, 150, y);
-        doc.text(`Total COD's: ${s.codCount} - ${FMT_MONEY(s.codAmount)}`, 185, y);
-        if (s.cpEnvelopes > 0) {
-          y = snap(y + 4);
-          if (y > CONTENT_BOTTOM) { doc.addPage(); y = CONTENT_TOP; addHeader(); }
-          doc.setTextColor(59, 130, 246); // blue accent to distinguish from "Total stops"
-          doc.text(`Total CP Envelopes: ${s.cpEnvelopes}`, 14, y);
-          doc.setTextColor(0);
+      // Per-driver tallies for the end-of-list breakdown (the list itself is merged).
+      const driverStats = new Map();
+      const statsForDriver = (id) => {
+        const key = String(id || 'unassigned');
+        if (!driverStats.has(key)) {
+          driverStats.set(key, { stops: 0, deliveries: 0, failed: 0, returned: 0, cpEnvelopes: 0, codCount: 0, codAmount: 0 });
         }
-        doc.setFont(undefined, 'normal');
+        return driverStats.get(key);
       };
-
+      const FMT_MONEY = (n) => `$${Number(n || 0).toFixed(2)}`;
       function drawCountCell(x, cellY, count) {
         try {
           doc.setFontSize(9);
@@ -621,17 +600,6 @@ Deno.serve(async (req) => {
 
       for (let i = 0; i < items.length; i++) {
         const d = items[i];
-        // Driver change → emit the previous driver's subtotal, then start a new page
-        if (i > 0 && d?.driver_id !== previousDriverId) {
-          renderDriverSubtotal({
-            stops: currentDriverStops, deliveries: currentDriverDeliveries, failed: currentDriverFailed,
-            returns: currentDriverReturned, codCount: currentDriverCodCount, codAmount: currentDriverCodAmount, cpEnvelopes: currentDriverCpEnvelopes,
-          });
-          currentDriverStops = 0; currentDriverDeliveries = 0; currentDriverFailed = 0; currentDriverReturned = 0;
-          currentDriverCodCount = 0; currentDriverCodAmount = 0; currentDriverCpEnvelopes = 0;
-          startDriverPage(driverNameMap.get(d?.driver_id) || String(d?.driver_id || ''));
-          previousDriverId = d?.driver_id;
-        }
         const images = allImages[i];
         const upper = String(d?.delivery_id || '').toUpperCase();
         const isISP = upper.startsWith('ISP-');
@@ -695,13 +663,14 @@ Deno.serve(async (req) => {
         const cpEnvCount = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
         const cpEnvStr = cpEnvCount > 0 ? `Envelopes: ${cpEnvCount}` : '';
         const codAmt = (typeof d?.cod_total_amount_required === 'number' && d.cod_total_amount_required > 0) ? d.cod_total_amount_required : 0;
-        currentDriverStops += 1;
+        const rowStats = statsForDriver(d?.driver_id);
+        rowStats.stops += 1;
         // Deliveries = completed patient/ISD stops only (excludes pickups and cycling markers)
-        if (d?.status === 'completed' && isDeliveryCountStop(d)) currentDriverDeliveries += 1;
-        else if (d?.status === 'failed') currentDriverFailed += 1;
-        else if (d?.status === 'returned') currentDriverReturned += 1;
-        currentDriverCpEnvelopes += cpEnvCount;
-        if (codAmt > 0) { currentDriverCodCount += 1; currentDriverCodAmount += codAmt; }
+        if (d?.status === 'completed' && isDeliveryCountStop(d)) rowStats.deliveries += 1;
+        else if (d?.status === 'failed') rowStats.failed += 1;
+        else if (d?.status === 'returned') rowStats.returned += 1;
+        rowStats.cpEnvelopes += cpEnvCount;
+        if (codAmt > 0) { rowStats.codCount += 1; rowStats.codAmount += codAmt; }
         const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 45) : [];
         const combinedNotesRaw = [cpEnvStr, fridgeTempStr, notes].filter(Boolean).join('\n');
         const notesLines = doc.splitTextToSize(combinedNotesRaw, 45);
@@ -775,8 +744,9 @@ Deno.serve(async (req) => {
             // and the row divider line cannot interfere with the scan line.
             doc.setFontSize(8);
             doc.setTextColor(60);
-            // Left-justified under its own bar, so the first value starts at column 1.
-            doc.text(bval, bx + 1, by + barcodeH + 4, { align: 'left' });
+            // Owner request (Nov 12 2026): the Rx number sits CENTERED under its
+            // own barcode.
+            doc.text(bval, bx + barcodeW / 2, by + barcodeH + 4, { align: 'center' });
             doc.setTextColor(0);
             doc.setFontSize(9);
           });
@@ -832,13 +802,27 @@ Deno.serve(async (req) => {
         doc.line(colStop, rowBottom, pageWidth - 10, rowBottom);
       }
 
-      // Final driver's subtotal (the last driver's section ends here, before the temp graph)
-      renderDriverSubtotal({
-        stops: currentDriverStops, deliveries: currentDriverDeliveries, failed: currentDriverFailed,
-        returns: currentDriverReturned, codCount: currentDriverCodCount, codAmount: currentDriverCodAmount, cpEnvelopes: currentDriverCpEnvelopes,
-      });
-      currentDriverStops = 0; currentDriverDeliveries = 0; currentDriverFailed = 0; currentDriverReturned = 0;
-      currentDriverCodCount = 0; currentDriverCodAmount = 0; currentDriverCpEnvelopes = 0;
+      // OWNER REQUEST (Nov 12 2026): the routes are one merged list now, so the
+      // per-driver breakdown prints once at the end instead of between pages.
+      if (driverStats.size > 1) {
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        y = snap(y + 6);
+        if (y > CONTENT_BOTTOM) { doc.addPage(); y = CONTENT_TOP; addHeader(); }
+        doc.text('Driver Totals', 14, y);
+        doc.setFontSize(9);
+        [...driverStats.entries()].forEach(([driverIdKey, st]) => {
+          y = snap(y + 5);
+          if (y > CONTENT_BOTTOM) { doc.addPage(); y = CONTENT_TOP; addHeader(); }
+          doc.text(`Driver: ${driverNameMap.get(driverIdKey) || driverIdKey}`, 14, y);
+          doc.text(`Stops: ${st.stops}`, 70, y);
+          doc.text(`Deliveries: ${st.deliveries}`, 105, y);
+          doc.text(`Failed: ${st.failed}`, 150, y);
+          doc.text(`Returns: ${st.returned}`, 180, y);
+          doc.text(`COD: ${st.codCount} - ${FMT_MONEY(st.codAmount)}`, 215, y);
+        });
+        doc.setFont(undefined, 'normal');
+      }
 
       // Accumulate overall totals (across every driver and date) for the grand-total footer
       const dateDeliveries = items.filter((d) => d?.status === 'completed' && isDeliveryCountStop(d)).length;
