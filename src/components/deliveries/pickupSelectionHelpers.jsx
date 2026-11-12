@@ -46,7 +46,13 @@ const buildPickupOptionLabel = (storeName, timeSlot, pickup) => {
     : status === 'en_route'
       ? pickup?.delivery_time_eta
       : '';
-  const timeLabel = formatPickupTime(timeValue);
+  // OWNER REPORT (Nov 11 2026): a real pickup left the dropdown as a second,
+  // identical-looking "Kingsway [AM]" beside the plain slot option, so the
+  // dispatcher could not tell the live pickup (09:00 start) from the
+  // create-a-new-truck option. A pending pickup now falls back to its
+  // scheduled delivery_time_start, so the record that already exists is the
+  // one carrying a time.
+  const timeLabel = formatPickupTime(timeValue) || formatPickupTime(pickup?.delivery_time_start);
   return timeLabel
     ? `${storeName} [${timeSlot}] (${timeLabel})`
     : `${storeName} [${timeSlot}]`;
@@ -104,12 +110,20 @@ export const getStorePickupOptions = ({
   });
 
   const existingPickupBaseStoreIds = new Set(existingPickups.map((pickup) => pickup?.store_id).filter(Boolean));
+  // Slots already represented by a REAL pickup record are not offered again as
+  // a bare "Store [SLOT]" option (owner report Nov 11 2026: the dropdown listed
+  // Kingsway [AM] twice). A slot with no pickup still gets its plain option so
+  // it can create one (e.g. tomorrow's PM).
+  const pickupSlotKeys = new Set(existingPickups.map(
+    (pickup) => `${String(pickup?.store_id || '')}|${normalizeTimeSlot(pickup)}`
+  ));
 
   officialStoreOptions.forEach((option) => {
     if (!option?.id) return;
     const optionBaseStoreId = option._originalStoreId || option.id;
     const isBaseStoreOption = !option._timeSlot && option.id === optionBaseStoreId;
     if (isBaseStoreOption && existingPickupBaseStoreIds.has(optionBaseStoreId)) return;
+    if (option._timeSlot && pickupSlotKeys.has(`${optionBaseStoreId}|${option._timeSlot}`)) return;
     if (!optionMap.has(option.id)) {
       optionMap.set(option.id, option);
     }
