@@ -163,11 +163,14 @@ export default function DateListPanel({
                   className="text-xs text-body-2 inline-flex items-center justify-center shrink-0"
                   style={{
                     background: 'var(--bg-slate-200)',
-                    // WIDTH ONLY (owner spec Nov 12 2026): fixed to the print /
-                    // delete buttons' 24px width, natural height left alone.
-                    width: '24px',
-                    minWidth: '24px',
-                    maxWidth: '24px',
+                    // WIDTH ONLY (owner spec Nov 12 2026): the print / delete
+                    // icon buttons are NOT 24px — the shared Button base class
+                    // carries min-w-11 (2.75rem = 44px), which beats their w-6.
+                    // The badge must match that 44px width; its height stays
+                    // natural.
+                    width: '2.75rem',
+                    minWidth: '2.75rem',
+                    maxWidth: '2.75rem',
                     padding: '2px 0',
                     textAlign: 'center',
                     fontVariantNumeric: 'tabular-nums',
