@@ -1934,12 +1934,14 @@ export default function DeliveryFormView({
 
               {/* Desktop Staged Panel - hidden in pickup mode */}
               {/* Owner report Nov 12 2026: the Add To Route dialog grew to ~90% of
-                  the viewport when the staged/pending list ran long. The list column
-                  was h-full inside an h-auto dialog, so it inflated the form instead
-                  of scrolling. The column is capped below and scrolls internally. */}
+                  the viewport when the staged/pending list ran long, so the column
+                  was capped at 34rem. That cap also stopped it reaching the bottom
+                  of the form once the dialog got a fixed height. The dialog body is
+                  now a bounded flex column, so the cap is gone: the column stretches
+                  full height and the panel's own list scrolls inside it. */}
               {!delivery && !useMobileLayout && !isPickupMode &&
-              <div className="w-[300px] min-w-[300px] h-full min-h-0 max-h-[min(62vh,34rem)] self-stretch flex overflow-hidden">
-                  <div className="h-full min-h-0 w-full overflow-y-auto">
+              <div className="w-[300px] min-w-[300px] h-full min-h-0 self-stretch flex overflow-hidden">
+                  <div className="h-full min-h-0 w-full flex">
                     <DeliveryStagedPanelDesktop {...stagedPanelProps} />
                   </div>
                 </div>
