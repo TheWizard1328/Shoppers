@@ -153,7 +153,13 @@ export default function DateListPanel({
                 {isToday(dateObj) && (
                   <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 text-xs">Today</Badge>
                 )}
-                <Badge variant="secondary" className="text-xs text-body-2" style={{ background: 'var(--bg-slate-200)' }}>
+                {/* Owner request (Nov 12 2026): the total-stop badge matches the
+                    print button's 24px footprint (h-6 w-6) so the two line up. */}
+                <Badge
+                  variant="secondary"
+                  className="text-xs text-body-2 h-6 w-6 p-0 inline-flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--bg-slate-200)' }}
+                >
                   {total}
                 </Badge>
               </div>
