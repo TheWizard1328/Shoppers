@@ -64,7 +64,9 @@ export async function printRouteManifestForDate({
       driverStoreIds,
       startDate: dateStr,
       endDate: dateStr,
-      useBarcodes: false,
+      // OWNER REQUEST (Nov 11 2026): prints from the Route Management page always
+      // carry Rx barcodes, never the plain Rx numbers.
+      useBarcodes: true,
     });
 
     const data = await previewRouteManifest(payload, { previewTab });

@@ -508,6 +508,12 @@ Deno.serve(async (req) => {
       doc.setLineWidth(0.2);
       doc.setLineHeightFactor(1.2);
       const snap = (n) => Math.round(n * 2) / 2;
+      // OWNER REQUEST (Nov 11 2026): fit 1-2 more rows per page. The header sits
+      // at 18/26 mm, so content can start at 32 mm instead of 36, and the last
+      // usable line moves from pageHeight-20 to pageHeight-12 (12 mm bottom
+      // margin still clears every printer's unprintable edge).
+      const CONTENT_TOP = 32;
+      const CONTENT_BOTTOM = pageHeight - 12;
       const minRowHeight = 6;
       const cellPadding = 1;
       const textTopOffset = 0.5;
@@ -526,7 +532,7 @@ Deno.serve(async (req) => {
         doc.text(`Store: ${displayStoreName}    Date: ${dateStr}${driverSuffix}`, 14, 26);
       };
 
-      let y = 36;
+      let y = CONTENT_TOP;
       const colStop = 12;
       const colTR = 26;
       const colTime = 42;
@@ -579,7 +585,7 @@ Deno.serve(async (req) => {
       const startDriverPage = (driverNameForTitle) => {
         doc.addPage();
         renderPageTitle(driverNameForTitle);
-        y = 36;
+        y = CONTENT_TOP;
         addHeader();
       };
 
@@ -588,7 +594,7 @@ Deno.serve(async (req) => {
         doc.setFontSize(9);
         doc.setFont(undefined, 'bold');
         y = snap(y + 4);
-        if (y > pageHeight - 20) { doc.addPage(); y = 20; addHeader(); }
+        if (y > CONTENT_BOTTOM) { doc.addPage(); y = CONTENT_TOP; addHeader(); }
         // Each metric is a separate doc.text() call so none can be dropped/truncated together,
         // and the full breakdown is always visible (admins, dispatchers, drivers).
         doc.text(`Total stops: ${s.stops}`, 14, y);
@@ -598,7 +604,7 @@ Deno.serve(async (req) => {
         doc.text(`Total COD's: ${s.codCount} - ${FMT_MONEY(s.codAmount)}`, 185, y);
         if (s.cpEnvelopes > 0) {
           y = snap(y + 4);
-          if (y > pageHeight - 20) { doc.addPage(); y = 20; addHeader(); }
+          if (y > CONTENT_BOTTOM) { doc.addPage(); y = CONTENT_TOP; addHeader(); }
           doc.setTextColor(59, 130, 246); // blue accent to distinguish from "Total stops"
           doc.text(`Total CP Envelopes: ${s.cpEnvelopes}`, 14, y);
           doc.setTextColor(0);
@@ -707,9 +713,9 @@ Deno.serve(async (req) => {
         const rowHeight = snap(Math.max(minRowHeight, textContentLines * 4.5 + cellPadding * 2) + imageRowHeight + barcodeRowHeight);
         const contentLines = textContentLines;
 
-        if (y + rowHeight > pageHeight - 20) {
+        if (y + rowHeight > CONTENT_BOTTOM) {
           doc.addPage();
-          y = 20;
+          y = CONTENT_TOP;
           addHeader();
         }
 
@@ -748,7 +754,9 @@ Deno.serve(async (req) => {
         if (barcodeStr) {
           doc.setFontSize(7.5);
           doc.setFont(undefined, 'italic');
-          doc.text(barcodeStr, colName, textY + 3 + nameLines.length * 4.5);
+          // OWNER REQUEST (Nov 11 2026): Rx values start at column 1 (Stop), not
+          // column 4 (Name / Store).
+          doc.text(barcodeStr, colStop, textY + 3 + nameLines.length * 4.5);
           doc.setFont(undefined, 'normal');
           doc.setFontSize(9);
         }
@@ -767,7 +775,8 @@ Deno.serve(async (req) => {
             // and the row divider line cannot interfere with the scan line.
             doc.setFontSize(8);
             doc.setTextColor(60);
-            doc.text(bval, bx + barcodeW / 2, by + barcodeH + 4, { align: 'center' });
+            // Left-justified under its own bar, so the first value starts at column 1.
+            doc.text(bval, bx + 1, by + barcodeH + 4, { align: 'left' });
             doc.setTextColor(0);
             doc.setFontSize(9);
           });
@@ -895,7 +904,7 @@ Deno.serve(async (req) => {
 
         if (windowReadings.length > 0) {
           // Start graph on a new page if not enough space (need ~80mm)
-          if (y + 90 > pageHeight - 10) { doc.addPage(); y = 20; }
+          if (y + 90 > pageHeight - 10) { doc.addPage(); y = CONTENT_TOP; }
           else { y = snap(y + 10); }
 
           const graphX = 14;
@@ -1057,7 +1066,8 @@ Deno.serve(async (req) => {
       // ─── End Temperature Graph ───────────────────────────────────────────────
 
       // Return metadata only — pdfBytes come from the shared doc at the end
-      return { displayStoreName, manifestType, dateStr };
+      // endY lets the grand totals flow onto this page when there is room.
+      return { displayStoreName, manifestType, dateStr, endY: y };
     }
 
     // ─── Create ONE shared doc, process all dates into it ───────────────────────
@@ -1083,8 +1093,21 @@ Deno.serve(async (req) => {
     // ── Grand totals across every driver and date, at the very end of the output ──
     if (totalsAcc.stops > 0) {
       const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
-      sharedDoc.addPage();
-      let gy = 20;
+      // OWNER REQUEST (Nov 11 2026): the totals belong on the previous page when
+      // they fit there, instead of always burning a fresh page.
+      const sharedPageH = sharedDoc.internal.pageSize.getHeight();
+      const sharedPageW = sharedDoc.internal.pageSize.getWidth();
+      const lastEndY = dateMetadata[dateMetadata.length - 1]?.endY;
+      const totalsHeight = totalsAcc.cpEnvelopes > 0 ? 24 : 14;
+      let gy;
+      if (typeof lastEndY === 'number' && lastEndY + totalsHeight <= sharedPageH - 12) {
+        gy = Math.round((lastEndY + 6) * 2) / 2;
+        sharedDoc.setDrawColor(180);
+        sharedDoc.line(14, gy - 5, sharedPageW - 14, gy - 5);
+      } else {
+        sharedDoc.addPage();
+        gy = 20;
+      }
       sharedDoc.setFontSize(14);
       sharedDoc.setFont(undefined, 'bold');
       sharedDoc.text('Overall Totals', 14, gy);
