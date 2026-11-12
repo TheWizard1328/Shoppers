@@ -112,7 +112,24 @@ function StopCardsSection({
       return (pendingChildrenByPuid.get(d.stop_id) || []).length > 0;
     });
 
-    return containerList
+    // ACCEPTED-STOP CARDS (fix Nov 12 2026, Sharuk / Sherwood Park Mall): the
+    // pickup-only container list above quietly dropped every patient stop that
+    // was no longer 'pending'. Accept All moves stops pending -> in_transit, so
+    // the driver's accepted route disappeared from the cards while the map
+    // markers stayed (markers read filteredDeliveries, not this list). Any
+    // live (non-finished) patient stop is its own card again, in stop_order
+    // position; 'pending' stays projected inside its pickup.
+    const LIVE_STATUSES = ['pending', 'in_transit', 'en_route', 'accepted'];
+    const cardIds = new Set(containerList.map((c) => c && c.id));
+    deliveriesWithStopOrder.forEach((d) => {
+      if (!d || !d.patient_id || d.is_cycling_marker) return;
+      if (d.status === 'pending') return;
+      if (!LIVE_STATUSES.includes(d.status)) return;
+      cardIds.add(d.id);
+    });
+    const cardList = deliveriesWithStopOrder.filter((d) => d && cardIds.has(d.id));
+
+    return cardList
       .map((delivery) => {
         if (!delivery) return delivery;
 
