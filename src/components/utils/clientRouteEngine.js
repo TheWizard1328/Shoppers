@@ -963,6 +963,10 @@ let _inheritedWindowCount = 0;
   };
 
   if (preserveExistingOrder) {
+    // VISIBLE IN PRODUCTION (owner asked why no HERE sequencing call was made,
+    // Nov 12 2026): console.log is stripped from release builds, so a skipped
+    // search left no trace anywhere. This makes it explicit.
+    console.warn(`[clientRouteEngine] ${source} — HERE sequencing SKIPPED: preserveExistingOrder (${orderedOptimizationStops.length} stop(s) kept in given order, no findsequence2 call)`);
     routeStops = [...orderedOptimizationStops];
     let prevPos = currentPosition;
     for (const stop of routeStops) {
@@ -971,6 +975,7 @@ let _inheritedWindowCount = 0;
       prevPos = { lat: stop.lat, lng: stop.lng };
     }
   } else if (stopsToSequence.length > 0) {
+    console.warn(`[clientRouteEngine] ${source} — calling HERE findsequence2 for ${stopsToSequence.length} stop(s) (locked next: ${routeOriginStop?.delivery?.id || 'none'})`);
     console.log(`[clientRouteEngine] ${source} — calling HERE findsequence2 for ${stopsToSequence.length} stops`);
 
     // ── Mixed-mode sequencing ─────────────────────────────────────────────

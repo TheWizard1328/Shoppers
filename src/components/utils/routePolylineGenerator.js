@@ -654,6 +654,50 @@ export async function generateRoutePolylines({
         encoded = chainSections.reduce((acc, sec) => mergeGooglePolylines(acc, sec?.encoded_polyline || null), null);
       }
 
+      // ── GEOMETRY BY POSITION, NOT BY INDEX (owner report, Nov 12 2026: "the
+      // current leg still has no polyline" while every other leg drew). The
+      // slice above assumes ONE returned section per requested point. When the
+      // provider drops or collapses a section (a via sitting on the origin, a
+      // partial response, a zero-length pair) every later index shifts and the
+      // current leg's slice comes back empty or degenerate - and the single
+      // route call that produced the rest of the route is then thrown away for
+      // that leg. Fall back to the section that actually ENDS at this stop:
+      // geometry is matched by position, so a missing section can no longer
+      // blank a leg. Same one provider call, no extra request.
+      const _usableEncoded = (enc) => {
+        if (typeof enc !== 'string' || enc.length <= 10) return false;
+        try {
+          const pts = decodeGooglePolyline(enc);
+          if (!Array.isArray(pts) || pts.length < 2) return false;
+          return new Set(pts.map((pt) => `${Number(pt?.[0]).toFixed(5)},${Number(pt?.[1]).toFixed(5)}`)).size >= 2;
+        } catch (_) { return false; }
+      };
+      if (!_usableEncoded(encoded) && sections.length > 0) {
+        let _bestIdx = -1;
+        let _bestKm = Infinity;
+        sections.forEach((sec, i) => {
+          const enc = sec?.encoded_polyline;
+          if (typeof enc !== 'string' || enc.length <= 10) return;
+          let pts = null;
+          try { pts = decodeGooglePolyline(enc); } catch (_) { pts = null; }
+          const end = Array.isArray(pts) && pts.length ? pts[pts.length - 1] : null;
+          if (!end) return;
+          const km = haversineKm(Number(end[0]), Number(end[1]), Number(stop.lat), Number(stop.lng));
+          if (km < _bestKm) { _bestKm = km; _bestIdx = i; }
+        });
+        if (_bestIdx >= 0 && _bestKm <= 0.25) {
+          const _start = Math.max(0, _bestIdx - viaCount);
+          const _matched = sections.slice(_start, _bestIdx + 1).filter(Boolean);
+          const _candidate = _matched.length === 1
+            ? (_matched[0]?.encoded_polyline || null)
+            : _matched.reduce((acc, sec) => mergeGooglePolylines(acc, sec?.encoded_polyline || null), null);
+          if (_usableEncoded(_candidate)) {
+            encoded = _candidate;
+            console.warn(`[routePolylineGenerator] ${source} — stop ${stop.delivery?.stop_order ?? ''} geometry recovered by position: section ${_bestIdx} ends ${_bestKm.toFixed(3)}km from the stop (index slice had nothing usable)`);
+          }
+        }
+      }
+
       const metricSections = sections.slice(metricsStart, stopIdx).filter(Boolean);
       let metricDuration = null;
       let metricDistance = null;
