@@ -924,7 +924,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-none flex' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-[92vh] max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
+        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-none flex' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-[min(78vh,52rem)] max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
         >
         <Card
           onKeyDown={handleGlobalKeyDown}
