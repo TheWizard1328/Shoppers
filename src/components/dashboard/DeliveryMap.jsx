@@ -1791,6 +1791,23 @@ function DeliveryMap({
     onBoundsFitted?.();
   }, [map, shouldFitBounds, onBoundsFitted]);
 
+  // TILE ATTRIBUTION (owner request Nov 12 2026): stamp the live map zoom so
+  // the tile log can show WHICH zoom level was fetching tiles. If a device is
+  // cycling zoom levels (turn auto-zoom / follow re-fit), that is visible as
+  // batches alternating between zoom levels on the same device.
+  useEffect(() => {
+    if (!map) return;
+    const stamp = () => {
+      try { window.__rxTileZoom = map.getZoom(); } catch (_) { /* map gone */ }
+    };
+    stamp();
+    map.on('zoomend', stamp);
+    map.on('moveend', stamp);
+    return () => {
+      try { map.off('zoomend', stamp); map.off('moveend', stamp); } catch (_) { /* non-fatal */ }
+    };
+  }, [map]);
+
   useEffect(() => {
     if (!map || !tileLayerConfig?.base || !map._loaded || !map._container || !map._mapPane) return;
     const prev = prevTileConfigRef.current;

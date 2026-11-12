@@ -1,5 +1,22 @@
 import { useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { getDeviceIdentifier } from "@/components/utils/userSettingsManager";
+
+// DEVICE TAG (owner request Nov 12 2026): the tile log only recorded the login,
+// so a spike could be pinned to "Robert Tauber" but never to WHICH machine —
+// and that account runs the editor, the desktop PWA and the phone. Every row
+// now carries the stable local device id plus a coarse platform label, so a
+// rise in tile spend can be attributed to one device.
+const deviceLabel = () => {
+  try {
+    const ua = navigator.userAgent || "";
+    const platform = navigator.platform || "";
+    const apk = /; wv\)/.test(ua) || window.Capacitor ? "APK" : "Web";
+    const os = /Android/i.test(ua) ? "Android" : /Windows/i.test(ua) ? "Windows" : /Mac/i.test(platform) ? "Mac" : /Linux/i.test(ua) ? "Linux" : "Other";
+    const screen = `${window.screen?.width || 0}x${window.screen?.height || 0}`;
+    return `${apk}/${os}/${screen}`;
+  } catch { return "unknown"; }
+};
 
 const getTodayTimestamp = () => new Date().toISOString();
 
@@ -36,7 +53,11 @@ export default function HereTileUsageTracker({ mapStyle, apiKeyReady, currentUse
             provider: "HERE",
             source: "network_fetch",
             map_style: mapStyle || "explore",
-            call_count: count
+            call_count: count,
+            device_identifier: (() => { try { return getDeviceIdentifier(); } catch { return null; } })(),
+            device_label: deviceLabel(),
+            map_zoom: (() => { try { const z = Number(window.__rxTileZoom); return Number.isFinite(z) ? z : null; } catch { return null; } })(),
+            page: typeof window !== "undefined" ? (window.location?.pathname || "") : ""
           }
         });
       } catch {

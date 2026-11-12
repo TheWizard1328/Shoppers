@@ -69,6 +69,17 @@ Deno.serve(async (req) => {
       perDay.set(day, (perDay.get(day) || 0) + count);
       perHour.set(hour, (perHour.get(hour) || 0) + count);
       recent.set(day, (recent.get(day) || 0) + 1);
+      const devId = r?.metadata?.device_identifier || '(untagged)';
+      if (!perDevice.has(devId)) {
+        perDevice.set(devId, { device_identifier: devId, device_label: r?.metadata?.device_label || '', total: 0, users: new Set(), byDay: new Map() });
+      }
+      const dv = perDevice.get(devId);
+      dv.total += count;
+      if (r?.user_name) dv.users.add(r.user_name);
+      dv.byDay.set(day, (dv.byDay.get(day) || 0) + count);
+      const z = r?.metadata?.map_zoom;
+      if (z != null) zoomHistogram.set(String(z), (zoomHistogram.get(String(z)) || 0) + count);
+
       const key = String(r?.user_id || r?.user_name || 'unknown');
       if (!perUser.has(key)) {
         perUser.set(key, { user_name: r?.user_name || '(no name)', user_id: r?.user_id || '', total: 0, byDay: new Map() });
@@ -104,6 +115,16 @@ Deno.serve(async (req) => {
       per_day: dayList.map(([day, tiles]) => ({ day, tiles })),
       users,
       busiest_hours_local: busiestHours,
+      devices: [...perDevice.values()]
+        .map((d) => ({
+          device_identifier: d.device_identifier,
+          device_label: d.device_label,
+          users: [...d.users],
+          total_tiles: d.total,
+          by_day: [...d.byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([day, tiles]) => ({ day, tiles })),
+        }))
+        .sort((a, b) => b.total_tiles - a.total_tiles),
+      zoom_histogram: [...zoomHistogram.entries()].sort((a, b) => b[1] - a[1]).map(([zoom, tiles]) => ({ zoom, tiles })),
     });
   } catch (error) {
     return Response.json({ ok: false, error: String((error as Error)?.message || error) }, { status: 500 });
