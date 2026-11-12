@@ -80,7 +80,18 @@ function StopCardsSection({
     const allPickupStops = deliveriesWithStopOrder.filter(
       (d) => d && !d.patient_id && d.stop_id && !d.is_cycling_start_marker && !d.is_cycling_marker
     );
-    const containerStopIds = new Set(allPickupStops.map((d) => d.stop_id));
+    // OWNER REPORT (Nov 12 2026): cycling route stops lost their cards. The
+    // pickup-attach fix (w17) excluded every cycling marker from the container
+    // list, so neither the start/end markers nor the stops that hang off them had
+    // a card to sit under. Cycling markers are containers for their own stops, so
+    // their stop_ids join the PUID map and the marker itself is a container again.
+    const cyclingContainers = deliveriesWithStopOrder.filter(
+      (d) => d && !d.patient_id && d.stop_id && (d.is_cycling_marker || d.is_cycling_start_marker)
+    );
+    const containerStopIds = new Set([
+      ...allPickupStops.map((d) => d.stop_id),
+      ...cyclingContainers.map((d) => d.stop_id)
+    ]);
     const slotKey = (d) => `${d?.store_id || ''}|${d?.delivery_date || ''}|${d?.ampm_deliveries || 'AM'}`;
     const dayKey = (d) => `${d?.store_id || ''}|${d?.delivery_date || ''}`;
 
@@ -106,8 +117,11 @@ function StopCardsSection({
     });
 
     const containerList = deliveriesWithStopOrder.filter((d) => {
-      if (!d || d.patient_id || !d.stop_id || d.is_cycling_start_marker) return false;
-      if (d.is_cycling_marker || d.status !== 'pending') return true;
+      if (!d || d.patient_id) return false;
+      // Cycling start/end markers keep their cards even without a stop_id.
+      if (d.is_cycling_marker || d.is_cycling_start_marker) return true;
+      if (!d.stop_id) return false;
+      if (d.status !== 'pending') return true;
       // Pending pickup: keep it visible only when it actually owns stops.
       return (pendingChildrenByPuid.get(d.stop_id) || []).length > 0;
     });
