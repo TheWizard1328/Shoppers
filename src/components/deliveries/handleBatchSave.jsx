@@ -13,6 +13,29 @@ import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import { getAutoCyclingTargets } from '../utils/autoCyclingMode';
 import { syncDeliveriesSquareCod } from '../utils/squareCodSync';
 
+// OWNER REPORT (Nov 12 2026, hourly digest): an Add To Route batch save failed four
+// times on the Meadows desktop and RemoteLogEntry only ever showed "{}" — the
+// remote logger JSON-stringifies an Error, and message/stack/response are
+// non-enumerable, so the cause was invisible. This turns the error into a plain
+// string (name, message, status, response body, first stack frame) before logging.
+const describeBatchError = (err) => {
+  if (!err) return 'unknown error';
+  try {
+    const status = err?.response?.status || err?.status || '';
+    const body = err?.response?.data;
+    const detail = typeof body === 'string' ? body : (body ? JSON.stringify(body) : '');
+    const stackLine = String(err?.stack || '').split('\n').slice(1).find((l) => l && l.trim().startsWith('at ')) || '';
+    return [
+      `${err?.name || 'Error'}: ${err?.message || String(err)}`,
+      status ? `status=${status}` : '',
+      detail ? `body=${detail.slice(0, 300)}` : '',
+      stackLine ? `at ${stackLine.trim().replace(/^at\s+/, '')}` : ''
+    ].filter(Boolean).join(' | ');
+  } catch {
+    return String(err);
+  }
+};
+
 export async function handleBatchSave({
   batchSaveLockRef,
   isSaving,
@@ -194,7 +217,7 @@ export async function handleBatchSave({
     }));
     await _pause();
   } catch (error) {
-    console.warn('⚠️ [AddToRoute] Failed to pause syncs:', error);
+    console.warn(`⚠️ [AddToRoute] Failed to pause syncs: ${describeBatchError(error)}`);
   }
 
   try {
@@ -327,7 +350,7 @@ export async function handleBatchSave({
           driverId,
           deliveryDate
         }).catch((error) => {
-          console.error('[AddToRoute] ensureDefaultPickupsForDriver failed', { driverId, deliveryDate, error });
+          console.error(`[AddToRoute] ensureDefaultPickupsForDriver failed | driver=${driverId} | date=${deliveryDate} | ${describeBatchError(error)}`);
           return null;
         });
         defaultPickupResults.set(driverDateKey, result);
@@ -434,7 +457,7 @@ export async function handleBatchSave({
           ampmDeliveries: delivery.ampm_deliveries || 'AM',
           allowCreateIfMissing: true
         }).catch((error) => {
-          console.error('[AddToRoute] ensurePickupForDelivery failed', { key, error });
+          console.error(`[AddToRoute] ensurePickupForDelivery failed | key=${key} | ${describeBatchError(error)}`);
           return null;
         });
         ensureResultsByKey.set(key, result);
@@ -715,7 +738,7 @@ export async function handleBatchSave({
       }
     });
   } catch (err) {
-    console.error('[AddToRoute] ❌ Batch save error:', err);
+    console.error(`[AddToRoute] ❌ Batch save error: ${describeBatchError(err)}`);
     setError(`Failed to save: ${err.message || 'Unknown error'}`);
     unblockPredictions();
     setIsLoadingPredictions(false);

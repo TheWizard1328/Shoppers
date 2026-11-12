@@ -69,7 +69,19 @@ const endpointOfRequest = (url) => {
   if (ent) return ent[1];
   return null;
 };
-const isSilentBackground = (url) => SILENT_BACKGROUND_ENDPOINTS.has(endpointOfRequest(url));
+// OWNER REPORT (Nov 12 2026, My-Phone): four ERROR balloons in a row — 
+// DeliveryBreadcrumbs / Store GET and Delivery / Patient PUT, all 15s timeouts —
+// during one weak-link minute. The GETs are background reads that retry on their
+// own next cycle, so they no longer paint an issue balloon (the timeout itself is
+// left at 15s so a dead link still fails fast). WRITES stay visible on purpose:
+// a PUT that times out may not have landed, and that is worth surfacing.
+const SILENT_BACKGROUND_READ_ENTITIES = new Set(['DeliveryBreadcrumbs', 'Store']);
+const isSilentBackground = (url, method) => {
+  const endpoint = endpointOfRequest(url);
+  if (SILENT_BACKGROUND_ENDPOINTS.has(endpoint)) return true;
+  const verb = String(method || 'get').toLowerCase();
+  return verb === 'get' && SILENT_BACKGROUND_READ_ENTITIES.has(endpoint);
+};
 
 const originalAxiosCreate = axios.create.bind(axios);
 axios.create = (config) => {
@@ -78,7 +90,8 @@ axios.create = (config) => {
   // (the SDK's own console error drops the URL). Passes the error through untouched.
   instance.interceptors.response.use((r) => r, (error) => {
     const failedUrl = error?.config?.url || error?.response?.config?.url;
-    if (!isSilentBackground(failedUrl)) publishApiIssue(error);
+    const failedMethod = error?.config?.method || error?.response?.config?.method;
+    if (!isSilentBackground(failedUrl, failedMethod)) publishApiIssue(error);
     return Promise.reject(error);
   });
   instance.interceptors.request.use((cfg) => {
