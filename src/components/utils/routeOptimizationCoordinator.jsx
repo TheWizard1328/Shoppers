@@ -63,8 +63,6 @@ import { cancelDeferredReoptimization } from '@/components/utils/deferredRouteRe
 // entity_update quota ("one rate limit per stop"). Remember the order each
 // successful run committed; if the next run's remaining active order is that
 // same sequence (only completed stops removed), skip the sequencing + write.
-const _lastOrderByDriverDate = new Map();
-const _FRESH_ORDER_MS = 45 * 1000;
 
 async function _performRouteOptimizationInner({
   driverId,
@@ -118,73 +116,18 @@ async function _performRouteOptimizationInner({
   // EXCEPTION: forceRegenerate=true bypasses this gate (e.g. ResetPolylinesButton on a completed route).
   const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
   if (windowsChanged) {
-    _lastOrderByDriverDate.delete(`${driverId}:${deliveryDate}`);
-    console.log(`[RouteOptimization] ${source} — window edit: memo cleared, recent-commit skip bypassed, running a full re-sequence`);
+    console.log(`[RouteOptimization] ${source} — window edit, running a full re-sequence`);
   }
-  // ── Fresh-order skip (see _lastOrderByDriverDate above) ────────────────────
-  // Second completion at a multi-delivery address: the remaining order is the
-  // order the previous pass just committed, so sequencing cannot change it and
-  // re-writing every stop would only burn quota. The ETA cascade already
-  // refreshed times. Applies ONLY to plain completion-driven runs.
-  // INTERACTIVE RUNS ARE NEVER SKIPPED (owner report Oct 29 2026: the manual
-  // optimize FAB and the quick-adjust re-optimize button did nothing to the
-  // current leg -> cycling start marker). Only the two automatic post-completion
-  // syncs may take the shortcut; every manual/reoptimize/mode/reset run always
-  // executes the full engine pass.
-  const _SKIP_SAFE_SOURCES = new Set(['next_delivery_sync', 'post_delivery_sync']);
-  if (
-    _SKIP_SAFE_SOURCES.has(String(source))
-    && Array.isArray(deliveries) && deliveries.length > 0
-    && !forceRegenerate
-    && !recalcTrackingNumbers
-    && !orderedDeliveryIds
-    && !(excludeStopIds && excludeStopIds.length)
-    && !includePendingPolylines
-  ) {
-    try {
-      const prev = _lastOrderByDriverDate.get(`${driverId}:${deliveryDate}`);
-      const currentOrder = deliveries
-        .filter((d) => d && !TERMINAL_STATUSES.includes(String(d.status || '')))
-        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))
-        .map((d) => String(d.id));
-      if (prev && (Date.now() - prev.at) < _FRESH_ORDER_MS && currentOrder.length > 0) {
-        let i = 0;
-        for (const id of prev.order || []) {
-          if (i < currentOrder.length && currentOrder[i] === id) i++;
-        }
-        // NEVER skip when a leg has no stored geometry: a previous pass may have
-        // cleared a polyline (pending clear / marker insert) and the run being
-        // skipped is the one that would rebuild it. Missing geometry always wins.
-        const missingLeg = deliveries
-          .filter((d) => d && !TERMINAL_STATUSES.includes(String(d.status || '')))
-          .filter((d) => ['en_route', 'in_transit'].includes(String(d.status || ''))
-            || d.delivery_notes === 'Cycling Route Start'
-            || d.delivery_notes === 'Cycling Route End')
-          .some((d) => !d.encoded_polyline || String(d.encoded_polyline).length <= 10);
-        // OWNER REPORT (Nov 12 2026, Robert / Russell Richardson + the InterStore
-        // drop-off): a stop can keep its physical position while its stop_order
-        // SHIFTS because new stops were inserted around it. The old order of the
-        // remaining stops then "matches" and this whole run was skipped, so the
-        // stop kept a leg drawn from its PREVIOUS predecessor. A leg stamped for a
-        // different stop_order is stale by definition, so its presence must veto
-        // the skip exactly like missing geometry does.
-        const staleLeg = deliveries
-          .filter((d) => d && !TERMINAL_STATUSES.includes(String(d.status || '')))
-          .some((d) => {
-            if (!d.encoded_polyline) return false;
-            const stamp = d.polyline_from_order == null ? null : Number(d.polyline_from_order);
-            const order = d.stop_order == null ? null : Number(d.stop_order);
-            if (!Number.isFinite(stamp) || !Number.isFinite(order)) return true;
-            return stamp !== order;
-          });
-        if (i === currentOrder.length && !missingLeg && !staleLeg) {
-          console.log(`[RouteOptimization] ${source} — skipped: remaining order matches the run ${Math.round((Date.now() - prev.at) / 1000)}s ago (${currentOrder.length} stop(s), no geometry change, no stale leg stamp)`);
-          return { success: true, skipped: 'fresh_order_unchanged', freshDeliveries: deliveries };
-        }
-      }
-    } catch (_) { /* fall through to a full run */ }
-  }
-
+  // ── NO SKIPS (owner directive, Nov 12 2026) ───────────────────────────────
+  // "Anytime the route is optimized or the polyline generator is called from
+  // anywhere, just re-optimize all active stops including the current leg."
+  // The 45-second fresh-order shortcut and every condition around it are GONE.
+  // It kept skipping runs whose remaining order "matched", which is exactly how
+  // Robert's InterStore stop kept a leg drawn from its previous predecessor
+  // after the return renumbered it (stamped 19 while sitting at 20), and why
+  // stops that held their physical position never got a new leg when their
+  // stop_order shifted. Every call now runs the full engine pass and rebuilds a
+  // leg for every active stop, current leg included. No shortcuts, no guards.
   if (!forceRegenerate && Array.isArray(deliveries) && deliveries.length > 0) {
     const activeStops = deliveries.filter(
       (d) => d && !TERMINAL_STATUSES.includes(String(d.status || ''))
@@ -935,17 +878,6 @@ export async function performRouteOptimization(params) {
   // BEFORE this run started (its fire would just redo this work and burn a
   // HERE call). Entries scheduled DURING this run keep their own countdown.
   // The deferred fire itself (source 'post_delivery_sync') is excluded.
-  if (result?.success && params?.driverId && params?.deliveryDate && !result?.skipped) {
-    try {
-      const order = (result?.freshDeliveries || params?.deliveries || [])
-        .filter((d) => d && !['completed', 'failed', 'cancelled'].includes(String(d.status || '')))
-        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))
-        .map((d) => String(d.id));
-      if (order.length) {
-        _lastOrderByDriverDate.set(`${params.driverId}:${params.deliveryDate}`, { at: Date.now(), order });
-      }
-    } catch (_) {}
-  }
   if (result?.success && params?.driverId && params?.deliveryDate && params?.source !== 'post_delivery_sync') {
     cancelDeferredReoptimization(`${params.driverId}:${params.deliveryDate}`, _t0);
   }

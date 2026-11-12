@@ -775,6 +775,69 @@ export async function generateRoutePolylines({
     });
   }
 
+  // ── CURRENT LEG — ITS OWN DEDICATED CALL, EVERY TIME (owner directive, Nov 12
+  // 2026) ────────────────────────────────────────────────────────────────────
+  // "Anytime the route is optimized or the polyline generator is called from
+  // anywhere we just re-optimize all active stops including the current leg."
+  // The current leg used to depend on its section inside the chained multi-stop
+  // request. When the provider collapses or omits that section (identical
+  // consecutive points, partial response, a via sitting on the origin) the leg
+  // came back empty and the stop kept stale geometry - the driver's live leg
+  // was blank while the rest of the route drew fine. It is now built by ONE
+  // dedicated origin -> current stop call, no chain, no indexing, vias only
+  // (capped, timestamp-guarded). Nothing else can shift it.
+  if (hasOrigin && polyTargets.length > 0) {
+    const _curStop = polyTargets[0];
+    const _curLat = Number(_curStop.lat), _curLng = Number(_curStop.lng);
+    const _directKm = haversineKm(Number(effectiveOrigin.lat), Number(effectiveOrigin.lon), _curLat, _curLng);
+    if (Number.isFinite(_directKm) && _directKm > 0.05) {
+      let _curVias = _suppressFirstLegVias ? [] : dropStaleVias(getDeviationWaypoints(_curStop.delivery));
+      const _curPoints = [
+        { lat: Number(effectiveOrigin.lat), lon: Number(effectiveOrigin.lon) },
+        ..._curVias.map((v) => ({ lat: Number(v.lat), lon: Number(v.lon) })),
+        { lat: _curLat, lon: _curLng },
+      ];
+      try {
+        const _curRes = await getMultiStopRouteHere(
+          _curPoints,
+          resolveMode(_curStop.delivery),
+          hereApiKey,
+          { driverId, userName, logPurpose: `Current leg — origin → stop ${_curStop.delivery?.stop_order ?? ''}`.trim() }
+        );
+        const _curSection = (_curRes?.sections || [])[_curPoints.length - 2] || null;
+        let _curEncoded = _curSection?.encoded_polyline || null;
+        if (typeof _curEncoded === 'string' && _curEncoded.length > 0) {
+          let _curPts = null;
+          try { _curPts = decodeGooglePolyline(_curEncoded); } catch (_) { _curPts = null; }
+          const _curDistinct = Array.isArray(_curPts)
+            ? new Set(_curPts.map((pt) => `${Number(pt?.[0]).toFixed(5)},${Number(pt?.[1]).toFixed(5)}`)).size
+            : 0;
+          if (_curDistinct < 2) _curEncoded = null;
+        }
+        if (_curEncoded) {
+          const _prevCur = polylineByDeliveryId.get(_curStop.delivery.id) || {};
+          polylineByDeliveryId.set(_curStop.delivery.id, {
+            encodedPolyline: _curEncoded,
+            estimatedDistanceKm: Number.isFinite(Number(_curSection?.estimated_distance_km))
+              ? Number(_curSection.estimated_distance_km)
+              : (Number.isFinite(Number(_prevCur.estimatedDistanceKm)) ? Number(_prevCur.estimatedDistanceKm) : Number(_directKm.toFixed(3))),
+            estimatedDurationMinutes: Number.isFinite(Number(_curSection?.estimated_duration_minutes))
+              ? _winterPad(Number(_curSection.estimated_duration_minutes), resolveMode(_curStop.delivery))
+              : _prevCur.estimatedDurationMinutes,
+            transportMode: resolveMode(_curStop.delivery),
+          });
+          console.log(`[routePolylineGenerator] ${source} — current leg rebuilt on its own: origin → stop ${_curStop.delivery?.stop_order ?? ''} (${_directKm.toFixed(2)}km direct)`);
+        } else {
+          console.warn(`[routePolylineGenerator] ${source} — current leg DEDICATED call produced no usable geometry (direct ${_directKm.toFixed(2)}km, vias ${_curVias.length}, sections ${(_curRes?.sections || []).length}) — existing leg left in place; origin ${Number(effectiveOrigin.lat).toFixed(5)},${Number(effectiveOrigin.lon).toFixed(5)} → stop ${_curLat.toFixed(5)},${_curLng.toFixed(5)}`);
+        }
+      } catch (_curErr) {
+        console.warn(`[routePolylineGenerator] ${source} — current leg dedicated call failed: ${_curErr?.message || _curErr}`);
+      }
+    } else {
+      console.warn(`[routePolylineGenerator] ${source} — current leg skipped: origin sits on the stop (${_directKm.toFixed(3)}km) — nothing to draw`);
+    }
+  }
+
   const _polyCount = [...polylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
   if (_polyCount === 0) {
     console.warn(`[routePolylineGenerator] ${source} — produced 0 polylines despite ${eligibleStops.length} eligible stop(s) and ${polyTargets.length} leg(s) — investigate origin/coords/HERE response`);
