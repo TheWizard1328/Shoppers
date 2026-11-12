@@ -2,6 +2,7 @@ import React from "react";
 import { useDevice } from "@/components/utils/DeviceContext";
 import { X, ArrowRight, TrendingUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isAppDarkTheme } from "@/lib/utils";
 
 /**
  * Shows a before/after comparison of route optimization for AppOwner.
@@ -33,14 +34,14 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
   // everywhere else in the app guarantees they track the real theme state.
   // Amber/emerald/blue accent highlights are kept but resolved from this same
   // isDark flag instead of dark: classes, for the same reason.
-  const [isDark, setIsDark] = React.useState(
-    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark-theme")
-  );
+  // isAppDarkTheme() reads the app's OWN theme classes (light-theme /
+  // dark-theme / auto-theme + dark), never the OS setting.
+  const [isDark, setIsDark] = React.useState(() => isAppDarkTheme());
 
   React.useEffect(() => {
     if (!open || typeof document === "undefined") return;
     const root = document.documentElement;
-    const sync = () => setIsDark(root.classList.contains("dark-theme"));
+    const sync = () => setIsDark(isAppDarkTheme());
     sync();
     const observer = new MutationObserver(sync);
     observer.observe(root, { attributes: true, attributeFilter: ["class"] });

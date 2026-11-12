@@ -62,8 +62,17 @@
     (function() {
       try {
         var pref = localStorage.getItem('rxdeliver_theme_preference');
-        var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var isDark = pref === 'dark' || (pref !== 'light' && systemDark);
+        var root = document.documentElement;
+        // THE APP'S OWN SETTING IS THE ONLY SOURCE OF TRUTH (Nov 11 2026).
+        // The OS preference is consulted ONLY when the setting is 'auto' (or
+        // has never been saved), so a Windows/macOS dark mode can never paint
+        // the app dark while the user chose Light, or light while they chose
+        // Dark. Whatever the app wants, foreign classes are cleared first.
+        var resolved = pref === 'dark' || pref === 'light' ?
+          pref :
+          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        root.classList.remove('dark', 'dark-theme', 'auto-theme', 'light-theme');
+        var isDark = resolved === 'dark';
         if (isDark) {
           document.documentElement.classList.add('dark');
           // FIX (Sep 29 2026): this early script only ever added Tailwind's
@@ -79,7 +88,9 @@
           // Mirror useAutoThemeSync's class exactly so both systems agree
           // from the very first paint, matching whichever branch produced
           // isDark (explicit 'dark' pref vs system/auto dark).
-          document.documentElement.classList.add(pref === 'dark' ? 'dark-theme' : 'auto-theme');
+          root.classList.add(pref === 'dark' ? 'dark-theme' : 'auto-theme');
+        } else {
+          root.classList.add(pref === 'auto' ? 'auto-theme' : 'light-theme');
         }
       } catch(e) {}
     })();

@@ -45,9 +45,9 @@ function Tooltip({ text, children }) {
       onTouchStart={() => setVisible(v => !v)}>
       {children}
       {visible && (
-        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded text-[11px] font-normal whitespace-nowrap bg-slate-900 text-white shadow-lg pointer-events-none z-[9999]">
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded text-[11px] font-normal whitespace-nowrap bg-popover text-popover-foreground border border-border shadow-lg pointer-events-none z-[9999]">
           {text}
-          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-border" />
         </span>
       )}
     </span>

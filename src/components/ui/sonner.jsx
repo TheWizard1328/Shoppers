@@ -1,11 +1,25 @@
 "use client";
-import { useTheme } from "next-themes"
+import React, { useEffect, useState } from "react";
 import { Toaster as Sonner } from "sonner"
+import { isAppDarkTheme } from "@/lib/utils"
 
 const Toaster = ({
   ...props
 }) => {
-  const { theme = "system" } = useTheme()
+  // Sonner used to read next-themes' useTheme(), whose default is "system" —
+  // so toasts styled themselves from the WINDOWS/macOS color scheme instead of
+  // the app's own theme setting (owner report Nov 11 2026: pieces going dark
+  // while the app was Light). The toast theme now comes from the app's theme
+  // classes and follows them live.
+  const [theme, setTheme] = useState(() => isAppDarkTheme() ? "dark" : "light");
+
+  useEffect(() => {
+    const sync = () => setTheme(isAppDarkTheme() ? "dark" : "light");
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   return (
     (<Sonner

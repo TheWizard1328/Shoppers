@@ -141,11 +141,11 @@ export default function IssueBalloon({ currentUser }) {
             left: Math.max(8, Math.min(anchor.left - 24, window.innerWidth - 300)),
             width: 290, zIndex: 10001,
           }}
-          className="rounded-xl border border-slate-600 bg-slate-900/95 shadow-xl text-xs text-slate-100 p-2 space-y-1.5"
+          className="rounded-xl border border-border bg-popover shadow-xl text-xs text-popover-foreground p-2 space-y-1.5"
         >
           <div
             style={{ position: 'absolute', top: -6, left: 18, width: 12, height: 12, transform: 'rotate(45deg)' }}
-            className="bg-slate-900/95 border-l border-t border-slate-600"
+            className="bg-popover border-l border-t border-border"
           />
           {items.map((it) => (
             <div key={it.key} className="leading-tight">
@@ -157,10 +157,10 @@ export default function IssueBalloon({ currentUser }) {
                   {it.target.type === 'function' ? 'fn ' : it.target.type === 'entity' ? '' : ''}
                   {it.target.name}{it.target.method ? ` · ${it.target.method}` : ''}
                 </span>
-                {it.count > 1 && <span className="ml-auto text-slate-400">x{it.count}</span>}
+                {it.count > 1 && <span className="ml-auto text-muted-foreground">x{it.count}</span>}
               </div>
-              {it.kind === 'error' && <div className="text-slate-300 truncate">{it.reason}</div>}
-              <div className="text-slate-400 truncate">{[it.user, it.device].filter(Boolean).join(' · ') || 'unknown user/device'}</div>
+              {it.kind === 'error' && <div className="text-body-2 truncate">{it.reason}</div>}
+              <div className="text-muted-foreground truncate">{[it.user, it.device].filter(Boolean).join(' · ') || 'unknown user/device'}</div>
             </div>
           ))}
         </div>,

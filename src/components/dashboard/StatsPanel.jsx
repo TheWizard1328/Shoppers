@@ -484,7 +484,7 @@ export default function StatsPanel({
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="absolute top-1 left-1 z-50 rounded-md bg-slate-900/85 text-white text-[11px] font-mono font-semibold px-2 py-0.5 shadow-md pointer-events-none"
+              className="absolute top-1 left-1 z-50 rounded-md bg-popover/95 text-popover-foreground border border-border text-[11px] font-mono font-semibold px-2 py-0.5 shadow-md pointer-events-none"
             >
               {zoomBadge.toFixed(1)}x
             </motion.div>

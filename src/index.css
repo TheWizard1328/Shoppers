@@ -3,79 +3,20 @@
 @tailwind utilities;
 
 
-/* :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-} */
+/* (Removed Nov 11 2026: the old Vite boilerplate :root block lived here, and it
+   carried a `@media (prefers-color-scheme: light)` override — one more place
+   where the OS could restyle the app behind its own theme setting.) */
 
 
 
 @layer base {
   :root {
+    /* SINGLE SOURCE OF TRUTH (Nov 11 2026): the app's own theme setting decides
+       light/dark — never the OS. Declaring color-scheme here pins every NATIVE
+       surface (select popup lists, date/time pickers, scrollbars, autofill) to
+       the light palette, so a Windows/macOS dark mode can no longer darken them
+       while the app is Light. The dark theme blocks below flip it to dark. */
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -115,6 +56,8 @@ button:focus-visible {
      subtree — half-dark pages that only ever reproduced in the editor. The app
      only ever puts the class on <html>, so gate on the root. */
   html.dark-theme, html.auto-theme.dark {
+    /* Native controls follow the app's dark setting, not the OS. */
+    color-scheme: dark;
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -423,10 +366,12 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
   50% { background-color: hsl(152 45% 22% / 0.45); }
 }
 .blink-new-message { animation: blink-new-message 1.2s ease-in-out infinite; }
-.dark .blink-new-message { animation: blink-new-message-dark 1.2s ease-in-out infinite; }
+html.dark-theme .blink-new-message,
+html.auto-theme.dark .blink-new-message { animation: blink-new-message-dark 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .blink-new-message { animation: none; background-color: hsl(152 90% 96%); }
-  .dark .blink-new-message { animation: none; background-color: hsl(152 45% 22% / 0.45); }
+  html.dark-theme .blink-new-message,
+  html.auto-theme.dark .blink-new-message { animation: none; background-color: hsl(152 45% 22% / 0.45); }
 }
 /* ── Semantic theme-aware utility classes ─────────────────────────────────
    Replacements for the former inline `style={{ color: 'var(--text-slate-900)' }}`
@@ -551,9 +496,13 @@ html.dark-theme body {
   --input: 213 27% 84%;
 }
 
-@media (prefers-color-scheme: dark) {
-  html.auto-theme.dark,
-  html.auto-theme.dark body {
+/* AUTO THEME, RESOLVED IN JS ONLY (Nov 11 2026): useAutoThemeSync adds the
+   'dark' class only when the app's setting is 'auto' AND the OS is dark, so
+   these overrides key on the app's own classes. There is deliberately no
+   @media (prefers-color-scheme) left in this file — nothing may restyle the
+   app behind its own theme setting. */
+html.auto-theme.dark,
+html.auto-theme.dark body {
     --bg-white: #0f172a;
     --bg-slate-50: #1e293b;
     --bg-slate-100: #334155;
@@ -590,7 +539,6 @@ html.dark-theme body {
     --accent-foreground: 210 40% 98%;
     --border: 213 27% 84%;
     --input: 213 27% 84%;
-  }
 }
 
 

@@ -43,23 +43,44 @@ export default function useAutoThemeSync(themePreference) {
     syncNativeSystemBarTheme();
   }, []);
 
-  // EDITOR GUARD (owner report Nov 1 2026: app set to LIGHT on a Dark-OS PC,
-  // and a handful of elements still rendered dark — editor only). The Base44
-  // editor's preview document writes its OWN theme classes onto <html>. The app
-  // never needs a bare 'dark': its own state is always expressed as
-  // 'dark-theme' (explicit Dark) or 'auto-theme' + 'dark' (Auto + dark OS). So
-  // a 'dark' with neither of those companions is somebody else's and is
-  // stripped, which keeps tailwind dark: utilities, the .dark CSS block and
-  // every JS check on the app's own signal.
+  // THEME-AUTHORITY GUARD (owner report Nov 11 2026: app set to LIGHT on a
+  // Dark-OS Windows PC, and pieces like the "Synced" dropdown at the top of the
+  // Dashboard still rendered dark). Two things used to win over the app's
+  // choice: the Base44 editor's preview document writes its OWN theme classes
+  // onto <html> (it goes dark with the OS), and anything that trusted a stray
+  // 'dark' class. The previous guard only stripped a BARE 'dark', so a foreign
+  // 'dark-theme' or 'auto-theme' + 'dark' pair sailed through and fired every
+  // dark: utility while the app was Light.
+  // Now the saved preference is authoritative: whenever <html>'s class list
+  // disagrees with what the app's own setting demands, the single apply path
+  // re-asserts it. A foreign or OS-derived class can never stick.
   useEffect(() => {
     const root = document.documentElement;
-    const stripForeignDark = () => {
-      if (!root.classList.contains('dark')) return;
-      if (root.classList.contains('dark-theme') || root.classList.contains('auto-theme')) return;
-      root.classList.remove('dark');
+    const ALL = ['dark', 'dark-theme', 'auto-theme', 'light-theme'];
+    const savedPreference = () => {
+      try { return localStorage.getItem('rxdeliver_theme_preference'); } catch { return null; }
     };
-    stripForeignDark();
-    const observer = new MutationObserver(stripForeignDark);
+    const expectedClasses = (pref) => {
+      if (pref === 'light') return ['light-theme'];
+      if (pref === 'dark') return ['dark', 'dark-theme'];
+      let sysDark = false;
+      try { sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch { sysDark = false; }
+      return sysDark ? ['auto-theme', 'dark'] : ['auto-theme'];
+    };
+    let fixing = false;
+    const reassert = () => {
+      if (fixing) return;
+      const pref = savedPreference();
+      const want = expectedClasses(pref);
+      const missing = want.some((c) => !root.classList.contains(c));
+      const foreign = ALL.some((c) => !want.includes(c) && root.classList.contains(c));
+      if (!missing && !foreign) return;
+      fixing = true;
+      applyThemePreference(pref || themeRef.current || 'auto');
+      fixing = false;
+    };
+    reassert();
+    const observer = new MutationObserver(reassert);
     observer.observe(root, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);

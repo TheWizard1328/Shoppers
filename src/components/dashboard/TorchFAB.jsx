@@ -160,7 +160,7 @@ export default function TorchFAB({
           }}
         >
           {hint && (
-            <div className="absolute right-0 bottom-12 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-[11px] font-medium text-white shadow-lg">
+            <div className="absolute right-0 bottom-12 whitespace-nowrap rounded-md bg-popover px-2 py-1 text-[11px] font-medium text-popover-foreground border border-border shadow-lg">
               {hint}
             </div>
           )}

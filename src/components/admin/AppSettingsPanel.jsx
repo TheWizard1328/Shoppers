@@ -260,7 +260,7 @@ export default function AppSettingsPanel() {
     <div className="warm-console h-full min-h-0 overflow-y-auto pb-4">
       <style>{`
         .warm-console { color-scheme: light; }
-        .dark .warm-console { color-scheme: dark; }
+        html.dark-theme .warm-console, html.auto-theme.dark .warm-console { color-scheme: dark; }
         .warm-console .bg-primary { background-color: #f59e0b !important; }
         .warm-console .bg-primary\\/20 { background-color: rgba(245,158,11,0.28) !important; }
         .warm-console .border-primary\\/50 { border-color: #f59e0b !important; }

@@ -327,8 +327,8 @@ export default function MapViewCycleFAB({
             badge, so a halo with no counter still tells him WHO is watching and
             which store they belong to. */}
         {showWatchersBalloon && balloonWatchers.length > 0 && (
-          <div className="absolute bottom-full right-0 mb-2 w-56 max-w-[70vw] rounded-lg bg-slate-900/95 text-white shadow-xl border border-slate-700 px-2.5 py-2 z-[110]">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-300 mb-1">
+          <div className="absolute bottom-full right-0 mb-2 w-56 max-w-[70vw] rounded-lg bg-popover text-popover-foreground shadow-xl border border-border px-2.5 py-2 z-[110]">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
               {balloonWatchers.length} patient{balloonWatchers.length === 1 ? '' : 's'} viewing now
             </p>
             <div className="space-y-1 max-h-40 overflow-y-auto">
