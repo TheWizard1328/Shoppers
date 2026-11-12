@@ -1485,7 +1485,7 @@ export default function DeliveryFormView({
                 <div className={`flex flex-col gap-3 min-w-0 flex-1 min-h-0 overflow-y-auto pr-1 ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?
-                    <div className={`${useMobileLayout && !delivery ? 'space-y-3' : useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 min-h-0 items-start'}`}>
+                    <div className={`${useMobileLayout && !delivery ? 'space-y-3' : useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 min-h-full items-stretch'}`}>
                       <div className="min-w-0 space-y-3">
 
                         {/* Notes */}
@@ -1652,7 +1652,7 @@ export default function DeliveryFormView({
                       </div>
 
                       {!useMobileLayout &&
-                      <div className="min-w-0 min-h-0 overflow-y-auto pr-1 flex flex-col gap-3">
+                      <div className="min-w-0 min-h-0 pr-1 flex flex-col gap-3 h-full">
                           <div className="px-3 py-2 rounded-lg space-y-2 border border-surface shrink-0" style={{ background: 'var(--bg-slate-50)' }}>
                             <SmartBarcodeScanner
                             defaultCollapsed={useMobileLayout && isMobileDevice && ['in_transit', 'en_route', 'completed', 'failed', 'cancelled', 'returned'].includes(formData.status)}
@@ -1680,7 +1680,7 @@ export default function DeliveryFormView({
                                 column. justify-between distributes the spare space
                                 between the rows; the inner scroll keeps a short
                                 panel usable instead of clipping a row. */}
-                            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-between gap-1 pt-2">
+                            <div className="flex-1 min-h-0 flex flex-col justify-between gap-1 pt-2">
                               <CheckboxField id="care_pros" label="Care Pro's" checked={formData.care_pros} onChange={(c) => setFormData((p) => ({ ...p, care_pros: c }))} disabled={isSaving} />
                               <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
                               <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={(c) => setFormData((p) => ({ ...p, ring_bell: c }))} disabled={isSaving} />
@@ -1690,7 +1690,7 @@ export default function DeliveryFormView({
                             </div>
                           </div>
 
-                          <div className="px-3 py-2 rounded-lg border min-h-[240px] flex-1 flex flex-col gap-2 overflow-y-auto border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="px-3 py-2 rounded-lg border min-h-[240px] flex-1 flex flex-col gap-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             <Label className="text-sm font-semibold text-body shrink-0">Recurring</Label>
                             <DeliveryRecurringOptions
                             formData={formData} setFormData={setFormData} isSaving={isSaving}
