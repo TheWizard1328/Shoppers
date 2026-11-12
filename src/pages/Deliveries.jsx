@@ -222,6 +222,7 @@ export default function DeliveriesPage() {
   const lastLoadTime = useRef(0);
   const loadInProgress = useRef(0);
   const initialLoadDone = useRef(false);
+  const patientsLoadedRef = useRef(false);
   const yearAutoSelectDone = useRef(false);
   const yearManuallySelected = useRef(false);
   const skipContextSyncUntil = useRef(0);
@@ -467,60 +468,75 @@ export default function DeliveriesPage() {
         if (allDeliveries && allDeliveries.length > 0 && !forceRefresh) {
           deliveriesData = allDeliveries;
         } else {
+          const { fetchDeliveriesInRange } = await import('../components/deliveries/deliveriesDataLoader');
+          // FAST FIRST PAINT (owner request Nov 12 2026): the page used to pull the
+          // whole 90-day window before painting anything. Now it fetches ONLY the
+          // month on screen, paints, and widens to the full window in the
+          // background so search / other months still fill in.
+          const monthIdx = Number.isInteger(selectedMonth) ? selectedMonth : now.getMonth();
+          const monthStart = `${selectedYear}-${String(monthIdx + 1).padStart(2, '0')}-01`;
+          const monthEnd = format(new Date(selectedYear, monthIdx + 1, 0), 'yyyy-MM-dd');
           try {
-            const { fetchDeliveriesInRange } = await import('../components/deliveries/deliveriesDataLoader');
-            deliveriesData = await fetchDeliveriesInRange(startDateStr, endDateStr);
+            deliveriesData = await fetchDeliveriesInRange(monthStart, monthEnd);
           } catch (error) {
-            console.error('❌ [Deliveries] Error fetching deliveries:', error.message);
+            console.error('❌ [Deliveries] Error fetching month deliveries:', error.message);
             deliveriesData = allDeliveries.length > 0 ? allDeliveries : [];
           }
+          if (isMounted.current) setAllDeliveries(deliveriesData || []);
+          if ((deliveriesData || []).length > 0) initialLoadDone.current = true;
+
+          setTimeout(async () => {
+            try {
+              const wide = await fetchDeliveriesInRange(startDateStr, endDateStr);
+              if (!isMounted.current || !wide || wide.length === 0) return;
+              const byId = new Map((deliveriesData || []).map((d) => [d && d.id, d]));
+              wide.forEach((d) => { if (d && d.id && !byId.has(d.id)) byId.set(d.id, d); });
+              if (byId.size > (deliveriesData || []).length) {
+                setAllDeliveries(Array.from(byId.values()));
+              }
+            } catch (_) { /* background widen is best-effort */ }
+          }, 60);
         }
       }
 
       if (isMounted.current) {
         setAllDeliveries(deliveriesData || []);
+        initialLoadDone.current = true;
       }
 
-      let patientsData = [];
-
-      if (userHasRole(user, 'admin')) {
-        try {
-          const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
-
-          const uniquePatientIds = new Set(
-            (deliveriesData || []).filter((d) => d.patient_id).map((d) => d.patient_id)
-          );
-          patientsData = (allPatientsRaw || []).filter((p) => uniquePatientIds.has(p.id));
-        } catch (error) {
-          console.error('Failed to fetch patients for admin:', error.message);
-          patientsData = [];
-        }
-      } else if (userHasRole(user, 'dispatcher')) {
-        const dispatcherStoreIds = user.store_ids || [];
-        if (dispatcherStoreIds.length > 0) {
+      // ── PATIENTS (deferred) ────────────────────────────────────────────────
+      // Owner request Nov 12 2026: the patient table (4,000+ rows) was fetched
+      // BEFORE anything painted, so Route Management waited on it every load.
+      // It now loads after the dates/table are on screen, and only once per
+      // session unless a force refresh asks for it again.
+      if (forceRefresh || !patientsLoadedRef.current) {
+        const roleIsAdmin = userHasRole(user, 'admin');
+        const roleIsDispatcher = !roleIsAdmin && userHasRole(user, 'dispatcher');
+        const roleIsDriver = !roleIsAdmin && !roleIsDispatcher && userHasRole(user, 'driver');
+        const dispatcherStoreIds = (user && user.store_ids) || [];
+        const runPatientLoad = async () => {
+          let patientsData = [];
           try {
-            patientsData = await getData('Patient', 'full_name', { store_id: { $in: dispatcherStoreIds } }, forceRefresh);
+            if (roleIsAdmin || roleIsDriver || (!roleIsDispatcher && !roleIsAdmin && !roleIsDriver)) {
+              const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
+              const uniquePatientIds = new Set(
+                (deliveriesData || []).filter((d) => d.patient_id).map((d) => d.patient_id)
+              );
+              patientsData = (allPatientsRaw || []).filter((p) => uniquePatientIds.has(p.id));
+            } else if (dispatcherStoreIds.length > 0) {
+              patientsData = await getData('Patient', 'full_name', { store_id: { $in: dispatcherStoreIds } }, forceRefresh);
+            }
           } catch (error) {
-            console.error('Failed to fetch patients for dispatcher:', error.message);
+            console.error('Failed to fetch patients:', error && error.message);
             patientsData = [];
           }
-        }
-      } else if (userHasRole(user, 'driver')) {
-        try {
-          const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
-
-          const uniquePatientIds = new Set(
-            (deliveriesData || []).filter((d) => d.patient_id).map((d) => d.patient_id)
-          );
-          patientsData = (allPatientsRaw || []).filter((p) => uniquePatientIds.has(p.id));
-        } catch (error) {
-          console.error('Failed to fetch patients for driver:', error.message);
-          patientsData = [];
-        }
-      }
-
-      if (isMounted.current) {
-        setAllPatients(patientsData || []);
+          if (isMounted.current && (patientsData || []).length > 0) {
+            setAllPatients(patientsData);
+            patientsLoadedRef.current = true;
+          }
+        };
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(runPatientLoad, { timeout: 1500 });
+        else setTimeout(runPatientLoad, 40);
       }
 
       initialLoadDone.current = true;
