@@ -403,6 +403,29 @@ export default function Layout({ children, currentPageName }) {
   // last publish, so every device shows the same number (24 - 10 = 14).
   // Commit/push counts stay only as the fallback for a bundle that cannot line
   // up its digits (an APK build resets WEB to 0 and moves the APK digit).
+  // EDITOR-PREVIEW FALLBACK (owner report Nov 12 2026): the (+n) builds-ahead
+  // badge was missing ONLY in the editor preview. That surface builds the app
+  // without the repo's .build-push-count file, so PUSH_COUNT is 0 there while
+  // every real deployment has it — and the digit branch cannot fire because the
+  // bundle's baked APK digit (26) never equals the live one (25). The running
+  // deployment's own version.json carries the same push count, so read it from
+  // this origin when the baked one is missing.
+  const [ownDeployPushCount, setOwnDeployPushCount] = useState(0);
+  useEffect(() => {
+    if (!isOwnerDevice || PUSH_COUNT > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/version.json?ts=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const n = Number(data?.pushCount);
+        if (!cancelled && Number.isFinite(n) && n > 0) setOwnDeployPushCount(n);
+      } catch (_) { /* best-effort */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isOwnerDevice]);
+
   const buildsAheadCount = (() => {
     if (!isOwnerDevice) return 0;
     const liveWeb = Number(publishedVersionInfo?.webVersion) || 0;
@@ -413,8 +436,11 @@ export default function Layout({ children, currentPageName }) {
     if (liveWeb > 0 && liveApk > 0 && bundleApk === liveApk && WEB_VERSION >= liveWeb) {
       return WEB_VERSION - liveWeb;
     }
-    if (PUSH_COUNT > 0 && publishedPushCount > 0) {
-      return Math.max(0, PUSH_COUNT - publishedPushCount);
+    // Baked count when the build provided one, otherwise the count this
+    // deployment reports in its own version.json (editor preview).
+    const ownPushCount = PUSH_COUNT > 0 ? PUSH_COUNT : ownDeployPushCount;
+    if (ownPushCount > 0 && publishedPushCount > 0) {
+      return Math.max(0, ownPushCount - publishedPushCount);
     }
     return 0;
   })();
