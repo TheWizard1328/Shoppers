@@ -66,40 +66,71 @@ function StopCardsSection({
       ? allDriverDeliveries.length > 0 && allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d))
       : false;
 
-    // SELF-HEALING ATTACH (owner report Nov 11 2026): three Kingsway pending
-    // stops carried PUID qLF but never appeared under the Kingsway pickup card,
-    // because their PUID no longer matched the pickup record's stop_id (stops
-    // transferred to another date keep their PUID, and a re-created pickup mints
-    // a different one). A pending stop whose PUID matches NO pickup in view is
-    // therefore re-homed onto the pickup that shares its store / date / AM-PM
-    // (and driver, when that pickup is unambiguous) so it always renders and the
-    // pickup card count matches the route.
-    const containerList = deliveriesWithStopOrder.filter(
-      (d) => d && !d.patient_id && d.stop_id &&
-        (d.is_cycling_marker || d.status !== 'pending') && !d.is_cycling_start_marker
+    // A pickup is the container for the stops that share its PUID. Two things
+    // broke that (owner report Nov 11 2026, stops + pickup transferred together
+    // to tomorrow with the SAME PUID and still not attaching):
+    //   1. a pickup whose status came back 'pending' after the date move was
+    //      dropped from the container list entirely, so its own stops had no
+    //      card to appear under;
+    //   2. a stop whose PUID matches no pickup IN VIEW (other date, or the
+    //      pickup re-created with a new stop_id) was silently orphaned.
+    // Containers now survive a 'pending' status when they actually own stops,
+    // and a PUID-less match falls back to store / date / AM-PM, then to
+    // store / date when that pickup is unambiguous.
+    const allPickupStops = deliveriesWithStopOrder.filter(
+      (d) => d && !d.patient_id && d.stop_id && !d.is_cycling_start_marker && !d.is_cycling_marker
     );
-    const containerStopIds = new Set(containerList.map((d) => d.stop_id));
+    const containerStopIds = new Set(allPickupStops.map((d) => d.stop_id));
     const slotKey = (d) => `${d?.store_id || ''}|${d?.delivery_date || ''}|${d?.ampm_deliveries || 'AM'}`;
-    const orphansByKey = new Map();
+    const dayKey = (d) => `${d?.store_id || ''}|${d?.delivery_date || ''}`;
+
+    // Pending patient stops, grouped by the pickup they name, and the ones whose
+    // PUID resolves to no pickup in view.
+    const pendingChildrenByPuid = new Map();
+    const orphanPending = [];
     deliveriesWithStopOrder.forEach((d) => {
       if (!d || !d.patient_id || d.status !== 'pending') return;
-      if (d.puid && containerStopIds.has(d.puid)) return; // PUID already resolves
-      const k = slotKey(d);
-      if (!orphansByKey.has(k)) orphansByKey.set(k, []);
-      orphansByKey.get(k).push(d);
+      if (d.puid && containerStopIds.has(d.puid)) {
+        if (!pendingChildrenByPuid.has(d.puid)) pendingChildrenByPuid.set(d.puid, []);
+        pendingChildrenByPuid.get(d.puid).push(d);
+      } else {
+        orphanPending.push(d);
+      }
     });
 
-    return deliveriesWithStopOrder
-      .filter((delivery) => delivery && (delivery.is_cycling_marker || delivery.status !== 'pending') && !delivery.is_cycling_start_marker)
+    const orphanBySlot = new Map();
+    orphanPending.forEach((d) => {
+      const k = slotKey(d);
+      if (!orphanBySlot.has(k)) orphanBySlot.set(k, []);
+      orphanBySlot.get(k).push(d);
+    });
+
+    const containerList = deliveriesWithStopOrder.filter((d) => {
+      if (!d || d.patient_id || !d.stop_id || d.is_cycling_start_marker) return false;
+      if (d.is_cycling_marker || d.status !== 'pending') return true;
+      // Pending pickup: keep it visible only when it actually owns stops.
+      return (pendingChildrenByPuid.get(d.stop_id) || []).length > 0;
+    });
+
+    return containerList
       .map((delivery) => {
         if (!delivery) return delivery;
 
         // Attach projected pending deliveries to pickup containers
-        if (!delivery.patient_id && (delivery.status === 'en_route' || delivery.status === 'pending') && delivery.stop_id) {
-          let pending = deliveriesWithStopOrder.filter((d) => d && d.puid === delivery.stop_id && d.status === 'pending' && d.patient_id);
+        if (!delivery.patient_id && delivery.stop_id) {
+          let pending = pendingChildrenByPuid.get(delivery.stop_id) || [];
           // Orphan rescue: pending stops whose PUID points at no pickup in view.
           const k = slotKey(delivery);
-          const orphans = orphansByKey.get(k) || [];
+          let orphans = orphanBySlot.get(k) || [];
+          if (!orphans.length && !delivery.is_cycling_marker) {
+            // Looser pass: same store + date, driver-matched, only when this
+            // store/date has exactly one pickup to receive them.
+            const dk = dayKey(delivery);
+            const dayPickups = allPickupStops.filter((c) => dayKey(c) === dk);
+            if (dayPickups.length === 1) {
+              orphans = orphanPending.filter((o) => dayKey(o) === dk);
+            }
+          }
           if (orphans.length) {
             const sameDriver = orphans.filter((o) => String(o.driver_id || '') === String(delivery.driver_id || ''));
             const clusterSize = containerList.filter((c) => slotKey(c) === k).length;
