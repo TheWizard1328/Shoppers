@@ -58,6 +58,8 @@ Deno.serve(async (req) => {
 
     const perDay = new Map<string, number>();
     const perUser = new Map<string, { user_name: string; user_id: string; total: number; byDay: Map<string, number> }>();
+    const perDevice = new Map<string, { device_identifier: string; device_label: string; total: number; users: Set<string>; byDay: Map<string, number> }>();
+    const zoomHistogram = new Map<string, number>();
     const perHour = new Map<string, number>();
     const recent = new Map<string, number>(); // day -> rows
 
