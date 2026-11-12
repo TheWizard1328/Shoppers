@@ -96,10 +96,17 @@ export const AuthProvider = ({ children }) => {
   // After an offline-first boot, re-validate the moment the link comes back so
   // an expired session is caught then (not silently kept), and the cache is
   // refreshed with the live user.
+  //
+  // SILENT ON PURPOSE (owner report Nov 12 2026: "as soon as the data came back
+  // the entire app rebooted instead of just continuing where it left off").
+  // checkAppState() flips isLoadingPublicSettings/isLoadingAuth, which makes
+  // ProtectedRoute swap the whole dashboard for a spinner — a full teardown and
+  // re-boot of the map, cards and IDB reads. The reconnect path now refreshes
+  // the user object in place with no loading gate, so the app keeps running and
+  // the offline queue flushes underneath.
   useEffect(() => {
     const onOnline = () => {
-      console.warn('[Auth] Link restored — re-validating session');
-      checkAppState();
+      void refreshSessionSilently();
     };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
@@ -224,6 +231,32 @@ export const AuthProvider = ({ children }) => {
       }
     }
   }, []);
+
+  // Re-validate the session WITHOUT touching any loading gate. Used on reconnect.
+  const refreshSessionSilently = async () => {
+    try {
+      const me = await _withTimeout(base44.auth.me(), 10000, 'auth.me(silent)');
+      if (me) {
+        setUser(me);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        writeAuthSnapshot(me, publicSettingsRef.current);
+      }
+      console.warn('[Auth] Session re-validated on reconnect');
+    } catch (error) {
+      const status = Number(error?.status || error?.response?.status || 0);
+      if (status === 401 || status === 403) {
+        // A real rejection while online — the session is genuinely gone.
+        clearAuthSnapshot();
+        setUser(null);
+        setIsAuthenticated(false);
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+        return;
+      }
+      // Transport failure again: keep running on the cached session.
+      console.warn('[Auth] Reconnect re-validation could not reach the server — staying on the cached session');
+    }
+  };
 
   const checkAppState = async () => {
     try {

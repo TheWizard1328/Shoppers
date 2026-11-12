@@ -49,9 +49,19 @@ const chunkReloadAlreadyTried = () => {
 const markChunkReloadTried = () => {
   try { sessionStorage.setItem(CHUNK_RELOAD_FLAG, '1'); } catch {}
 };
+// OFFLINE GUARD (owner report Nov 12 2026): with data off, a lazy route import
+// fails with the SAME message as a stale chunk, so this handler reloaded the app
+// mid-test. While the device is offline a failed dynamic import means "no
+// network", not "new build" — never reload for it; ChunkErrorBoundary shows the
+// offline panel and recovers when the link returns.
+const isOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
 window.addEventListener('error', (event) => {
   const msg = event?.message || '';
   if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Importing a module script failed')) {
+    if (isOffline()) {
+      console.warn('⚠️ [ChunkLoad] Dynamic import failed while offline — keeping the app running (no reload)');
+      return;
+    }
     if (chunkReloadAlreadyTried()) {
       console.warn('⚠️ [ChunkLoad] Stale chunk persists after reload — leaving recovery to ChunkErrorBoundary (no loop)');
       return;
@@ -66,6 +76,10 @@ window.addEventListener('unhandledrejection', (event) => {
   const msg = String(event?.reason?.message || event?.reason || '');
   if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Importing a module script failed')) {
     event.preventDefault();
+    if (isOffline()) {
+      console.warn('⚠️ [ChunkLoad] Dynamic import failed while offline — keeping the app running (no reload)');
+      return;
+    }
     if (chunkReloadAlreadyTried()) {
       console.warn('⚠️ [ChunkLoad] Stale chunk (unhandledrejection) persists — leaving recovery to ChunkErrorBoundary (no loop)');
       return;

@@ -117,12 +117,41 @@ export const purgeStaleServiceWorkerAndCaches = async () => {
 export class ChunkErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { crashed: false, chunkError: false };
+    this.state = { crashed: false, chunkError: false, offlineStall: false };
     this.purgingRef = false;
+    // Auto-recover the offline stall the moment the link returns: clearing the
+    // error state remounts the children, which re-runs the dynamic import.
+    if (typeof window !== 'undefined') {
+      this._handleOnline = () => {
+        if (this.state.offlineStall) {
+          console.warn('[ChunkErrorBoundary] Link restored — retrying the failed import');
+          this.setState({ crashed: false, chunkError: false, offlineStall: false });
+        }
+      };
+      window.addEventListener('online', this._handleOnline);
+    }
   }
+
+  componentWillUnmount() {
+    if (typeof window !== 'undefined' && this._handleOnline) {
+      window.removeEventListener('online', this._handleOnline);
+    }
+  }
+
+  handleRetryOffline = () => {
+    this.setState({ crashed: false, chunkError: false, offlineStall: false });
+  };
 
   static getDerivedStateFromError(error) {
     if (isChunkError(error)) {
+      // OFFLINE (owner report Nov 12 2026, data-off test): a dynamic import fails
+      // with the same message offline as a stale chunk does. Purging the service
+      // worker and reloading then rebooted the whole app the moment data came
+      // back. Offline is a network stall, not a stale build — show a panel and
+      // retry in place without touching caches or reloading.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return { crashed: true, chunkError: false, offlineStall: true };
+      }
       // First chunk error this session → auto-reload after SW/cache purge
       if (!sessionStorage.getItem(RELOAD_FLAG)) {
         sessionStorage.setItem(RELOAD_FLAG, '1');
@@ -150,9 +179,29 @@ export class ChunkErrorBoundary extends Component {
   };
 
   render() {
-    const { crashed, chunkError } = this.state;
+    const { crashed, chunkError, offlineStall } = this.state;
 
     if (!crashed) return this.props.children;
+
+    if (offlineStall) {
+      return (
+        <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 p-8 bg-slate-900 text-white text-center">
+          <div className="text-5xl">📶</div>
+          <div>
+            <p className="text-xl font-semibold mb-2">No connection</p>
+            <p className="text-sm text-slate-400 max-w-xs">
+              That screen needs a network connection once to load. Your saved route and offline data are safe — this retries on its own as soon as you are back online.
+            </p>
+          </div>
+          <button
+            onClick={this.handleRetryOffline}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl text-white font-semibold text-base transition-colors"
+          >
+            Retry now
+          </button>
+        </div>
+      );
+    }
 
     if (chunkError) {
       return (
