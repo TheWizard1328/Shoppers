@@ -155,10 +155,23 @@ export default function DateListPanel({
                 )}
                 {/* Owner request (Nov 12 2026): the total-stop badge matches the
                     print button's 24px footprint (h-6 w-6) so the two line up. */}
+                {/* The Badge base classes carry px-2.5/py-0.5, and a count like 18
+                    stretched it past the print button. Inline metrics win over any
+                    utility class, so the box is exactly 24x24 like the button. */}
                 <Badge
                   variant="secondary"
-                  className="text-xs text-body-2 h-6 w-6 p-0 inline-flex items-center justify-center shrink-0"
-                  style={{ background: 'var(--bg-slate-200)' }}
+                  className="text-xs text-body-2 inline-flex items-center justify-center shrink-0"
+                  style={{
+                    background: 'var(--bg-slate-200)',
+                    width: '24px',
+                    height: '24px',
+                    minWidth: '24px',
+                    maxWidth: '24px',
+                    padding: 0,
+                    lineHeight: 1,
+                    textAlign: 'center',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
                 >
                   {total}
                 </Badge>
