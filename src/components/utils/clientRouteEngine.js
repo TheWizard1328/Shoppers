@@ -13,6 +13,7 @@ import {
   enforceCyclingBlock as sharedEnforceCyclingBlock,
   dwellMinutesForStop as sharedDwellMinutes,
   resolveSequenceSearch,
+  hasPendingCyclingLoop,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
 } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { edmontonNowMinutes, edmontonNowHHmm, edmontonTodayKey, edmontonOffsetStringForWallDate } from './albertaTime';
@@ -1001,7 +1002,10 @@ let _inheritedWindowCount = 0;
     // (current cycling stop) or the last finished stop — see cyclingLegOrigin.
     // Only a missing/incomplete-absent END marker falls back to single-pool
     // driving optimization (Robert's rule, Sep 8 2026).
-    const hasCyclingSegment = !!endMarker;
+    // OWNER DIRECTIVE (Nov 12 2026): an END marker with no cycling stops left to
+    // ride is not a cycling shape — it is where driving resumes. Sequencing then
+    // runs as ONE driving pool (the end marker is the locked next stop).
+    const hasCyclingSegment = !!endMarker && hasPendingCyclingLoop(orderedOptimizationStops);
 
     if (hasCyclingSegment) {
       // Split stopsToSequence into two pools (markers are NOT waypoints):

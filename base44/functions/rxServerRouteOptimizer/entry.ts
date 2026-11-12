@@ -41,6 +41,7 @@ import {
   unitNumberMicroSort as sharedUnitNumberMicroSort,
   SAME_ADDRESS_TRAVEL_MINUTES as SHARED_SAME_ADDRESS_MINUTES,
   resolveSequenceSearch,
+  hasPendingCyclingLoop,
 } from './routeRules.js';
 
 const TIME_ZONE = 'America/Edmonton';
@@ -615,7 +616,12 @@ Deno.serve(async (req) => {
     if ((_cyclingMarkers.length > 0 || _hasCyclingStops) && !_endMarker && !_staleCyclingFlag) {
       return Response.json({ success: true, supported: false, reason: 'cycling_route_without_end_marker' });
     }
-    const mixedMode = !!_endMarker;
+    // OWNER DIRECTIVE (Nov 12 2026): an END marker with NO cycling stops left to
+    // ride is not a cycling shape — it is the point where driving resumes. The
+    // route then sequences and draws as ONE driving run, which is also why this
+    // used to cost a second (bicycle) Directions call for a single marker.
+    const _cyclingLoopPending = hasPendingCyclingLoop(routeStops);
+    const mixedMode = !!_endMarker && _cyclingLoopPending;
 
     const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false, forceRegenerate = false, viaPoint = null, polylineOrigin = null } = options;
 
@@ -985,8 +991,8 @@ Deno.serve(async (req) => {
     // legs sharing a mode go through ONE Router call — a mixed route costs two
     // calls total, a pure driving route stays ONE (unchanged phase-1 behavior).
     const legModeFor = (stop) => stop.isCyclingMarker
-      ? (String(stop.deliveryNotes || '').toLowerCase().includes('start') ? 'car' : 'bicycle')
-      : (String(stop.transportMode || '').toLowerCase() === 'cycling' ? 'bicycle' : 'car');
+      ? (String(stop.deliveryNotes || '').toLowerCase().includes('start') || !_cyclingLoopPending ? 'car' : 'bicycle')
+      : (String(stop.transportMode || '').toLowerCase() === 'cycling' && _cyclingLoopPending ? 'bicycle' : 'car');
     // CLIENT PARITY (routePolylineGenerator.js ~line 285): ONLY en_route /
     // in_transit stops (+ cycling markers + cycling-mode stops) receive
     // polylines. Pending stops are NOT part of the chain — legs bridge

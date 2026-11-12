@@ -70,6 +70,26 @@ export function resolveSequenceSearch({ routePreference, trafficAware, transport
   };
 }
 
+// ─── Cycling loop pending? (OWNER DIRECTIVE Nov 12 2026) ────────────────────
+// "We should be smart enough to realize that the only cycling marker is the
+// cycling route END marker, which is the starting marker for the remaining
+// driving route. There are no cycling markers prior to it, so we should just be
+// optimizing from the end marker onward."
+// A cycling shape only exists while there is at least one real cycling DELIVERY
+// left to ride. Once the loop is done (or before it starts on a route that only
+// carries the markers), the start/end markers are plain DRIVING waypoints: the
+// end marker is simply where driving resumes. Both engines use this one test so
+// the split, the leg modes and the polyline call count can never disagree.
+export function hasPendingCyclingLoop(stops = []) {
+  return (Array.isArray(stops) ? stops : []).some((s) => {
+    if (!s) return false;
+    const isMarker = s.isCyclingMarker === true || s.delivery?.is_cycling_marker === true;
+    if (isMarker) return false;
+    const mode = String(s.transportMode ?? s.delivery?.transport_mode ?? '').toLowerCase();
+    return mode === 'cycling';
+  });
+}
+
 // Missing/invalid time → Infinity (both engines' canonical semantics).
 export function parseTimeToMinutes(timeStr) {
   if (!timeStr || typeof timeStr !== 'string') return Infinity;

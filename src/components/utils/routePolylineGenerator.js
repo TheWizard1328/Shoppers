@@ -15,7 +15,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { guardLegGeometry } from './polylineOriginRules';
-import { isPolylineEligibleStop as sharedIsPolylineEligible } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
@@ -361,9 +361,15 @@ export async function generateRoutePolylines({
     return Math.ceil(Number(minutes) * winter.eta_factor);
   };
 
+  // OWNER DIRECTIVE (Nov 12 2026): markers only ride a bicycle leg while a real
+  // cycling delivery is still on the route. With the loop finished (or never
+  // started) the END marker is the first driving waypoint, so its leg must be
+  // drawn with the driving chain — one Directions call, no bicycle stub.
+  const _cyclingLoopPending = sharedHasPendingCyclingLoop(stops || []);
   const resolveMode = (delivery) => {
+    if (delivery?.is_cycling_marker === true && !_cyclingLoopPending) return 'driving';
     const raw = String(delivery?.transport_mode || fallbackTravelMode).toLowerCase();
-    if (raw === 'cycling') return 'cycling';
+    if (raw === 'cycling') return _cyclingLoopPending ? 'cycling' : 'driving';
     if (raw === 'pedestrian') return 'pedestrian';
     return 'driving';
   };
