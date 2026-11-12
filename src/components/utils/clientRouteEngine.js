@@ -2126,6 +2126,20 @@ let _inheritedWindowCount = 0;
     // the delivery's current status if it is 'in_transit' (transitioning deliveries).
     const statusToWrite = correctedStatus || (stop.status === 'in_transit' ? 'in_transit' : undefined);
 
+    // ── STALE-LEG INVALIDATION (owner report Nov 12 2026) ────────────────────
+    // Robert's InterStore drop-off was renumbered 19 -> 20 when the Russell
+    // Richardson RETURN landed ahead of it, but no fresh leg could be produced
+    // for it in that run, so the record kept a leg STAMPED 19 - geometry drawn
+    // from the stop that used to precede it. The map drew the wrong leg and the
+    // deviation algorithm then refused to correct it, because the driver was
+    // never on that leg. Rule: if a run renumbers a stop and produces no usable
+    // segment for it, the stale geometry is CLEARED (never silently retained).
+    // A missing leg is honest; a mis-anchored leg poisons deviation detection.
+    const _segWritable = _segIsUsable(seg, stop) && (!isPending || stop.is_cycling_marker === true);
+    const _storedStamp = stop?.polyline_from_order == null ? null : Number(stop.polyline_from_order);
+    const _stampMismatch = Number.isFinite(_storedStamp) && Number.isFinite(Number(newOrder)) && _storedStamp !== Number(newOrder);
+    const _invalidateStaleLeg = !_segWritable && _stampMismatch && !isPending;
+
     const updateData = {
       stop_order: newOrder,
       delivery_time_eta: stop.delivery_time_eta,
@@ -2167,7 +2181,8 @@ let _inheritedWindowCount = 0;
       // map. A degenerate leg (<= 2 points AND under 30 m) is never written: the
       // stop keeps its existing stored leg instead of being overwritten with a
       // dot, which is what the map reads as "no polyline".
-      ...(_segIsUsable(seg, stop) && (!isPending || stop.is_cycling_marker === true) ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
+      ...(_segWritable ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
+      ...(_invalidateStaleLeg ? { encoded_polyline: null, polyline_from_order: null } : {}),
       // OWNER REPORT (Oct 30 2026: "it keeps clearing the current leg polyline
       // then redrawing it"): a stop the engine reads as pending was having its
       // stored leg NULLED on every pass — and when that stop is the leg the
@@ -2186,6 +2201,10 @@ let _inheritedWindowCount = 0;
         && stop.delivery?.isNextDelivery !== true
         ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
+
+    if (_invalidateStaleLeg) {
+      console.warn(`[clientRouteEngine] ${source} — clearing STALE leg on stop ${newOrder} (${stop.patient_name || stop.id}): no usable segment this run and the stored leg was stamped ${_storedStamp} for an old position`);
+    }
 
     // Deviation-waypoint transfer changes ride along with stop_order/polyline
     // so the server write commits them atomically (Sep 17 2026).

@@ -161,8 +161,24 @@ async function _performRouteOptimizationInner({
             || d.delivery_notes === 'Cycling Route Start'
             || d.delivery_notes === 'Cycling Route End')
           .some((d) => !d.encoded_polyline || String(d.encoded_polyline).length <= 10);
-        if (i === currentOrder.length && !missingLeg) {
-          console.log(`[RouteOptimization] ${source} — skipped: remaining order matches the run ${Math.round((Date.now() - prev.at) / 1000)}s ago (${currentOrder.length} stop(s), no geometry change)`);
+        // OWNER REPORT (Nov 12 2026, Robert / Russell Richardson + the InterStore
+        // drop-off): a stop can keep its physical position while its stop_order
+        // SHIFTS because new stops were inserted around it. The old order of the
+        // remaining stops then "matches" and this whole run was skipped, so the
+        // stop kept a leg drawn from its PREVIOUS predecessor. A leg stamped for a
+        // different stop_order is stale by definition, so its presence must veto
+        // the skip exactly like missing geometry does.
+        const staleLeg = deliveries
+          .filter((d) => d && !TERMINAL_STATUSES.includes(String(d.status || '')))
+          .some((d) => {
+            if (!d.encoded_polyline) return false;
+            const stamp = d.polyline_from_order == null ? null : Number(d.polyline_from_order);
+            const order = d.stop_order == null ? null : Number(d.stop_order);
+            if (!Number.isFinite(stamp) || !Number.isFinite(order)) return true;
+            return stamp !== order;
+          });
+        if (i === currentOrder.length && !missingLeg && !staleLeg) {
+          console.log(`[RouteOptimization] ${source} — skipped: remaining order matches the run ${Math.round((Date.now() - prev.at) / 1000)}s ago (${currentOrder.length} stop(s), no geometry change, no stale leg stamp)`);
           return { success: true, skipped: 'fresh_order_unchanged', freshDeliveries: deliveries };
         }
       }
