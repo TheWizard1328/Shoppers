@@ -267,45 +267,47 @@ export default function MultiDeliveryArrivalDialog({
                     </Badge>
                   </div>
 
-                  {/* Row 2: Unit + Tracking # (address removed — shown in dialog header) */}
-                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  {/* Row 2: Unit + Tracking # + phone, all on one line
+                      (owner spec Nov 12 2026): bigger type for the unit, the TR#
+                      and the phone, with the phone pushed to the right of the row
+                      instead of sitting on its own line underneath. Wraps rather
+                      than overflowing on narrow phones. */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600 dark:text-slate-400">
                     {(delivery.unit_number || patient?.unit_number) && (
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      <span className="font-bold text-base text-slate-700 dark:text-slate-300">
                         Unit #{delivery.unit_number || patient?.unit_number}
                       </span>
                     )}
                     {delivery.tracking_number && (
-                      <span className={`flex items-center gap-1 text-sm text-slate-400 dark:text-slate-400${(delivery.unit_number || patient?.unit_number) ? 'ml-auto' : 'ml-0'}`}>
-                        <Hash className="w-3.5 h-3.5" />TR#{delivery.tracking_number}
+                      <span className="flex items-center gap-1 text-base text-slate-400 dark:text-slate-400">
+                        <Hash className="w-4 h-4" />TR#{delivery.tracking_number}
+                      </span>
+                    )}
+                    {(patient?.phone || delivery.phone) && (
+                      <span className="ml-auto flex items-center gap-1.5 text-lg text-slate-600 dark:text-slate-400">
+                        <Phone className="w-4 h-4 flex-shrink-0" />
+                        <a
+                          href={`tel:${String(patient?.phone || delivery.phone).replace(/\D/g, '')}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {formatPhoneNumber(patient?.phone || delivery.phone)}
+                        </a>
+                        {patient?.phone_secondary && (
+                          <>
+                            <span className="text-slate-400 dark:text-slate-400">·</span>
+                            <a
+                              href={`tel:${String(patient.phone_secondary).replace(/\D/g, '')}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-blue-600 hover:underline"
+                            >
+                              {formatPhoneNumber(patient.phone_secondary)}
+                            </a>
+                          </>
+                        )}
                       </span>
                     )}
                   </div>
-
-                  {/* Row 3: Phone */}
-                  {(patient?.phone || delivery.phone) && (
-                    <div className="flex items-center gap-1.5 text-base text-slate-600 dark:text-slate-400">
-                      <Phone className="w-4 h-4 flex-shrink-0" />
-                      <a
-                        href={`tel:${String(patient?.phone || delivery.phone).replace(/\D/g, '')}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {formatPhoneNumber(patient?.phone || delivery.phone)}
-                      </a>
-                      {patient?.phone_secondary && (
-                        <>
-                          <span className="text-slate-400 dark:text-slate-400">·</span>
-                          <a
-                            href={`tel:${String(patient.phone_secondary).replace(/\D/g, '')}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-blue-600 hover:underline"
-                          >
-                            {formatPhoneNumber(patient.phone_secondary)}
-                          </a>
-                        </>
-                      )}
-                    </div>
-                  )}
 
                   {/* Row 4: Special symbols */}
                   <div className="flex items-center gap-2 flex-wrap">
