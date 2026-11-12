@@ -342,7 +342,18 @@ async function callHereSequence({ origin, stops, home, destination, mode = 'car'
   const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
     signal: AbortSignal.timeout(25000)
   });
-  if (!response.ok) throw new Error(`HERE findsequence2 failed with ${response.status}`);
+  if (!response.ok) {
+    // HERE explains a 400 in the body ("Cannot parse time: th25:40:00 …",
+    // "Waypoint id X is not unique", …). Throwing the bare status made every
+    // one of these look identical and unfixable from the app (owner report
+    // Nov 12 2026: "still pinging Google twice and no HERE hits").
+    let body = '';
+    try { body = await response.text(); } catch (_) { body = ''; }
+    const err = new Error(`HERE findsequence2 ${response.status}${body ? ` — ${body.replace(/\s+/g, ' ').slice(0, 240)}` : ''}`);
+    (err as any).status = response.status;
+    (err as any).hereBody = body;
+    throw err;
+  }
   const data = await response.json().catch(() => null);
   const route = data?.results?.[0];
   if (!route?.waypoints?.length) throw new Error('HERE findsequence2 returned no waypoints');
@@ -726,6 +737,38 @@ Deno.serve(async (req) => {
       return nn;
     };
 
+    // ── WINDOW-REJECTION RETRY LADDER (client engine parity, Nov 12 2026) ───
+    // The client engine retries a rejected windowed search with a wider sway
+    // (±30, then ±60 min) and then once with NO windows at all. The server
+    // called findsequence2 exactly once: any 4xx became a silent crow-flies
+    // route, which is why a server optimize produced neither time-window
+    // ordering nor a home-anchored ending. Same ladder here now.
+    const sequenceWithRetry = async (args: any) => {
+      const _tries = [
+        { windowSway: args.windowSway ?? 0, includeTimeWindows: args.includeTimeWindows },
+        { windowSway: 30, includeTimeWindows: args.includeTimeWindows },
+        { windowSway: 60, includeTimeWindows: args.includeTimeWindows },
+        { windowSway: 0, includeTimeWindows: false },
+      ];
+      let lastErr: any = null;
+      for (const attempt of _tries) {
+        try {
+          const seq = await callHereSequence({ ...args, windowSway: attempt.windowSway, includeTimeWindows: attempt.includeTimeWindows });
+          if (attempt !== _tries[0]) {
+            console.warn(`[rxServerRouteOptimizer] findsequence2 recovered on retry (sway=${attempt.windowSway}, windows=${attempt.includeTimeWindows})`);
+          }
+          return seq;
+        } catch (e: any) {
+          lastErr = e;
+          // Only a rejected REQUEST is worth retrying with a softer window set.
+          // Timeouts and 5xx are not window-shape problems.
+          if (e?.status !== 400) throw e;
+          console.warn(`[rxServerRouteOptimizer] findsequence2 400 (sway=${attempt.windowSway}, windows=${attempt.includeTimeWindows}) — ${e?.message}`);
+        }
+      }
+      throw lastErr;
+    };
+
     if (preserveExistingOrder) {
       // MANUAL REORDER (owner spec Oct 26 2026): keep the CALLER's order.
       // Chain = currentStopOrder sort; NO HERE sequencing, NO window-band
@@ -753,7 +796,7 @@ Deno.serve(async (req) => {
 
       if (cyclingPool.length > 0) {
         try {
-          const seqResult = await callHereSequence({
+          const seqResult = await sequenceWithRetry({
             origin, stops: cyclingPool, destination: { lat: _endMarker.lat, lng: _endMarker.lng },
             mode: 'bicycle', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs,
           });
@@ -768,7 +811,7 @@ Deno.serve(async (req) => {
       }
       if (drivingPool.length > 0) {
         try {
-          const seqResult = await callHereSequence({
+          const seqResult = await sequenceWithRetry({
             origin: { lat: _endMarker.lat, lng: _endMarker.lng }, stops: drivingPool, home,
             mode: 'car', apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs,
           });
@@ -806,7 +849,7 @@ Deno.serve(async (req) => {
         if (_seqPool.length === 0) {
           orderedStops = _lockedStop ? [_lockedStop] : [];
         } else {
-          const seqResult = await callHereSequence({
+          const seqResult = await sequenceWithRetry({
             origin, stops: _seqPool, home, apiKey, deliveryDate, currentMinutes, includeTimeWindows, routePrefs, routeIsToday: _routeIsToday,
           });
           orderedStops = _lockedStop ? [_lockedStop, ...resolveSequence(seqResult, _seqPool)] : resolveSequence(seqResult, _seqPool);

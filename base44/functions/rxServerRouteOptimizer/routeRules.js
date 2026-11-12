@@ -44,7 +44,7 @@ export const SAME_ADDRESS_KM = 0.05;
 // the drift this file exists to prevent. BOTH engines now call this one helper:
 //   fastest  → mode=fastest,  improveFor=time      (quickest total drive)
 //   shortest → mode=shortest, improveFor=distance   (fewest total km)
-//   best     → mode=fastest,  improveFor=quality    (HERE's balanced pick)
+//   best     → mode=fastest,  improveFor=time       (quality is rejected by v8)
 // Traffic awareness adds HERE's traffic flag to the FASTEST modes only: HERE's
 // shortest mode has no traffic weighting, so it is omitted there rather than
 // silently degrading the request.
@@ -56,11 +56,17 @@ export function resolveSequenceSearch({ routePreference, trafficAware, transport
   if (pref === 'shortest') {
     return { preference: pref, traffic: false, mode: `shortest;${transportMode}`, improveFor: 'distance' };
   }
+  // OWNER REPORT Nov 12 2026 (verified against the live HERE endpoint): v8
+  // findsequence2 answers 400 "Parameter 'improveFor' only accepts 'time' or
+  // 'distance'" for improveFor=quality, so the "best" preference used to make
+  // EVERY sequencing call fail and the route fell back to crow-flies ordering.
+  // "best" now asks for time and keeps HERE's balanced default through the
+  // traffic flag, which is what quality was meant to express.
   return {
     preference: pref,
     traffic,
     mode: `fastest;${transportMode};traffic:${traffic ? 'enabled' : 'disabled'}`,
-    improveFor: pref === 'best' ? 'quality' : 'time',
+    improveFor: 'time',
   };
 }
 
