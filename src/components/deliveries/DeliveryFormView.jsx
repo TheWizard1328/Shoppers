@@ -1652,8 +1652,8 @@ export default function DeliveryFormView({
                       </div>
 
                       {!useMobileLayout &&
-                      <div className="min-w-0 min-h-0 overflow-y-auto pr-1 space-y-3">
-                          <div className="px-3 py-2 rounded-lg space-y-2 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className="min-w-0 min-h-0 overflow-y-auto pr-1 flex flex-col gap-3">
+                          <div className="px-3 py-2 rounded-lg space-y-2 border border-surface shrink-0" style={{ background: 'var(--bg-slate-50)' }}>
                             <SmartBarcodeScanner
                             defaultCollapsed={useMobileLayout && isMobileDevice && ['in_transit', 'en_route', 'completed', 'failed', 'cancelled', 'returned'].includes(formData.status)}
                             receiptBarcodeValues={formData.receipt_barcode_values || []}
@@ -1671,10 +1671,16 @@ export default function DeliveryFormView({
 
                           </div>
 
-                          <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px] border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px] flex-1 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             {/* desktop SmartBarcodeScanner barcodeInputRef is wired via shared ref */}
-                            <Label className="text-sm font-semibold text-body">Patient Preferences</Label>
-                            <div className="flex-1 flex flex-col justify-center gap-1">
+                            <Label className="text-sm font-semibold text-body shrink-0">Patient Preferences</Label>
+                            {/* Owner spec Nov 12 2026: the six preference rows spread
+                                out to fill whatever height the panel is given, and
+                                the panel itself stretches to fill its share of the
+                                column. justify-between distributes the spare space
+                                between the rows; the inner scroll keeps a short
+                                panel usable instead of clipping a row. */}
+                            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-between gap-1 pt-2">
                               <CheckboxField id="care_pros" label="Care Pro's" checked={formData.care_pros} onChange={(c) => setFormData((p) => ({ ...p, care_pros: c }))} disabled={isSaving} />
                               <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
                               <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={(c) => setFormData((p) => ({ ...p, ring_bell: c }))} disabled={isSaving} />
@@ -1684,8 +1690,8 @@ export default function DeliveryFormView({
                             </div>
                           </div>
 
-                          <div className="px-3 py-2 rounded-lg space-y-2 border min-h-[240px] border-surface" style={{ background: 'var(--bg-slate-50)' }}>
-                            <Label className="text-sm font-semibold text-body">Recurring</Label>
+                          <div className="px-3 py-2 rounded-lg border min-h-[240px] flex-1 flex flex-col gap-2 overflow-y-auto border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                            <Label className="text-sm font-semibold text-body shrink-0">Recurring</Label>
                             <DeliveryRecurringOptions
                             formData={formData} setFormData={setFormData} isSaving={isSaving}
                             currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
@@ -1874,10 +1880,10 @@ export default function DeliveryFormView({
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3 items-start">
-                            <div className="space-y-2 p-3 rounded-lg border h-full border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="grid grid-cols-2 gap-3 items-stretch">
+                            <div className="flex flex-col space-y-2 p-3 rounded-lg border h-full border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                               <Label className="text-sm font-semibold text-body">Patient Preferences</Label>
-                              <div className={`${useMobileLayout ? 'space-y-2.5' : 'space-y-1.5'}`}>
+                              <div className={`flex-1 flex flex-col justify-between ${useMobileLayout ? 'gap-2.5' : 'gap-1.5'}`}>
                                 <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
                                 <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={(c) => setFormData((p) => ({ ...p, ring_bell: c }))} disabled={isSaving} />
                                 <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={(c) => setFormData((p) => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
@@ -1887,7 +1893,7 @@ export default function DeliveryFormView({
                               </div>
                             </div>
 
-                            <div className="space-y-2 p-3 rounded-lg border h-full border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                            <div className="flex flex-col space-y-2 p-3 rounded-lg border h-full border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                               <Label className="text-sm font-semibold text-body">Recurring</Label>
                               <DeliveryRecurringOptions
                               formData={formData} setFormData={setFormData} isSaving={isSaving}
