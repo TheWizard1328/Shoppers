@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-import { resolveFeatureSecretName } from '../../shared/apiKeyResolver.ts';
+import { resolveFeatureSecretName, resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
 import { encodeGooglePolyline as codecEncodeGooglePolyline, decodeGooglePolyline as codecDecodeGooglePolyline, calculateCrowFliesDistance as codecCrowFliesKm } from '../../shared/polylineCodec.ts';
 
 // ─── Time helpers (ported from clientRouteEngine.js) ────────────────────────
@@ -529,11 +529,32 @@ Deno.serve(async (req) => {
     // owner/admin can already obtain this key via getActiveHereApiKey, so
     // passing it adds no new exposure; the function never logs or returns it.
     const payload = await req.json().catch(() => ({}));
-    const apiKey = Deno.env.get('HERE_API_KEY')
-      || (typeof payload?.hereApiKey === 'string' && payload.hereApiKey.length > 10 ? payload.hereApiKey : '');
+    // ── KEY PRECEDENCE (owner report Nov 12 2026) ──────────────────────────
+    // "when I optimize a route everything is going through the Google API …
+    // it hit twice on Google instead of once on HERE for sequencing."
+    // This block used to PREFER the function's own HERE_API_KEY env secret and
+    // only fall back to the key the client sends. The admin settings page lets
+    // each feature choose a specific secret (route optimization was set to
+    // Here_API_Key_2), but a stale/invalid HERE_API_KEY env secret won anyway:
+    // findsequence2 threw, the catch below quietly switched to nearest-neighbour
+    // crow-flies ordering, hereCalls stayed 0, and the ONLY usage that reached
+    // GoogleAPILog was the Google polyline pass — so the route looked like it
+    // had been optimized entirely on Google. Precedence is now: the key the
+    // client resolved from the route_optimization slot first, then the
+    // feature-resolved secret, then the env var as a last resort.
+    let apiKey = (typeof payload?.hereApiKey === 'string' && payload.hereApiKey.length > 10) ? payload.hereApiKey : '';
+    if (!apiKey) {
+      try { apiKey = (await resolveFeatureApiKey(base44, 'route_optimization')) || ''; } catch (_) { apiKey = ''; }
+    }
+    if (!apiKey) {
+      apiKey = Deno.env.get('HERE_API_KEY') || '';
+    }
     if (!apiKey) {
       return Response.json({ success: true, supported: false, reason: 'here_api_key_missing' });
     }
+    // Set when findsequence2 fails, so the failure is logged with its real
+    // message instead of only showing up as "no HERE calls".
+    let seqFailure = null;
 
     const {
       driverId, driverName = null, deliveryDate, currentMinutes,
@@ -740,7 +761,8 @@ Deno.serve(async (req) => {
           hereCalls++;
         } catch (seqErr) {
           usedFallbackOrdering = true;
-          console.warn(`[rxServerRouteOptimizer] bicycle findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
+          seqFailure = `bicycle leg: ${seqErr?.message || seqErr}`;
+        console.warn(`[rxServerRouteOptimizer] bicycle findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
           orderedCycling = nearestNeighborOrder(cyclingPool, origin);
         }
       }
@@ -754,6 +776,7 @@ Deno.serve(async (req) => {
           hereCalls++;
         } catch (seqErr) {
           usedFallbackOrdering = true;
+          seqFailure = `car leg: ${seqErr?.message || seqErr}`;
           console.warn(`[rxServerRouteOptimizer] car findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
           orderedDriving = nearestNeighborOrder(drivingPool, { lat: _endMarker.lat, lng: _endMarker.lng });
         }
@@ -794,6 +817,7 @@ Deno.serve(async (req) => {
         // its own engine anyway if we report unsupported; instead we still
         // produce a deterministic order + polylines so the route stays usable).
         usedFallbackOrdering = true;
+        seqFailure = String(seqErr?.message || seqErr);
         console.warn(`[rxServerRouteOptimizer] findsequence2 failed (${seqErr?.message || seqErr}) — nearest-neighbor fallback`);
         const _nnPool = _lockedStop ? routeStops.filter((st) => st.id !== _lockedStop.id) : routeStops;
         const _nnOrdered = nearestNeighborOrder(_nnPool, origin);
@@ -1230,6 +1254,20 @@ Deno.serve(async (req) => {
           user_id: driverId || null,
           user_name: driverName || null,
           metadata: { provider: 'HERE', source: 'server_optimizer', call_count: hereCalls },
+        });
+      }
+      // Sequencing failure is never silent again: without this the only symptom
+      // was "HERE shows zero calls" while Google showed the whole route (owner
+      // report Nov 12 2026).
+      if (seqFailure) {
+        await base44.entities.GoogleAPILog.create({
+          timestamp: new Date().toISOString(),
+          api_type: 'Route Optimization (HERE)',
+          purpose: `findsequence2 FAILED — ${String(seqFailure).slice(0, 300)}`,
+          function_name: 'rxServerRouteOptimizer',
+          user_id: driverId || null,
+          user_name: driverName || null,
+          metadata: { provider: 'HERE', source: 'server_optimizer', failed: true, call_count: 0, key_source: apiKey === Deno.env.get('HERE_API_KEY') ? 'env' : 'feature_slot' },
         });
       }
     } catch (_) { /* badge logging must never break the optimization */ }
