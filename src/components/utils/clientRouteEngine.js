@@ -1230,18 +1230,15 @@ let _inheritedWindowCount = 0;
   // travel-mode change, Reset Polylines) and the cycling/driving
   // segment-only regens. Declared at function scope so the
   // ETA phase below can read it (it sits outside the polyline phase's block).
-  const _preOptOrderIds = activeRouteDeliveries
-    .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
-    .map(d => String(d.id));
-  const _optimizedOrderIds = routeStops.map(s => String(s.delivery?.id));
-  const orderUnchangedForPolylines = !forceRegenerate
-    && !preserveExistingOrder
-    && !cyclingSegmentOnly && !drivingSegmentOnly
-    && _preOptOrderIds.length === _optimizedOrderIds.length
-    && _preOptOrderIds.every((id, index) => id === _optimizedOrderIds[index]);
-  if (orderUnchangedForPolylines) {
-    console.log(`[clientRouteEngine] ${source} — optimizer kept the existing stop order (${_optimizedOrderIds.length} stops) — requesting polyline skip`);
-  }
+  // OWNER DIRECTIVE (re-stated Nov 12 2026, Robert's current leg home -> stop 1
+  // vanished after a manual optimize / Quick Route Adjustments re-optimize and
+  // only came back when deviation detection redrew it): polyline generation
+  // ALWAYS regenerates. The "optimizer kept the existing order, skip polylines"
+  // shortcut that lived here was re-added by the Nov 5 leg-gap-heal work and is
+  // REMOVED again - it must never come back. Skipping generation left the stored
+  // current leg to be cleared or stale-written, so the first leg disappeared
+  // instead of being rebuilt.
+  const orderUnchangedForPolylines = false;
 
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
