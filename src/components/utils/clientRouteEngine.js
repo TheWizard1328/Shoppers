@@ -2022,7 +2022,19 @@ let _inheritedWindowCount = 0;
     const accepted = pool.find((s) => _statusOf(s) !== 'pending');
     return accepted?.id || pool[0]?.id || null;
   })();
+  // ── THE FLAG ON THE STOP BEATS ANY COMPUTED GUESS (owner report, Nov 12 2026:
+  // "the quick adjust panel chooses its own isNextDelivery stop and sets it",
+  // and "the optimizer tries to make my 5:00 stop the next one instead of the
+  // stops in between"). Rule 1 only consulted the CALLER's explicitNextDelivery
+  // param, so any run that did not pass one - the quick-adjust re-optimize, the
+  // post-completion syncs, the FAB - fell through to a computed pick and
+  // re-pointed the flag at whatever the sequencer happened to put first. The
+  // stop that already carries isNextDelivery is now honoured directly from the
+  // active list: a run may reorder the stops, but it can no longer move the
+  // driver's current stop out from under him.
+  const _flaggedActiveStop = activeStops.find((s) => s?.isNextDelivery === true || s?.delivery?.isNextDelivery === true) || null;
   const nextStopId = (explicitNextDelivery && !clearNextDeliveryLock ? explicitNextDelivery.id : null)
+    || (!clearNextDeliveryLock ? (_flaggedActiveStop?.id || null) : null)
     || (clearNextDeliveryLock
       ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null)
       : (!routeInProgress

@@ -790,7 +790,16 @@ export async function generateRoutePolylines({
     const _curStop = polyTargets[0];
     const _curLat = Number(_curStop.lat), _curLng = Number(_curStop.lng);
     const _directKm = haversineKm(Number(effectiveOrigin.lat), Number(effectiveOrigin.lon), _curLat, _curLng);
-    if (Number.isFinite(_directKm) && _directKm > 0.05) {
+    // ONE CALL, NOT TWO (owner objection, Nov 12 2026). The chained request is
+    // still the only routine API call: this repair runs ONLY when that chain
+    // returned nothing usable for the current stop, which is the case that used
+    // to leave the driver's live leg blank. A healthy chain costs exactly one
+    // call, as before.
+    const _chainedCur = polylineByDeliveryId.get(_curStop.delivery.id);
+    const _chainedOk = !!(_chainedCur?.encodedPolyline && String(_chainedCur.encodedPolyline).length > 10);
+    if (_chainedOk) {
+      console.log(`[routePolylineGenerator] ${source} — current leg came from the single chained call (no extra request)`);
+    } else if (Number.isFinite(_directKm) && _directKm > 0.05) {
       let _curVias = _suppressFirstLegVias ? [] : dropStaleVias(getDeviationWaypoints(_curStop.delivery));
       const _curPoints = [
         { lat: Number(effectiveOrigin.lat), lon: Number(effectiveOrigin.lon) },
