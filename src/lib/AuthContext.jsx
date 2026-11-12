@@ -20,6 +20,48 @@ const _withTimeout = (promise, ms, label) =>
     )
   ]);
 
+// ── OFFLINE-FIRST AUTH (owner report Nov 12 2026) ───────────────────────────
+// The app was unloadable for ~15 minutes on a weak link: checkAppState() and
+// checkUserAuth() BOTH required a live platform call, so a timeout set an
+// authError / isAuthenticated=false and the router bounced to the login screen
+// even though the session and the whole offline database were intact on the
+// device. The last good auth.me() user and public-settings snapshot are now
+// cached, and a TRANSPORT failure (offline, timeout, network error, 5xx during a
+// deploy) boots from that cache instead of failing. A real 401/403 still signs
+// the user out, and the cache is cleared on logout.
+const AUTH_SNAPSHOT_KEY = 'rxdeliver_auth_snapshot_v1';
+const readAuthSnapshot = () => {
+  try {
+    const raw = localStorage.getItem(AUTH_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && parsed.user ? parsed : null;
+  } catch { return null; }
+};
+const writeAuthSnapshot = (user, settings) => {
+  try {
+    if (!user) return;
+    localStorage.setItem(AUTH_SNAPSHOT_KEY, JSON.stringify({ user, settings: settings || null, saved_at: Date.now() }));
+  } catch { /* quota — the cache is an optimization, never fatal */ }
+};
+const clearAuthSnapshot = () => { try { localStorage.removeItem(AUTH_SNAPSHOT_KEY); } catch {} };
+// True only for failures that say nothing about the session being valid:
+// no HTTP status at all (offline / DNS / abort), a gateway 5xx during a deploy,
+// or a timeout. A 401/403/404 is a real answer and must NOT be softened.
+const isTransportFailure = (error) => {
+  const status = Number(error?.status || error?.response?.status || 0);
+  if (status >= 500 && status <= 599) return true;
+  if (status >= 400) return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+  const msg = String(error?.message || '').toLowerCase();
+  return error?.code === 'ECONNABORTED'
+    || msg.includes('timeout')
+    || msg.includes('network')
+    || msg.includes('failed to fetch')
+    || msg.includes('load failed')
+    || msg.includes('timed out');
+};
+
 const AuthContext = createContext();
 
 const getAppReturnUrl = () =>  `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -38,6 +80,7 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
   const deepLinkHandledRef = useRef(false);
+  const publicSettingsRef = useRef(null);
 
   useEffect(() => {
     // PERF/UX (owner report Oct 9 2026: force close forced re-login): restore
@@ -48,6 +91,18 @@ export const AuthProvider = ({ children }) => {
       checkAppState();
       setupDeepLinkHandler();
     });
+  }, []);
+
+  // After an offline-first boot, re-validate the moment the link comes back so
+  // an expired session is caught then (not silently kept), and the cache is
+  // refreshed with the live user.
+  useEffect(() => {
+    const onOnline = () => {
+      console.warn('[Auth] Link restored — re-validating session');
+      checkAppState();
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
   }, []);
 
   // ─── Native OAuth deep link handler ─────────────────────────────
@@ -192,6 +247,7 @@ export const AuthProvider = ({ children }) => {
           12000, 'public-settings'
         );
         setAppPublicSettings(publicSettings);
+        publicSettingsRef.current = publicSettings;
         
         // If we got the app public settings successfully, check if user is authenticated
         if (appParams.token) {
@@ -203,6 +259,21 @@ export const AuthProvider = ({ children }) => {
         setIsLoadingPublicSettings(false);
       } catch (appError) {
         console.error('App state check failed:', appError);
+
+        // Offline / deploy-window: boot from the cached session instead of
+        // bouncing to login. A real 401/403 still falls through to authError.
+        const snapshot = readAuthSnapshot();
+        if (isTransportFailure(appError) && snapshot?.user) {
+          console.warn('[Auth] Platform unreachable — booting from cached session (offline-first)');
+          publicSettingsRef.current = snapshot.settings || null;
+          setAppPublicSettings(snapshot.settings || null);
+          setUser(snapshot.user);
+          setIsAuthenticated(true);
+          setAuthError(null);
+          setIsLoadingAuth(false);
+          setIsLoadingPublicSettings(false);
+          return;
+        }
         
         // Handle app-level errors
         if (appError.status === 403 && appError.data?.extra_data?.reason) {
@@ -250,6 +321,7 @@ export const AuthProvider = ({ children }) => {
       const currentUser = await _withTimeout(base44.auth.me(), 10000, 'auth.me');
       setUser(currentUser);
       setIsAuthenticated(true);
+      writeAuthSnapshot(currentUser, publicSettingsRef.current);
       void shipBootDiags(); // ship any wipe-diag rows from earlier (possibly unauthenticated) boots
       setIsLoadingAuth(false);
 
@@ -272,6 +344,20 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('User auth check failed:', error);
+
+      // Offline-first: a transport failure is not a rejected session. Reuse the
+      // cached user so the dashboard, offline DB and route keep working.
+      const snapshot = readAuthSnapshot();
+      if (isTransportFailure(error) && snapshot?.user) {
+        console.warn('[Auth] auth.me unreachable — using cached session (offline-first)');
+        setUser(snapshot.user);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        setIsLoadingAuth(false);
+        void recordBootDiag({ auth_result: 'cached_offline', status: null, msg: 'auth.me unreachable; served cached session' });
+        return;
+      }
+
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       // AUTH-BOOT DIAG: the token (restored or live) was REJECTED server-side —
@@ -289,6 +375,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async (shouldRedirect = true) => {
+    clearAuthSnapshot();
     setUser(null);
     setIsAuthenticated(false);
     
