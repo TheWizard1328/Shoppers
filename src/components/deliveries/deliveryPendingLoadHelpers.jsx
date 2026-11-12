@@ -22,25 +22,44 @@ export const filterPendingDeliveriesForUser = ({
     (!anchorDate || delivery.delivery_date >= anchorDate)
   );
 
-  // A driver chosen on the form narrows the list to that driver for everyone.
-  if (selectedDriverId) {
-    pendingDeliveries = pendingDeliveries.filter((delivery) => delivery.driver_id === selectedDriverId);
-    return pendingDeliveries;
-  }
+  // A driver chosen on the form narrows the list to that driver for everyone —
+  // but it narrows WITHIN the caller's own scope. It used to return here before
+  // any role scoping ran, so a dispatcher who picked a driver saw that driver's
+  // pending posts from every store.
+  // Admin-like = app admin role, the App Owner, or a platform admin account.
+  // These keep the full cross-store list so dispatch/admin workflows are unchanged.
+  const isAdminLike = userHasRole(currentUser, 'admin')
+    || currentUser?.role === 'App Owner'
+    || currentUser?.role === 'admin'
+    || (Array.isArray(currentUser?.app_roles) && currentUser.app_roles.includes('admin'));
+  const storeIds = Array.isArray(currentUser?.store_ids) ? currentUser.store_ids.filter(Boolean) : [];
+  const isDispatcher = userHasRole(currentUser, 'dispatcher');
+  const isDriver = userHasRole(currentUser, 'driver');
 
-  const isAdminLike = userHasRole(currentUser, 'admin') || currentUser?.role === 'App Owner';
+  const narrowToDriver = (rows) => (selectedDriverId ? rows.filter((d) => d.driver_id === selectedDriverId) : rows);
+
   if (isAdminLike) {
-    return pendingDeliveries;
+    return narrowToDriver(pendingDeliveries);
   }
 
-  if (userHasRole(currentUser, 'dispatcher')) {
-    const dispatcherStoreIds = currentUser.store_ids || [];
-    pendingDeliveries = pendingDeliveries.filter((delivery) => dispatcherStoreIds.includes(delivery.store_id));
-  } else if (userHasRole(currentUser, 'driver')) {
-    pendingDeliveries = pendingDeliveries.filter((delivery) => delivery.driver_id === currentUser.id);
+  // OWNER REPORT (Nov 12 2026): a Collingwood dispatcher could see Londonderry's
+  // pending posts in the Add To Route panel (and vice versa). The old branch fell
+  // through to an unfiltered return whenever the role check did not match — an
+  // AppUser whose app_roles had not loaded yet, or a dispatcher holding an extra
+  // role, saw EVERY store. The scoping is now deny-by-default: only an admin/App
+  // Owner sees everything, and everyone else is limited by their own store list
+  // (dispatchers) or their own driver id.
+  if (isDispatcher || storeIds.length > 0) {
+    const scoped = storeIds.length ? pendingDeliveries.filter((d) => storeIds.includes(d.store_id)) : [];
+    return narrowToDriver(scoped);
   }
 
-  return pendingDeliveries;
+  if (isDriver) {
+    return pendingDeliveries.filter((d) => d.driver_id === currentUser.id);
+  }
+
+  // Unknown role and no store list — show nothing rather than every store.
+  return [];
 };
 
 export const mapPendingDeliveriesToStaged = ({
