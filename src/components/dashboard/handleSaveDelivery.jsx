@@ -4,7 +4,7 @@
  */
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
-import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
+import { determineAMPMFromTime, getPickupStopIdForDelivery } from '@/components/utils/ampmUtils';
 import { saveDriverChangedDelivery } from '@/components/utils/saveDriverChangedDelivery';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
 import { invalidate } from '@/components/utils/dataManager';
@@ -51,6 +51,29 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         setShowDeliveryForm, setEditingDelivery, hasAutoSelectedRef,
         invalidateDeliveriesForDate: () => invalidate('Delivery'),
       });
+    }
+
+    // PUID REPAIR ON SAVE (owner report Nov 11 2026): three pending Kingsway
+    // stops kept PUID qLF while the pickup in view had a different stop_id, so
+    // they never rendered under the pickup card and editing them changed
+    // nothing (the PUID was never re-derived). A moved stop keeps its PUID and a
+    // re-created pickup mints a new one, so every save now re-points a patient
+    // delivery at the pickup that really exists for its store / date / slot.
+    // This is the "Add To Route Update fixes it" behaviour, applied on purpose.
+    if (deliveryData?.patient_id && deliveryData?.store_id && deliveryData?.delivery_date) {
+      const pickupExistsForCurrentPuid = (deliveries || []).some(
+        (d) => d && !d.patient_id && d.stop_id && (d.stop_id === deliveryData.puid || d.id === deliveryData.puid)
+      );
+      if (!pickupExistsForCurrentPuid) {
+        const resolvedPickup = getPickupStopIdForDelivery(
+          deliveryData.store_id,
+          deliveryData.delivery_date,
+          deliveryData.ampm_deliveries || 'AM',
+          deliveries,
+          deliveryData.driver_id
+        );
+        if (resolvedPickup) deliveryData.puid = resolvedPickup;
+      }
     }
 
     const isEditing = !!editingDelivery;

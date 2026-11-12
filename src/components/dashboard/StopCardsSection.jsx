@@ -66,6 +66,29 @@ function StopCardsSection({
       ? allDriverDeliveries.length > 0 && allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d))
       : false;
 
+    // SELF-HEALING ATTACH (owner report Nov 11 2026): three Kingsway pending
+    // stops carried PUID qLF but never appeared under the Kingsway pickup card,
+    // because their PUID no longer matched the pickup record's stop_id (stops
+    // transferred to another date keep their PUID, and a re-created pickup mints
+    // a different one). A pending stop whose PUID matches NO pickup in view is
+    // therefore re-homed onto the pickup that shares its store / date / AM-PM
+    // (and driver, when that pickup is unambiguous) so it always renders and the
+    // pickup card count matches the route.
+    const containerList = deliveriesWithStopOrder.filter(
+      (d) => d && !d.patient_id && d.stop_id &&
+        (d.is_cycling_marker || d.status !== 'pending') && !d.is_cycling_start_marker
+    );
+    const containerStopIds = new Set(containerList.map((d) => d.stop_id));
+    const slotKey = (d) => `${d?.store_id || ''}|${d?.delivery_date || ''}|${d?.ampm_deliveries || 'AM'}`;
+    const orphansByKey = new Map();
+    deliveriesWithStopOrder.forEach((d) => {
+      if (!d || !d.patient_id || d.status !== 'pending') return;
+      if (d.puid && containerStopIds.has(d.puid)) return; // PUID already resolves
+      const k = slotKey(d);
+      if (!orphansByKey.has(k)) orphansByKey.set(k, []);
+      orphansByKey.get(k).push(d);
+    });
+
     return deliveriesWithStopOrder
       .filter((delivery) => delivery && (delivery.is_cycling_marker || delivery.status !== 'pending') && !delivery.is_cycling_start_marker)
       .map((delivery) => {
@@ -74,6 +97,20 @@ function StopCardsSection({
         // Attach projected pending deliveries to pickup containers
         if (!delivery.patient_id && (delivery.status === 'en_route' || delivery.status === 'pending') && delivery.stop_id) {
           let pending = deliveriesWithStopOrder.filter((d) => d && d.puid === delivery.stop_id && d.status === 'pending' && d.patient_id);
+          // Orphan rescue: pending stops whose PUID points at no pickup in view.
+          const k = slotKey(delivery);
+          const orphans = orphansByKey.get(k) || [];
+          if (orphans.length) {
+            const sameDriver = orphans.filter((o) => String(o.driver_id || '') === String(delivery.driver_id || ''));
+            const clusterSize = containerList.filter((c) => slotKey(c) === k).length;
+            const rescued = sameDriver.length
+              ? sameDriver
+              : (clusterSize === 1 ? orphans : []);
+            if (rescued.length) {
+              const seen = new Set(pending.map((p) => p.id));
+              pending = [...pending, ...rescued.filter((r) => !seen.has(r.id))];
+            }
+          }
           if (dispStoreIds) {
             pending = pending.filter((d) => d && dispStoreIds.has(d.store_id));
           }
