@@ -1671,7 +1671,7 @@ export default function DeliveryFormView({
 
                           </div>
 
-                          <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px] flex-1 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px] flex-1 basis-0 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             {/* desktop SmartBarcodeScanner barcodeInputRef is wired via shared ref */}
                             <Label className="text-sm font-semibold text-body shrink-0">Patient Preferences</Label>
                             {/* Owner spec Nov 12 2026: the six preference rows spread
@@ -1690,7 +1690,7 @@ export default function DeliveryFormView({
                             </div>
                           </div>
 
-                          <div className="px-3 py-2 rounded-lg border min-h-[240px] flex-1 flex flex-col gap-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="px-3 py-2 rounded-lg border min-h-[218px] flex-1 basis-0 flex flex-col gap-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             <Label className="text-sm font-semibold text-body shrink-0">Recurring</Label>
                             <DeliveryRecurringOptions
                             formData={formData} setFormData={setFormData} isSaving={isSaving}

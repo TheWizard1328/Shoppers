@@ -27,7 +27,7 @@ export default function DeliveryRecurringOptions({
   handleWeeklyDaysDone
 }) {
   return (
-    <div className="flex-1 space-y-2 relative" id="recurring-section">
+    <div className="flex-1 min-h-0 flex flex-col gap-2 relative" id="recurring-section">
       <div className="py-1 flex items-center space-x-2">
         <Checkbox id="recurring" checked={formData.recurring} onCheckedChange={handleRecurringChange} disabled={isSaving} />
         <Label htmlFor="recurring" className="text-sm font-medium">Recurring</Label>
@@ -63,7 +63,10 @@ export default function DeliveryRecurringOptions({
         </div>
       }
 
-      <RadioGroup value={currentFrequency} onValueChange={handleFrequencyChange} disabled={!formData.recurring || isSaving} className="grid gap-2">
+      {/* Owner spec Nov 12 2026: the six frequency rows spread evenly over the
+          panel height, exactly like the six preference checkboxes opposite,
+          instead of stacking tight at the top. */}
+      <RadioGroup value={currentFrequency} onValueChange={handleFrequencyChange} disabled={!formData.recurring || isSaving} className="flex-1 min-h-0 flex flex-col justify-between gap-2">
         {[
         { value: 'daily', label: 'Daily' },
         { value: 'weekly', label: weeklyLabel },
