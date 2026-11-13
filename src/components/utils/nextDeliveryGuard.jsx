@@ -32,6 +32,40 @@ const orderOf = (d) => {
   return Number.isFinite(n) ? n : 99999;
 };
 
+// ── OWNER REPORT (Nov 12 2026): "three devices keep fixing the same flag" ────
+// The restore is a WRITE, and every device running a dashboard was willing to
+// perform it. Robert's route was restored 12 times in one hour on the SAME stop
+// from the editor desktop, The-Tablet and Londonderry - each one read a local
+// copy that was a moment behind, saw no next stop and stamped its own pick.
+//
+// Two rules now bound it:
+//   1. Only a PRIMARY device may restore. window.__isPrimaryDevice is set by
+//      Dashboard.jsx from the device registry (is_primary_tracker plus status).
+//      Secondary phones, the editor desktop and tablets all resolve false, so
+//      they only ever DISPLAY the flag the primary wrote - they never write it.
+//      `undefined` (very first boot, before the registry resolved) still heals,
+//      so a genuine first-route restore is never lost.
+//   2. One restore per stop per 5 minutes, per device. Even a primary device
+//      cannot re-stamp the same stop in a loop while the write is in flight.
+const RESTORE_COOLDOWN_MS = 5 * 60 * 1000;
+const recentRestores = new Map();
+
+const isPrimaryWriterDevice = () => {
+  if (typeof window === 'undefined') return true;
+  const flag = window.__isPrimaryDevice;
+  if (flag === true) return true;
+  if (flag === false) return false;
+  return true; // not resolved yet - keep the original healing behaviour
+};
+
+const recentlyRestored = (key) => {
+  const at = recentRestores.get(key);
+  if (!at) return false;
+  if (Date.now() - at < RESTORE_COOLDOWN_MS) return true;
+  recentRestores.delete(key);
+  return false;
+};
+
 export function pickNextStopCandidate(routeDeliveries = []) {
   const active = routeDeliveries.filter(
     (d) => d && d.id && !TERMINAL.includes(String(d.status || '').toLowerCase())
@@ -122,10 +156,21 @@ export async function ensureRouteHasNextStop({
     // Already flagged (any stop, including one the optimizer just promoted).
     if (route.some((d) => d?.isNextDelivery === true)) return null;
 
+    if (!isPrimaryWriterDevice()) {
+      // A secondary device / another dashboard sees no flag right now, but the
+      // driver's primary device owns this write. Skipping here is what stops
+      // three dashboards from fighting over the same flag.
+      return null;
+    }
+
     const target = pickNextStopCandidate(route);
     if (!target) return null; // finished / nothing active — leave it alone
 
+    const restoreKey = `${driverId}|${deliveryDate}|${target.id}`;
+    if (recentlyRestored(restoreKey)) return null;
+
     await updateDeliveryLocal(target.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+    recentRestores.set(restoreKey, Date.now());
     if (!skipServerWrite) {
       try {
         const { base44 } = await import('@/api/base44Client');
