@@ -65,6 +65,33 @@ export default function AddressActionBadges({
   const [mapOpen, setMapOpen] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
   const [polylineTarget, setPolylineTarget] = useState(null); // stop shown in the polyline tool
+
+  // Keep the open polyline panel in step with edits made on OTHER devices
+  // (owner request Nov 13 2026): the dialog holds a snapshot, so a deviation
+  // point added or deleted elsewhere never reached it. Re-read the record
+  // whenever the live deliveries land, and only swap when something changed.
+  useEffect(() => {
+    if (!polylineTarget?.id) return undefined;
+    const refresh = async () => {
+      const id = polylineTarget.id;
+      const same = (a, b) =>
+        String(a?.updated_date || '') === String(b?.updated_date || '') &&
+        String(a?.encoded_polyline || '') === String(b?.encoded_polyline || '') &&
+        JSON.stringify(a?.deviation_waypoints || []) === JSON.stringify(b?.deviation_waypoints || []);
+      let fresh = (Array.isArray(window.__appDeliveries) ? window.__appDeliveries : [])
+        .find((d) => String(d?.id) === String(id)) || null;
+      if (!fresh) {
+        try {
+          const { offlineDB } = await import('@/components/utils/offlineDatabase');
+          fresh = await offlineDB.getById(offlineDB.STORES.DELIVERIES, id);
+        } catch (_) { fresh = null; }
+      }
+      if (!fresh) return;
+      setPolylineTarget((prev) => (prev && String(prev.id) === String(fresh.id) && same(prev, fresh) ? prev : fresh));
+    };
+    window.addEventListener('deliveriesUpdated', refresh);
+    return () => window.removeEventListener('deliveriesUpdated', refresh);
+  }, [polylineTarget?.id]);
   const [resolving, setResolving] = useState(false);
   // Desktop / tablet landscape: the map panel is centred in the map area (right
   // of the dashboard sidebar) and 50% wider — same rule the Edit forms follow.

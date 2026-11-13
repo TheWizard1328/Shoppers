@@ -13,7 +13,7 @@
  * realtime broadcasts and IDB stay consistent) and the redraw goes through the
  * client route optimizer with forceRegenerate, exactly like the manual FAB.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, Polyline, CircleMarker, Tooltip, useMapEvents } from 'react-leaflet';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
 import { getDeliveryCoords } from '@/components/utils/clientRouteEngine';
@@ -119,6 +119,31 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
   // refreshed when settings change; tiles only render once a key exists).
   const [hereApiKey, setHereApiKey] = useState(null);
   const [tileKey, setTileKey] = useState(0);
+
+  // ── Live adoption of remote edits (owner request Nov 13 2026) ────────────
+  // A deviation point added or deleted on another device reaches this one as a
+  // fresh Delivery record, but the waypoints/encoded state above is initialised
+  // once, so the panel kept showing its opening snapshot until it was reopened.
+  // Adopt any incoming change (unless this device is mid-write) so both devices
+  // stay in step.
+  const liveFingerprint = useMemo(() => {
+    try {
+      return JSON.stringify({
+        w: readWaypoints(delivery) || [],
+        e: delivery?.encoded_polyline || '',
+        s: delivery?.updated_date || '',
+      });
+    } catch (_) { return ''; }
+  }, [delivery]);
+  const lastLiveRef = useRef(liveFingerprint);
+  useEffect(() => {
+    if (busy) return;                       // never stomp a local write in flight
+    if (liveFingerprint === lastLiveRef.current) return;
+    lastLiveRef.current = liveFingerprint;
+    setWaypoints(readWaypoints(delivery));
+    setEncoded(delivery?.encoded_polyline || '');
+    setTileKey((k) => k + 1);               // repaint markers/polyline from the new data
+  }, [liveFingerprint, busy, delivery]);
   useEffect(() => {
     let mounted = true;
     const load = async () => {
