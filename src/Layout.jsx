@@ -210,13 +210,14 @@ export default function Layout({ children, currentPageName }) {
   // painted auto-theme + dark from the OS for a moment - and any path where the
   // saved settings did not arrive left it there. The cached preference written
   // by useAutoThemeSync (and read by the head script in index.html) is the
-  // right first value; 'auto' only when nothing is cached yet.
+  // right first value; DEFAULT IS LIGHT (owner spec Nov 13 2026) and the OS is
+  // never consulted.
   const [themePreference, setThemePreference] = useState(() => {
     try {
       const cached = localStorage.getItem('rxdeliver_theme_preference');
-      if (cached === 'light' || cached === 'dark' || cached === 'auto') return cached;
+      if (cached === 'light' || cached === 'dark') return cached;
     } catch { /* private mode / blocked storage */ }
-    return 'auto';
+    return 'light';
   });
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 

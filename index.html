@@ -63,14 +63,12 @@
       try {
         var pref = localStorage.getItem('rxdeliver_theme_preference');
         var root = document.documentElement;
-        // THE APP'S OWN SETTING IS THE ONLY SOURCE OF TRUTH (Nov 11 2026).
-        // The OS preference is consulted ONLY when the setting is 'auto' (or
-        // has never been saved), so a Windows/macOS dark mode can never paint
-        // the app dark while the user chose Light, or light while they chose
-        // Dark. Whatever the app wants, foreign classes are cleared first.
-        var resolved = pref === 'dark' || pref === 'light' ?
-          pref :
-          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        // THE APP'S OWN SETTING IS THE ONLY SOURCE OF TRUTH (Nov 13 2026).
+        // Light is the DEFAULT and there is deliberately NO prefers-color-scheme
+        // query here: the OS colour scheme is never consulted, so a Windows/macOS
+        // dark mode can never paint the app dark while the app is set to Light.
+        // Whatever the app wants, foreign classes are cleared first.
+        var resolved = pref === 'dark' ? 'dark' : 'light';
         root.classList.remove('dark', 'dark-theme', 'auto-theme', 'light-theme');
         var isDark = resolved === 'dark';
         if (isDark) {
@@ -88,9 +86,9 @@
           // Mirror useAutoThemeSync's class exactly so both systems agree
           // from the very first paint, matching whichever branch produced
           // isDark (explicit 'dark' pref vs system/auto dark).
-          root.classList.add(pref === 'dark' ? 'dark-theme' : 'auto-theme');
+          root.classList.add('dark-theme');
         } else {
-          root.classList.add(pref === 'auto' ? 'auto-theme' : 'light-theme');
+          root.classList.add('light-theme');
         }
       } catch(e) {}
     })();

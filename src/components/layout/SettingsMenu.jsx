@@ -153,7 +153,6 @@ export default function SettingsMenu({
               value={themePreference} 
               onValueChange={onThemeChange}
               options={[
-                { value: 'auto', label: 'Auto (System)' },
                 { value: 'light', label: 'Light' },
                 { value: 'dark', label: 'Dark' }
               ]}
@@ -168,7 +167,6 @@ export default function SettingsMenu({
               <SelectContent 
                 className="bg-surface" style={{ borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
               >
-                <SelectItem value="auto" className="text-body">Auto (System)</SelectItem>
                 <SelectItem value="light" className="text-body">Light</SelectItem>
                 <SelectItem value="dark" className="text-body">Dark</SelectItem>
               </SelectContent>

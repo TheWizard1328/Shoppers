@@ -215,7 +215,7 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
                   </div>
                   <div className="flex flex-wrap gap-1">
                     <Badge variant="secondary" className={setting.device_type === 'Mobile' ? BADGE_ON : ''}>{setting.device_type || 'Unknown'}</Badge>
-                    <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
+                    <Badge variant="secondary">{setting.theme_preference || 'light'}</Badge>
                     <Badge variant="secondary" className={setting.show_all_driver_markers ? BADGE_ON : ''}>
                       {setting.show_all_driver_markers ? 'All markers' : 'Selected only'}
                     </Badge>
@@ -263,7 +263,7 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
                         {visibleColumns.includes('selected_date') && <td className="p-3 text-body">{setting.selected_date || '-'}</td>}
                         {visibleColumns.includes('show_all_markers') && <td className="p-3"><Badge variant={setting.show_all_driver_markers ? 'default' : 'secondary'}>{setting.show_all_driver_markers ? '✓ Enabled' : 'Disabled'}</Badge></td>}
                         {visibleColumns.includes('sidebar_width') && <td className="p-3 text-body">{setting.sidebar_width || 240}px</td>}
-                        {visibleColumns.includes('theme') && <td className="p-3"><Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge></td>}
+                        {visibleColumns.includes('theme') && <td className="p-3"><Badge variant="secondary">{setting.theme_preference || 'light'}</Badge></td>}
                         {visibleColumns.includes('created') && <td className="p-3 text-xs text-label">{setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}</td>}
                         {visibleColumns.includes('updated') && <td className="p-3 text-xs text-label">{setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}</td>}
                         {visibleColumns.includes('actions') && <td className="p-3"><Button variant="destructive" size="sm" onClick={() => handleDeleteSetting(setting.id)}><Trash2 className="w-4 h-4" /></Button></td>}

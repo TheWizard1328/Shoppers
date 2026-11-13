@@ -259,12 +259,13 @@ export function useLayoutInit({
           // FIX (Sep 29 2026): theme_preference was only honored on mobile UAs —
           // every desktop was force-flipped to 'light' on each load even when the
           // user had chosen Dark in Settings (owner saw the wrong theme in desktop
-          // Chrome preview). Now every device honors its own saved preference;
-          // devices with no saved preference fall back to following the system.
+          // Chrome preview). Every device now honors its own saved preference, and
+          // a device with no saved preference defaults to Light (Nov 13 2026) —
+          // the OS colour scheme is never consulted.
           // Persist alongside the state: Layout seeds its initial state from this
           // key, and index.html's head script reads it before React boots.
-          try { localStorage.setItem('rxdeliver_theme_preference', s.theme_preference || 'auto'); } catch { /* storage blocked */ }
-          setThemePreference(s.theme_preference || 'auto');
+          try { localStorage.setItem('rxdeliver_theme_preference', s.theme_preference || 'light'); } catch { /* storage blocked */ }
+          setThemePreference(s.theme_preference || 'light');
           if (s.data_source) setDataSource(s.data_source);
           if (s.fab_map_cycle_phase && setInitialFabPhase) setInitialFabPhase(Number(s.fab_map_cycle_phase) || 1);
           initializeGlobalFilters(fetchedUser, s);

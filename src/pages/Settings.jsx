@@ -17,7 +17,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import {
-  User, Bell, Moon, Smartphone, Monitor, LogOut, ChevronRight,
+  User, Bell, Moon, Smartphone, LogOut, ChevronRight,
   Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download, RefreshCw, X,
 } from 'lucide-react';
 import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
@@ -382,7 +382,7 @@ function SendTestPush({ userId }) {
 
 // ── Appearance Panel ──────────────────────────────────────────────────────────
 function AppearancePanel({ currentUser, settings, onThemeChange }) {
-  const [theme, setTheme] = useState(settings.theme_preference || 'auto');
+  const [theme, setTheme] = useState(settings.theme_preference || 'light');
   const [units, setUnits] = useState(settings.units_of_measurement || 'kilometers');
 
   const handleTheme = async (val) => {
@@ -402,7 +402,7 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
     <div className="space-y-6 p-1">
       <div>
         <p className="text-sm font-medium mb-3 text-body">Theme</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <button onClick={() => handleTheme('light')}
             className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium ${theme === 'light' ? 'border-blue-500' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}
             style={{ background: '#ffffff' }}>
@@ -416,17 +416,6 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
             <Moon className="w-5 h-5" style={{ color: '#e2e8f0' }} />
             <span style={{ color: '#e2e8f0' }}>Dark</span>
             {theme === 'dark' && <Check className="w-3 h-3" style={{ color: '#4ade80' }} />}
-          </button>
-          <button onClick={() => handleTheme('auto')}
-            className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium overflow-hidden ${theme === 'auto' ? 'border-blue-500' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}
-            style={{ background: 'transparent' }}>
-            <div className="absolute inset-0 left-0 w-1/2" style={{ background: '#ffffff' }} />
-            <div className="absolute inset-0 left-1/2 w-1/2" style={{ background: '#0f172a' }} />
-            <div className="relative z-10 flex flex-col items-center gap-2">
-              <Monitor className="w-5 h-5" style={{ color: '#6b7280', filter: 'drop-shadow(0 0 1px rgba(255,255,255,0.8))' }} />
-              <span className="font-medium" style={{ color: '#374151', textShadow: '0 0 4px #fff, 0 0 4px #fff' }}>System</span>
-              {theme === 'auto' && <Check className="w-3 h-3" style={{ color: '#16a34a', filter: 'drop-shadow(0 0 2px white)' }} />}
-            </div>
           </button>
         </div>
       </div>
@@ -923,8 +912,8 @@ export default function Settings() {
         {
           label: 'Theme & Units',
           description: userSettings
-            ? `${userSettings.theme_preference || 'auto'} · ${userSettings.units_of_measurement || 'kilometers'}`
-            : 'Light, Dark, or System',
+            ? `${userSettings.theme_preference || 'light'} · ${userSettings.units_of_measurement || 'kilometers'}`
+            : 'Light or Dark',
           onClick: () => setOpenPanel('appearance'),
         },
       ],

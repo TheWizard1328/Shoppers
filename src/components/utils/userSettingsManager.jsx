@@ -91,7 +91,6 @@ export function getDeviceType() {
  * CRITICAL: Check device type to set appropriate default theme
  */
 const getInitialDefaultSettings = () => {
-  const isMobile = isMobileDeviceForTheme(); // UA-only, ignore viewport to avoid PWA misclassification
   return {
     fab_map_cycle_phase: 1,
     units_of_measurement: 'kilometers',
@@ -101,7 +100,7 @@ const getInitialDefaultSettings = () => {
     sidebar_width: 240,
     right_panel_width: 350,
     breadcrumbs_enabled: true,
-    theme_preference: isMobile ? 'auto' : 'light'
+    theme_preference: 'light'
   };
 };
 
@@ -447,7 +446,7 @@ export async function loadUserSettings(userId) {
             device_identifier: deviceIdentifier,
             device_type: deviceType,
             ...DEFAULT_SETTINGS,
-            theme_preference: isMobile ? 'auto' : 'light',
+            theme_preference: 'light',
             last_active_at: now
           }
         },
@@ -762,92 +761,30 @@ export function getSetting(key) {
 }
 
 /**
- * System dark-mode preference — read natively via matchMedia (no API calls)
- */
-const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
-
-/**
- * Writes the Auto (system-following) class set: auto-theme, plus the bare
- * 'dark' signal when the OS is dark. Returns whether the OS is dark.
- */
-function applyAutoThemeClasses() {
-  const prefersDark = window.matchMedia(DARK_MEDIA_QUERY).matches;
-  const root = document.documentElement;
-
-  root.classList.remove('light-theme', 'dark-theme');
-  root.classList.add('auto-theme');
-
-  if (prefersDark) {
-    root.classList.add('dark');
-  } else {
-    root.classList.remove('dark');
-  }
-
-  root.setAttribute('data-system-theme', prefersDark ? 'dark' : 'light');
-  return prefersDark;
-}
-
-/**
- * Attaches the OS change listener exactly once (no duplicates on repeat calls).
- */
-function ensureAutoThemeListener() {
-  // ALWAYS rebind: a hot update creates a new applyAutoDarkMode identity, and the
-  // old guard ('if (darkModeMediaQuery) return') then left a dead listener attached
-  // that could never fire and could never be removed (Base44 dev note Nov 9 2026).
-  if (darkModeMediaQuery) {
-    try { darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode); } catch (_) { /* non-fatal */ }
-    darkModeMediaQuery = null;
-  }
-  darkModeMediaQuery = window.matchMedia(DARK_MEDIA_QUERY);
-  darkModeMediaQuery.addEventListener('change', applyAutoDarkMode);
-}
-
-/**
  * THEME APPLICATION — one place, used by every settings load/change path.
- * 'light' / 'dark': explicit, so the OS change listener is removed (a system
- * switch can never override the user's choice).
- * 'auto': keeps following the OS, exactly as before.
+ * LIGHT IS THE DEFAULT AND THE APP'S OWN SETTING IS THE ONLY SOURCE OF TRUTH
+ * (owner spec Nov 13 2026): the preference resolves to 'light' or 'dark' and
+ * the OS colour scheme is never consulted — no prefers-color-scheme query
+ * exists anywhere in the app — so Dashboard, Clients, Routes and every other
+ * page render exactly the chosen theme regardless of the device's setting.
  */
 export function applyThemePreference(pref) {
   if (typeof document === 'undefined') return;
-  const preference = pref === 'dark' || pref === 'light' ? pref : 'auto';
+  const preference = pref === 'dark' ? 'dark' : 'light';
   const root = document.documentElement;
 
   // Cached so index.html's pre-React head script paints the right theme on load.
   try { localStorage.setItem('rxdeliver_theme_preference', preference); } catch { /* non-fatal */ }
 
-  if (preference !== 'auto') {
-    if (darkModeMediaQuery) {
-      darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
-      darkModeMediaQuery = null;
-    }
-    root.classList.remove('dark', 'dark-theme', 'auto-theme');
-    if (preference === 'dark') {
-      root.classList.add('dark', 'dark-theme');
-    } else {
-      root.classList.add('light-theme');
-    }
-    root.setAttribute('data-system-theme', preference);
-    return;
+  root.classList.remove('dark', 'dark-theme', 'auto-theme', 'light-theme');
+  if (preference === 'dark') {
+    root.classList.add('dark', 'dark-theme');
+  } else {
+    root.classList.add('light-theme');
   }
-
-  applyAutoThemeClasses();
-  ensureAutoThemeListener();
+  root.setAttribute('data-system-theme', preference);
 }
 
-function applyAutoDarkMode() {
-  const currentSettings = cachedSettings || { ...DEFAULT_SETTINGS };
-  if (currentSettings.theme_preference !== 'auto') return;
-
-  const prefersDark = applyAutoThemeClasses();
-  console.log(`🌓 [UserSettings] Auto dark mode synced with system: ${prefersDark ? 'DARK' : 'LIGHT'}`);
-}
-
-/**
- * Initialize auto dark mode monitoring
- * Listens for system dark mode changes and applies immediately
- */
-let darkModeMediaQuery = null;
 let userSettingsSaveTimeouts = new Map();
 let inFlightUserSettingsRecordPromise = null;
 
@@ -865,10 +802,6 @@ async function getLatestUserSettingsRecord(userId) {
   return inFlightUserSettingsRecordPromise;
 }
 
-export function initializeAutoDarkMode() {
-  applyAutoDarkMode();
-  ensureAutoThemeListener();
-}
 
 /**
  * Gets all current settings (from cache or defaults)
@@ -896,38 +829,11 @@ export function getDefaultSettingsObject() {
   return { ...DEFAULT_SETTINGS };
 }
 
-// HMR guard: a hot update re-evaluates this module while the previous instance's
-// matchMedia listener is still attached — Vite keeps the old media-query object
-// alive, so every reload used to leave another theme listener behind. Drop it.
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    if (darkModeMediaQuery) {
-      darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
-      darkModeMediaQuery = null;
-    }
-  });
-}
-
 /**
- * Boot safety net: the module is re-imported after a hot update, so re-apply the
- * cached preference immediately. index.html's head script already painted before
- * React, this just keeps the classes and listener in sync with that value.
+ * Boot safety net: the module is re-evaluated after a hot update, so re-apply the
+ * cached preference immediately (Light when nothing is saved yet). index.html's
+ * head script already painted before React; this keeps the classes in sync.
  */
 try {
-  const _cachedThemePref = localStorage.getItem('rxdeliver_theme_preference');
-  if (_cachedThemePref) applyThemePreference(_cachedThemePref);
+  applyThemePreference(localStorage.getItem('rxdeliver_theme_preference'));
 } catch (_) { /* non-fatal */ }
-
-/**
- * Dev-only: never leave a matchMedia listener behind on a hot reload.
- */
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    try {
-      if (darkModeMediaQuery) {
-        darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
-        darkModeMediaQuery = null;
-      }
-    } catch (_) { /* non-fatal */ }
-  });
-}
