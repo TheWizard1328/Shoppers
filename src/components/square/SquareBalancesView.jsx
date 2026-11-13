@@ -444,8 +444,8 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
           }}>
           <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center">Set tender</div>
           <div className="grid grid-cols-2 gap-1.5">
-            <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
-            <Button size="sm" className="h-9 px-0" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
+            <Button size="sm" className="h-9 px-0 bg-blue-600 hover:bg-blue-700 text-white" disabled={cashPickBusy || cashPick.label === 'Debit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Debit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Debit</Button>
+            <Button size="sm" className="h-9 px-0 bg-blue-600 hover:bg-blue-700 text-white" disabled={cashPickBusy || cashPick.label === 'Credit'} onClick={async () => {setCashPickBusy(true);try {const ids = Object.keys(cashPick.sel || {}).filter((k) => cashPick.sel[k]);await onCashToCard?.(cashPick.row.delivery_id, 'Credit', ids);setCashPick(null);} finally {setCashPickBusy(false);}}}>Credit</Button>
             {/* Card -> Cash clears cod_card_spend_at + cod_confirmed_collected
                      (/_at) so the fee/loan/folder credit and ledger confirmation
                      stop counting it (owner rule Oct 9 2026). */}
@@ -2828,7 +2828,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </Button>
           }
           {ownerCanEdit &&
-          <Button size="sm" onClick={startTrueUp} disabled={isSaving}>
+          <Button size="sm" className='bg-blue-600 hover:bg-blue-700 text-white' onClick={startTrueUp} disabled={isSaving}>
               True-Up Balances
             </Button>
           }
@@ -3324,7 +3324,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             <span className="text-[11px] text-slate-400">Empty and saved = note removed</span>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" disabled={noteSaving} onClick={() => {setNoteTarget(null);setNoteDraft('');}}>Cancel</Button>
-              <Button size="sm" disabled={noteSaving} onClick={async () => {
+              <Button size="sm" className='bg-blue-600 hover:bg-blue-700 text-white' disabled={noteSaving} onClick={async () => {
                 const ok = await saveBalanceNote(noteTarget, noteDraft);
                 if (ok) {setNoteTarget(null);setNoteDraft('');}
               }}>{noteSaving ? 'Saving…' : 'Save note'}</Button>
@@ -3495,7 +3495,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </div>
             <div className="flex gap-2 justify-end pt-1">
               <Button size="sm" variant="outline" onClick={() => setShowTrueUp(false)} disabled={isSaving}>Cancel</Button>
-              <Button size="sm" onClick={saveTrueUp} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save True-Up'}</Button>
+              <Button size="sm" className='bg-blue-600 hover:bg-blue-700 text-white' onClick={saveTrueUp} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save True-Up'}</Button>
             </div>
           </div>
         </div>
@@ -3575,7 +3575,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </label>
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setFolderTransferOpen(false)} disabled={isSaving}>Cancel</Button>
-              <Button size="sm" onClick={saveFolderTransfer} disabled={isSaving}>
+              <Button size="sm" className='bg-blue-600 hover:bg-blue-700 text-white' onClick={saveFolderTransfer} disabled={isSaving}>
                 {isSaving ? 'Transferring…' : 'Transfer'}
               </Button>
             </div>
@@ -3623,7 +3623,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </label>
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setTransferFromLoc(null)} disabled={isSaving}>Cancel</Button>
-              <Button size="sm" onClick={saveTransfer} disabled={isSaving}>
+              <Button size="sm" className='bg-blue-600 hover:bg-blue-700 text-white' onClick={saveTransfer} disabled={isSaving}>
                 {isSaving ? 'Transferring…' : 'Transfer'}
               </Button>
             </div>
