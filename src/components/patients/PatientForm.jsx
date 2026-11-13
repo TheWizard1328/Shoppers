@@ -1459,24 +1459,48 @@ export default function PatientForm({
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-6 space-y-1">
                     <Label htmlFor="time_window_start" className="text-sm font-medium text-body">Deliver After</Label>
-                    <Input
-                      id="time_window_start"
-                      type="time"
-                      value={formData.time_window_start}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    <div className="relative">
+                      <Input
+                        id="time_window_start"
+                        type="time"
+                        value={formData.time_window_start}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                        onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch (_) {} }}
+                        disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
+                        className="h-10 md:h-9 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                      {formData.time_window_start &&
+                      <button
+                        type="button"
+                        title="Clear time"
+                        aria-label="Clear Deliver After"
+                        onClick={() => setFormData((prev) => ({ ...prev, time_window_start: '' }))}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400">
+                          <X className="w-3.5 h-3.5" />
+                        </button>}
+                    </div>
                   </div>
 
                   <div className="col-span-6 space-y-1">
                     <Label htmlFor="time_window_end" className="text-sm font-medium text-body">Deliver Before</Label>
-                    <Input
-                      id="time_window_end"
-                      type="time"
-                      value={formData.time_window_end}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    <div className="relative">
+                      <Input
+                        id="time_window_end"
+                        type="time"
+                        value={formData.time_window_end}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                        onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch (_) {} }}
+                        disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
+                        className="h-10 md:h-9 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                      {formData.time_window_end &&
+                      <button
+                        type="button"
+                        title="Clear time"
+                        aria-label="Clear Deliver Before"
+                        onClick={() => setFormData((prev) => ({ ...prev, time_window_end: '' }))}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400">
+                          <X className="w-3.5 h-3.5" />
+                        </button>}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1750,7 +1774,7 @@ export default function PatientForm({
                     <Label className="text-xs font-semibold uppercase text-body-2">App Owner Controls</Label>
                   </div>
                   <div className="flex flex-wrap gap-2 items-start">
-                    <div className="shrink-0 w-[96px] space-y-1">
+                    <div className="shrink-0 w-[80px] space-y-1">
                         <Label htmlFor="patient_id_appowner" className="text-sm font-medium text-body">PID</Label>
                       <Input
                       id="patient_id_appowner"
@@ -1761,7 +1785,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}
                       maxLength={5} />
                     </div>
-                    <div className="shrink-0 w-[112px] space-y-1">
+                    <div className="shrink-0 w-[132px] space-y-1">
                       <Label htmlFor="latitude" className="text-sm font-medium text-body">Latitude</Label>
                       <Input
                       id="latitude"
@@ -1785,7 +1809,7 @@ export default function PatientForm({
                       placeholder="GPS Lon"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
-                    <div className="shrink-0 w-[84px] space-y-1">
+                    <div className="shrink-0 w-[68px] space-y-1">
                       <Label htmlFor="distance" className="text-sm font-medium text-body">Dist</Label>
                       <Input
                       id="distance"
@@ -1798,7 +1822,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                     {patient?.id &&
-                    <div className="shrink-0 w-[190px] min-w-0 space-y-1">
+                    <div className="shrink-0 w-[234px] min-w-0 space-y-1">
                       <Label className="text-xs font-medium text-soft">System Record ID</Label>
                       <div
                       className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 md:h-9 px-2 text-soft bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', border: '1px solid var(--border-slate-300)' }}>
@@ -1806,14 +1830,14 @@ export default function PatientForm({
                       </div>
                     </div>}
                     {patient?.id &&
-                    <div className="flex-1 min-w-[140px] space-y-1">
+                    <div className="shrink-0 w-[118px] space-y-1">
                       <Label htmlFor="last_delivery_date" className="text-xs font-medium text-soft">Last Delivery Date</Label>
                       <Input
                       id="last_delivery_date"
                       type="date"
                       value={formData.last_delivery_date || ""}
                       onChange={(e) => setFormData((prev) => ({ ...prev, last_delivery_date: e.target.value }))}
-                      className="h-11 md:h-9 text-xs text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                      className="h-11 md:h-9 text-xs text-body bg-surface date-icon-right" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>}
                 </div>
               </div>
@@ -1872,24 +1896,48 @@ export default function PatientForm({
                 <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
                   <div className="col-span-1 space-y-1">
                     <Label htmlFor="time_window_start" className="text-sm font-medium text-body">Deliver After</Label>
-                    <Input
-                      id="time_window_start"
-                      type="time"
-                      value={formData.time_window_start}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    <div className="relative">
+                      <Input
+                        id="time_window_start"
+                        type="time"
+                        value={formData.time_window_start}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                        onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch (_) {} }}
+                        disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
+                        className="h-10 md:h-9 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                      {formData.time_window_start &&
+                      <button
+                        type="button"
+                        title="Clear time"
+                        aria-label="Clear Deliver After"
+                        onClick={() => setFormData((prev) => ({ ...prev, time_window_start: '' }))}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400">
+                          <X className="w-3.5 h-3.5" />
+                        </button>}
+                    </div>
                   </div>
 
                   <div className="col-span-1 space-y-1">
                     <Label htmlFor="time_window_end" className="text-sm font-medium text-body">Deliver Before</Label>
-                    <Input
-                      id="time_window_end"
-                      type="time"
-                      value={formData.time_window_end}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    <div className="relative">
+                      <Input
+                        id="time_window_end"
+                        type="time"
+                        value={formData.time_window_end}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                        onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch (_) {} }}
+                        disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
+                        className="h-10 md:h-9 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                      {formData.time_window_end &&
+                      <button
+                        type="button"
+                        title="Clear time"
+                        aria-label="Clear Deliver Before"
+                        onClick={() => setFormData((prev) => ({ ...prev, time_window_end: '' }))}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400">
+                          <X className="w-3.5 h-3.5" />
+                        </button>}
+                    </div>
                   </div>
                 </div>
               </div>

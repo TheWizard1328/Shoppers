@@ -358,6 +358,22 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
   max-width: min(1008px, calc(100vw - var(--sidebar-width, 260px) - 40px)) !important;
 }
 
+/* Edit Patient owner row (owner spec Nov 13 2026): the native date picker
+   glyph sits flush right instead of hugging the value text. */
+.date-icon-right::-webkit-calendar-picker-indicator {
+  margin-left: auto !important;
+  cursor: pointer;
+}
+
+/* Time window fields: the native clock indicator is replaced by an X clear
+   button, but clicking the field still opens the time editor (showPicker). */
+.time-no-indicator::-webkit-calendar-picker-indicator,
+.time-no-indicator::-webkit-inner-spin-button,
+.time-no-indicator::-webkit-clear-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+
 /* Live self-location blue dot */
 .live-location-dot { z-index: 100 !important; pointer-events: auto; transition: transform 0.2s ease; }
 .live-location-dot:hover { transform: scale(1.15); }
