@@ -318,7 +318,11 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
   const [redrawMsg, setRedrawMsg] = useState(null); // { ok, text } — shown under the buttons
   const redrawRoute = useCallback(async () => {
     const { generateRoutePolylines } = await import('@/components/utils/routePolylineGenerator');
-    const { getOrFetchHereApiKey, getOrFetchPolylineConfig } = await import('@/components/utils/polylineKeyStore');
+    // getOrFetchHereApiKey lives in hereApiKeyStore, NOT in polylineKeyStore —
+    // importing both from the same module threw "getOrFetchHereApiKey is not a
+    // function" on every Redraw (owner report Nov 13 2026).
+    const { getOrFetchPolylineConfig } = await import('@/components/utils/polylineKeyStore');
+    const { getOrFetchHereApiKey } = await import('@/components/utils/hereApiKeyStore');
 
     const mirror = Array.isArray(window.__appDeliveries) ? window.__appDeliveries : [];
     let deliveries = mirror.filter(
