@@ -309,7 +309,7 @@ export default function DeliveryFormStaged({
                         </Badge>
                     }
                       {staged.ampm_deliveries &&
-                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 rounded-full' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-lg'}`}>
                           {staged.ampm_deliveries}
                         </Badge>
                     }
@@ -439,7 +439,7 @@ export default function DeliveryFormStaged({
                         </Badge>
                     }
                       {staged.ampm_deliveries &&
-                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 rounded-full' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-lg'}`}>
                           {staged.ampm_deliveries}
                         </Badge>
                     }

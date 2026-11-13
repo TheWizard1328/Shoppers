@@ -15,11 +15,11 @@ import { updatePatientLocal } from '@/components/utils/entityMutations';
  * Disabled when there is no number to text; clearing a number resets its flag.
  */
 export const TEXT_BADGE_ON =
-  'inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors cursor-pointer select-none';
+  'inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70 transition-colors cursor-pointer select-none';
 export const TEXT_BADGE_OFF =
-  'inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700';
+  'inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700';
 export const TEXT_BADGE_LOCKED =
-  'inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60';
+  'inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800/70 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700/70 cursor-not-allowed select-none opacity-70';
 
 export default function TextBadge({ patient = null, which = 'primary', disabled = false, onChanged = null }) {
   const flagField = which === 'secondary' ? 'sms_secondary' : 'sms_primary';

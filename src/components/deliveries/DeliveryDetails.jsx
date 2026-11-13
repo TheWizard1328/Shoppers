@@ -177,7 +177,7 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
 
             {delivery.actual_delivery_time && (
               <div className="flex items-center gap-3 text-sm">
-                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-slate-100)' }}>
+                <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-slate-100)' }}>
                   <CheckCircle className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div>
@@ -192,10 +192,10 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
             {/* NEW: COD Information Display */}
             {hasCOD && (
               <div className={`flex items-start gap-3 text-sm p-3 rounded-lg border ${
-                isCODComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 dark:bg-amber-950 border-amber-200'
+                isCODComplete ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800' : 'bg-amber-50 dark:bg-amber-950 dark:border-amber-800'
               }`}>
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 ${
-                  isCODComplete ? 'bg-emerald-100' : 'bg-amber-100'
+                  isCODComplete ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-amber-100 dark:bg-amber-900/40'
                 }`}>
                   <Package className={`w-4 h-4 ${
                     isCODComplete ? 'text-emerald-600' : 'text-amber-600'

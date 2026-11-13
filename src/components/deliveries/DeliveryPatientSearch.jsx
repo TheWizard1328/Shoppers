@@ -110,8 +110,8 @@ export default function DeliveryPatientSearch({
         <Label className="text-sm font-semibold text-body">Patient Search</Label>
         <div className="min-h-[28px] flex items-center justify-end">
           {selectedPatient &&
-          <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
-            <span className="text-emerald-700 font-medium truncate">✓ {selectedPatient.full_name}</span>
+          <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/25 dark:border-emerald-800 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
+            <span className="text-emerald-700 dark:text-emerald-300 font-medium truncate">✓ {selectedPatient.full_name}</span>
             {stores && selectedPatient.store_id && (() => {
             const patientStore = stores.find((s) => s && s.id === selectedPatient.store_id);
             const storeAbbr = patientStore?.abbreviation;
@@ -165,8 +165,8 @@ export default function DeliveryPatientSearch({
       {patientSearch && !formData.patient_id &&
       <div className={`absolute top-full left-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[40] ${isMobile || mobileStandalone ? 'right-0 w-full' : '-right-[150px]'} bg-surface border-surface`}>
           {selectedPatientIds.size > 1 &&
-        <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
-              <span className="text-sm font-medium text-emerald-700">{selectedPatientIds.size} selected</span>
+        <div className="sticky top-0 bg-emerald-50 dark:bg-emerald-900/25 border-b border-emerald-200 dark:border-emerald-800 p-2 flex items-center justify-between z-10">
+              <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{selectedPatientIds.size} selected</span>
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedPatientIds(new Set())}>Clear</Button>
                 <Button type="button" size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={onAddSelectedPatients}>Add Selected</Button>

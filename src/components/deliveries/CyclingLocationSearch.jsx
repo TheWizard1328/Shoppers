@@ -142,9 +142,9 @@ export default function CyclingLocationSearch({
       </Label>
 
       {selectedLocation ? (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-emerald-50 border-emerald-300">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-emerald-50 border-emerald-300 dark:bg-emerald-900/20 dark:border-emerald-700">
           <MapPin className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span className="text-sm font-medium text-emerald-800 flex-1 truncate">{selectedLocation.name}</span>
+          <span className="text-sm font-medium text-emerald-800 dark:text-emerald-200 flex-1 truncate">{selectedLocation.name}</span>
           {!disabled && (
             <button
               type="button"

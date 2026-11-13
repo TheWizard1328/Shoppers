@@ -169,7 +169,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
           {hasMore &&
           <button
             onClick={() => setVisibleCount((c) => c + 60)}
-            className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 flex-shrink-0 text-label border-surface">
+            className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 flex-shrink-0 text-label border-surface">
               Show more ({filteredDeliveries.length - visibleCount} more)
             </button>
           }

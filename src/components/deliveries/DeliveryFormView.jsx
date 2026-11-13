@@ -1598,7 +1598,7 @@ export default function DeliveryFormView({
                                         onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
                                         title="Change the address on this stop and its patient record"
                                         className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
-                                      <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                      <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70 transition-colors">
                                       Change
                                       </span>
                                       </span>;
@@ -1852,7 +1852,7 @@ export default function DeliveryFormView({
                                       onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
                                       title="Change the address on this stop and its patient record"
                                       className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
-                                    <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                    <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70 transition-colors">
                                     Change
                                     </span>
                                     </span>;

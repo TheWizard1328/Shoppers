@@ -52,7 +52,7 @@ export function ProjectedPickupCard({ pickup, stopOrder, stopOrderMap }) {
             <div className="flex-grow min-w-0">
               <div className="flex justify-between items-start">
                 <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{pickup.full_name}</h3>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-200">PROJECTED</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-800">PROJECTED</span>
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 space-y-0.5">
                 <p>ETA: {pickup.delivery_time_start}</p>

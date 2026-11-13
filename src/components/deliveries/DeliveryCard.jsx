@@ -290,7 +290,7 @@ function DeliveryCard({
                 ) : isPickup ? (
                   getStatusBadge(delivery.status === 'in_transit' ? 'completed' : delivery.status)
                 ) : isReturned ? (
-                  <Badge className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-md">
+                  <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 text-xs font-medium px-2 py-1 rounded-md">
                     RETURN
                   </Badge>
                 ) : (
