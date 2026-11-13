@@ -20,6 +20,7 @@ import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
+import { getCyclingMarkerDisplayInfo } from '@/components/utils/deliveryTypeUtils';
 
 /**
  * OWNER RULE (Oct 13 2026): a stored leg is only reusable when it was
@@ -368,15 +369,69 @@ export async function generateRoutePolylines({
     return Math.ceil(Number(minutes) * winter.eta_factor);
   };
 
-  // OWNER DIRECTIVE (Nov 12 2026): markers only ride a bicycle leg while a real
-  // cycling delivery is still on the route. With the loop finished (or never
-  // started) the END marker is the first driving waypoint, so its leg must be
-  // drawn with the driving chain — one Directions call, no bicycle stub.
-  const _cyclingLoopPending = sharedHasPendingCyclingLoop(stops || []);
+  // ── CYCLING LOOP PASSES (owner spec Nov 13 2026) ──────────────────────────
+  // The loop is drawn as exactly two passes, decided from the MARKERS' positions
+  // in the ordered route rather than from a "is a cycling delivery pending"
+  // guess:
+  //   PASS 1 (driving, forced): last finished stop → deviation vias → live GPS →
+  //     isNextDelivery → every stop up to and including the cycling START
+  //     marker → then every stop after the END marker → home.
+  //   PASS 2 (cycling, forced): start marker → loop stops → END marker.
+  // The start marker is ALWAYS driving: its inbound leg is the drive to the loop.
+  // The old heuristic let the start marker fall into the bicycle chain the moment
+  // the loop went active, so its driving leg was never encoded — and with no
+  // marker the leg itself has no target at all, the stop rendered with no line
+  // (owner report: loop created, start marker blank, next pickup still drawn from
+  // the previously finished stop).
+  const _orderedStops = stops || [];
+  const _idxById = new Map();
+  _orderedStops.forEach((s, i) => {
+    const id = s?.delivery?.id;
+    if (id != null) _idxById.set(String(id), i);
+  });
+  // Marker roles come from the canonical helper (delivery_notes first, then
+  // transport_mode), never from the mode alone — the dialog flips the interior
+  // stops to cycling and both markers can end up carrying a cycling mode.
+  const _markerFlags = _orderedStops.map((s) => {
+    const isMarker = s?.delivery?.is_cycling_marker === true;
+    const info = isMarker ? getCyclingMarkerDisplayInfo(s.delivery) : null;
+    return {
+      isMarker,
+      isStart: !!info?.isCyclingStart,
+      isEnd: !!info?.isCyclingEnd,
+      status: String(s?.delivery?.status || '').toLowerCase(),
+    };
+  });
+  const _TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+  const _startMarkerIdx = _markerFlags.findIndex((m) => m.isStart);
+  const _endMarkerIdx = _markerFlags.findIndex((m, i) => m.isEnd && i > _startMarkerIdx);
+  // The loop is live while its END marker is unfinished — the start marker being
+  // finished does not end it (owner: "if the cycling start marker is finished then
+  // we just use the most recent finished stop as the origin for that cycling loop").
+  const _cyclingLoopActive = _startMarkerIdx > -1 && _endMarkerIdx > _startMarkerIdx
+    && !_TERMINAL.has(_markerFlags[_endMarkerIdx].status);
+  const _cyclingStartPoint = _startMarkerIdx > -1
+    ? { lat: Number(_orderedStops[_startMarkerIdx].lat), lon: Number(_orderedStops[_startMarkerIdx].lng) }
+    : null;
+
   const resolveMode = (delivery) => {
-    if (delivery?.is_cycling_marker === true && !_cyclingLoopPending) return 'driving';
+    const idx = _idxById.has(String(delivery?.id)) ? _idxById.get(String(delivery?.id)) : -1;
+    const isMarker = delivery?.is_cycling_marker === true;
+
+    if (_cyclingLoopActive && idx > -1) {
+      // Start marker always drives in; everything up to it is driving.
+      if (idx === _startMarkerIdx) return 'driving';
+      // Loop interior (cycle stops and the end marker) rides the bicycle leg.
+      if (idx > _startMarkerIdx && idx <= _endMarkerIdx) return 'cycling';
+    }
+
     const raw = String(delivery?.transport_mode || fallbackTravelMode).toLowerCase();
-    if (raw === 'cycling') return _cyclingLoopPending ? 'cycling' : 'driving';
+    if (raw === 'cycling') {
+      // A cycling stop outside an active loop (loop finished or never created)
+      // is driven, matching the Nov 12 directive.
+      if (isMarker) return 'driving';
+      return sharedHasPendingCyclingLoop(_orderedStops) ? 'cycling' : 'driving';
+    }
     if (raw === 'pedestrian') return 'pedestrian';
     return 'driving';
   };
@@ -503,6 +558,23 @@ export async function generateRoutePolylines({
       last.stops.push(stop);
     } else {
       modeGroups.push({ mode, fromPoint: { lat: prev.lat, lon: prev.lon }, stops: [stop] });
+    }
+  }
+
+  // OWNER SPEC (Nov 13 2026) alternate pass: when the cycling start marker is
+  // already finished it is not polyline-eligible, so the bicycle group would
+  // otherwise hang off whatever stop happened to precede the loop. Anchor the
+  // bicycle group at the start marker itself.
+  if (_cyclingLoopActive && _cyclingStartPoint
+    && Number.isFinite(_cyclingStartPoint.lat) && Number.isFinite(_cyclingStartPoint.lon)) {
+    const _bikeGroup = modeGroups.find((g) => g.mode === 'cycling');
+    if (_bikeGroup) {
+      const _dx = Math.abs(Number(_bikeGroup.fromPoint.lat) - _cyclingStartPoint.lat);
+      const _dy = Math.abs(Number(_bikeGroup.fromPoint.lon) - _cyclingStartPoint.lon);
+      if (_dx > 1e-6 || _dy > 1e-6) {
+        _bikeGroup.fromPoint = { ..._cyclingStartPoint };
+        console.log(`[routePolylineGenerator] ${source} — bicycle pass re-anchored at the cycling start marker (owner spec Nov 13)`);
+      }
     }
   }
 
