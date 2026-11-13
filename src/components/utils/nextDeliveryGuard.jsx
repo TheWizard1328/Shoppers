@@ -23,6 +23,7 @@
 
 import { offlineDB } from './offlineDatabase';
 import { updateDeliveryLocal } from './offlineMutations';
+import { canThisDeviceRestoreNextFlag, stampNextFlagOwner } from './nextFlagOwnership';
 
 const TERMINAL = ['completed', 'failed', 'cancelled'];
 const isInterStoreId = (id) => String(id || '').startsWith('ISP') || String(id || '').startsWith('ISD');
@@ -156,10 +157,11 @@ export async function ensureRouteHasNextStop({
     // Already flagged (any stop, including one the optimizer just promoted).
     if (route.some((d) => d?.isNextDelivery === true)) return null;
 
-    if (!isPrimaryWriterDevice()) {
-      // A secondary device / another dashboard sees no flag right now, but the
-      // driver's primary device owns this write. Skipping here is what stops
-      // three dashboards from fighting over the same flag.
+    // OWNER DIRECTION (Nov 12 2026): the device that SET the flag owns it.
+    // Dispatchers/admins take ownership the moment they change it themselves;
+    // otherwise the driver's own device keeps it. Devices that are only watching
+    // no longer get to repair, which is what ended the 12-restores-an-hour loop.
+    if (!canThisDeviceRestoreNextFlag(route)) {
       return null;
     }
 
@@ -169,12 +171,15 @@ export async function ensureRouteHasNextStop({
     const restoreKey = `${driverId}|${deliveryDate}|${target.id}`;
     if (recentlyRestored(restoreKey)) return null;
 
-    await updateDeliveryLocal(target.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+    // The restore itself transfers ownership to this device, so a following run
+    // on the same route agrees with it instead of re-picking.
+    const restorePayload = stampNextFlagOwner({ isNextDelivery: true });
+    await updateDeliveryLocal(target.id, restorePayload, { skipSmartRefresh: true });
     recentRestores.set(restoreKey, Date.now());
     if (!skipServerWrite) {
       try {
         const { base44 } = await import('@/api/base44Client');
-        await base44.entities.Delivery.update(target.id, { isNextDelivery: true }).catch(() => null);
+        await base44.entities.Delivery.update(target.id, restorePayload).catch(() => null);
       } catch (_) { /* offline — IDB + queued mutation carry it */ }
     }
 

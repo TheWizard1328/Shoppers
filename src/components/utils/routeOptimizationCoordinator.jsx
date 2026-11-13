@@ -597,6 +597,22 @@ async function _performRouteOptimizationInner({
         }
       }
 
+      // OWNER DIRECTION (Nov 12 2026): whoever SETS isNextDelivery owns the
+      // repair, and the optimizer batch is the usual setter. Stamp the claim on
+      // the entry that carries the flag so it reaches every other device and
+      // the guard knows not to fight it.
+      if (optimizeData?.writeBatch?.length > 0) {
+        try {
+          const { buildFlagOwnerStamp } = await import('./nextFlagOwnership');
+          const _stamp = buildFlagOwnerStamp();
+          for (const w of optimizeData.writeBatch) {
+            if (w?.data?.isNextDelivery === true && !w.data.next_flag_owner) {
+              w.data.next_flag_owner = _stamp;
+            }
+          }
+        } catch (_) { /* best-effort */ }
+      }
+
       // Repair must wait for this commit to finish, never race the bulk write.
       // ── Step 2: Write results to backend DB via single bulk call ─────────
       if (typeof window !== 'undefined') {

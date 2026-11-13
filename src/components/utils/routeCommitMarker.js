@@ -183,6 +183,16 @@ const _dropNoopResends = (list) => {
 export const commitDeliveryUpdatesSilently = async (updates = []) => {
   let valid = (updates || []).filter((u) => u?.id && u?.data && Object.keys(u.data).length > 0);
   if (valid.length === 0) return 0;
+  // Flag ownership (owner direction Nov 12 2026): the optimizer's writeBatch is
+  // what usually sets isNextDelivery, so the batch must carry the claim or the
+  // claim would never reach the other devices.
+  try {
+    const { buildFlagOwnerStamp } = await import('./nextFlagOwnership');
+    const stamp = buildFlagOwnerStamp();
+    valid = valid.map((u) => (u?.data?.isNextDelivery === true && !u.data.next_flag_owner
+      ? { ...u, data: { ...u.data, next_flag_owner: stamp } }
+      : u));
+  } catch (_) { /* best-effort */ }
   valid = await _dropTerminalStomps(valid);
   if (valid.length > 0) valid = await _dropStartStomps(valid);
   if (valid.length > 0) valid = _dropLockedFieldStomps(valid);

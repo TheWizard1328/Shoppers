@@ -98,7 +98,8 @@ const resolveFieldLevelMerge = (localRecord, serverRecord) => {
     'cod_payments', 
     'stop_order',
     'delivery_time_eta',
-    'isNextDelivery'
+    'isNextDelivery',
+    'next_flag_owner'
   ];
   
   criticalFields.forEach(field => {

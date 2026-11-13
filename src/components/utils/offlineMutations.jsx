@@ -544,6 +544,15 @@ export const createDeliveryLocal = async (deliveryData) => {
  */
 export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => {
   const { skipSmartRefresh = false, isBatchOperation = false } = options;
+  // Flag ownership (owner direction Nov 12 2026): whoever sets isNextDelivery
+  // owns the repair. Stamp it here, the one gateway every client write passes
+  // through, so the claim travels with the flag to every other device.
+  if (updates && updates.isNextDelivery === true) {
+    try {
+      const { stampNextFlagOwner } = await import('./nextFlagOwnership');
+      updates = stampNextFlagOwner(updates);
+    } catch (_) { /* stamping is best-effort; the flag write still goes out */ }
+  }
   console.warn('[OfflineMutations][updateDeliveryLocal] incoming', { deliveryId, updates, options });
   
   // NOTE: updateDeliveryLocal intentionally bypasses the mutationsPaused check.

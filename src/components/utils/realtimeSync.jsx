@@ -1325,7 +1325,7 @@ const subscribeToEntity = (entityName) => {
                     // Time windows
                     'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
                     // Sequencing
-                    'stop_order', 'isNextDelivery',
+                    'stop_order', 'isNextDelivery', 'next_flag_owner',
                     // Route-commit marker (single-broadcast design Oct 13 2026)
                     'route_commit_at', 'route_commit_count', 'route_commit_ids',
                     // Identity

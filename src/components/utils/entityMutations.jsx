@@ -644,7 +644,16 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
   // carry the change to other devices. Used by transfers, where the move + the
   // optimizer commit used to reach the receiving device as 3-5 separate renders.
   const { skipSmartRefresh = false, isBatchOperation = false, silentServer = false } = options;
-  
+
+  // Flag ownership (owner direction Nov 12 2026): a write that SETS the flag
+  // records which device set it, so only that device repairs it later.
+  if (updates && updates.isNextDelivery === true && !updates.next_flag_owner) {
+    try {
+      const { buildFlagOwnerStamp } = await import('./nextFlagOwnership');
+      updates = { ...updates, next_flag_owner: buildFlagOwnerStamp() };
+    } catch (_) { /* best-effort */ }
+  }
+
   if (mutationsPaused) throw new Error('Mutations are paused');
   
   // CRITICAL: Sanitize actual_delivery_time before updating

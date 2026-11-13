@@ -55,6 +55,9 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'cycling_longitude',
   // ── Route sequencing ──────────────────────────────────────────────────────
   'isNextDelivery',
+  // Which device set the flag (owner direction Nov 12 2026). Travels with the
+  // flag so the guard knows who may repair it.
+  'next_flag_owner',
   // ── COD / payments ────────────────────────────────────────────────────────
   'cod_total_amount_required',
   'cod_payments',
