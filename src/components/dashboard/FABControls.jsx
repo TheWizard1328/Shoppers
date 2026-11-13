@@ -184,11 +184,12 @@ export default function FABControls({
           map-cycle FAB, and a hidden button must not leave the torch burning. */}
       <TorchFAB
         key="torch-fab"
-        /* OWNER DIRECTIVE (Nov 12 2026): no role/owner gate. Every driver gets
-           the flashlight on their own primary device; the native APK bridge and
-           the darkness check are the only real gates, so a web/dispatcher
-           session still never renders it (no window.RxTorch there). */
-        enabled={isPrimaryDevice === true}
+        /* OWNER CLARIFICATION (Nov 12 2026): the gate is DRIVER ONLY + PRIMARY
+           DEVICE + dark (isDarkOutside inside TorchFAB, which adds a 20 min
+           sunset lead). A driver's secondary phone does NOT get it, and no
+           dispatcher/admin session does either - the APK bridge alone is not
+           enough. */
+        enabled={isPrimaryDevice === true && isDriver === true}
         bottomPx={torchFabBottom}
         rightPx={immersiveHidden ? 12 : 16}
         driverLocation={driverLocation}
