@@ -1467,7 +1467,7 @@ export default function PatientForm({
                         onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
                         onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch (_) {} }}
                         disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                        className="h-10 md:h-9 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                        className="!h-11 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                       {formData.time_window_start &&
                       <button
                         type="button"
@@ -1490,7 +1490,7 @@ export default function PatientForm({
                         onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
                         onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch (_) {} }}
                         disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                        className="h-10 md:h-9 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                        className="!h-11 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                       {formData.time_window_end &&
                       <button
                         type="button"
@@ -1830,14 +1830,14 @@ export default function PatientForm({
                       </div>
                     </div>}
                     {patient?.id &&
-                    <div className="shrink-0 w-[118px] space-y-1">
+                    <div className="shrink-0 w-[132px] space-y-1">
                       <Label htmlFor="last_delivery_date" className="text-xs font-medium text-soft">Last Delivery Date</Label>
                       <Input
                       id="last_delivery_date"
                       type="date"
                       value={formData.last_delivery_date || ""}
                       onChange={(e) => setFormData((prev) => ({ ...prev, last_delivery_date: e.target.value }))}
-                      className="h-11 md:h-9 text-xs text-body bg-surface date-icon-right" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                      className="!h-11 text-xs text-body bg-surface date-icon-right" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>}
                 </div>
               </div>
@@ -1847,7 +1847,7 @@ export default function PatientForm({
                   two stacked blocks — Store/Status | Deliver after/before | Patient
                   Notes on the first row, then Patient info | Delivery Preferences |
                   Recurring. Phones keep the single-column stack. */}
-              <div className="grid grid-cols-1 lg:grid-cols-10 gap-2 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-2 items-stretch">
               {/* Container 1: Store/Status */}
               <div className="lg:col-span-2 px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
@@ -1904,7 +1904,7 @@ export default function PatientForm({
                         onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
                         onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch (_) {} }}
                         disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                        className="h-10 md:h-9 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                        className="!h-11 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                       {formData.time_window_start &&
                       <button
                         type="button"
@@ -1927,7 +1927,7 @@ export default function PatientForm({
                         onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
                         onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch (_) {} }}
                         disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
-                        className="h-10 md:h-9 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                        className="!h-11 text-sm text-body bg-surface time-no-indicator" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                       {formData.time_window_end &&
                       <button
                         type="button"
@@ -1943,8 +1943,8 @@ export default function PatientForm({
               </div>
 
               {/* Container 4: Patient Notes (third column of row A) */}
-              <div className="lg:col-span-6 px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
-                <div className="px-2 py-2 space-y-1">
+              <div className="lg:col-span-6 px-1 py-1 rounded-[10px] flex flex-col" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
+                <div className="px-2 py-2 space-y-1 flex-1 flex flex-col min-h-0">
                   <div className="flex items-start justify-between">
                     <Label htmlFor="notes" className="text-sm font-medium pt-1 text-body">Patient Notes</Label>
                     {formData.care_pros ?
@@ -1986,7 +1986,7 @@ export default function PatientForm({
                         disabled={disableOtherFieldsDuringAddressLookup}
                         onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                         placeholder="Special delivery instructions, preferences, etc."
-                        className="h-full min-h-[96px] md:min-h-[128px] text-sm resize-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                        className="h-full min-h-[64px] text-sm resize-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                     {formData.care_pros &&
                     <div className="col-span-2 space-y-2">
@@ -2182,7 +2182,7 @@ export default function PatientForm({
                         <h3 className="text-sm font-semibold text-body">Delivery Preferences</h3>
                       </div>
 
-                  <div className="space-y-3">
+                  <div className="flex-1 flex flex-col justify-evenly gap-2">
                     <CheckboxField
                       id="mailbox_ok"
                       label="Mailbox OK"
@@ -2237,6 +2237,7 @@ export default function PatientForm({
                       <RadioGroup
                     value={frequency}
                     onValueChange={setFrequency}
+                    className="flex-1 flex flex-col justify-evenly gap-2"
                     disabled={!isRecurring || disableOtherFieldsDuringAddressLookup}>
 
                         <div className="flex items-center space-x-2">

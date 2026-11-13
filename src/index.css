@@ -360,8 +360,20 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
 
 /* Edit Patient owner row (owner spec Nov 13 2026): the native date picker
    glyph sits flush right instead of hugging the value text. */
+.date-icon-right {
+  padding-right: 0.25rem !important;
+}
+.date-icon-right::-webkit-datetime-edit {
+  padding: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden;
+}
 .date-icon-right::-webkit-calendar-picker-indicator {
-  margin-left: auto !important;
+  margin: 0 0 0 auto !important;
+  width: 16px !important;
+  height: 16px !important;
+  padding: 0 !important;
+  opacity: 0.8;
   cursor: pointer;
 }
 
