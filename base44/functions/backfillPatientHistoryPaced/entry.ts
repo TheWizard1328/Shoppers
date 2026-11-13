@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
   let patientsSkipped = 0;
   let deliveryFixes = 0;
   let moreWork = 0;
+  let orphanedPatients = 0;
   const storesComplete = [];
   const storesPending = [];
 
@@ -117,6 +118,16 @@ Deno.serve(async (req) => {
     }
 
     for (const [patientId, entries] of historyMap) {
+      // ORPHAN GUARD (Nov 13 2026): seven patients failed every run and kept
+      // three stores permanently "pending". Those ids exist only on historical
+      // deliveries — the Patient record itself is deleted — so the update hit a
+      // missing record and returned "write failed" forever. Historical deliveries
+      // of a deleted patient are not backfill work: skip without counting them as
+      // pending or as errors.
+      if (!patientById.has(patientId)) {
+        orphanedPatients += 1;
+        continue;
+      }
       const byId = new Map();
       for (const d of entries) {
         if (!byId.has(d.id)) {
@@ -202,6 +213,7 @@ Deno.serve(async (req) => {
     patient_histories_written: patientsDone,
     patient_histories_already_correct: patientsSkipped,
     first_delivery_corrections_written: deliveryFixes,
+    orphaned_patients_skipped: orphanedPatients,
     remaining_items: moreWork,
     error_count: errors.length,
     errors: errors.slice(0, 10),
