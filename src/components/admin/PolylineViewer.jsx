@@ -1644,11 +1644,6 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                       </div>
                       {isFocused && (
                         <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
-                          {isCleaningMode && focusedItem?.id === item.id && (
-                            <span className="text-xs text-orange-700 dark:text-orange-300 font-medium mr-1">
-                              {cleanedPoints.length} pts
-                            </span>
-                          )}
                           {isCleaningMode && focusedItem?.id === item.id && undoStack.length > 0 && (
                             <button
                               title={`Undo last removal (${undoStack.length} steps)`}
@@ -1689,6 +1684,12 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                               {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                             </button>
                           ) : null}
+                          {/* Point count sits to the RIGHT of the icons, beside the save disk (owner spec Nov 13 2026) */}
+                          {isCleaningMode && focusedItem?.id === item.id && (
+                            <span className="text-xs text-orange-700 dark:text-orange-300 font-medium ml-1">
+                              {cleanedPoints.length} pts
+                            </span>
+                          )}
                           {/* Import — only when NOT in cleaning mode */}
                           {!(isCleaningMode && focusedItem?.id === item.id) && (
                             pendingImportItem?.id === item.id ? (

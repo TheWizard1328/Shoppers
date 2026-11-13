@@ -328,7 +328,7 @@ export default function AddressActionBadges({
           </DialogHeader>
           {polylineTarget &&
           <React.Suspense fallback={<div className="flex items-center justify-center py-10 text-xs text-slate-500 dark:text-slate-400"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading map…</div>}>
-              <StopPolylineDeviationMap delivery={polylineTarget} mapHeight={isPhoneLayout ? 240 : 360} />
+              <StopPolylineDeviationMap delivery={polylineTarget} mapHeight={isPhoneLayout ? 240 : 630} />
             </React.Suspense>
           }
         </DialogContent>
