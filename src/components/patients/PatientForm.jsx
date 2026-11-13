@@ -1822,15 +1822,15 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                     {patient?.id &&
-                    <div className="shrink-0 w-[234px] min-w-0 space-y-1">
+                    <div className="shrink-0 w-[220px] min-w-0 space-y-1">
                       <Label className="text-xs font-medium text-soft">System Record ID</Label>
                       <div
-                      className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 md:h-9 px-2 text-soft bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', border: '1px solid var(--border-slate-300)' }}>
+                      className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto !h-11 px-2 text-soft bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', border: '1px solid var(--border-slate-300)' }}>
                         {patient.id}
                       </div>
                     </div>}
                     {patient?.id &&
-                    <div className="shrink-0 w-[132px] space-y-1">
+                    <div className="shrink-0 w-[118px] space-y-1">
                       <Label htmlFor="last_delivery_date" className="text-xs font-medium text-soft">Last Delivery Date</Label>
                       <Input
                       id="last_delivery_date"
@@ -1860,7 +1860,7 @@ export default function PatientForm({
                       value={formData.store_id}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
                       disabled={isStoreDisabled || disableOtherFieldsDuringAddressLookup}>
-                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                      <SelectTrigger ref={storeSelectRef} className="!h-11 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <SelectValue placeholder="Select store..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px] overflow-y-auto z-[99999] text-body bg-surface border-surface">
@@ -1879,7 +1879,7 @@ export default function PatientForm({
                       value={formData.status}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
                       disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}>
-                      <SelectTrigger className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                      <SelectTrigger className="!h-11 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="max-h-[200px] overflow-y-auto z-[99999] text-body bg-surface border-surface">
@@ -1978,7 +1978,7 @@ export default function PatientForm({
                       narrower notes width is fine). What must not happen is dead space
                       under the notes: the row stretches and the textarea fills the full
                       row height, so it grows when the CP column appears. */}
-                  <div className={formData.care_pros ? "grid grid-cols-5 gap-2 items-stretch" : "grid grid-cols-1"}>
+                  <div className={formData.care_pros ? "grid grid-cols-5 gap-2 items-stretch flex-1 min-h-0" : "grid grid-cols-1 flex-1 min-h-0"}>
                     <div className={formData.care_pros ? "col-span-3 flex" : "col-span-1 flex"}>
                       <Textarea
                         id="notes"
