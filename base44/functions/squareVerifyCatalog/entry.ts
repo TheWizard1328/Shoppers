@@ -32,6 +32,24 @@ class HttpError extends Error { constructor(s, m) { super(m); this.status = s; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const normalizeText = (v) => String(v || '').trim();
 const toAmountCents = (v) => Math.max(0, Math.round(Number(v || 0)));
+// ── SAME-DATE-OR-FUTURE EVIDENCE (owner rule Nov 12 2026) ────────────────────
+// A delivery's COD may only be tied to a Square order dated on the delivery's
+// own day or later. The name+amount cash confirm below used to match an order
+// rung BEFORE the delivery date.
+const EDM_OFFSET_MS = 21600000;
+const edmDayNumOf = (ms) => Number.isFinite(ms) ? Math.floor((ms - EDM_OFFSET_MS) / 86400000) : NaN;
+const edmDayNumForDate = (dateStr) => {
+  const raw = String(dateStr || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return NaN;
+  const t = Date.parse(`${raw}T06:00:00Z`);
+  return Number.isFinite(t) ? edmDayNumOf(t) : NaN;
+};
+const isSameDayOrFuture = (saleMs, dateStr) => {
+  const d = edmDayNumForDate(dateStr), x = edmDayNumOf(saleMs);
+  if (!Number.isFinite(d) || !Number.isFinite(x)) return true;
+  return x >= d;
+};
+
 const unwrapEntityRecord = (r) => { if (!r || typeof r !== 'object') return null; if (r.data && typeof r.data === 'object') return { ...r.data, id: r.data.id || r.id }; return r; };
 const requireUser = async (b44) => {
   const u = await b44.auth.me().catch(() => null);
@@ -227,7 +245,8 @@ Deno.serve(async (req) => {
       const orders = await listOrders(locationIds, windowStart, accessToken, 4000, ['COMPLETED', 'OPEN']).catch((e) => { console.warn('[squareVerifyCatalog] order fetch failed:', e?.message || e); return []; });
       // Flatten line items (same refund-aware rules as the reconcile).
       const paidCatalogObjectIds = new Set();
-      const completedSigSet = new Set();
+      // Signature → ring moments, so a match can be date-gated per delivery.
+      const completedSigTimes = new Map();
       for (const order of orders || []) {
         const refundedQtyByUid = new Map();
         for (const rli of order?.return_line_items || []) { const uid = rli?.source_line_item_uid; if (!uid) continue; const rq = Math.round(Number(rli?.quantity || 1)) || 1; refundedQtyByUid.set(uid, (refundedQtyByUid.get(uid) || 0) + rq); }
@@ -242,7 +261,12 @@ Deno.serve(async (req) => {
           const gr = toAmountCents(li?.gross_sales_money?.amount || li?.total_money?.amount);
           const ac = eu || (totalQty > 0 ? Math.round(gr / totalQty) : gr);
           if (li?.catalog_object_id) paidCatalogObjectIds.add(li.catalog_object_id);
-          if (completed) completedSigSet.add(buildItemSignature(itemName, ac));
+          if (completed) {
+            const sigKey = buildItemSignature(itemName, ac);
+            const ringMs = Date.parse(String(order?.closed_at || order?.created_at || '')) || 0;
+            if (!completedSigTimes.has(sigKey)) completedSigTimes.set(sigKey, []);
+            completedSigTimes.get(sigKey).push(ringMs);
+          }
         }
       }
       for (const item of unjudged) {
@@ -262,7 +286,8 @@ Deno.serve(async (req) => {
         const d = did ? deliveryRows.get(did) : null;
         if (d && isCompletedCashCod(d) && !d.cod_confirmed_collected) {
           const sig = buildItemSignature(name, amountCents);
-          if (sig && sig !== '::0' && completedSigSet.has(sig)) {
+          const sigRings = (sig && sig !== '::0') ? (completedSigTimes.get(sig) || []) : [];
+          if (sigRings.some((ms) => isSameDayOrFuture(ms, d.delivery_date))) {
             toDelete.set(item.id, { name, amount_cents: amountCents, reason: 'order_signature_cash_confirmed' });
             // Persist the confirmation on the delivery — durable evidence
             // survives this run (same stamp the wide scan writes).
