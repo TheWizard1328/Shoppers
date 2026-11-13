@@ -329,6 +329,35 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
 .leaflet-marker-icon.marker-hover-scale-115 { z-index: 30000 !important; transform: scale(1.15); }
 .leaflet-marker-icon.marker-hover-scale-125 { z-index: 30000 !important; transform: scale(1.25); }
 
+/* Leaflet zoom buttons (owner report Nov 12 2026): the global 44px touch
+   min-height rule above also matches Leaflet's "a role=button" zoom links, which
+   left each +/- tile stretched with dead space under the glyph. Pin them to the
+   stock Leaflet box. */
+.leaflet-control-zoom a,
+.leaflet-touch .leaflet-control-zoom a {
+  min-height: 0 !important;
+  width: 26px !important;
+  height: 26px !important;
+  line-height: 26px !important;
+  font-size: 18px !important;
+  display: block !important;
+  padding: 0 !important;
+}
+.leaflet-touch .leaflet-control-zoom a { width: 30px !important; height: 30px !important; line-height: 30px !important; }
+
+/* Map dialog opened from Edit Delivery / Edit Patient (owner spec Nov 12 2026):
+   on desktop and tablets it is centred in the map area to the right of the
+   user-resizable sidebar (never a hardcoded 16rem) and 50% wider than a stock
+   dialog, matching how the Edit forms centre themselves. */
+.map-dialog-overlay-wide {
+  left: var(--sidebar-width, 260px) !important;
+}
+.map-dialog-wide {
+  left: calc(var(--sidebar-width, 260px) + (100vw - var(--sidebar-width, 260px)) / 2) !important;
+  width: min(1008px, calc(100vw - var(--sidebar-width, 260px) - 40px)) !important;
+  max-width: min(1008px, calc(100vw - var(--sidebar-width, 260px) - 40px)) !important;
+}
+
 /* Live self-location blue dot */
 .live-location-dot { z-index: 100 !important; pointer-events: auto; transition: transform 0.2s ease; }
 .live-location-dot:hover { transform: scale(1.15); }

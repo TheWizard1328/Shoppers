@@ -110,7 +110,7 @@ function MapClickCatcher({ active, onPick }) {
   return null;
 }
 
-export default function StopPolylineDeviationMap({ delivery, onChanged }) {
+export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeight = 240 }) {
   const [waypoints, setWaypoints] = useState(() => readWaypoints(delivery));
   const [encoded, setEncoded] = useState(delivery?.encoded_polyline || '');
   const [addMode, setAddMode] = useState(false);
@@ -499,7 +499,7 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
         </div>}
       </div>
 
-      <div className="relative rounded-lg overflow-hidden border border-surface" style={{ height: 240 }}>
+      <div className="relative rounded-lg overflow-hidden border border-surface" style={{ height: mapHeight }}>
         <MapContainer
           center={allPositions[0]}
           zoom={14}

@@ -7,6 +7,7 @@ import { updatePatientLocal } from '@/components/utils/entityMutations';
 import { isCurrentDevicePrimary } from '@/components/utils/deviceManager';
 import { isDriver, isAdmin, isAppOwner } from '@/components/utils/userRoles';
 import PatientStoreMapDialog from './PatientStoreMapDialog';
+import { useDevice } from '@/components/utils/DeviceContext';
 
 // OWNER SPEC (Nov 12 2026): on an ACTIVE or FINISHED stop the App Owner's map
 // badge opens the Stop Details "Polyline & Deviation Points" tool instead of the
@@ -65,6 +66,9 @@ export default function AddressActionBadges({
   const [driverLocation, setDriverLocation] = useState(null);
   const [polylineTarget, setPolylineTarget] = useState(null); // stop shown in the polyline tool
   const [resolving, setResolving] = useState(false);
+  // Desktop / tablet landscape: the map panel is centred in the map area (right
+  // of the dashboard sidebar) and 50% wider — same rule the Edit forms follow.
+  const { isMobile: isPhoneLayout } = useDevice();
 
   useEffect(() => {
     let cancelled = false;
@@ -287,8 +291,8 @@ export default function AddressActionBadges({
              z-[10020] (their own popovers go to 10051), so a stock dialog
              (overlay 10000 / content 10001) opened from inside them rendered
              BEHIND the form (owner report Nov 12 2026). Raise both. */
-          overlayClassName="z-[10060]"
-          className="z-[10070] max-w-2xl w-[96vw] max-h-[92vh] overflow-y-auto p-3 sm:p-4">
+          overlayClassName={`z-[10060] ${isPhoneLayout ? '' : 'map-dialog-overlay-wide'}`}
+          className={`z-[10070] max-h-[92vh] overflow-y-auto p-3 sm:p-4 ${isPhoneLayout ? 'max-w-2xl w-[96vw]' : 'map-dialog-wide'}`}>
           <DialogHeader>
             <DialogTitle className="text-sm">
               Polyline &amp; Deviation Points
@@ -297,7 +301,7 @@ export default function AddressActionBadges({
           </DialogHeader>
           {polylineTarget &&
           <React.Suspense fallback={<div className="flex items-center justify-center py-10 text-xs text-slate-500 dark:text-slate-400"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading map…</div>}>
-              <StopPolylineDeviationMap delivery={polylineTarget} />
+              <StopPolylineDeviationMap delivery={polylineTarget} mapHeight={isPhoneLayout ? 240 : 360} />
             </React.Suspense>
           }
         </DialogContent>
