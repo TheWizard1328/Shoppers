@@ -14,6 +14,7 @@ import {
 "@/components/ui/alert-dialog";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
 import { updateDeliveryLocal, deleteDeliveryLocal, updatePatientLocal } from "@/components/utils/offlineMutations";
+import { ensureRouteHasNextStop } from "@/components/utils/nextDeliveryGuard";
 import { enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
 import { useAppData } from "@/components/utils/AppDataContext";
 import { getDriverNameForStorage } from "@/components/utils/driverUtils";
@@ -181,6 +182,18 @@ export default function DashboardBulkEditControls({
           payload.after_hours_pickup = values.after_hours_pickup;
         }
 
+        // ── NEXT-STOP FLAG MUST RIDE ALONG (owner report Nov 12 2026) ────────
+        // A bulk status flip used to write this batch with NO isNextDelivery,
+        // so every downstream writer that merged the batch (stale prop upsert,
+        // optimizer pass triggered by the status change, another device's echo)
+        // had nothing to preserve and the route ended up with ZERO next stops.
+        // nextDeliveryGuard then restored the flag over and over - 20 restores
+        // in one hour. Carrying the current value on the batch itself means the
+        // flag survives the write instead of being repaired afterwards.
+        if (delivery?.isNextDelivery === true) {
+          payload.isNextDelivery = true;
+        }
+
         return { delivery, payload };
       }).filter(({ payload }) => Object.keys(payload).length > 0);
 
@@ -327,6 +340,22 @@ export default function DashboardBulkEditControls({
         }
       }
 
+      // STEP 9 (owner report Nov 12 2026): guarantee exactly one next stop on
+      // every route this batch touched. Runs AFTER batch silent mode exits so
+      // the guard's own local write, server write and deliveriesUpdated event
+      // all land. Cheap: it returns immediately when a flag already exists.
+      try {
+        const _routeKeys = new Map();
+        for (const { delivery, payload } of perDeliveryPayloads) {
+          const drv = payload?.driver_id !== undefined ? payload.driver_id : delivery?.driver_id;
+          const dt = payload?.delivery_date || delivery?.delivery_date;
+          if (drv && dt) _routeKeys.set(`${drv}|${dt}`, { drv, dt });
+        }
+        for (const { drv, dt } of _routeKeys.values()) {
+          await ensureRouteHasNextStop({ driverId: drv, deliveryDate: dt, source: 'bulk_edit' });
+        }
+      } catch (_) { /* the periodic guard pass still covers this */ }
+
       clearSelection();
       onBulkApplyComplete?.();
     } finally {
@@ -438,7 +467,12 @@ export default function DashboardBulkEditControls({
         }}>
 
           <span className="text-xs font-medium text-foreground px-1 whitespace-nowrap shrink-0">{totalDeleteCount} Stops</span>
-          <Button size="sm" onClick={openBulkEditPanel} className="gap-1 h-8 min-h-0 px-2" disabled={isSaving || isDeleting || hasCyclingMarkerSelected}>
+          {/* OWNER REPORT Nov 12 2026: the default variant flips to a bright
+              white button in dark mode (--primary is near-white there), which
+              read as a broken/unstyled pill next to the ghost Delete and Clear
+              buttons. Explicit action blue is the app's own button language
+              (MapViewCycleFAB, driver popups) and is legible in both themes. */}
+          <Button size="sm" onClick={openBulkEditPanel} className="gap-1 h-8 min-h-0 px-2 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500" disabled={isSaving || isDeleting || hasCyclingMarkerSelected}>
             <PencilLine className="h-4 w-4" />
             Edit
           </Button>
