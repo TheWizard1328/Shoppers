@@ -282,7 +282,13 @@ export default function AddressActionBadges({
       {/* Polyline & Deviation Points (App Owner, active/finished stops only) —
           the same tool the Stop Details side panel renders. */}
       <Dialog open={!!polylineTarget} onOpenChange={(o) => { if (!o) setPolylineTarget(null); }}>
-        <DialogContent className="max-w-2xl w-[96vw] max-h-[92vh] overflow-y-auto p-3 sm:p-4">
+        <DialogContent
+          /* The Edit Delivery / Edit Patient forms are full-screen layers at
+             z-[10020] (their own popovers go to 10051), so a stock dialog
+             (overlay 10000 / content 10001) opened from inside them rendered
+             BEHIND the form (owner report Nov 12 2026). Raise both. */
+          overlayClassName="z-[10060]"
+          className="z-[10070] max-w-2xl w-[96vw] max-h-[92vh] overflow-y-auto p-3 sm:p-4">
           <DialogHeader>
             <DialogTitle className="text-sm">
               Polyline &amp; Deviation Points
