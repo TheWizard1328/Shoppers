@@ -179,13 +179,21 @@ export default function FABControls({
           </button>
         </motion.div>
       )}
+      {/* OWNER SPEC (Nov 12 2026): the flashlight FAB is hidden entirely while
+          immersive mode is active - that view keeps only call/navigate + the
+          map-cycle FAB, and a hidden button must not leave the torch burning. */}
       <TorchFAB
         key="torch-fab"
-        enabled={isPrimaryDevice === true && isDriver === true}
+        /* OWNER DIRECTIVE (Nov 12 2026): no role/owner gate. Every driver gets
+           the flashlight on their own primary device; the native APK bridge and
+           the darkness check are the only real gates, so a web/dispatcher
+           session still never renders it (no window.RxTorch there). */
+        enabled={isPrimaryDevice === true}
         bottomPx={torchFabBottom}
         rightPx={immersiveHidden ? 12 : 16}
         driverLocation={driverLocation}
         hideForExpandedCard={isStopCardExpanded}
+        hidden={immersiveHidden}
       />
       <MapViewCycleFAB
         key="map-view-cycle-fab"

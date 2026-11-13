@@ -24,6 +24,11 @@ import {
  *  rightPx         – right offset (mirrors the map-cycle FAB: 16, or 12 immersive)
  *  driverLocation  – {lat, lon} used for the sun calc; falls back to Edmonton
  *  hideForExpandedCard – collapse with the other FABs when a stop card is open
+ *  hidden          – OWNER SPEC (Nov 12 2026): the FAB is gone entirely while
+ *                    immersive mode is active (that view keeps only the call /
+ *                    navigate pair and the map-cycle FAB). Because `visible`
+ *                    drops, the existing cleanup effect also releases the
+ *                    native torch — a hidden button must never leave the light on.
  *  enabled         – caller-side gate (primary device + driver + native bridge)
  */
 
@@ -57,6 +62,7 @@ export default function TorchFAB({
   rightPx = 16,
   driverLocation = null,
   hideForExpandedCard = false,
+  hidden = false,
   enabled = false,
 }) {
   const [isDark, setIsDark] = useState(() => isAppDarkTheme());
@@ -82,7 +88,7 @@ export default function TorchFAB({
 
   // Re-evaluate the sun gate every minute so the button appears at dusk without
   // a reload, and re-sync the native torch state (it is released on background).
-  const visible = bridgeReady && isDark;
+  const visible = bridgeReady && isDark && !hidden;
 
   useEffect(() => {
     if (!bridgeReady) return undefined;
