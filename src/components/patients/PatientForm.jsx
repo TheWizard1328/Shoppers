@@ -1146,7 +1146,11 @@ export default function PatientForm({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
+<<<<<<< Updated upstream
         className={`flex flex-col min-w-0 w-full ${isMobile ? 'h-full max-h-none' : 'max-w-[30rem] lg:max-w-[960px] max-h-[92vh] rounded-lg'}`}>
+=======
+        className={`flex flex-col min-w-0 w-full ${isMobile ? 'h-full max-h-none' : 'max-w-[30rem] lg:max-w-[1080px] max-h-[92vh] rounded-lg'}`}>
+>>>>>>> Stashed changes
 
         <Card className="shadow-xl flex flex-col overflow-hidden text-body bg-surface border-surface" style={{ height: '100%', maxHeight: '100%' }}>
           <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0 bg-surface border-surface">
@@ -1169,8 +1173,8 @@ export default function PatientForm({
                   <div className="flex items-center gap-2 mb-1">
                     <Label className="text-xs font-semibold uppercase text-body-2">App Owner Controls</Label>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-start">
-                    <div className="space-y-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-10 gap-2 items-start">
+                    <div className="space-y-1 lg:col-span-1">
                         <Label htmlFor="patient_id_appowner" className="text-sm font-medium text-body">PID</Label>
                       <Input
                       id="patient_id_appowner"
@@ -1181,7 +1185,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}
                       maxLength={5} />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 lg:col-span-2">
                       <Label htmlFor="latitude" className="text-sm font-medium text-body">Latitude</Label>
                       <Input
                       id="latitude"
@@ -1193,7 +1197,7 @@ export default function PatientForm({
                       placeholder="GPS Lat"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 lg:col-span-2">
                       <Label htmlFor="longitude" className="text-sm font-medium text-body">Longitude</Label>
                       <Input
                       id="longitude"
@@ -1205,7 +1209,7 @@ export default function PatientForm({
                       placeholder="GPS Lon"
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 lg:col-span-1">
                       <Label htmlFor="distance" className="text-sm font-medium text-body">Dist</Label>
                       <Input
                       id="distance"
@@ -1218,7 +1222,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
                     </div>
                     {patient?.id &&
-                    <div className="space-y-1 min-w-0">
+                    <div className="space-y-1 min-w-0 lg:col-span-3">
                       <Label className="text-xs font-medium text-soft">System Record ID</Label>
                       <div
                       className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 md:h-9 px-2 text-soft bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', border: '1px solid var(--border-slate-300)' }}>
@@ -1226,7 +1230,7 @@ export default function PatientForm({
                       </div>
                     </div>}
                     {patient?.id &&
-                    <div className="space-y-1">
+                    <div className="space-y-1 lg:col-span-1">
                       <Label htmlFor="last_delivery_date" className="text-xs font-medium text-soft">Last Delivery Date</Label>
                       <Input
                       id="last_delivery_date"
@@ -1243,9 +1247,9 @@ export default function PatientForm({
                   two stacked blocks — Store/Status | Deliver after/before | Patient
                   Notes on the first row, then Patient info | Delivery Preferences |
                   Recurring. Phones keep the single-column stack. */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-2 items-start">
               {/* Container 1: Store/Status */}
-              <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
+              <div className="lg:col-span-2 px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
                   <div className="col-span-1 space-y-1">
                     <div className="flex items-center justify-between gap-2">
@@ -1285,14 +1289,10 @@ export default function PatientForm({
                     </Select>
                   </div>
                 </div>
+              </div>
 
-                </div>
-
-    
-
-
-              {/* Container 2: Time windows (own column on desktop) */}
-              <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
+              {/* Container 2: Time windows (middle column of row A) */}
+              <div className="lg:col-span-1 px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                 <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
                   <div className="col-span-1 space-y-1">
                     <Label htmlFor="time_window_start" className="text-sm font-medium text-body">Deliver After</Label>
@@ -1318,9 +1318,8 @@ export default function PatientForm({
                 </div>
               </div>
 
-              {/* Container 4: Patient Notes + Care Pro's (third column of row A) */}
-              {/* Container 4: Patient Notes + Care Pro's */}
-              <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
+              {/* Container 4: Patient Notes (third column of row A) */}
+              <div className="lg:col-span-7 px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                 <div className="px-2 py-2 space-y-1">
                   <div className="flex items-start justify-between">
                     <Label htmlFor="notes" className="text-sm font-medium pt-1 text-body">Patient Notes</Label>
@@ -1395,9 +1394,9 @@ export default function PatientForm({
               </div>
 
               {/* Row B: patient info on the left, preferences + recurring beside it */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 items-start">
-              {/* Container 3: Address/Unit, Name/Phone, and Time Windows */}
-              <div className="rounded-[10px] space-y-2 pr-2 pb-2 pl-2 pt-2" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-2 items-start">
+              {/* Container 3: patient info (address, unit, name, phones) */}
+              <div className="lg:col-span-6 rounded-[10px] space-y-2 pr-2 pb-2 pl-2 pt-2" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
                 <div className="grid grid-cols-12 gap-x-2 gap-y-0">
                   {/* Label row — + New Address is absolute so it adds zero height */}
                   <div className="col-span-8 pb-3" style={{ height: '2rem' }}>
@@ -1437,8 +1436,9 @@ export default function PatientForm({
                         type="button"
                         disabled={!formData.unit_number || disableOtherFieldsDuringAddressLookup}
                         onClick={handleBuzzerOpen}
-                        style={{ minHeight: 0 }}
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${formData.unit_number && !disableOtherFieldsDuringAddressLookup ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
+                        title="Add a buzzer code to the address"
+                        style={{ minHeight: 0, display: 'inline-flex' }}
+                        className={`inline-flex items-center h-6 px-2 rounded-full text-xs font-medium border transition-colors ${formData.unit_number && !disableOtherFieldsDuringAddressLookup ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
                         + Buzzer #
                       </button>
                     </div>
@@ -1551,8 +1551,9 @@ export default function PatientForm({
                 </div>
               </div>
 
-              <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2" style={{ opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
-                    <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)' }}>
+              {/* Delivery Preferences + Recurring are direct children of the row
+                  so each takes 2 of the 10 columns (owner spec Nov 12 2026). */}
+              <div className="lg:col-span-2 px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                       <div className="border-b pb-2 mb-3" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <h3 className="text-sm font-semibold text-body">Delivery Preferences</h3>
                       </div>
@@ -1595,7 +1596,7 @@ export default function PatientForm({
                   </div>
                 </div>
 
-                <div className="px-3 py-2 rounded-[10px] relative" style={{ background: 'var(--bg-slate-200)' }}>
+                <div className="lg:col-span-2 px-3 py-2 rounded-[10px] relative" style={{ background: 'var(--bg-slate-200)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                   <div className="border-b pb-2" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <div className="flex items-center space-x-2">
                           <Checkbox
@@ -1734,7 +1735,6 @@ export default function PatientForm({
                     </div>
                   }
                 </div>
-              </div>
               </div>
 
             </form>
