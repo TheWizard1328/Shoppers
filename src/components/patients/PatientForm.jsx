@@ -1146,7 +1146,7 @@ export default function PatientForm({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`flex flex-col min-w-0 w-full ${isMobile ? 'h-full max-h-none' : 'max-w-[30rem] lg:max-w-[1080px] max-h-[92vh] rounded-lg'}`}>
+        className={`flex flex-col min-w-0 w-full ${isMobile ? 'h-full max-h-none' : 'max-w-[30rem] lg:max-w-[840px] max-h-[92vh] rounded-lg'}`}>
 
         <Card className="shadow-xl flex flex-col overflow-hidden text-body bg-surface border-surface" style={{ height: '100%', maxHeight: '100%' }}>
           <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0 bg-surface border-surface">
@@ -1163,6 +1163,573 @@ export default function PatientForm({
 
           <CardContent className="px-2 py-2 overflow-y-auto flex-1 bg-surface">
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
+              {isMobile ? (
+              <>
+              {/* AppOwner Only: GPS & Distance Section */}
+              {(isAppOwner(currentUser) || forceAppOwnerView) &&
+              <div className="px-2 rounded-[10px] py-2 border-2 space-y-1" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', background: 'var(--bg-slate-200)' }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Label className="text-xs font-semibold uppercase text-body-2">App Owner Controls</Label>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-none w-[75px] space-y-1">
+                        <Label htmlFor="patient_id_appowner" className="text-sm font-medium text-body">PID</Label>
+                      <Input
+                      id="patient_id_appowner"
+                      value={formData.patient_id}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
+                      placeholder="5-chr"
+                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}
+                      maxLength={5} />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1" style={{ maxWidth: 'calc(50% - 60px)' }}>
+                      <Label htmlFor="latitude" className="text-sm font-medium text-body">Latitude</Label>
+                      <Input
+                      id="latitude"
+                      type="number"
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      step="any"
+                      value={Number.isFinite(formData.latitude) ? formData.latitude : ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, latitude: toFiniteNumber(e.target.value) }))}
+                      placeholder="GPS Lat"
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1" style={{ maxWidth: 'calc(50% - 60px)' }}>
+                      <Label htmlFor="longitude" className="text-sm font-medium text-body">Longitude</Label>
+                      <Input
+                      id="longitude"
+                      type="number"
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      step="any"
+                      value={Number.isFinite(formData.longitude) ? formData.longitude : ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, longitude: toFiniteNumber(e.target.value) }))}
+                      placeholder="GPS Lon"
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    </div>
+                    <div className="flex-none w-[75px] space-y-1">
+                      <Label htmlFor="distance" className="text-sm font-medium text-body">Dist</Label>
+                      <Input
+                      id="distance"
+                      type="number"
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      step="0.01"
+                      value={Number.isFinite(formData.distance_from_store) ? formData.distance_from_store : ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: toFiniteNumber(e.target.value) }))}
+                      placeholder="km"
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    </div>
+                  </div>
+                  {/* System Record ID + Last Delivery Date - only shown when editing existing patient */}
+                  {patient?.id &&
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-soft">System Record ID</Label>
+                      <div
+                      className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 px-2 text-soft bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', border: '1px solid var(--border-slate-300)' }}>
+                        {patient.id}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="last_delivery_date" className="text-xs font-medium text-soft">Last Delivery Date</Label>
+                      <Input
+                      id="last_delivery_date"
+                      type="date"
+                      value={formData.last_delivery_date || ""}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, last_delivery_date: e.target.value }))}
+                      className="h-9 text-xs text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    </div>
+                  </div>
+                }
+                </div>
+              }
+
+              {/* Container 1: Store/Status/Time Windows */}
+              <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-6 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="store_id" className="text-sm font-medium text-body">Store *</Label>
+                      <DistanceFromStoreBadge distanceKm={formData.distance_from_store} />
+                    </div>
+                    <Select
+                      value={formData.store_id}
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
+                      disabled={isStoreDisabled || disableOtherFieldsDuringAddressLookup}>
+                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                        <SelectValue placeholder="Select store..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] overflow-y-auto z-[99999] text-body bg-surface border-surface">
+                        {availableStores.map((store) =>
+                        <SelectItem key={store.id} value={store.id}>
+                            {store.name}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="col-span-6 space-y-1">
+                    <Label htmlFor="status" className="text-sm font-medium text-body">Status</Label>
+                    <Select
+                      value={formData.status}
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
+                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}>
+                      <SelectTrigger className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px] overflow-y-auto z-[99999] text-body bg-surface border-surface">
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                </div>
+
+    
+
+              {/* Container 3: Address/Unit, Name/Phone, and Time Windows */}
+              <div className="rounded-[10px] space-y-2 pr-2 pb-2 pl-2 pt-2" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
+                <div className="grid grid-cols-12 gap-x-2 gap-y-0">
+                  {/* Label row — + New Address is absolute so it adds zero height */}
+                  <div className="col-span-8 pb-3" style={{ height: '2rem' }}>
+                    {/* Round refresh + map badges sit LEFT of the Change badge
+                         (owner spec Nov 6 2026). The label and the chips share one
+                         flex row so they always land on the same centre line —
+                         absolute offsets drifted as soon as a chip changed height. */}
+                    <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
+                      <Label htmlFor="address" className="text-sm font-medium leading-none text-body">Address *</Label>
+                      <div className="flex items-center gap-1 shrink-0">
+                      <AddressActionBadges
+                          patient={patient || { ...formData, id: formData.id }}
+                          store={assignedStoreForBadges}
+                          currentUser={currentUser}
+                          onDistanceUpdated={(km) => setFormData((prev) => ({ ...prev, distance_from_store: km }))} />
+                        
+                      {patient && !duplicateMode && onCreateDuplicate &&
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => onCreateDuplicate(patient)}
+                          onKeyDown={(e) => e.key === 'Enter' && onCreateDuplicate(patient)}
+                          title="Open a new-patient form pre-filled from this patient so you can change the address"
+                          className="cursor-pointer select-none" style={{ minHeight: 0, display: 'inline-flex' }}>
+                        <span style={{ minHeight: 0 }} className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70">
+                          Change
+                        </span>
+                      </span>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-span-4 pb-3" style={{ height: '2rem' }}>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="unit_number" className="text-sm font-medium leading-none text-body">Unit #</Label>
+                      <button
+                        type="button"
+                        disabled={!formData.unit_number || disableOtherFieldsDuringAddressLookup}
+                        onClick={handleBuzzerOpen}
+                        style={{ minHeight: 0 }}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${formData.unit_number && !disableOtherFieldsDuringAddressLookup ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 cursor-pointer' : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 cursor-not-allowed'}`}>
+                        + Buzzer #
+                      </button>
+                    </div>
+                  </div>
+                  {/* Input row */}
+                  <div className="col-span-8">
+                    <GoogleAddressAutocomplete
+                      ref={addressInputRef}
+                      value={formData.address}
+                      onChange={(value) => !isAddressLocked && setFormData((prev) => ({ ...prev, address: value }))}
+                      onAddressSelect={handleAddressSelect}
+                      onSearchStateChange={!isAddressLocked ? setIsAddressLookupActive : undefined}
+                      cityCenter={cityCenter}
+                      placeholder="Start typing address..."
+                      className="h-10 md:h-9 text-sm"
+                      disabled={isAddressLocked}
+                      localSearch={searchLocalPatientAddresses} />
+                  </div>
+                  <div className="col-span-4">
+                    <Input
+                      ref={unitNumberRef}
+                      id="unit_number"
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      value={formData.unit_number}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
+                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''} text-body`} style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                  </div>
+
+                  {/* Buzzer portal dialog */}
+                  {showBuzzerInput && buzzerAnchorRect && ReactDOM.createPortal(
+                    <>
+                      <div className="fixed inset-0 z-[10050]" onClick={() => setShowBuzzerInput(false)} />
+                      <div
+                        className="fixed z-[10051] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-3 w-52"
+                        style={{ top: buzzerAnchorRect.bottom + 6, left: Math.min(buzzerAnchorRect.left, window.innerWidth - 216) }}>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Buzzer #</p>
+                        <input
+                          ref={buzzerInputRef}
+                          type="text"
+                          value={buzzerValue}
+                          onChange={(e) => setBuzzerValue(e.target.value)}
+                          onKeyDown={(e) => {if (e.key === 'Enter') handleBuzzerConfirm();if (e.key === 'Escape') setShowBuzzerInput(false);}}
+                          placeholder="e.g. 223"
+                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-2 py-1.5 text-sm mb-2 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setShowBuzzerInput(false)} className="flex-1 text-xs py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">Cancel</button>
+                          <button type="button" onClick={handleBuzzerConfirm} className="flex-1 text-xs py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
+                        </div>
+                      </div>
+                    </>,
+                    document.body
+                  )}
+                </div>
+
+                {/* Row 1: Full Name + Email (50/50) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="full_name" className="text-sm font-medium text-body">Name *</Label>
+                    <Input
+                      id="full_name"
+                      value={formData.full_name}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, full_name: capitalizeName(e.target.value) }))}
+                      required
+                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''} text-body`} style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="email" className="text-sm font-medium text-body">Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email || ''}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                      placeholder="Email address"
+                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                  </div>
+                </div>
+
+                {/* Row 2: Phone + Alt. Phone (50/50) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
+                    <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
+                      <Label htmlFor="phone" className="text-sm font-medium text-body">Pr Phone</Label>
+                      <TextBadge patient={patient || { ...formData, id: formData.id }} which="primary" disabled={disableOtherFieldsDuringAddressLookup} />
+                    </div>
+                    <PhoneInput
+                      id="phone"
+                      value={formData.phone}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
+                      placeholder="Phone number"
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
+                  </div>
+                  <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
+                    <div className="flex items-center justify-between gap-1" style={{ height: '1.5rem' }}>
+                      <Label htmlFor="phone_secondary" className="text-sm font-medium text-body">Alt Phone</Label>
+                      <TextBadge patient={patient || { ...formData, id: formData.id }} which="secondary" disabled={disableOtherFieldsDuringAddressLookup} />
+                    </div>
+                    <PhoneInput
+                      id="phone_secondary"
+                      value={formData.phone_secondary}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, phone_secondary: value }))}
+                      placeholder="Alt. phone"
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-6 space-y-1">
+                    <Label htmlFor="time_window_start" className="text-sm font-medium text-body">Deliver After</Label>
+                    <Input
+                      id="time_window_start"
+                      type="time"
+                      value={formData.time_window_start}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
+                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                  </div>
+
+                  <div className="col-span-6 space-y-1">
+                    <Label htmlFor="time_window_end" className="text-sm font-medium text-body">Deliver Before</Label>
+                    <Input
+                      id="time_window_end"
+                      type="time"
+                      value={formData.time_window_end}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                      disabled={!formData.store_id || disableOtherFieldsDuringAddressLookup}
+                      className="h-10 md:h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Container 4: Patient Notes + Care Pro's */}
+              <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
+                <div className="px-2 py-2 space-y-1">
+                  <div className="flex items-start justify-between">
+                    <Label htmlFor="notes" className="text-sm font-medium pt-1 text-body">Patient Notes</Label>
+                    {formData.care_pros ?
+                    <div className="flex items-center justify-between gap-3 w-2/5 pl-2">
+                        <Label htmlFor="cp_name" className="text-sm font-medium text-body">CP Name</Label>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                          id="care_pros"
+                          checked={formData.care_pros}
+                          disabled={disableOtherFieldsDuringAddressLookup}
+                          onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, care_pros: checked }))} />
+                          <Label htmlFor="care_pros" className="text-sm font-medium text-body">
+                            Care Pro's
+                          </Label>
+                        </div>
+                      </div> :
+
+                    <div className="flex items-center space-x-2">
+                        <Checkbox
+                        id="care_pros"
+                        checked={formData.care_pros}
+                        disabled={disableOtherFieldsDuringAddressLookup}
+                        onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, care_pros: checked }))} />
+                        <Label htmlFor="care_pros" className="text-sm font-medium text-body">
+                          Care Pro's
+                        </Label>
+                      </div>
+                    }
+                  </div>
+                  {/* OWNER SPEC (Nov 8 2026): the CP fields sit BESIDE the notes (the
+                      narrower notes width is fine). What must not happen is dead space
+                      under the notes: the row stretches and the textarea fills the full
+                      row height, so it grows when the CP column appears. */}
+                  <div className={formData.care_pros ? "grid grid-cols-5 gap-2 items-stretch" : "grid grid-cols-1"}>
+                    <div className={formData.care_pros ? "col-span-3 flex" : "col-span-1 flex"}>
+                      <Textarea
+                        id="notes"
+                        value={formData.notes}
+                        disabled={disableOtherFieldsDuringAddressLookup}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                        placeholder="Special delivery instructions, preferences, etc."
+                        className="h-full min-h-[96px] md:min-h-[128px] text-sm resize-none text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                    </div>
+                    {formData.care_pros &&
+                    <div className="col-span-2 space-y-2">
+                        <Input
+                        id="cp_name"
+                        value={formData.cp_name}
+                        disabled={disableOtherFieldsDuringAddressLookup}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, cp_name: e.target.value }))}
+                        placeholder="Care Pro name"
+                        className="h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                        <div className="space-y-0.5">
+                          <Label htmlFor="cp_envelopes" className="text-xs font-medium text-body">CP Envelopes</Label>
+                          <Input
+                          id="cp_envelopes"
+                          type="number"
+                          min="0"
+                          value={formData.cp_envelopes}
+                          disabled={disableOtherFieldsDuringAddressLookup}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, cp_envelopes: Number(e.target.value) }))}
+                          placeholder="0"
+                          className="h-9 text-sm text-body bg-surface" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }} />
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2" style={{ opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
+                    <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)' }}>
+                      <div className="border-b pb-2 mb-3" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                        <h3 className="text-sm font-semibold text-body">Delivery Preferences</h3>
+                      </div>
+
+                  <div className="space-y-3">
+                    <CheckboxField
+                      id="mailbox_ok"
+                      label="Mailbox OK"
+                      checked={formData.mailbox_ok}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, mailbox_ok: checked }))} />
+
+                  <CheckboxField
+                      id="ring_bell"
+                      label="Ring Bell"
+                      checked={formData.ring_bell}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, ring_bell: checked }))} />
+
+                  <CheckboxField
+                      id="back_door"
+                      label="Back Door"
+                      checked={formData.back_door}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, back_door: checked }))} />
+
+                  <CheckboxField
+                      id="call_upon_arrival"
+                      label="Call Upon Arrival"
+                      checked={formData.call_upon_arrival}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, call_upon_arrival: checked }))} />
+
+                    <CheckboxField
+                      id="dont_ring_bell"
+                      label="DON'T Ring Bell"
+                      checked={formData.dont_ring_bell}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, dont_ring_bell: checked }))} />
+                  </div>
+                </div>
+
+                <div className="px-3 py-2 rounded-[10px] relative" style={{ background: 'var(--bg-slate-200)' }}>
+                  <div className="border-b pb-2" style={{ borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                        id="recurring"
+                        checked={isRecurring}
+                        disabled={disableOtherFieldsDuringAddressLookup}
+                        onCheckedChange={handleRecurringChange} />
+                          <Label htmlFor="recurring" className="text-sm font-medium text-body">
+                            Recurring
+                          </Label>
+                        </div>
+                      </div>
+
+                      <RadioGroup
+                    value={frequency}
+                    onValueChange={setFrequency}
+                    disabled={!isRecurring || disableOtherFieldsDuringAddressLookup}>
+
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="daily" id="daily" disabled={!isRecurring} />
+                          <Label htmlFor="daily" className="text-sm" style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
+                            Daily
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                        value="weekly"
+                        id="weekly"
+                        disabled={!isRecurring}
+                        onClick={(e) => {
+                          if (isRecurring) {
+                            e.preventDefault();
+                            handleWeeklyClick();
+                          }
+                        }} />
+                          <Label
+                        htmlFor="weekly"
+                        className="text-sm cursor-pointer"
+                        style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
+                        onClick={(e) => {
+                          if (isRecurring) {
+                            e.preventDefault();
+                            handleWeeklyClick();
+                          }
+                        }}>
+                            {getWeeklyLabel()}
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                        value="bi-weekly"
+                        id="bi-weekly"
+                        disabled={!isRecurring}
+                        onClick={(e) => {
+                          if (isRecurring) {
+                            e.preventDefault();
+                            handleBiWeeklyClick();
+                          }
+                        }} />
+                          <Label
+                        htmlFor="bi-weekly"
+                        className="text-sm cursor-pointer"
+                        style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
+                        onClick={(e) => {
+                          if (isRecurring) {
+                            e.preventDefault();
+                            handleBiWeeklyClick();
+                          }
+                        }}>
+                            {getBiWeeklyLabel()}
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                        value="weekly-x4"
+                        id="weekly-x4"
+                        disabled={!isRecurring}
+                        onClick={(e) => {
+                          if (isRecurring) {
+                            e.preventDefault();
+                            handleWeeklyX4Click();
+                          }
+                        }} />
+                          <Label
+                        htmlFor="weekly-x4"
+                        className="text-sm cursor-pointer"
+                        style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
+                        onClick={(e) => {
+                          if (isRecurring) {
+                            e.preventDefault();
+                            handleWeeklyX4Click();
+                          }
+                        }}>
+                            {getWeeklyX4Label()}
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="monthly" id="monthly" disabled={!isRecurring} />
+                          <Label htmlFor="monthly" className="text-sm" style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
+                            Monthly
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!isRecurring} />
+                          <Label htmlFor="bi-monthly" className="text-sm" style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
+                            Bi-Monthly
+                          </Label>
+                        </div>
+                      </RadioGroup>
+
+                  {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly' || frequency === 'weekly-x4') &&
+                  <div className="absolute left-0 top-[-120px] w-full border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20 text-body bg-surface">
+                      <p className="text-sm font-semibold mb-3 text-body">Select Days:</p>
+                      <div className="space-y-2">
+                        {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) =>
+                      <div key={day} className="flex items-center space-x-2">
+                            <Checkbox
+                          id={`day-${day}`}
+                          checked={weeklyDays.includes(day)}
+                          onCheckedChange={() => handleWeeklyDayToggle(day)} />
+
+                            <Label htmlFor={`day-${day}`} className="text-sm capitalize cursor-pointer text-body">
+                              {day.charAt(0).toUpperCase() + day.slice(1)}
+                            </Label>
+                          </div>
+                      )}
+                      </div>
+                      <Button
+                      type="button"
+                      onClick={handleWeeklyDaysDone}
+                      size="sm"
+                      className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white">
+
+                        Done
+                      </Button>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              </>
+              ) : (
+              <>
               {/* AppOwner Only: GPS & Distance Section */}
               {(isAppOwner(currentUser) || forceAppOwnerView) &&
               <div className="px-2 rounded-[10px] py-2 border-2 space-y-1" style={{ borderColor: 'rgba(148, 163, 184, 0.85)', background: 'var(--bg-slate-200)' }}>
@@ -1733,6 +2300,8 @@ export default function PatientForm({
                 </div>
               </div>
 
+              </>
+              )}
             </form>
           </CardContent>
 
