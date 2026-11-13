@@ -1146,11 +1146,7 @@ export default function PatientForm({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-<<<<<<< Updated upstream
-        className={`flex flex-col min-w-0 w-full ${isMobile ? 'h-full max-h-none' : 'max-w-[30rem] lg:max-w-[960px] max-h-[92vh] rounded-lg'}`}>
-=======
         className={`flex flex-col min-w-0 w-full ${isMobile ? 'h-full max-h-none' : 'max-w-[30rem] lg:max-w-[1080px] max-h-[92vh] rounded-lg'}`}>
->>>>>>> Stashed changes
 
         <Card className="shadow-xl flex flex-col overflow-hidden text-body bg-surface border-surface" style={{ height: '100%', maxHeight: '100%' }}>
           <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0 bg-surface border-surface">
