@@ -326,6 +326,13 @@ export async function generateRoutePolylines({
                               // was recorded AFTER the origin stop was completed — pass the
                               // origin stop's actual_delivery_time here; earlier points are
                               // dropped from the chain.
+  forceStopIds = [],         // ADMIN REDRAW (owner report Nov 12 2026): the Stop
+                              // Details "Redraw" button targets ONE stop, which is
+                              // usually already completed — and completed/failed/
+                              // pending stops are not polyline-eligible, so the
+                              // generator returned an empty map and the button did
+                              // nothing. Ids listed here are eligible regardless of
+                              // status (explicit admin target only).
   forceRegenerate = false,   // OWNER REQUEST (Oct 15 2026): the Quick Route Adjustments
                               // Regenerate button demands ALL remaining stops get fresh
                               // polylines even when no stop changed order. When true, the
@@ -379,9 +386,12 @@ export async function generateRoutePolylines({
   // (OWNER RULE Oct 25 2026 — reconfirmed: pending stops NEVER get polylines, on
   // future routes too; the legs that matter at route creation are the en_route
   // pickups and manually-set in_transit stops, both eligible here).
+  const forcedIdSet = new Set((Array.isArray(forceStopIds) ? forceStopIds : []).map((id) => String(id)).filter(Boolean));
   const eligibleStops = stops.filter(s => {
     const status = String(s.delivery?.status || '');
     const isCyclingMarker = !!s.delivery?.is_cycling_marker;
+    // Explicit admin target (Stop Details Redraw): status does not matter.
+    if (forcedIdSet.size > 0 && forcedIdSet.has(String(s.delivery?.id || ''))) return true;
     // SHARED RULE (routeRules.js isPolylineEligibleStop): en_route/in_transit
     // + cycling markers get polylines; pending stops never do. The
     // cycling-segment-only mode keeps its local extra case (segment regens).

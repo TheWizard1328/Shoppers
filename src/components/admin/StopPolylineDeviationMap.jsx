@@ -315,6 +315,7 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
     return { origin: null, source: 'none' };
   }, [delivery, driverHome]);
 
+  const [redrawMsg, setRedrawMsg] = useState(null); // { ok, text } — shown under the buttons
   const redrawRoute = useCallback(async () => {
     const { generateRoutePolylines } = await import('@/components/utils/routePolylineGenerator');
     const { getOrFetchHereApiKey, getOrFetchPolylineConfig } = await import('@/components/utils/polylineKeyStore');
@@ -358,6 +359,10 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
       orderUnchanged: false,
       forceRegenerate: true,
       stops: [{ delivery, lat: stopLat, lng: stopLng }],
+      // This stop is the explicit admin target — completed/failed/pending stops
+      // are not polyline-eligible for the route engine, which is why Redraw used
+      // to come back empty on an already-finished stop (owner report Nov 12 2026).
+      forceStopIds: [delivery.id],
       originPoint: { lat: origin.lat, lon: origin.lon },
       cyclingSegmentOnly: false,
       hereApiKey,
@@ -462,13 +467,23 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
             disabled={busy}
             onClick={async () => {
               setBusy(true);
+              setRedrawMsg(null);
               try {
                 const res = await redrawRoute();
                 await refreshStop();
-                if (res && res.success === false) toast.warning(`Redraw failed (${res.error || res.skipped || 'unknown'})`);
-                else toast.success(`Polyline redrawn — origin: ${String(res?.originSource || 'selected stop').replace(/_/g, ' ')}`);
+                if (res && res.success === false) {
+                  const why = res.error || res.skipped || 'unknown';
+                  setRedrawMsg({ ok: false, text: `Redraw failed: ${why}` });
+                  toast.warning(`Redraw failed (${why})`);
+                } else {
+                  const src = String(res?.originSource || 'selected stop').replace(/_/g, ' ');
+                  setRedrawMsg({ ok: true, text: `Redrawn from ${src} — ${res?.points ?? '?'} points` });
+                  toast.success(`Polyline redrawn — origin: ${src}`);
+                }
               } catch (err) {
-                toast.error(`Redraw failed: ${err?.message || 'unknown'}`);
+                const why = err?.message || 'unknown';
+                setRedrawMsg({ ok: false, text: `Redraw failed: ${why}` });
+                toast.error(`Redraw failed: ${why}`);
               } finally {
                 setBusy(false);
               }
@@ -478,6 +493,10 @@ export default function StopPolylineDeviationMap({ delivery, onChanged }) {
             {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Redraw
           </Button>
         </div>
+        {redrawMsg &&
+        <div className={`mt-1.5 text-[11px] leading-snug ${redrawMsg.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+          {redrawMsg.text}
+        </div>}
       </div>
 
       <div className="relative rounded-lg overflow-hidden border border-surface" style={{ height: 240 }}>
