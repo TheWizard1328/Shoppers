@@ -45,6 +45,16 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const cardRef = useRef(null);
+  // ── ACTION-TAP LOCK (Nov 13 2026, owner report) ──────────────────────────
+  // Tapping Start/Complete used to open the card's dropdown menu: the action
+  // fires on pointerdown and sets isCompleting/isStarting, which disables the
+  // button in the same frame. The browser then has no enabled button to send
+  // the synthetic click to, so the click retargets to the card container and
+  // its onClick toggles menuOpen — the menu popped open just as the card went
+  // away. Every action now raises a short lock that the card toggle honours,
+  // and a click that started on an action button never toggles the menu.
+  const actionLockUntilRef = useRef(0);
+  const lockCardToggle = () => { actionLockUntilRef.current = Date.now() + 700; };
   const wrapperRef = useRef(null);
   const btnRef = useRef(null);
   const [matchedHeight, setMatchedHeight] = useState(null);
@@ -105,6 +115,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const handleAction = (e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
+    lockCardToggle();
     if (!delivery?.id || isCompleting || isStarting) return;
     setIsCompleting(true);
     const now = new Date(), pad = (n) => String(n).padStart(2, '0');
@@ -134,6 +145,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const handleStart = (e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
+    lockCardToggle();
     if (!delivery?.id || isStarting || isCompleting) return;
     setIsStarting(true);
     try {
@@ -150,6 +162,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
   const handleRestart = (e) => {
     e.stopPropagation();
+    lockCardToggle();
     if (!delivery?.id) return;
     onComplete?.(delivery.id, 'pending', {});
   };
@@ -233,8 +246,12 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           position: 'relative',
           overflow: 'visible'
         }}
-        onClick={() => {
+        onClick={(e) => {
           if (bulkSelectionEnabled) { onBulkSelectionChange?.(delivery.id, !isBulkSelected); return; }
+          // A click retargeted from a just-disabled action button (or any click
+          // that started on one) must never toggle the menu.
+          if (Date.now() < actionLockUntilRef.current) return;
+          if (e?.target?.closest?.('[data-stopcard-action]')) return;
           if (!isDispatcher) setMenuOpen((v) => !v);
           window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery?.id } }));
         }}>

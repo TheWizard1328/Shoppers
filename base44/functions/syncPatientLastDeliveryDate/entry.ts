@@ -56,6 +56,11 @@ const buildHistoryEntry = (delivery) => ({
 });
 
 // Append entry to history array (newest first, sorted)
+// HISTORY CAP (Nov 13 2026): this local copy had NO cap, so every completion
+// through this function appended one row and re-wrote the whole array — the
+// "boosted back up to the full amount" report. Mirror MAX_HISTORY_ENTRIES.
+const MAX_HISTORY_ENTRIES = 20;
+
 const appendToHistory = (existingHistory, entry) => {
   const history = Array.isArray(existingHistory) ? [...existingHistory] : [];
   // Avoid duplicate entries (same delivery ID)
@@ -73,6 +78,7 @@ const appendToHistory = (existingHistory, entry) => {
     const bTime = b.actual_delivery_time || '';
     return bTime.localeCompare(aTime);
   });
+  if (history.length > MAX_HISTORY_ENTRIES) history.length = MAX_HISTORY_ENTRIES;
   return history;
 };
 
@@ -143,6 +149,7 @@ const runBackfill = async (base44, backfillDays) => {
       history = appendToHistory(history, entry);
     }
 
+    if (history.length > MAX_HISTORY_ENTRIES) history.length = MAX_HISTORY_ENTRIES;
     const lastDate = history.length > 0 ? history[0].delivery_date : null;
 
     await base44.asServiceRole.entities.Patient.update(patientId, {

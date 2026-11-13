@@ -150,7 +150,12 @@ Deno.serve(async (req) => {
       // one entry per calendar day (latest event that day)
       const seenDates = new Set();
       const cleanHistory = [];
+      // HISTORY CAP (Nov 13 2026): the backfills were the other writer that
+      // re-inflated records past 20 entries. Keep the newest MAX_HISTORY_ENTRIES
+      // only — the array is a convenience cache; Delivery is the source of truth.
+      const MAX_HISTORY_ENTRIES = 20;
       for (const e of deduped) {
+        if (cleanHistory.length >= MAX_HISTORY_ENTRIES) break;
         const date = e.delivery_date || null;
         if (date && seenDates.has(date)) continue;
         if (date) seenDates.add(date);

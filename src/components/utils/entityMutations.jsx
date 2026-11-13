@@ -389,7 +389,11 @@ export const updatePatient = async (patientId, updates, options = {}) => {
     if (!existing) {
       // Not in IndexedDB - update backend directly, then sync to local
       try {
-        const backendPatient = await base44.entities.Patient.update(patientId, { id: patientId, ...updates });
+        // HISTORY CAP GUARD (Nov 13 2026): never ship more than 20 history rows.
+        const { capHistory } = await import('./patientHistoryUtils');
+        const directPayload = { id: patientId, ...updates };
+        if (Array.isArray(directPayload.delivery_history)) directPayload.delivery_history = capHistory(directPayload.delivery_history);
+        const backendPatient = await base44.entities.Patient.update(patientId, directPayload);
         offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]).catch(() => {});
         import('./dataManager').then(({ updateCache }) => updateCache('Patient', patientId, backendPatient));
         notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
@@ -409,6 +413,12 @@ export const updatePatient = async (patientId, updates, options = {}) => {
 
     // ─── STEP 2: Persist to IDB (after UI already updated) ──────────────────
     const updated = { ...existing, ...updates, updated_date: new Date().toISOString() };
+    // HISTORY CAP GUARD (Nov 13 2026): this record is uploaded whole, so an
+    // over-cap array copied out of IDB would be re-persisted forever.
+    if (Array.isArray(updated.delivery_history)) {
+      const { capHistory } = await import('./patientHistoryUtils');
+      updated.delivery_history = capHistory(updated.delivery_history);
+    }
     // GPS CHANGE LOG (owner spec Nov 9 2026): entity path writes too.
     import('./patientGpsWatcher').then(({ logPatientGpsChange }) => logPatientGpsChange({ existing, patient: updated })).catch(() => {});
 

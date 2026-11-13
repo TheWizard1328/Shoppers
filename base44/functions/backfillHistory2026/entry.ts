@@ -212,7 +212,8 @@ Deno.serve(async (req) => {
       return (a.actual_delivery_time || '').localeCompare(b.actual_delivery_time || '');
     });
 
-    const cleanHistory = deduped.map(e => ({ id: e.id, delivery_date: e.delivery_date, actual_delivery_time: e.actual_delivery_time, status: e.status }));
+    const MAX_HISTORY_ENTRIES = 20;
+    const cleanHistory = deduped.map(e => ({ id: e.id, delivery_date: e.delivery_date, actual_delivery_time: e.actual_delivery_time, status: e.status })).slice(0, MAX_HISTORY_ENTRIES);
 
     // Skip patient update if delivery_history hasn't changed
     if (!historyChanged(merge.existingHistory, cleanHistory)) {

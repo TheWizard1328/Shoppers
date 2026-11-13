@@ -61,7 +61,33 @@ export function buildHistoryEntry(deliveryId, deliveryDate, actualDeliveryTime, 
  * only uses [0] / length / a short display list, so a cap of 20 newest
  * entries loses nothing; full history lives in the Delivery entity.
  */
-const MAX_HISTORY_ENTRIES = 20;
+export const MAX_HISTORY_ENTRIES = 20;
+
+/**
+ * HARD CAP for any delivery_history array bound for storage (Nov 13 2026).
+ * Owner report: "those 20 get boosted back up to the full amount" every time a
+ * delivery is picked up. The cap existed only on the append helpers; every
+ * writer that copied an EXISTING array (patient updates built from the local
+ * IDB record, the backfill runners, syncPatientLastDeliveryDate's own
+ * appendToHistory copy, PatientForm edits) re-persisted the full array. Any
+ * array leaving for IDB or the server now goes through this.
+ */
+export function capHistory(history, cap = MAX_HISTORY_ENTRIES) {
+  if (!Array.isArray(history)) return [];
+  const byId = new Map();
+  for (const e of history) {
+    if (!e) continue;
+    const key = e.id || `${e.delivery_date || ''}|${e.actual_delivery_time || ''}|${e.status || ''}`;
+    if (!byId.has(key)) byId.set(key, e);
+  }
+  const sorted = Array.from(byId.values()).sort((a, b) => {
+    const ad = a.delivery_date || '';
+    const bd = b.delivery_date || '';
+    if (ad !== bd) return bd.localeCompare(ad);
+    return String(b.actual_delivery_time || '').localeCompare(String(a.actual_delivery_time || ''));
+  });
+  return sorted.slice(0, Math.max(0, Number(cap) || MAX_HISTORY_ENTRIES));
+}
 
 /**
  * Append a new entry to a patient's delivery_history array (newest first).
@@ -93,8 +119,7 @@ export function appendToHistory(existingHistory, newEntry) {
     return bTime.localeCompare(aTime);
   });
   // Trim oldest entries beyond the cap (sort is newest-first).
-  if (history.length > MAX_HISTORY_ENTRIES) history.length = MAX_HISTORY_ENTRIES;
-  return history;
+  return capHistory(history);
 }
 
 /**

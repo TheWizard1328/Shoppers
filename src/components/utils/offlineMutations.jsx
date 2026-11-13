@@ -318,6 +318,14 @@ export const updatePatientLocal = async (patientId, updates, options = {}) => {
       updated_date: new Date().toISOString()
     };
 
+    // HISTORY CAP GUARD (Nov 13 2026): this path uploads the WHOLE local record,
+    // so a record that already held 40+ entries re-saved all 40+ on any unrelated
+    // edit (the "boosted back up to the full amount" report). Cap every time.
+    if (Array.isArray(updatedPatient.delivery_history)) {
+      const { capHistory } = await import('./patientHistoryUtils');
+      updatedPatient.delivery_history = capHistory(updatedPatient.delivery_history);
+    }
+
     // Save to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updatedPatient]);
 

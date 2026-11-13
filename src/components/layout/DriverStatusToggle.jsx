@@ -608,13 +608,50 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
 
             console.log(`[DriverStatusToggle] on_duty sync: ${updatedDeliveries.length} deliveries, nextStop=${nextStop?.id || 'none'} (${nextStop?.status || '-'})`);
 
+            // ── DUTY-RESUME RE-OPTIMIZATION (owner directive Nov 13 2026) ──
+            // Going on break / off duty clears isNextDelivery, and a break can
+            // move the driver far away from the stop the pre-break order was
+            // built around. Coming back on duty therefore re-optimizes the
+            // REMAINING route from the driver's CURRENT position instead of
+            // resuming the old stop_order. Runs before the deviation check: the
+            // optimizer rebuilds the legs, so the scoped current-leg regen below
+            // is skipped when this succeeds.
+            let _dutyResumeReoptimized = false;
+            if ((previousStatus === 'on_break' || previousStatus === 'off_duty')
+              && Number.isFinite(Number(gps?.lat)) && Number.isFinite(Number(gps?.lng))) {
+              const _TERMINAL_FOR_REOPT = new Set(['completed', 'failed', 'cancelled']);
+              const _remainingForReopt = (allRouteDeliveries || []).filter(
+                (d) => d && d.id && !_TERMINAL_FOR_REOPT.has(String(d.status || '').toLowerCase())
+              );
+              if (_remainingForReopt.length > 1) {
+                try {
+                  const { performRouteOptimization } = await import('../utils/routeOptimizationCoordinator');
+                  const _reopt = await performRouteOptimization({
+                    driverId: effectiveUser.id,
+                    deliveryDate: optimizerDate,
+                    deliveries: allRouteDeliveries,
+                    patients: appDataContext?.patients || [],
+                    stores: appDataContext?.stores || [],
+                    appUsers: appDataContext?.appUsers || [],
+                    source: 'dutyResumeReopt',
+                    bypassDriverStatus: true,
+                    awaitServerWrite: true,
+                  });
+                  _dutyResumeReoptimized = !!_reopt?.success;
+                  console.log(`[DriverStatusToggle] duty-resume re-optimization ${_dutyResumeReoptimized ? 'complete' : 'did not succeed (' + (_reopt?.reason || _reopt?.error || 'unknown') + ')'} for ${_remainingForReopt.length} remaining stop(s)`);
+                } catch (reoptErr) {
+                  console.warn('[DriverStatusToggle] duty-resume re-optimization failed:', reoptErr?.message || reoptErr);
+                }
+              }
+            }
+
             // ── On-duty route deviation check (owner rule Sep 18 2026) ──────
             // The driver may be re-entering the route far from the current leg's
             // stored polyline (break stop, off-duty errand). Measure deviation
             // against the current leg NOW; if beyond the admin threshold, run the
             // scoped current-leg regen (bends the leg through the driver's
             // position) instead of waiting for the next GPS-tick detection.
-            if (nextStop && Number.isFinite(Number(gps?.lat)) && Number.isFinite(Number(gps?.lng))) {
+            if (!_dutyResumeReoptimized && nextStop && Number.isFinite(Number(gps?.lat)) && Number.isFinite(Number(gps?.lng))) {
               try {
                 const { checkCurrentLegDeviationOnDuty } = await import('../dashboard/useRouteDeviationMonitor');
                 const devResult = await checkCurrentLegDeviationOnDuty({

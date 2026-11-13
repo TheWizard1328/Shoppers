@@ -224,7 +224,8 @@ Deno.serve(async (req) => {
       if (d) seenDates.add(d);
       cleanEntries.push(entry);
     }
-    const cleanHistory = cleanEntries.map(e => ({ id: e.id, delivery_date: e.delivery_date, actual_delivery_time: e.actual_delivery_time, status: e.status }));
+    const MAX_HISTORY_ENTRIES = 20;
+    const cleanHistory = cleanEntries.map(e => ({ id: e.id, delivery_date: e.delivery_date, actual_delivery_time: e.actual_delivery_time, status: e.status })).slice(0, MAX_HISTORY_ENTRIES);
     const lastDeliveryDate = cleanHistory.length > 0 ? cleanHistory[0].delivery_date : null;
 
     // DIFF: skip patient if delivery_history already matches

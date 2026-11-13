@@ -128,7 +128,12 @@ const buildCleanHistory = (entries) => {
   // the first entry per date is the latest event that day.
   const seenDates = new Set();
   const clean = [];
+  // HISTORY CAP (Nov 13 2026): the runner used to upload the FULL merged array,
+  // which is why a 40-delivery patient came back with 40 stored rows. Keep the
+  // newest 20 — the dashboard reads the Delivery entity for anything older.
+  const MAX_HISTORY_ENTRIES = 20;
   for (const e of deduped) {
+    if (clean.length >= MAX_HISTORY_ENTRIES) break;
     const d = e.delivery_date || null;
     if (d) { if (seenDates.has(d)) continue; seenDates.add(d); }
     clean.push({ id: e.id, delivery_date: e.delivery_date, actual_delivery_time: e.actual_delivery_time, status: e.status });
