@@ -68,7 +68,7 @@ export default function DeviceForm({
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent className="max-w-md bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent className="max-w-md bg-surface border-slate-300 dark:border-slate-600">
         <DialogHeader>
           <DialogTitle className="text-body">
             {device ? 'Edit Device' : 'Add New Device'}
@@ -83,14 +83,14 @@ export default function DeviceForm({
               value={deviceName}
               onChange={(e) => setDeviceName(e.target.value)}
               placeholder="e.g., My iPhone 15 Pro"
-              style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface"
+              className="text-body bg-surface border-slate-300 dark:border-slate-600"
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="deviceType" className="text-body-2">Device Type</Label>
             <Select value={deviceType} onValueChange={setDeviceType}>
-              <SelectTrigger id="deviceType">
+              <SelectTrigger id="deviceType" className="bg-surface border-slate-300 dark:border-slate-600 text-body">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="z-[99999] pointerEvents-auto">
@@ -104,7 +104,7 @@ export default function DeviceForm({
           <div className="space-y-2">
             <Label htmlFor="status" className="text-body-2">Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger id="status">
+              <SelectTrigger id="status" className="bg-surface border-slate-300 dark:border-slate-600 text-body">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="z-[99999] pointerEvents-auto">
@@ -133,10 +133,10 @@ export default function DeviceForm({
           )}
 
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+            <Button type="button" variant="outline" onClick={onCancel} className="flex-1 border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body">
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
+            <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
               {device ? 'Update' : 'Create'} Device
             </Button>
           </div>

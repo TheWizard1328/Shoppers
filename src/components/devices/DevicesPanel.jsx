@@ -511,7 +511,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
     <div className="space-y-4">
       {/* Toolbar: user picker (admin only) + Add Device + Refresh share one row
           (owner request Oct 29 2026 — the picker no longer spans the panel). */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         {isAdminViewer && (() => {
           // Owner request Oct 29 2026: the "View devices for" list is colour
           // coded by domain migration — green (all devices on the new domain),
@@ -547,7 +547,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
             >
               <SelectTrigger
                 aria-label="View devices for"
-                className={`flex-1 min-w-0 h-9 px-2 text-sm border bg-surface border-surface ${selectedStyle.rowText}`}
+                className={`flex-1 min-w-0 h-9 px-2 text-sm border rounded-md bg-surface border-slate-300 dark:border-slate-600 dark:bg-slate-800 ${selectedStyle.rowText}`}
               >
                 <SelectValue placeholder="View devices for" />
               </SelectTrigger>
@@ -567,9 +567,6 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                           {u.name}
                           {u.roles?.length ? ` — ${u.roles.join(', ')}` : ''}
                         </span>
-                        {info?.count ? (
-                          <span className="ml-1 text-[10px] text-soft shrink-0">{info.count}d</span>
-                        ) : null}
                       </span>
                     </SelectItem>
                   );
@@ -578,13 +575,18 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
             </Select>
           );
         })()}
-        <Button size="sm" className={`gap-2 shrink-0 ${isAdminViewer ? '' : 'flex-1'}`} onClick={() => { setEditingDevice(null); setShowForm(true); }}>
-          <Plus className="w-4 h-4" /> Add Device{!isOwnDevices ? ` for ${viewUserName}` : ''}
+        <Button
+          size="sm"
+          title={!isOwnDevices ? `Add a device to ${viewUserName}'s account` : 'Add a device to your account'}
+          className="shrink-0 h-9 gap-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 text-white min-w-0"
+          onClick={() => { setEditingDevice(null); setShowForm(true); }}
+        >
+          <Plus className="w-4 h-4 shrink-0" /> <span className="truncate">Add Device</span>
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="gap-2 shrink-0"
+          className="shrink-0 h-9 w-9 p-0 border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body"
           title="Refresh devices"
           aria-label="Refresh devices"
           disabled={isRefreshing}
@@ -602,7 +604,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
 
       {/* Background GPS */}
       {isNativeBackgroundTrackingAvailable && (
-        <Card className="bg-surface border-surface">
+        <Card className="bg-surface border-slate-300 dark:border-slate-600">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold flex items-center gap-2 text-body-2">
               <ShieldCheck className="w-4 h-4" /> Background GPS Setup
@@ -693,7 +695,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                       value={deviceSettings[device.id]?.device_name ?? device.device_name}
                       onChange={(e) => setDeviceSettings((p) => ({ ...p, [device.id]: { ...p[device.id], device_name: e.target.value } }))}
                       placeholder={device.device_name}
-                      className="flex-1 px-2 py-1 rounded text-sm border min-w-0 text-body bg-surface border-surface"
+                      className="flex-1 px-2 py-1 rounded text-sm border min-w-0 text-body bg-surface border-slate-300 dark:border-slate-600"
                     />
                   </div>
                   <div className="flex items-center justify-between gap-3 p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
@@ -705,7 +707,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                     <select
                       value={deviceSettings[device.id]?.status ?? device.status}
                       onChange={(e) => setDeviceSettings((p) => ({ ...p, [device.id]: { ...p[device.id], status: e.target.value } }))}
-                      className="px-2 py-1 rounded text-sm border bg-surface border-surface"
+                      className="px-2 py-1 rounded text-sm border bg-surface border-slate-300 dark:border-slate-600"
                     >
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
@@ -724,7 +726,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                     <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 gap-1" onClick={() => handleApplySettings(device)}>
                       <CheckCircle className="w-3 h-3" /> Apply
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => {
+                    <Button variant="outline" size="sm" className="h-8 border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => {
                       setEditingSettings((p) => ({ ...p, [device.id]: false }));
                       setDeviceSettings((p) => ({ ...p, [device.id]: {} }));
                     }}>Cancel</Button>
@@ -734,35 +736,35 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                     {/* Owner spec Oct 29 2026: the four action buttons share ONE row
                         and stretch evenly to fill the card; Delete keeps its own
                         row, aligned bottom-right. */}
-                    <div className="flex flex-wrap items-stretch gap-1.5 w-full">
-                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
+                    <div className="flex items-stretch gap-1.5 w-full min-w-0">
+                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
                         <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Edit</span>
                       </Button>
                       {isOwnDevices && !isCurrent && device.status !== 'inactive' && (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => handleSwitchToDeviceProfile(device)}>
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleSwitchToDeviceProfile(device)}>
                           <CheckCircle className="w-3 h-3 shrink-0" /> <span className="truncate">Use Here</span>
                         </Button>
                       )}
                       {isOwnDevices && isCurrent && devices.length > 1 && (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => setShowChangeSettings(true)}>
-                          <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Copy From...</span>
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => setShowChangeSettings(true)}>
+                          <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Copy From</span>
                         </Button>
                       )}
                       {canSetPrimary && (device.is_primary_tracker ? (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => handleClearPrimary(device)}>
-                          <span className="truncate">Remove Primary</span>
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleClearPrimary(device)}>
+                          <span className="truncate">Unset Primary</span>
                         </Button>
                       ) : (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => handleSetPrimary(device)}>
+                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleSetPrimary(device)}>
                           <span className="truncate">Set Primary</span>
                         </Button>
                       ))}
-                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-[6.25rem] px-2" onClick={() => handleToggleDeviceStatus(device)}>
+                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleToggleDeviceStatus(device)}>
                         <span className="truncate">{device.status === 'inactive' ? 'Enable' : 'Disable'}</span>
                       </Button>
                     </div>
                     <div className="flex justify-end w-full">
-                      <Button variant="destructive" size="sm" className="gap-1 shrink-0" onClick={() => handleDeleteDevice(device)} disabled={devices.length === 1}>
+                      <Button size="sm" className="gap-1 shrink-0 h-8 text-[11px] bg-red-600 hover:bg-red-700 text-white" onClick={() => handleDeleteDevice(device)} disabled={devices.length === 1}>
                         <Trash2 className="w-3 h-3" /> Delete
                       </Button>
                     </div>
@@ -771,10 +773,10 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
               </div>
 
               {isCurrent && showChangeSettings && (
-                <div className="rounded-lg border p-3 space-y-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                <div className="rounded-lg border p-3 space-y-2 border-slate-300 dark:border-slate-600" style={{ background: 'var(--bg-slate-50)' }}>
                   <p className="text-sm font-semibold text-body">Apply settings from:</p>
                   {devices.filter((d) => d.id !== currentDeviceId).map((d) => (
-                    <div key={d.id} className="flex items-center justify-between p-2 rounded border bg-surface border-surface">
+                    <div key={d.id} className="flex items-center justify-between p-2 rounded border bg-surface border-slate-300 dark:border-slate-600">
                       <div>
                         <p className="text-sm font-medium text-body">{d.device_name}</p>
                         <p className="text-xs text-soft">{d.device_info?.device_type || 'Unknown'}</p>
@@ -782,7 +784,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                       <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => handleApplyDeviceSettings(d)}>Apply</Button>
                     </div>
                   ))}
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => setShowChangeSettings(false)}>Cancel</Button>
+                  <Button variant="outline" size="sm" className="w-full border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => setShowChangeSettings(false)}>Cancel</Button>
                 </div>
               )}
             </CardContent>

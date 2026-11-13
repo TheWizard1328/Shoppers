@@ -180,7 +180,7 @@ function NotificationsPanel({ currentUser, settings }) {
   const permissionDenied = browserPermission === 'denied';
 
   return (
-    <div className="divide-y divide-slate-100 p-1">
+    <div className="divide-y divide-slate-100 dark:divide-slate-700 p-1">
       {/* Browser permission status banner */}
       {permissionDenied && (
         <div className="flex items-start gap-2 py-3 px-3 mb-1 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200">
@@ -490,7 +490,7 @@ export function SettingsDialog({
           ...(contentStyle || {}),
         }}
       >
-        <DialogHeader className="pb-4 border-b border-slate-100 mb-2">
+        <DialogHeader className="pb-4 border-b border-slate-100 dark:border-slate-700 mb-2">
           <DialogTitle className="flex items-center gap-2 text-base">
             {Icon && <Icon className="w-4 h-4" />}
             {title}
