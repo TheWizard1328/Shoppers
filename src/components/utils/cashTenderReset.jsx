@@ -35,8 +35,9 @@ export async function resetCollectionStampsForCash(deliveryId, codPayments) {
     return false;
   }
   try {
-    const rows = await offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []);
-    const existing = (rows || []).find((r) => String(r?.id) === id);
+    // getById, never getAll — a full deliveries scan is the known IDB timeout
+    // storm source on bloated local stores.
+    const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, id).catch(() => null);
     if (existing) await offlineDB.save(offlineDB.STORES.DELIVERIES, { ...existing, ...patch }).catch(() => {});
   } catch { /* mirror is best effort */ }
   return true;
