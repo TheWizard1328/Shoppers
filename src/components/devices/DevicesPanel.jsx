@@ -511,7 +511,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
     <div className="space-y-4">
       {/* Toolbar: user picker (admin only) + Add Device + Refresh share one row
           (owner request Oct 29 2026 — the picker no longer spans the panel). */}
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2 w-full min-w-0 max-w-full">
         {isAdminViewer && (() => {
           // Owner request Oct 29 2026: the "View devices for" list is colour
           // coded by domain migration — green (all devices on the new domain),
@@ -547,7 +547,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
             >
               <SelectTrigger
                 aria-label="View devices for"
-                className={`flex-1 min-w-0 h-9 px-2 text-sm border rounded-md bg-surface border-slate-300 dark:border-slate-600 dark:bg-slate-800 ${selectedStyle.rowText}`}
+                className={`flex-1 basis-0 !min-w-0 overflow-hidden h-9 px-2 text-sm border rounded-md bg-surface border-slate-300 dark:border-slate-600 dark:bg-slate-800 ${selectedStyle.rowText}`}
               >
                 <SelectValue placeholder="View devices for" />
               </SelectTrigger>
@@ -578,10 +578,10 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
         <Button
           size="sm"
           title={!isOwnDevices ? `Add a device to ${viewUserName}'s account` : 'Add a device to your account'}
-          className="shrink-0 h-9 gap-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 text-white min-w-0"
+          className="shrink-0 h-9 w-9 p-0 min-[380px]:w-auto min-[380px]:px-2.5 gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
           onClick={() => { setEditingDevice(null); setShowForm(true); }}
         >
-          <Plus className="w-4 h-4 shrink-0" /> <span className="truncate">Add Device</span>
+          <Plus className="w-4 h-4 shrink-0" /> <span className="hidden min-[380px]:inline truncate">Add Device</span>
         </Button>
         <Button
           size="sm"
@@ -605,18 +605,23 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
       {/* Background GPS */}
       {isNativeBackgroundTrackingAvailable && (
         <Card className="bg-surface border-slate-300 dark:border-slate-600">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 min-w-0">
             <CardTitle className="text-base font-semibold flex items-center gap-2 text-body-2">
               <ShieldCheck className="w-4 h-4" /> Background GPS Setup
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 min-w-0">
             <p className="text-sm text-soft">
               Tap below, then allow full background access when prompted.
             </p>
-            <Button size="sm" className="gap-2" onClick={handleRequestLocationAccess} disabled={isRequestingLocationAccess}>
-              <MapPin className="w-4 h-4" />
-              {isRequestingLocationAccess ? 'Requesting...' : 'Request Background GPS Access'}
+            <Button
+              size="sm"
+              className="gap-1.5 h-9 w-full sm:w-auto max-w-full px-2.5 bg-blue-600 hover:bg-blue-700 text-white !min-w-0"
+              onClick={handleRequestLocationAccess}
+              disabled={isRequestingLocationAccess}
+            >
+              <MapPin className="w-4 h-4 shrink-0" />
+              <span className="truncate">{isRequestingLocationAccess ? 'Requesting...' : 'Request Background GPS Access'}</span>
             </Button>
           </CardContent>
         </Card>
@@ -635,7 +640,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
 
       {/* Device cards — column count measured against the main content area */}
       <div
-        className="grid gap-3 items-start justify-center"
+        className="grid gap-3 items-start justify-center w-full max-w-full min-w-0"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
       {sortedDevices.map((device) => {
@@ -654,7 +659,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
         const deviceStyle = domainStatus(deviceKind);
 
         return (
-          <Card key={device.id} className={`border border-l-4 ${deviceStyle.card}`}>
+          <Card key={device.id} className={`border border-l-4 min-w-0 overflow-hidden ${deviceStyle.card}`}>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -736,30 +741,30 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
                     {/* Owner spec Oct 29 2026: the four action buttons share ONE row
                         and stretch evenly to fill the card; Delete keeps its own
                         row, aligned bottom-right. */}
-                    <div className="flex items-stretch gap-1.5 w-full min-w-0">
-                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 w-full min-w-0">
+                      <Button variant="outline" size="sm" className="gap-1 w-full !min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => setEditingSettings((p) => ({ ...p, [device.id]: true }))}>
                         <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Edit</span>
                       </Button>
                       {isOwnDevices && !isCurrent && device.status !== 'inactive' && (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleSwitchToDeviceProfile(device)}>
+                        <Button variant="outline" size="sm" className="gap-1 w-full !min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleSwitchToDeviceProfile(device)}>
                           <CheckCircle className="w-3 h-3 shrink-0" /> <span className="truncate">Use Here</span>
                         </Button>
                       )}
                       {isOwnDevices && isCurrent && devices.length > 1 && (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => setShowChangeSettings(true)}>
+                        <Button variant="outline" size="sm" className="gap-1 w-full !min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => setShowChangeSettings(true)}>
                           <Edit2 className="w-3 h-3 shrink-0" /> <span className="truncate">Copy From</span>
                         </Button>
                       )}
                       {canSetPrimary && (device.is_primary_tracker ? (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleClearPrimary(device)}>
+                        <Button variant="outline" size="sm" className="gap-1 w-full !min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleClearPrimary(device)}>
                           <span className="truncate">Unset Primary</span>
                         </Button>
                       ) : (
-                        <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleSetPrimary(device)}>
+                        <Button variant="outline" size="sm" className="gap-1 w-full !min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleSetPrimary(device)}>
                           <span className="truncate">Set Primary</span>
                         </Button>
                       ))}
-                      <Button variant="outline" size="sm" className="gap-1 flex-1 min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleToggleDeviceStatus(device)}>
+                      <Button variant="outline" size="sm" className="gap-1 w-full !min-w-0 px-1.5 h-8 text-[11px] border-slate-300 dark:border-slate-600 bg-surface hover:bg-slate-100 dark:hover:bg-slate-700 text-body" onClick={() => handleToggleDeviceStatus(device)}>
                         <span className="truncate">{device.status === 'inactive' ? 'Enable' : 'Disable'}</span>
                       </Button>
                     </div>
@@ -799,7 +804,7 @@ export default function DevicesPanel({ currentUser, onColumnCountChange }) {
           <Smartphone className="w-10 h-10 mx-auto mb-2" style={{ color: 'var(--text-slate-400)' }} />
           <p className="text-sm font-medium mb-1 text-body">No devices registered</p>
           <p className="text-xs mb-3 text-soft">Add your first device to enable location tracking</p>
-          <Button size="sm" onClick={() => setShowForm(true)}>Add Device</Button>
+          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowForm(true)}>Add Device</Button>
         </div>
       )}
 
