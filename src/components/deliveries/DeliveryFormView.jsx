@@ -1575,6 +1575,7 @@ export default function DeliveryFormView({
                                       <AddressActionBadges
                                       patient={selectedPatient}
                                       store={badgeStore}
+                                      polylineDelivery={delivery}
                                       delivery={delivery ? {
                                         id: delivery.id,
                                         delivery_date: formData.delivery_date || delivery.delivery_date,
@@ -1829,6 +1830,7 @@ export default function DeliveryFormView({
                                     <AddressActionBadges
                                     patient={selectedPatient}
                                     store={badgeStore}
+                                    polylineDelivery={delivery}
                                     delivery={delivery ? {
                                         id: delivery.id,
                                         delivery_date: formData.delivery_date || delivery.delivery_date,

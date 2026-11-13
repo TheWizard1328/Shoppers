@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, RefreshCw, MapPin } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { base44 } from '@/api/base44Client';
 import { haversineKm } from '@/components/utils/geoUtils';
 import { updatePatientLocal } from '@/components/utils/entityMutations';
 import { isCurrentDevicePrimary } from '@/components/utils/deviceManager';
-import { isDriver, isAdmin } from '@/components/utils/userRoles';
+import { isDriver, isAdmin, isAppOwner } from '@/components/utils/userRoles';
 import PatientStoreMapDialog from './PatientStoreMapDialog';
+
+// OWNER SPEC (Nov 12 2026): on an ACTIVE or FINISHED stop the App Owner's map
+// badge opens the Stop Details "Polyline & Deviation Points" tool instead of the
+// patient/store map. Lazy so leaflet + the route engine only load when opened.
+const StopPolylineDeviationMap = React.lazy(() => import('@/components/admin/StopPolylineDeviationMap'));
+
+// Stops that have a leg worth debugging: on the road, or already driven.
+const POLYLINE_MAP_STATUSES = ['en_route', 'in_transit', 'completed', 'failed'];
 
 /**
  * Two round action badges that sit to the LEFT of the Change badge, above the
@@ -43,6 +52,7 @@ export default function AddressActionBadges({
   onDistanceUpdated,
   onPaidKmOverrideCleared,
   onError,
+  polylineDelivery = null, // full Delivery record from the Edit Delivery form (owner map routing)
   className = '',
 }) {
   const [busy, setBusy] = useState(false);
@@ -53,6 +63,8 @@ export default function AddressActionBadges({
   const refreshLocked = refreshLimitApplies && (usedHere || usedBefore);
   const [mapOpen, setMapOpen] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
+  const [polylineTarget, setPolylineTarget] = useState(null); // stop shown in the polyline tool
+  const [resolving, setResolving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,7 +166,51 @@ export default function AddressActionBadges({
     }
   };
 
+  // The stop the owner wants to debug. Edit Delivery hands over the record; Edit
+  // Patient has no stop context, so the patient's own stop is resolved — today's
+  // first, else the newest one that is on the road or already driven.
+  const resolvePolylineStop = async () => {
+    const mirror = Array.isArray(window.__appDeliveries) ? window.__appDeliveries : [];
+    if (polylineDelivery?.id) {
+      const fresh = mirror.find((d) => String(d?.id) === String(polylineDelivery.id));
+      return fresh || polylineDelivery;
+    }
+    const pid = patient?.id || patient?.patient_id || null;
+    if (!pid) return null;
+    let rows = mirror.filter((d) => String(d?.patient_id) === String(pid));
+    if (rows.length === 0) {
+      try {
+        rows = (await base44.entities.Delivery.filter({ patient_id: String(pid) })) || [];
+      } catch { rows = []; }
+    }
+    const relevant = rows.filter((d) => POLYLINE_MAP_STATUSES.includes(String(d?.status || '').toLowerCase()));
+    if (relevant.length === 0) return null;
+    const today = new Date().toLocaleDateString('en-CA');
+    const todays = relevant.filter((d) => String(d?.delivery_date || '').slice(0, 10) === today);
+    const pool = todays.length ? todays : relevant;
+    return pool.slice().sort((a, b) =>
+      String(b?.delivery_date || '').localeCompare(String(a?.delivery_date || '')) ||
+      (Number(b?.stop_order) || 0) - (Number(a?.stop_order) || 0)
+    )[0];
+  };
+
   const openMap = async () => {
+    // App Owner + active/finished stop → Polyline & Deviation Points tool.
+    // Pending (and staged/cancelled) stops keep the patient/store map.
+    if (isAppOwner(currentUser)) {
+      setResolving(true);
+      try {
+        const stop = await resolvePolylineStop();
+        if (stop && POLYLINE_MAP_STATUSES.includes(String(stop?.status || '').toLowerCase())) {
+          setPolylineTarget(stop);
+          return;
+        }
+      } catch (err) {
+        console.warn('[AddressActionBadges] stop resolution failed:', err?.message);
+      } finally {
+        setResolving(false);
+      }
+    }
     setMapOpen(true);
     if (driverLocation || !currentUser?.id) return;
     const lat = num(currentUser?.current_latitude);
@@ -205,12 +261,14 @@ export default function AddressActionBadges({
       <button
         type="button"
         onClick={openMap}
-        disabled={disabled}
-        title="Show the patient, the store and this driver on a map"
+        disabled={disabled || resolving}
+        title={isAppOwner(currentUser)
+          ? 'App Owner: a pending stop shows the patient/store map; a stop on the road or already driven opens Polyline & Deviation Points'
+          : 'Show the patient, the store and this driver on a map'}
         aria-label="Show map"
         style={roundStyle}
         className={`${roundBase} ${disabled ? disabledCls : enabledCls}`}>
-        <MapPin className="w-3.5 h-3.5" />
+        {resolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
       </button>
 
       <PatientStoreMapDialog
@@ -220,6 +278,24 @@ export default function AddressActionBadges({
         store={store}
         driverLocation={driverLocation}
       />
+
+      {/* Polyline & Deviation Points (App Owner, active/finished stops only) —
+          the same tool the Stop Details side panel renders. */}
+      <Dialog open={!!polylineTarget} onOpenChange={(o) => { if (!o) setPolylineTarget(null); }}>
+        <DialogContent className="max-w-2xl w-[96vw] max-h-[92vh] overflow-y-auto p-3 sm:p-4">
+          <DialogHeader>
+            <DialogTitle className="text-sm">
+              Polyline &amp; Deviation Points
+              {polylineTarget?.status ? <span className="ml-1.5 text-[11px] font-normal text-slate-500 dark:text-slate-400">· {String(polylineTarget.status).replace(/_/g, ' ')}</span> : null}
+            </DialogTitle>
+          </DialogHeader>
+          {polylineTarget &&
+          <React.Suspense fallback={<div className="flex items-center justify-center py-10 text-xs text-slate-500 dark:text-slate-400"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading map…</div>}>
+              <StopPolylineDeviationMap delivery={polylineTarget} />
+            </React.Suspense>
+          }
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
