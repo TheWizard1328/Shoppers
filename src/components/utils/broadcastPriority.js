@@ -154,6 +154,13 @@ export const computeDeliveryBroadcastPriority = (data) => {
 const _flushTier = (tier) => {
   const t = _tiers[tier];
   if (!t || t.map.size === 0) return;
+  // OWNER BUG (Nov 13 2026): the queue was CLEARED before the handler check, so
+  // any flush that ran before realtimeSync registered its handler silently threw
+  // the events away — a newly added stop then existed on the server but never
+  // reached the device (no marker, no pickup card) until a manual refresh.
+  // Never drop: if there is no handler yet, keep the events queued and re-arm.
+  const handler = _flushHandler;
+  if (!handler) { _armTierTimer(tier); return; }
   const events = Array.from(t.map.values());
   t.map.clear();
   if (t.timer) { clearTimeout(t.timer); t.timer = null; }
@@ -161,8 +168,6 @@ const _flushTier = (tier) => {
     t.lastLog = Date.now();
     console.log(`⏳ [BcastStage] flushed ${events.length} staged delivery events (${tier})`);
   }
-  const handler = _flushHandler;
-  if (!handler) return; // no subscription yet — boot/delta sync converges
   Promise.resolve().then(() => handler(events)).catch((e) => {
     console.warn('[BcastStage] staged flush failed:', e?.message || e);
   });

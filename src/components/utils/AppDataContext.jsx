@@ -1214,11 +1214,32 @@ export const AppDataProvider = ({ children, value }) => {
           offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
         ]);
 
-        if (Array.isArray(idbDeliveries) && idbDeliveries.length > 0) {
+        // MISSED-BROADCAST SELF-HEAL (owner report Nov 13 2026): this resume path
+        // used to read IDB only. If a delivery's realtime event never landed, the
+        // cache had no copy and no amount of background cycles could ever show the
+        // stop — the tablet sat blind until a manual spinner. Pull the selected
+        // date from the server as well and merge by id (server wins).
+        let serverDeliveries = [];
+        try {
+          const { base44 } = await import('@/api/base44Client');
+          serverDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDate });
+        } catch (_) { serverDeliveries = []; }
+
+        const mergedForDate = (() => {
+          const byId = new Map();
+          (Array.isArray(idbDeliveries) ? idbDeliveries : []).forEach((d) => { if (d?.id) byId.set(d.id, d); });
+          (Array.isArray(serverDeliveries) ? serverDeliveries : []).forEach((d) => { if (d?.id) byId.set(d.id, d); });
+          return Array.from(byId.values());
+        })();
+        if (Array.isArray(serverDeliveries) && serverDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, serverDeliveries).catch(() => null);
+        }
+
+        if (mergedForDate.length > 0) {
           if (applyDeliveryChangesLocallyRef.current) {
-            applyDeliveryChangesLocallyRef.current({ upserts: idbDeliveries, deleteIds: [] });
+            applyDeliveryChangesLocallyRef.current({ upserts: mergedForDate, deleteIds: [] });
           } else if (updateDeliveriesLocallyRef.current) {
-            updateDeliveriesLocallyRef.current(idbDeliveries, false);
+            updateDeliveriesLocallyRef.current(mergedForDate, false);
           }
         }
 
@@ -1235,9 +1256,9 @@ export const AppDataProvider = ({ children, value }) => {
         }
 
         if (typeof window !== 'undefined') {
-          if (idbDeliveries?.length) {
+          if (mergedForDate.length) {
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: { freshDeliveries: idbDeliveries, triggeredBy: 'backgroundResume', preserveLocalState: true }
+              detail: { freshDeliveries: mergedForDate, triggeredBy: 'backgroundResume', preserveLocalState: true }
             }));
           }
           if (idbPatients?.length) {
