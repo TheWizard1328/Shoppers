@@ -74,6 +74,7 @@ export const createMergedUser = (authUser, appUser) => {
     merged = {
       ...merged, ...appUser, id: authUser.id,
       user_name: appUser.user_name ?? merged.user_name,
+      full_name: appUser.user_name ?? merged.full_name,
       display_name: appUser.user_name ?? merged.display_name,
       app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : merged.app_roles,
       status: appUser.status ?? merged.status

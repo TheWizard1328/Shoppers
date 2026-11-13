@@ -156,12 +156,19 @@ export const createMergedUser = (authUser, appUser) => {
     return null;
   }
   
+  // DISPLAY NAME (owner report Nov 13 2026): `...authUser` left full_name set to
+  // the PLATFORM login name ('sharuk.…', 'callingwood.shoppers'), so any consumer
+  // reading full_name (AppIssueSupport, QuickStats, driver lists, notifications)
+  // showed the login handle even though the AppUser record was correct. The
+  // AppUser user_name is canonical and now overrides full_name too.
+  const _canonicalName = appUser.user_name || authUser.full_name;
   const mergedUser = {
     ...authUser,
     ...appUser,
     id: authUser.id, // CRITICAL: Primary ID is always authUser.id
     app_roles: preservedAppRoles, // CRITICAL: Use the preserved app_roles EXACTLY as they are
-    user_name: appUser.user_name || authUser.full_name,
+    full_name: _canonicalName,
+    user_name: _canonicalName,
     status: appUser.status || 'active',
     display_name: appUser.user_name || authUser.full_name,
     first_name: (appUser.user_name || authUser.full_name).split(' ')[0]

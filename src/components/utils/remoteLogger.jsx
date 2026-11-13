@@ -201,6 +201,72 @@ const getMe = async () => {
   return mePromise;
 };
 
+// ── CANONICAL DISPLAY NAME (owner report Nov 13 2026) ───────────────────────
+// Every log row was stamped with `me.full_name`, i.e. the PLATFORM login name,
+// so dispatcher rows showed 'callingwood.shoppers', 'kingsway.shoppers',
+// 'meadows.shoppers' instead of 'Callingwood', 'Kingsway', 'Meadows' and driver
+// rows the same way (Sharuk, Anna). The AppUser record is the canonical display
+// name, keyed by user_id === auth user id (NEVER AppUser.id — different id).
+// Resolution order, cheapest and most trustworthy first:
+//   1. the in-memory effective user (already an AppUser merge)
+//   2. window.__appUsers (the live AppUser list the dashboard renders from)
+//   3. the IDB AppUser store by user_id (offline-safe)
+//   4. AppUser.filter({ user_id }) — cached once per session
+//   5. the platform name, only when no AppUser record exists at all
+// A blank AppUser user_name never wins over a real platform name; a real
+// AppUser name always wins over the platform login name. When the resolved name
+// is finally known we backfill it into rows already buffered this session, so a
+// flush that ran before the AppUser store was warm does not persist the login
+// name.
+let appUserNamePromise = null;
+const resolveAppUserDisplayName = async (authUserId) => {
+  if (!authUserId) return null;
+  try {
+    const inMemory = (typeof window !== 'undefined' && Array.isArray(window.__appUsers))
+      ? window.__appUsers.find((u) => u && String(u.user_id) === String(authUserId))
+      : null;
+    if (inMemory?.user_name) return String(inMemory.user_name);
+  } catch {}
+  try {
+    const effective = (typeof window !== 'undefined' && window.__currentUser) || null;
+    if (effective && String(effective.id || effective.user_id) === String(authUserId) && effective.user_name) {
+      return String(effective.user_name);
+    }
+  } catch {}
+  try {
+    const { offlineDB } = await import('./offlineDatabase');
+    const rows = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', authUserId);
+    const hit = (rows || []).find((r) => r && String(r.user_id) === String(authUserId) && r.user_name);
+    if (hit) return String(hit.user_name);
+  } catch {}
+  try {
+    if (!appUserNamePromise) {
+      appUserNamePromise = base44.entities.AppUser.filter({ user_id: authUserId })
+        .then((rows) => (rows || []).find((r) => r && r.user_name)?.user_name || null)
+        .catch(() => null)
+        .finally(() => { setTimeout(() => { appUserNamePromise = null; }, 300000); });
+    }
+    const fetched = await appUserNamePromise;
+    if (fetched) return String(fetched);
+  } catch {}
+  return null;
+};
+
+const backfillBufferedUserNames = (authUserId, displayName) => {
+  if (!authUserId || !displayName) return;
+  try {
+    const rows = readBuffer();
+    let changed = false;
+    const next = rows.map((r) => {
+      if (String(r?.user_id || '') !== String(authUserId)) return r;
+      if (r?.user_name === displayName) return r;
+      changed = true;
+      return { ...r, user_name: displayName };
+    });
+    if (changed) writeBuffer(next);
+  } catch {}
+};
+
 const shouldCapture = async () => {
   const settings = activeSettings || await loadSettings();
   if (!settings?.enabled) return false;
@@ -342,6 +408,12 @@ const enqueue = async (level, args, extra = {}) => {
   if (shouldSkipDuplicateLog(_effectiveLevel, message)) return;
 
   const me = await getMe();
+  // Prefer the AppUser display name over the platform login name (see
+  // resolveAppUserDisplayName above). Never blocks the log write: a miss falls
+  // back to the platform name for this row only.
+  let _displayName = me?.id ? await resolveAppUserDisplayName(me.id).catch(() => null) : null;
+  if (!_displayName) _displayName = me?.full_name || null;
+  if (_displayName && me?.id && _displayName !== me?.full_name) backfillBufferedUserNames(me.id, _displayName);
   const { deviceType, os } = getUserAgentInfo();
   const currentDevice = me?.id ? await getCurrentDevice(me.id).catch(() => null) : null;
   const current = readBuffer();
@@ -351,7 +423,7 @@ const enqueue = async (level, args, extra = {}) => {
     ...(extra.eventType ? { event_type: extra.eventType } : {}),
     timestamp: new Date().toISOString(),
     user_id: me?.id || null,
-    user_name: me?.full_name || null,
+    user_name: _displayName || null,
     device_identifier: getDeviceIdentifier(),
     device_type: currentDevice?.device_info?.device_type || deviceType,
     os: currentDevice?.device_info?.os || os,
