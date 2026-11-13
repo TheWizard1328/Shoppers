@@ -373,7 +373,7 @@ export default function Patients() {
     appUsers: contextAppUsers = [],
     cities: contextCities = [],
     isDataLoaded: contextDataLoaded
-  } = useAppData();const { selectedDate } = useGlobalFilters();
+  } = useAppData();const { selectedDate, setSelectedDate } = useGlobalFilters();
 
   const [allPatients, setAllPatients] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
@@ -870,6 +870,19 @@ export default function Patients() {
       last_delivery_date: getDeliveryStats(patient.id).lastDeliveryDate
     }));
   }, [allPatients, searchTerm, storeFilter, statusFilter, selectedCityId, stores, getDeliveryStats, currentUser]);
+
+  // The global filter stores selectedDate as 'yyyy-MM-dd'. new Date('2026-11-10')
+  // parses as UTC midnight, which lands on the previous day west of UTC (Nov 13
+  // 2026 owner report: picking a date loaded the wrong day). Parse the stored
+  // form as LOCAL midnight.
+  const selectedDateObj = useMemo(() => {
+    if (!selectedDate) return null;
+    if (selectedDate instanceof Date) return isNaN(selectedDate.getTime()) ? null : selectedDate;
+    const m = String(selectedDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const d = new Date(selectedDate);
+    return isNaN(d.getTime()) ? null : d;
+  }, [selectedDate]);
 
   // Augment filteredPatients with selected-date delivery info and display priority
   const patientsWithDeliveryInfoAndPriority = useMemo(() => {
@@ -1644,25 +1657,29 @@ export default function Patients() {
                   </div>
 
                   {/* Calendar Picker */}
-                  <Popover open={isCalendarOpen} onOpenChange={(open) => { setIsCalendarOpen(open); if (open) setCalendarMonth(selectedDate instanceof Date ? selectedDate : new Date()); }}>
+                  <Popover open={isCalendarOpen} onOpenChange={(open) => { setIsCalendarOpen(open); if (open) setCalendarMonth(selectedDateObj || new Date()); }}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className="h-10 px-3 gap-2 text-sm font-medium flex-shrink-0 text-body bg-surface border-surface">
                         <CalendarIcon className="w-4 h-4" />
-                        {selectedDate ? format(selectedDate instanceof Date ? selectedDate : new Date(selectedDate), 'EEE MMM dd') : 'Pick date'}
+                        {selectedDateObj ? format(selectedDateObj, 'EEE MMM dd') : 'Pick date'}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0 z-[1000] text-body bg-surface border-surface" align="start">
                       <Calendar
                         mode="single"
-                        selected={selectedDate instanceof Date ? selectedDate : new Date(selectedDate)}
-                        onSelect={(date) => { if (!date) return; setIsCalendarOpen(false); }}
+                        selected={selectedDateObj || undefined}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          setIsCalendarOpen(false);
+                          setSelectedDate(date);
+                        }}
                         month={calendarMonth}
                         onMonthChange={setCalendarMonth}
                         footer={
                           <div className="px-3 pb-2 pt-1 border-t border-surface">
                             <TooltipProvider><Tooltip>
                               <TooltipTrigger asChild>
-                                <button type="button" onClick={() => { setCalendarMonth(new Date()); setIsCalendarOpen(false); }}
+                                <button type="button" onClick={() => { const today = new Date(); setCalendarMonth(today); setSelectedDate(today); setIsCalendarOpen(false); }}
                                   className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs text-label"
                                   onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-slate-100)'; e.currentTarget.style.color = 'var(--text-slate-800)'; }}
                                   onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-slate-600)'; }}>
