@@ -105,6 +105,25 @@ async function listOrdersForLocation(locationId: string, startAt: string, access
   return orders;
 }
 
+// ── SAME-DATE-OR-FUTURE EVIDENCE (owner rule Nov 12 2026) ────────────────────
+// A delivery's COD may only be matched to a Square transaction dated on the
+// delivery's OWN day or later. Sales from an earlier day are a different day's
+// money and used to be matched anyway (the pools below padded backwards), which
+// auto-corrected finished deliveries against past transactions.
+const EDM_OFFSET_MS = 21600000; // Edmonton = UTC-6/-7; -6h is the base used app-wide
+const edmDayNumOf = (ms) => Number.isFinite(ms) ? Math.floor((ms - EDM_OFFSET_MS) / 86400000) : NaN;
+const edmDayNumForDate = (dateStr) => {
+  const raw = String(dateStr || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return NaN;
+  const t = Date.parse(`${raw}T06:00:00Z`);
+  return Number.isFinite(t) ? edmDayNumOf(t) : NaN;
+};
+const isSaleSameDayOrFuture = (saleMs, dateStr) => {
+  const d = edmDayNumForDate(dateStr), x = edmDayNumOf(saleMs);
+  if (!Number.isFinite(d) || !Number.isFinite(x)) return true; // unknown date → legacy behaviour
+  return x >= d;
+};
+
 function sumProcessingFees(payment: any) {
   const fees = payment?.processing_fee || [];
   let total = 0;
@@ -1719,6 +1738,12 @@ Deno.serve(async (req) => {
         const anchorAt = d.completedAt > 0 ? d.completedAt : dayStartMs + 18 * 3600000;
         const pool = salePool.filter((x) => {
           if (x.locId !== d.locId || usedSaleKeys.has(x.key)) return false;
+          // SAME-DATE-OR-FUTURE (owner rule Nov 12 2026): the old day window was
+          // padded 6h backwards (and the completion ring reached back 90 min),
+          // so a sale rung the day BEFORE a delivery could auto-correct that
+          // finished COD's collection type. A sale must now be dated on the
+          // delivery's day or later.
+          if (!isSaleSameDayOrFuture(x.at, d.date)) return false;
           // FINGERPRINT GATE (tightened Oct 24 2026): a flagged fingerprint only
           // blocks matching for NON-COD-amount sales. A sale whose cents equal
           // a candidate delivery's card/COD amount is a patient collection —
@@ -1929,11 +1954,20 @@ Deno.serve(async (req) => {
             await sleep(150);
           } catch { /* best effort — subset-sum pass still runs */ }
         }
+        // Delivery date by id — the same-date-or-future gate needs it for the
+        // order-line matches below (owner rule Nov 12 2026).
+        const deliveryDateById2 = new Map<string, string>();
+        for (const d of codDeliveries) deliveryDateById2.set(String(d.id), d.date);
+        for (const [did, cl] of catalogByDeliveryId) {
+          if (!deliveryDateById2.has(String(did)) && cl?.delivery_date) deliveryDateById2.set(String(did), cl.delivery_date);
+        }
         for (const c of candSales) {
           const order = c.orderId ? retrievedOrderById.get(c.orderId) : null;
           const links = order ? resolveCodLineItems(order, catalogByObjectId, catalogByName) : [];
           const usable = links.filter((l: any) => l?.delivery_id &&
-            !linkedCodDeliveryIds.has(String(l.delivery_id)) && !matchedDeliveryIds.has(String(l.delivery_id)));
+            !linkedCodDeliveryIds.has(String(l.delivery_id)) && !matchedDeliveryIds.has(String(l.delivery_id)) &&
+            // A grouped ring dated BEFORE the delivery is not that COD's money.
+            isSaleSameDayOrFuture(c.at, deliveryDateById2.get(String(l.delivery_id))));
           const catalogLinkOf = (deliveryId: string) => {
             const cl = catalogByDeliveryId.get(deliveryId);
             return cl?.item_name || null;
@@ -2217,9 +2251,19 @@ Deno.serve(async (req) => {
 
         // Ledger evidence: delivery_ids with a COMPLETED cod_collection sale (any tender)
         const codSalesRaw: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection' }).catch(() => [])) as any[] || [];
-        const confirmedByLedger = new Set<string>(
-          (codSalesRaw || []).filter((e: any) => e?.delivery_id && String(e?.status || '').toUpperCase() === 'COMPLETED').map((e: any) => String(e.delivery_id))
-        );
+        // Same-date-or-future only (owner rule Nov 12 2026): a completed
+        // cod_collection entry dated BEFORE the delivery day is not this COD's
+        // money, so it must not stamp the delivery collected.
+        const ledgerConfirmTimes = new Map<string, number[]>();
+        for (const e of (codSalesRaw || [])) {
+          if (!e?.delivery_id || String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
+          const did = String(e.delivery_id);
+          const ms = Date.parse(String(e?.occurred_at || e?.created_date || '')) || 0;
+          if (!ledgerConfirmTimes.has(did)) ledgerConfirmTimes.set(did, []);
+          ledgerConfirmTimes.get(did).push(ms);
+        }
+        const confirmedByLedgerHas = (d: any) =>
+          (ledgerConfirmTimes.get(String(d?.id)) || []).some((ms) => isSaleSameDayOrFuture(ms, d?.delivery_date));
 
         // Owner rule (Oct 1 2026): CODs outstanding at true-up are ALREADY baked into
         // the starting balances — only deliveries DATED on/after the true-up day
@@ -2280,7 +2324,7 @@ Deno.serve(async (req) => {
             if (cash <= 0) continue;
             const locId = storeToLoc.get(String(d?.store_id || ''));
             if (!locId) continue;
-            if (confirmedByLedger.has(String(d.id))) {
+            if (confirmedByLedgerHas(d)) {
               await base44.asServiceRole.entities.Delivery.update(String(d.id), {
                 cod_confirmed_collected: true,
                 cod_confirmed_collected_at: new Date().toISOString(),

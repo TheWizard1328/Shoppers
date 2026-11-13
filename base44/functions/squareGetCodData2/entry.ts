@@ -40,6 +40,31 @@ const MAX_TRANSACTION_ORDERS = 2000;
 const DELIVERY_BULK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const DB_WRITE_BATCH_SIZE = 10;
 const formatLocalDate = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+// ── SAME-DATE-OR-FUTURE EVIDENCE (owner rule Nov 12 2026) ────────────────────
+// A delivery's COD may only be tied to a Square transaction dated on the
+// delivery's own day or later. Earlier money belongs to a different day and must
+// never confirm a COD (it used to, via the padded day window and the ±10 day
+// proximity search).
+const EDM_OFFSET_MS = 21600000;
+const edmDayNumOf = (ms) => Number.isFinite(ms) ? Math.floor((ms - EDM_OFFSET_MS) / 86400000) : NaN;
+const edmDayNumForDate = (dateStr) => {
+  const raw = String(dateStr || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return NaN;
+  const t = Date.parse(`${raw}T06:00:00Z`);
+  return Number.isFinite(t) ? edmDayNumOf(t) : NaN;
+};
+const isSameDayOrFuture = (saleMs, dateStr) => {
+  const d = edmDayNumForDate(dateStr), x = edmDayNumOf(saleMs);
+  if (!Number.isFinite(d) || !Number.isFinite(x)) return true;
+  return x >= d;
+};
+const txMomentMs = (t) => {
+  const raw = t?.raw_square_data || {};
+  const cands = [raw?.closed_at, raw?.created_at, raw?.updated_at, raw?.payment?.created_at, raw?.payment?.updated_at, raw?.order?.closed_at, raw?.order?.created_at, t?.occurred_at, t?.transaction_date, t?.created_date];
+  for (const c of cands) { const ms = c ? Date.parse(String(c)) : NaN; if (Number.isFinite(ms) && ms > 0) return ms; }
+  return NaN;
+};
+
 const unwrapEntityRecord = (r) => { if (!r || typeof r !== 'object') return null; if (r.data && typeof r.data === 'object') return { ...r.data, id: r.data.id || r.id }; return r; };
 const shouldRefreshDeliveries = (at, force=false) => { if (force) return true; const ms = new Date(at||0).getTime(); return !Number.isFinite(ms)||ms<=0||Date.now()-ms>=DELIVERY_BULK_REFRESH_INTERVAL_MS; };
 const getTransactionRetentionStartMs = () => { const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate()-TRANSACTION_RETENTION_DAYS); return t.getTime(); };
@@ -684,9 +709,14 @@ async function handleGetCodData(base44, payload={}) {
   }
   // CONFIRMED-collected: the delivery matched a COMPLETED real Square order this
   // run (the store rang it through). Terminal state — see the 5a purge below.
+  // Delivery date by id — needed to keep PAST-dated Square rows from confirming
+  // a delivery (owner rule Nov 12 2026: same date or future only).
+  const deliveryDayDateById = new Map<string, string>();
+  for (const d of (deliveriesWithAmounts || [])) if (d?.id) deliveryDayDateById.set(String(d.id), d.delivery_date || '');
   const confirmedCollectedDeliveryIds = new Set(
     (transactionRecords || [])
-      .filter((t) => t?.delivery_id && String(t?.status || '').toLowerCase() === 'completed')
+      .filter((t) => t?.delivery_id && String(t?.status || '').toLowerCase() === 'completed' &&
+        isSameDayOrFuture(txMomentMs(t), deliveryDayDateById.get(String(t.delivery_id))))
       .map((t) => t.delivery_id)
   );
   // Incremental-fetch safety (owner concern, Sep 28): retained DB tx rows are
@@ -700,7 +730,8 @@ async function handleGetCodData(base44, payload={}) {
   // squareCodReconcile create path already uses (retained rows = proof).
   for (const t of (existingTransactions || [])) {
     if (t?.delivery_id && String(t?.status || '').toLowerCase() === 'completed' &&
-        normalizeText(t?.square_transaction_id) !== '') {
+        normalizeText(t?.square_transaction_id) !== '' &&
+        isSameDayOrFuture(txMomentMs(t), deliveryDayDateById.get(String(t.delivery_id)))) {
       confirmedCollectedDeliveryIds.add(t.delivery_id);
     }
   }
@@ -749,14 +780,24 @@ async function handleGetCodData(base44, payload={}) {
   console.log('[squareGetCodData2] wide collected scan:', { candidates: wideCandidates.length, wideStartAt });
       const wideOrders = await listOrders(locationIds, wideStartAt, accessToken, 6000, ['COMPLETED']);
       const wideItems = flattenOrderItems(wideOrders);
-      const wideSig = new Set(wideItems.map((it) => `${normalizeText(it.item_name)}::${toAmountCents(it.amount_cents)}`));
+      // Signature → ring moments (owner rule Nov 12 2026). The old plain Set
+      // matched a delivery to ANY order line with the same name+amount, even one
+      // rung weeks EARLIER, which confirmed finished CODs against past sales.
+      const wideSig = new Map();
+      for (const it of wideItems) {
+        const key = `${normalizeText(it.item_name)}::${toAmountCents(it.amount_cents)}`;
+        const ms = Date.parse(String(it?.payment_date || it?.order_created_at || '')) || 0;
+        if (!wideSig.has(key)) wideSig.set(key, []);
+        wideSig.get(key).push(ms);
+      }
       for (const d of wideCandidates) {
         const store = (safeStores || []).find((s) => s?.id === d.store_id) || null;
         const pat = patientsById.get(d.patient_id);
         const pn = normalizeText(pat?.full_name || d?.patient_name) || `Delivery ${d.id.slice(-6)}`;
         const iname = formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), pn);
         const ac = Math.round(Number(d.cod_total_amount_required || 0) * 100);
-        if (wideSig.has(`${normalizeText(iname)}::${ac}`)) wideConfirmedIds.add(d.id);
+        const sigRings = wideSig.get(`${normalizeText(iname)}::${ac}`) || [];
+        if (sigRings.some((ms) => isSameDayOrFuture(ms, d.delivery_date))) wideConfirmedIds.add(d.id);
       }
       if (wideConfirmedIds.size > 0) {
         for (const id of wideConfirmedIds) { collectedDeliveryIds.add(id); confirmedCollectedDeliveryIds.add(id); }
@@ -959,7 +1000,10 @@ async function handleGetCodData(base44, payload={}) {
       if (descDeliveryId && row?.cod_confirmed_collected) continue; // handled by the pass above
       const dateMs = row?.delivery_date ? clampDate(row.delivery_date) : nameDateMs(item?.item_data?.name);
       if (!dateMs) continue;
-      searchCandidates.push({ item, deliveryId: descDeliveryId || null, dateMs });
+      // OWNER RULE (Nov 12 2026): the ±10 day proximity check matched sales rung
+      // BEFORE the delivery. Keep the future side of the window, drop the past.
+      const dateStr = row?.delivery_date ? String(row.delivery_date).slice(0, 10) : new Date(dateMs).toISOString().slice(0, 10);
+      searchCandidates.push({ item, deliveryId: descDeliveryId || null, dateMs, dateStr });
     }
     if (searchCandidates.length > 0) {
       searchCandidates.sort((a, b) => a.dateMs - b.dateMs);
@@ -994,7 +1038,7 @@ mark('ootw_orders_fetched');
       for (const c of work) {
         const sig = `${normalizeText(c.item?.item_data?.name)}::${getCatalogItemAmountCents(c.item)}`;
         const rings = sigRings.get(sig) || [];
-        const hit = rings.some((payT) => Math.abs(payT - c.dateMs) <= PROXIMITY_MS);
+        const hit = rings.some((payT) => isSameDayOrFuture(payT, c.dateStr) && payT <= c.dateMs + PROXIMITY_MS);
         if (!hit) continue;
         matchedItems.push(c.item);
         if (c.deliveryId) matchedDeliveryStamps.add(c.deliveryId);

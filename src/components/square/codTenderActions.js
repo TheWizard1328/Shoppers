@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
+import { syncDeliverySquareCod } from '@/components/utils/squareCodSync';
 import {
   estimateCardFeeCents,
   folderCentsFor,
@@ -188,6 +189,22 @@ export async function changeCodTender({ deliveryId, toType, combineIds = [], con
     // cache FIRST so every recompute sees fresh data.
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedRecs).catch(() => {});
     invalidateIdbReadCache('deliveries');
+    // OWNER REPORT (Nov 12 2026): switching a COD from Debit/Credit back to Cash
+    // never put the item back in the Square catalog. This edit path wrote the
+    // tender and nothing else — no reconcile ever ran, and the code above had
+    // already cleared the collection stamps, so the item belongs in the register
+    // again (cash → item must exist, card → item must not). One authoritative
+    // reconcile per changed delivery; the backend decides create vs remove.
+    for (const r of updatedRecs) {
+      syncDeliverySquareCod(String(r.id), {
+        status: r.status,
+        cod_total_amount_required: r.cod_total_amount_required,
+        cod_payments: r.cod_payments,
+        patient_name: r.patient_name,
+        delivery_date: r.delivery_date,
+        store_id: r.store_id,
+      });
+    }
     try { window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { source: 'codTenderChange', ids: updatedRecs.map((r) => r.id) } })); } catch (_) {/* noop */}
     return {
       ok: true,

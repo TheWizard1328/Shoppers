@@ -19,6 +19,7 @@ import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffec
 import { collapseExpandedStopCardsForDriver } from './stopCardActionHelpers';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
+import { resetCollectionStampsForCash } from '../utils/cashTenderReset';
 
 /**
  * Runs the Save (already-completed delivery) or Save & Complete (active delivery)
@@ -66,6 +67,10 @@ export async function performSaveAndCompleteCOD({
       // (cash stays, debit/credit/cheque removes). No client-side Square
       // decisions here.
       await onCODUpdate(delivery.id, codPayments, true);
+      // OWNER RULE (Nov 12 2026): a COD edited back to Cash is outstanding cash
+      // again, so the earlier Debit/Credit collection stamps must go — the
+      // reconciler would otherwise skip it and never re-create the catalog item.
+      if (totalAmount > 0) await resetCollectionStampsForCash(delivery.id, codPayments);
       if (totalAmount > 0) syncDeliverySquareCod(delivery.id, { status: 'completed', cod_payments: codPayments });
       setShowCODCollection(false);
       return;

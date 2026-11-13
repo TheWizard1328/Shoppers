@@ -54,6 +54,41 @@ const DIRECT_TYPES = ['debit', 'credit', 'cheque', 'check', 'card', 'archived'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route', 'arrived'];
 const REMOVE_STATUSES = ['failed', 'cancelled', 'returned'];
 
+// ── SAME-DATE-OR-FUTURE EVIDENCE (owner rule Nov 12 2026) ────────────────────
+// A delivery's COD may only be tied to a Square transaction dated on the
+// delivery's own day or later. Anything EARLIER is a different day's money and
+// must never count as "already collected" (that is what re-created / killed
+// catalog items at the wrong time). Edmonton day index = floor((ms-6h)/1d).
+const edmDayNum = (ms) => Number.isFinite(ms) ? Math.floor((ms - 21600000) / 86400000) : NaN;
+const deliveryDayNum = (dateStr) => {
+  const raw = String(dateStr || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return NaN;
+  const t = Date.parse(`${raw}T06:00:00Z`);
+  return Number.isFinite(t) ? edmDayNum(t) : NaN;
+};
+// Best available moment for a retained SquareTransaction row.
+const txMomentMs = (t) => {
+  const raw = t?.raw_square_data || {};
+  const cands = [
+    raw?.closed_at, raw?.created_at, raw?.updated_at,
+    raw?.payment?.created_at, raw?.payment?.updated_at,
+    raw?.order?.closed_at, raw?.order?.created_at,
+    t?.occurred_at, t?.transaction_date, t?.created_date,
+  ];
+  for (const c of cands) {
+    const ms = c ? Date.parse(String(c)) : NaN;
+    if (Number.isFinite(ms) && ms > 0) return ms;
+  }
+  return NaN;
+};
+// true when the transaction happened on the delivery's day or later.
+const isSameDayOrFuture = (txMs, dateStr) => {
+  const dDay = deliveryDayNum(dateStr);
+  const tDay = edmDayNum(txMs);
+  if (!Number.isFinite(dDay) || !Number.isFinite(tDay)) return true; // unknown → keep legacy behavior
+  return tDay >= dDay;
+};
+
 const hasCashPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => CASH_TYPES.includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0);
 const hasDirectPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => DIRECT_TYPES.includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0);
 
@@ -483,7 +518,11 @@ Deno.serve(async (req) => {
       const txSkipIds = new Set();
       for (const c of toCreate) {
         const cts = await b.asServiceRole.entities.SquareTransaction.filter({ delivery_id: c.delivery.id, status: 'completed' }).catch(() => []);
-        if (cts?.length > 0) txSkipIds.add(c.delivery.id);
+        // Same-date-or-future only (owner rule Nov 12 2026): a retained row from
+        // BEFORE the delivery date is not this COD's money, so it must not stop
+        // the item from being (re)created when the tender is edited back to cash.
+        const mine = (cts || []).filter((t) => isSameDayOrFuture(txMomentMs(t), c.delivery.delivery_date));
+        if (mine.length > 0) txSkipIds.add(c.delivery.id);
       }
       if (txSkipIds.size > 0) {
         for (const did of txSkipIds) { await removeBookkeeping(b, did, 'completed_transaction_exists', 'cancelled').catch(() => null); }
@@ -509,16 +548,24 @@ Deno.serve(async (req) => {
           const j = await sf('/v2/orders/search', 'POST', token, body);
           orders.push(...(j?.orders || [])); ordCursor = j?.cursor || null; await sleep(150);
         } while (ordCursor);
-        const collectedNameAmounts = new Set();
+        // Keep the RING MOMENT per signature: a past-dated ring of the same
+        // item name + amount is a different day's money and must not block
+        // re-creating today's item (owner rule Nov 12 2026).
+        const collectedNameAmounts = new Map();
         for (const o of orders) {
+          const ringMs = Date.parse(String(o?.closed_at || o?.created_at || '')) || 0;
           for (const li of (o?.line_items || [])) {
             const n = nt(li?.name); const cents = Number(li?.base_price_money?.amount || 0);
-            if (n) collectedNameAmounts.add(`${n}::${cents}`);
+            if (!n) continue;
+            const key = `${n}::${cents}`;
+            if (!collectedNameAmounts.has(key)) collectedNameAmounts.set(key, []);
+            collectedNameAmounts.get(key).push(ringMs);
           }
         }
         const skipIds = new Set();
         for (const c of completedCashCreates) {
-          if (collectedNameAmounts.has(`${c.itemName}::${c.amountCents}`)) skipIds.add(c.delivery.id);
+          const rings = collectedNameAmounts.get(`${c.itemName}::${c.amountCents}`) || [];
+          if (rings.some((ms) => isSameDayOrFuture(ms, c.delivery.delivery_date))) skipIds.add(c.delivery.id);
         }
         if (skipIds.size > 0) {
           for (const did of skipIds) { await removeBookkeeping(b, did, 'collected_confirmed', 'cancelled').catch(() => null); }
