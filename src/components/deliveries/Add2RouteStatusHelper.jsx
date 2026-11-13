@@ -36,7 +36,12 @@ export const buildImmediateAddToRouteStage = ({ formData, selectedPatient, store
     store_name: store?.name || '',
     store_abbreviation: store?.abbreviation || '',
     cod_total_amount_required: formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0,
-    first_delivery: isFirstFromHistory !== null ? isFirstFromHistory : isFirstFromDeliveries
+    // OWNER BUG (Nov 13 2026): isFirstDeliveryPatient() only says "no history
+    // recorded", and repeats whose patient record was never backfilled have no
+    // history either — so every such stop was stamped first_delivery: true and
+    // showed the N badge. Require BOTH sources to agree the patient is new
+    // before stamping the flag.
+    first_delivery: (isFirstFromHistory === null ? true : isFirstFromHistory) && isFirstFromDeliveries
   };
 };
 

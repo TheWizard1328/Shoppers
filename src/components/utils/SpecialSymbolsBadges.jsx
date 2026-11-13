@@ -91,9 +91,20 @@ export default function SpecialSymbolsBadges({
 
   const config = sizeConfig[size] || sizeConfig.sm;
 
+/**
+ * Owner rule (Nov 13 2026): once a patient has ANY recorded history, no stop of
+ * theirs is ever "first" — a stale first_delivery flag on the delivery (or the
+ * words "first delivery" in its notes) must not resurrect the N badge.
+ */
+function patientHasRecordedHistory(patient) {
+  if (!patient) return false;
+  if (Array.isArray(patient.delivery_history) && patient.delivery_history.length > 0) return true;
+  return !!patient.last_delivery_date;
+}
+
   // Special flags
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
-  const isFirstDelivery = !isPickup && !isInterStore && (
+  const isFirstDelivery = !isPickup && !isInterStore && !patientHasRecordedHistory(patient) && (
     delivery.first_delivery === true ||
     (patient && isFirstDeliveryPatient(patient)) ||
     delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
@@ -159,7 +170,7 @@ export function hasSpecialSymbols(delivery, patient, isPickup = false, isInterSt
   if (!delivery) return false;
 
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
-  const isFirstDelivery = !isPickup && !isInterStore && (delivery.first_delivery === true ||
+  const isFirstDelivery = !isPickup && !isInterStore && !patientHasRecordedHistory(patient) && (delivery.first_delivery === true ||
     (patient && isFirstDeliveryPatient(patient)) ||
     delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
     delivery.delivery_instructions?.toLowerCase().includes('first delivery'));
@@ -186,10 +197,10 @@ export function getSpecialFlagsText(delivery, patient, isPickup = false) {
   const parts = [];
 
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
-  const isFirstDelivery = delivery.first_delivery === true ||
+  const isFirstDelivery = !patientHasRecordedHistory(patient) && (delivery.first_delivery === true ||
   patient && isFirstDeliveryPatient(patient) ||
   delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
-  delivery.delivery_instructions?.toLowerCase().includes('first delivery');
+  delivery.delivery_instructions?.toLowerCase().includes('first delivery'));
   const hasOversized = delivery.oversized === true;
   const hasSignature = delivery.signature_needed === true;
 
