@@ -79,9 +79,18 @@ export default function StatsPanel({
   // in its stillness window the driver legend fills red and an "Impact detected"
   // line appears under it. Fed by the EmergencyController's window event.
   const [emergencyImpactActive, setEmergencyImpactActive] = useState(false);
+  // 0 → 1 fill of the impact-detection window; drives the progressive red fill.
+  const [emergencyImpactProgress, setEmergencyImpactProgress] = useState(0);
+  const [emergencyImpactLabel, setEmergencyImpactLabel] = useState('Impact detected');
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
   useEffect(() => {
-    const onImpact = (event) => setEmergencyImpactActive(!!event?.detail?.active);
+    const onImpact = (event) => {
+      const detail = event?.detail || {};
+      setEmergencyImpactActive(!!detail.active);
+      const pct = Number(detail.progress);
+      setEmergencyImpactProgress(Number.isFinite(pct) ? Math.max(0, Math.min(1, pct)) : (detail.active ? 1 : 0));
+      setEmergencyImpactLabel(String(detail.label || 'Impact detected'));
+    };
     window.addEventListener('rx-emergency-impact', onImpact);
     return () => window.removeEventListener('rx-emergency-impact', onImpact);
   }, []);
@@ -1035,8 +1044,14 @@ export default function StatsPanel({
                 style={{
                   opacity: 1,
                   ...(emergencyImpactActive ? {
-                    background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)',
+                    // Progressive fill: the red sweeps left → right as the
+                    // detection window counts down (owner request Nov 14 2026).
+                    backgroundImage: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: `${Math.round(emergencyImpactProgress * 100)}% 100%`,
+                    backgroundColor: 'transparent',
                     color: '#fff',
+                    transition: 'background-size 140ms linear',
                     animation: 'rxLegendImpactPulse 1.1s ease-in-out infinite'
                   } : {})
                 }}
@@ -1133,7 +1148,11 @@ export default function StatsPanel({
                         100% { filter: brightness(1); box-shadow: 0 6px 18px rgba(220,38,38,0.35); }
                       }
                     `}</style>
-                    ⚠ Impact detected — tap to cancel
+                    ⚠ {emergencyImpactLabel}
+                    {emergencyImpactProgress > 0 && emergencyImpactProgress < 1
+                      ? ` — ${Math.round((1 - emergencyImpactProgress) * (emergencyImpactLabel === 'Impact detected' ? 15 : 5))}s`
+                      : ''}
+                    {emergencyImpactLabel === 'Impact detected' ? ' — tap to cancel' : ' — release to cancel'}
                   </div>
                 )}
                 </>

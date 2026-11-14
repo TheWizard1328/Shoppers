@@ -60,6 +60,9 @@ const EmergencyController = ({ currentUser }) => {
   // BEFORE the confirm screen, so the driver can see a hard hit registered.
   const [impactProgress, setImpactProgress] = useState(0);
   const [impactPeak, setImpactPeak] = useState(0);
+  // 0 → 1 progress of the 5-second map hold. Feeds the same progressive red
+  // fill on the driver legend (owner request Nov 14 2026).
+  const [holdProgress, setHoldProgress] = useState(0);
   const [notes, setNotes] = useState('');
   const [activeAlert, setActiveAlert] = useState(null);
   const [sending, setSending] = useState(false);
@@ -315,6 +318,22 @@ const EmergencyController = ({ currentUser }) => {
     return () => clearInterval(id);
   }, [enabled]);
 
+  // Mirror the map hold into state so the legend can fill progressively.
+  useEffect(() => {
+    if (!enabled) return;
+    const onStart = () => setHoldProgress(0.001);
+    const onProgress = (event) => setHoldProgress(Math.max(0, Math.min(1, Number(event?.detail?.progress) || 0)));
+    const onEnd = () => setHoldProgress(0);
+    window.addEventListener('rx-emergency-hold-start', onStart);
+    window.addEventListener('rx-emergency-hold-progress', onProgress);
+    window.addEventListener('rx-emergency-hold-end', onEnd);
+    return () => {
+      window.removeEventListener('rx-emergency-hold-start', onStart);
+      window.removeEventListener('rx-emergency-hold-progress', onProgress);
+      window.removeEventListener('rx-emergency-hold-end', onEnd);
+    };
+  }, [enabled]);
+
   // A deliberate tap during the impact window cancels the detection (owner
   // spec: "an interaction in the app will stop it"). No prompt is shown.
   useEffect(() => {
@@ -339,11 +358,18 @@ const EmergencyController = ({ currentUser }) => {
   // LEGEND fills red and shows "Impact detected" underneath while the hit
   // window is running.
   const impactActive = !pending && impactProgress > 0;
+  // Progress is forwarded on every tick so the driver legend can fill
+  // proportionally as the detection window counts down (owner request
+  // Nov 14 2026), not just flip to solid red.
+  const holdActive = !pending && holdProgress > 0;
   useEffect(() => {
+    const detail = holdActive
+      ? { active: true, progress: holdProgress, label: 'Hold to activate emergency' }
+      : { active: impactActive, progress: impactActive ? impactProgress : 0, label: 'Impact detected' };
     try {
-      window.dispatchEvent(new CustomEvent('rx-emergency-impact', { detail: { active: impactActive } }));
+      window.dispatchEvent(new CustomEvent('rx-emergency-impact', { detail }));
     } catch { /* ignore */ }
-  }, [impactActive]);
+  }, [impactActive, impactProgress, holdActive, holdProgress]);
   useEffect(() => () => {
     try { window.dispatchEvent(new CustomEvent('rx-emergency-impact', { detail: { active: false } })); } catch { /* ignore */ }
   }, []);
@@ -643,44 +669,7 @@ const EmergencyController = ({ currentUser }) => {
       )}
 
       {/* ── Hold-to-arm progress (map long-press) ─────────────────────────── */}
-      <EmergencyHoldIndicator />
     </>
-  );
-};
-
-// A thin bar at the top of the screen while the 5-second map hold is running,
-// so the driver can see the arm building and let go to abort.
-const EmergencyHoldIndicator = () => {
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const onStart = () => setProgress(0.001);
-    const onProgress = (event) => setProgress(Math.max(0, Math.min(1, event?.detail?.progress || 0)));
-    const onEnd = () => setProgress(0);
-    window.addEventListener('rx-emergency-hold-start', onStart);
-    window.addEventListener('rx-emergency-hold-progress', onProgress);
-    window.addEventListener('rx-emergency-hold-end', onEnd);
-    return () => {
-      window.removeEventListener('rx-emergency-hold-start', onStart);
-      window.removeEventListener('rx-emergency-hold-progress', onProgress);
-      window.removeEventListener('rx-emergency-hold-end', onEnd);
-    };
-  }, []);
-
-  if (progress <= 0) return null;
-
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 6, zIndex: 10075, pointerEvents: 'none' }}>
-      <div
-        style={{
-          height: '100%',
-          width: `${progress * 100}%`,
-          background: 'linear-gradient(90deg, #f97316, #dc2626)',
-          boxShadow: '0 0 12px rgba(220,38,38,0.8)',
-          transition: 'width 80ms linear'
-        }}
-      />
-    </div>
   );
 };
 
