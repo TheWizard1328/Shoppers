@@ -28,14 +28,16 @@ const MIN_THRESHOLD = 25;   // most sensitive
 const MAX_THRESHOLD = 80;   // most forgiving
 const thresholdToSensitivity = (threshold) => {
   const clamped = Math.max(MIN_THRESHOLD, Math.min(MAX_THRESHOLD, Number(threshold) || DEFAULT_EMERGENCY_SETTINGS.crash_threshold));
-  return Math.round(((MAX_THRESHOLD - clamped) / (MAX_THRESHOLD - MIN_THRESHOLD)) * 100);
+  const pct = ((MAX_THRESHOLD - clamped) / (MAX_THRESHOLD - MIN_THRESHOLD)) * 100;
+  // The PERCENTAGE is what moves in 5% steps (owner request Nov 14 2026), so the
+  // handle always sits on a clean 0/5/10…100 mark.
+  return Math.round(pct / 5) * 5;
 };
 const sensitivityToThreshold = (sensitivity) => {
   const pct = Math.max(0, Math.min(100, Number(sensitivity) || 0));
-  const raw = MAX_THRESHOLD - (pct / 100) * (MAX_THRESHOLD - MIN_THRESHOLD);
-  // Owner request Nov 14 2026: the control must move in clean 5 m/s² steps
-  // instead of landing on odd numbers like 38 or 47.
-  return Math.round(raw / 5) * 5;
+  // Only the percent is stepped (5% at a time); the equivalent m/s² is derived
+  // from it and shown for reference.
+  return Math.round(MAX_THRESHOLD - (pct / 100) * (MAX_THRESHOLD - MIN_THRESHOLD));
 };
 
 const EmergencySettingsPanel = () => {
