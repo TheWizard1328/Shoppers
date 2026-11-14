@@ -2224,6 +2224,74 @@ function DeliveryMap({
           };
           requestAnimationFrame(settleMap);
           setTimeout(settleMap, 250);
+
+          // ── EMERGENCY LONG-PRESS (owner spec Nov 14 2026) ──────────────
+          // A 5-second press on the map arms the emergency screen. The map has
+          // no other long-press gesture, so tap / double-tap / pinch / swipe and
+          // every marker interaction stay untouched. Moving more than 12 px
+          // cancels (that is a pan), and the whole thing no-ops unless the
+          // owner-only EmergencyController has armed it via window.__rxEmergencyArmed.
+          try {
+            const container = mapInst.getContainer();
+            let holdTimer = null;
+            let progressTimer = null;
+            let startPoint = null;
+            let holding = false;
+
+            const clearHold = (notify = true) => {
+              if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+              if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+              startPoint = null;
+              if (holding && notify) window.dispatchEvent(new CustomEvent('rx-emergency-hold-end'));
+              holding = false;
+            };
+
+            const onPointerDown = (event) => {
+              if (!window.__rxEmergencyArmed) return;
+              if (event.button != null && event.button !== 0) return;
+              startPoint = { x: event.clientX, y: event.clientY, at: Date.now() };
+              holding = true;
+              window.dispatchEvent(new CustomEvent('rx-emergency-hold-start'));
+              progressTimer = setInterval(() => {
+                if (!startPoint) return;
+                const progress = Math.min(1, (Date.now() - startPoint.at) / 5000);
+                window.dispatchEvent(new CustomEvent('rx-emergency-hold-progress', { detail: { progress } }));
+              }, 80);
+              holdTimer = setTimeout(() => {
+                const fired = startPoint;
+                clearHold(false);
+                if (!fired) return;
+                try { if (navigator.vibrate) navigator.vibrate([40, 60, 40]); } catch { /* ignore */ }
+                window.dispatchEvent(new CustomEvent('rx-emergency-trigger', { detail: { source: 'manual', alertType: 'accident' } }));
+              }, 5000);
+            };
+
+            const onPointerMove = (event) => {
+              if (!startPoint) return;
+              const dx = event.clientX - startPoint.x;
+              const dy = event.clientY - startPoint.y;
+              if (Math.hypot(dx, dy) > 12) clearHold();
+            };
+
+            const onPointerUp = () => clearHold();
+
+            container.addEventListener('pointerdown', onPointerDown);
+            container.addEventListener('pointermove', onPointerMove);
+            container.addEventListener('pointerup', onPointerUp);
+            container.addEventListener('pointercancel', onPointerUp);
+            container.addEventListener('pointerleave', onPointerUp);
+
+            mapInst.once('unload', () => {
+              clearHold(false);
+              container.removeEventListener('pointerdown', onPointerDown);
+              container.removeEventListener('pointermove', onPointerMove);
+              container.removeEventListener('pointerup', onPointerUp);
+              container.removeEventListener('pointercancel', onPointerUp);
+              container.removeEventListener('pointerleave', onPointerUp);
+            });
+          } catch (err) {
+            console.warn('[DeliveryMap] emergency long-press hook unavailable:', err?.message || err);
+          }
         }}
       >
         {tileLayerConfig?.base && (

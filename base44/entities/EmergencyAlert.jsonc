@@ -1,0 +1,23 @@
+{
+  "name": "EmergencyAlert",
+  "type": "object",
+  "properties": {
+    "driver_id": { "type": "string", "description": "Auth user id of the driver who declared the emergency" },
+    "driver_name": { "type": "string", "description": "Display name of the driver" },
+    "alert_type": { "type": "string", "enum": ["accident", "medical", "other"], "description": "Kind of emergency" },
+    "source": { "type": "string", "enum": ["manual", "crash"], "description": "How it was raised: manual (map long-press) or crash (impact prompt)" },
+    "notes": { "type": "string", "description": "Driver-entered notes, or the generated generic message" },
+    "status": { "type": "string", "enum": ["active", "resolved", "cancelled"], "description": "active until silenced/resolved by a driver, dispatcher or owner" },
+    "activated_at": { "type": "string", "format": "date-time" },
+    "resolved_at": { "type": "string", "format": "date-time" },
+    "resolved_by": { "type": "string" },
+    "resolved_by_name": { "type": "string" },
+    "latitude": { "type": "number", "description": "GPS latitude captured when the alert was sent" },
+    "longitude": { "type": "number", "description": "GPS longitude captured when the alert was sent" },
+    "store_ids": { "type": "array", "items": { "type": "string" }, "description": "Stores affected by the driver's outstanding stops" },
+    "city_id": { "type": "string", "description": "City of the declaring driver, used to target same-city drivers" },
+    "device_identifier": { "type": "string", "description": "Device that declared the emergency" },
+    "muted_by": { "type": "string", "description": "Who silenced the alert on every device" }
+  },
+  "required": []
+}

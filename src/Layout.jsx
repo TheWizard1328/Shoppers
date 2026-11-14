@@ -28,6 +28,7 @@ import TestModeBanner from "./components/layout/TestModeBanner";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
+import EmergencyController from './components/emergency/EmergencyController';
 import { BUILD_NUMBER, PUSH_COUNT, buildsAhead, entriesSince } from './changeLog';
 import { getChangeLogStateSync, loadChangeLogState, detectPublishAndCollect } from './components/utils/changeLogState';
 import { usePublishedBuildNumber, usePublishedPushCount, usePublishedVersionDigits } from './components/utils/publishedBuildInfo';
@@ -2045,6 +2046,11 @@ export default function Layout({ children, currentPageName }) {
             <GuideAssistant />
             {/* Automatic break / off-duty detector — App Owner only for testing (Nov 6 2026) */}
             <AutoIdleDetector currentUser={currentUser} />
+            {/* Emergency system (crash prompt + 5 s map long-press SOS).
+                Owner-device pilot only (Nov 14 2026): the component itself
+                returns null for every non-owner, so nobody else can trip or
+                receive an alert yet. */}
+            <EmergencyController currentUser={currentUser} />
             <TestModeBanner />
             {/* Dispatcher geo-fence — mobile-only, full-screen block when off-site (Sep 15, 2026) */}
             <DispatcherLocationGate />
