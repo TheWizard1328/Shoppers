@@ -1049,8 +1049,12 @@ export default function StatsPanel({
                     backgroundImage: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)',
                     backgroundRepeat: 'no-repeat',
                     backgroundSize: `${Math.round(emergencyImpactProgress * 100)}% 100%`,
-                    backgroundColor: 'transparent',
-                    color: '#fff',
+                    // Unfilled part keeps the normal themed card colour (white in
+                    // light, slate in dark) so black/white labels stay readable
+                    // on it. Colour is inherited from the theme, NOT forced white
+                    // (owner report Nov 14 2026: names went white in light mode).
+                    backgroundColor: 'var(--bg-white)',
+                    color: 'var(--text-slate-900)',
                     transition: 'background-size 140ms linear',
                     animation: 'rxLegendImpactPulse 1.1s ease-in-out infinite'
                   } : {})
