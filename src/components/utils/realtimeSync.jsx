@@ -21,6 +21,26 @@ import { applyPendingEntityMutations } from './pendingEntityMutations';
 
 const rsTime = () => new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+// ── WEAK-NETWORK CLASSIFIER (owner report Nov 14 2026) ──────────────────────
+// Driver devices drop the realtime socket several times an hour on weak cell
+// links. That is expected behaviour with an automatic reconnect, not a fault,
+// so it no longer prints at error level (and therefore no longer ships to
+// RemoteLogEntry as an error) while the device itself reports poor or no
+// connectivity. The socket logic is unchanged.
+const isWeakNetwork = () => {
+  try {
+    if (typeof navigator === 'undefined') return false;
+    if (navigator.onLine === false) return true;
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const effectiveType = String(conn?.effectiveType || '').toLowerCase();
+    if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') return true;
+    if (String(conn?.type || '').toLowerCase() === 'none') return true;
+    const downlink = Number(conn?.downlink);
+    if (Number.isFinite(downlink) && downlink > 0 && downlink < 1) return true;
+  } catch {}
+  return false;
+};
+
 // Global listeners for real-time updates
 const listeners = new Set();
 
@@ -1750,7 +1770,12 @@ export const connect = () => {
     reconnectAttempts = 0;
     console.log(`✅ [RealtimeSync] [${rsTime()}] WebSocket connected`);
   } catch (error) {
-    console.error(`❌ [RealtimeSync] [${rsTime()}] Connection failed:`, error);
+    const weak = isWeakNetwork();
+    const logFn = weak ? console.warn : console.error;
+    logFn(
+      `${weak ? '⚠️' : '❌'} [RealtimeSync] [${rsTime()}] Connection failed${weak ? ' (weak/absent network — socket drop expected, retrying)' : ''}:`,
+      error
+    );
     isConnected = false;
     attemptReconnect();
   }
@@ -1779,18 +1804,50 @@ export const disconnect = () => {
 /**
  * Attempt reconnection with exponential backoff
  */
-const attemptReconnect = () => {
-  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    console.warn(`❌ [RealtimeSync] [${rsTime()}] Max reconnection attempts reached`);
-    return;
+let _reconnectTimer = null;
+let _onlineListenerAttached = false;
+
+// A dropped socket on a weak link must not give up for the rest of the session
+// (the old code stopped after 5 attempts and left the device without realtime
+// until a manual reload). Past the fast-attempt budget we keep retrying at a
+// slow, capped interval, and an `online` event snaps us straight back.
+const SLOW_RECONNECT_MS = 60000;
+const MAX_BACKOFF_MS = 60000;
+
+const attachOnlineRecovery = () => {
+  if (_onlineListenerAttached || typeof window === 'undefined') return;
+  _onlineListenerAttached = true;
+  window.addEventListener('online', () => {
+    if (isConnected) return;
+    console.log(`🔄 [RealtimeSync] [${rsTime()}] Network back online — reconnecting now`);
+    reconnectAttempts = 0;
+    if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+    attemptReconnect(true);
+  });
+};
+
+const attemptReconnect = (immediate = false) => {
+  attachOnlineRecovery();
+
+  const overBudget = reconnectAttempts >= MAX_RECONNECT_ATTEMPTS;
+  reconnectAttempts++;
+
+  // Exponential backoff with ±25% jitter, capped. Jitter stops every device on
+  // a store network from hammering the socket endpoint in lockstep after an
+  // outage.
+  const baseMs = overBudget ? SLOW_RECONNECT_MS : Math.min(Math.pow(2, Math.min(reconnectAttempts, 6)) * 1000, MAX_BACKOFF_MS);
+  const backoffMs = immediate ? 0 : Math.round(baseMs * (0.75 + Math.random() * 0.5));
+
+  if (overBudget) {
+    console.warn(`⚠️ [RealtimeSync] [${rsTime()}] Reconnect budget spent — retrying every ~${Math.round(SLOW_RECONNECT_MS / 1000)}s`);
+  } else {
+    console.log(`🔄 [RealtimeSync] [${rsTime()}] Reconnecting in ${backoffMs}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
   }
 
-  reconnectAttempts++;
-  const backoffMs = Math.pow(2, reconnectAttempts) * 1000;
-  
-  console.log(`🔄 [RealtimeSync] [${rsTime()}] Reconnecting in ${backoffMs}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-  
-  setTimeout(() => {
+  if (_reconnectTimer) clearTimeout(_reconnectTimer);
+  _reconnectTimer = setTimeout(() => {
+    _reconnectTimer = null;
+    if (isConnected) return;
     connect();
   }, backoffMs);
 };

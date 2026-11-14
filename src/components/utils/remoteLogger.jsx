@@ -131,6 +131,32 @@ let lastNativeNoiseSentAt = 0;
 // hour is enough to prove liveness without polluting the log.
 const NATIVE_NOISE_MIN_INTERVAL_MS = 30 * 60 * 1000;
 
+// ── REALTIME TRANSPORT NOISE (owner report Nov 14 2026) ─────────────────────
+// The realtime socket drops several times an hour on weak cell links. The SDK
+// reports the drop as a console.error, so each one shipped to RemoteLogEntry at
+// ERROR level (15 rows in one hour from two devices) and drowned the real
+// failures in the hourly digest. Rule: transport/socket drop lines are capped
+// at one row per 10 min per device, and are shipped as WARN whenever the device
+// itself reports weak or absent connectivity. On a healthy connection a socket
+// drop stays an error, because there it is a genuine fault.
+const REALTIME_TRANSPORT_NOISE_RX = /TransportError|\[RealtimeSync\][^\n]*(Connection failed|Reconnecting|Max reconnection|reconnect budget|socket drop)|WebSocket[^\n]*(closed|disconnected|error|failed)|socket[^\n]*(closed|disconnected|error)/i;
+let lastRealtimeNoiseSentAt = 0;
+const REALTIME_NOISE_MIN_INTERVAL_MS = 10 * 60 * 1000;
+
+const isWeakConnectivity = () => {
+  try {
+    if (typeof navigator === 'undefined') return false;
+    if (navigator.onLine === false) return true;
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const effectiveType = String(conn?.effectiveType || '').toLowerCase();
+    if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') return true;
+    if (String(conn?.type || '').toLowerCase() === 'none') return true;
+    const downlink = Number(conn?.downlink);
+    if (Number.isFinite(downlink) && downlink > 0 && downlink < 1) return true;
+  } catch {}
+  return false;
+};
+
 const fingerprintWindow = new Map(); // fingerprint -> { windowStart, count }
 const FINGERPRINT_MAX_PER_WINDOW = 5;
 const FINGERPRINT_WINDOW_MS = 60000;
@@ -404,6 +430,15 @@ const enqueue = async (level, args, extra = {}) => {
     // heartbeat kept them in every hourly digest as warn rows, drowning the real
     // failures. Local console output is untouched; nothing reaches RemoteLogEntry.
     return;
+  }
+  if (REALTIME_TRANSPORT_NOISE_RX.test(message)) {
+    const _rtNow = Date.now();
+    if (_rtNow - lastRealtimeNoiseSentAt < REALTIME_NOISE_MIN_INTERVAL_MS) return;
+    lastRealtimeNoiseSentAt = _rtNow; // this one ships as the device's socket-drop heartbeat
+    if (isWeakConnectivity() && _effectiveLevel === 'error') {
+      // Weak link: expected drop, not a fault. Keep it visible as a warning.
+      _effectiveLevel = 'warn';
+    }
   }
   if (shouldSkipDuplicateLog(_effectiveLevel, message)) return;
 
