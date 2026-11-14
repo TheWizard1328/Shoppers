@@ -34,7 +34,9 @@ const HOLD_MOVE_TOLERANCE_PX = 12;
 // so "hit by hand / dropped on a table" samples land in the 25-45 range and a
 // sudden change of 12+ in one sample is already a sharp jolt.
 const GRAVITY = 9.81;
-const CRASH_SPIKE = 38;        // fallback magnitude if the admin setting is missing
+const MIN_THRESHOLD = 25;      // most sensitive the slider can go (m/s²)
+const MAX_THRESHOLD = 80;      // most forgiving
+const CRASH_SPIKE = 42;        // fallback magnitude if the admin setting is missing
 const STILL_BAND = 5;          // |magnitude - 9.81| below this = phone at rest
 const STILL_BAND_RAW = 2.5;    // same idea when the browser omits gravity
 const CRASH_QUIET_MS = 15000;  // stillness required after the impact
@@ -85,7 +87,7 @@ const EmergencyController = ({ currentUser }) => {
   const [emergencySettings, setEmergencySettings] = useState({
     manual_enabled: true,
     crash_enabled: true,
-    crash_threshold: 38
+    crash_threshold: 42
   });
   const pendingRef = useRef(null);
   const activeRef = useRef(null);
@@ -100,7 +102,10 @@ const EmergencyController = ({ currentUser }) => {
     const load = async () => {
       try {
         const rows = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-        const stored = rows?.[0]?.setting_value?.emergency_settings;
+        let raw = rows?.[0]?.setting_value;
+        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+        let stored = raw?.emergency_settings;
+        if (typeof stored === 'string') { try { stored = JSON.parse(stored); } catch { stored = null; } }
         if (!alive || !stored) return;
         setEmergencySettings((prev) => ({ ...prev, ...stored }));
       } catch { /* defaults stand */ }
@@ -224,8 +229,14 @@ const EmergencyController = ({ currentUser }) => {
       const baseline = usesGravity ? GRAVITY : 0;
       // Sensitivity comes from Admin Utilities so the owner can tune it live
       // (Nov 14 2026: placing the phone on a charger was tripping the default).
-      const configured = Number(emergencySettings.crash_threshold) || CRASH_SPIKE;
-      const spikeThreshold = usesGravity ? configured : Math.max(6, configured - GRAVITY);
+      // Sensitivity comes from Admin Utilities. Clamped so a stale saved value
+      // can never make the sensor hair-trigger.
+      const configured = Math.max(MIN_THRESHOLD, Math.min(MAX_THRESHOLD, Number(emergencySettings.crash_threshold) || CRASH_SPIKE));
+      // A hit is judged on PEAK MAGNITUDE ONLY. The old "or a sudden jump"
+      // branch is gone: a finger tap, a charger cable or a phone set down all
+      // produced big single-sample jumps, which made the slider do nothing
+      // (owner report Nov 14 2026).
+      const spikeThreshold = usesGravity ? configured : Math.max(12, configured - GRAVITY);
       const stillBand = usesGravity ? STILL_BAND : STILL_BAND_RAW;
 
       const previous = state.lastMagnitude;
@@ -233,11 +244,8 @@ const EmergencyController = ({ currentUser }) => {
       if (magnitude > (state.peak || 0)) state.peak = magnitude;
       state.lastJerk = previous == null ? 0 : Math.abs(magnitude - previous);
 
-      // ── Spike detection: one big sample, or one very sudden change ────────
       const bigSample = magnitude >= spikeThreshold;
-      const jerkThreshold = Math.max(10, configured * 0.45);
-      const bigJerk = previous != null && Math.abs(magnitude - previous) >= jerkThreshold;
-      if ((bigSample || bigJerk) && now - (state.firedAt || 0) > CRASH_COOLDOWN_MS) {
+      if (bigSample && now - (state.firedAt || 0) > CRASH_COOLDOWN_MS) {
         // (Re)start the stillness window on every fresh impact.
         state.spikeAt = now;
         state.quietSince = now;

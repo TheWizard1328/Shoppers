@@ -18,14 +18,14 @@ import { Loader2, Save, ShieldAlert, Hand, Activity, Gauge } from 'lucide-react'
 export const DEFAULT_EMERGENCY_SETTINGS = {
   manual_enabled: true,   // 5 second press-and-hold on the Dashboard map
   crash_enabled: true,    // impact detection prompt
-  crash_threshold: 38     // accelerationIncludingGravity magnitude that counts as a hit (m/s²)
+  crash_threshold: 42     // accelerationIncludingGravity magnitude that counts as a hit (m/s²)
 };
 
 // Slider runs on "sensitivity" (1 = barely reacts, 100 = reacts to anything) and
 // maps to a real acceleration threshold, because a m/s² number means nothing to
 // a human but a slider does.
-const MIN_THRESHOLD = 20;   // most sensitive
-const MAX_THRESHOLD = 70;   // most forgiving
+const MIN_THRESHOLD = 25;   // most sensitive
+const MAX_THRESHOLD = 80;   // most forgiving
 const thresholdToSensitivity = (threshold) => {
   const clamped = Math.max(MIN_THRESHOLD, Math.min(MAX_THRESHOLD, Number(threshold) || DEFAULT_EMERGENCY_SETTINGS.crash_threshold));
   return Math.round(((MAX_THRESHOLD - clamped) / (MAX_THRESHOLD - MIN_THRESHOLD)) * 100);
@@ -46,7 +46,10 @@ const EmergencySettingsPanel = () => {
     setIsLoading(true);
     try {
       const rows = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-      const stored = rows?.[0]?.setting_value?.emergency_settings;
+      let raw = rows?.[0]?.setting_value;
+      if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+      let stored = raw?.emergency_settings;
+      if (typeof stored === 'string') { try { stored = JSON.parse(stored); } catch { stored = null; } }
       const merged = { ...DEFAULT_EMERGENCY_SETTINGS, ...(stored && typeof stored === 'object' ? stored : {}) };
       setSettings(merged);
       setSavedSettings(merged);

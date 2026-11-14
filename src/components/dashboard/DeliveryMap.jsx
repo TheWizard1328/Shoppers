@@ -2235,12 +2235,18 @@ function DeliveryMap({
             const container = mapInst.getContainer();
             let holdTimer = null;
             let progressTimer = null;
+            let revealTimer = null;
             let startPoint = null;
             let holding = false;
+            // A plain tap must NOT show the arm fill. The legend only starts
+            // filling after the finger has stayed down for HOLD_REVEAL_MS, so a
+            // quick click/tap produces no visual at all (owner report Nov 14 2026).
+            const HOLD_REVEAL_MS = 400;
 
             const clearHold = (notify = true) => {
               if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
               if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+              if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
               startPoint = null;
               if (holding && notify) window.dispatchEvent(new CustomEvent('rx-emergency-hold-end'));
               holding = false;
@@ -2250,13 +2256,18 @@ function DeliveryMap({
               if (!window.__rxEmergencyArmed) return;
               if (event.button != null && event.button !== 0) return;
               startPoint = { x: event.clientX, y: event.clientY, at: Date.now() };
-              holding = true;
-              window.dispatchEvent(new CustomEvent('rx-emergency-hold-start'));
-              progressTimer = setInterval(() => {
+              holding = false; // becomes true only once the press proves it is a hold
+              revealTimer = setTimeout(() => {
+                revealTimer = null;
                 if (!startPoint) return;
-                const progress = Math.min(1, (Date.now() - startPoint.at) / 5000);
-                window.dispatchEvent(new CustomEvent('rx-emergency-hold-progress', { detail: { progress } }));
-              }, 80);
+                holding = true;
+                window.dispatchEvent(new CustomEvent('rx-emergency-hold-start'));
+                progressTimer = setInterval(() => {
+                  if (!startPoint) return;
+                  const progress = Math.min(1, (Date.now() - startPoint.at) / 5000);
+                  window.dispatchEvent(new CustomEvent('rx-emergency-hold-progress', { detail: { progress } }));
+                }, 80);
+              }, HOLD_REVEAL_MS);
               holdTimer = setTimeout(() => {
                 const fired = startPoint;
                 clearHold(false);
