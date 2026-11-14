@@ -410,6 +410,14 @@ export default function Patients() {
   // Calendar dropdown state
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
+  // PATIENT DATABASE CALENDAR DOTS (owner request Nov 13 2026): the month grid
+  // carries the same blue/green/red dots as the Dashboard calendar. In-memory
+  // deliveries only hold the selected date, so the visible month's per-date
+  // flags come straight from the offline DB (one index-cursor pass).
+  const [patientCalendarBaseFlags, setPatientCalendarBaseFlags] = useState({});
+  // Selected-date delivery slice pulled from IDB, so the CARDS reflect the
+  // statuses of whatever date is picked (server-cached arrays can miss a day).
+  const [idbDateDeliveries, setIdbDateDeliveries] = useState([]);
 
   // Add state for right panel width
   const [rightPanelWidth, setRightPanelWidth] = useState(() => {
@@ -884,10 +892,98 @@ export default function Patients() {
     return isNaN(d.getTime()) ? null : d;
   }, [selectedDate]);
 
+  // ── Selected-date delivery slice ──────────────────────────────────────────
+  // Cards must show the statuses of the PICKED date, not of whatever slice the
+  // dashboard happened to leave in memory. Merge three sources, freshest last:
+  // the full server-cached delivery list, the context (selected-date) slice,
+  // and an IDB read for the picked date (which survives a cold/offline boot).
+  const selectedDateStr = useMemo(() => {
+    if (!selectedDate) return format(new Date(), 'yyyy-MM-dd');
+    if (selectedDate instanceof Date) return format(selectedDate, 'yyyy-MM-dd');
+    const m = String(selectedDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? String(selectedDate) : format(new Date(selectedDate), 'yyyy-MM-dd');
+  }, [selectedDate]);
+
+  useEffect(() => {
+    let alive = true;
+    setIdbDateDeliveries([]);
+    (async () => {
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const rows = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        if (alive) setIdbDateDeliveries(Array.isArray(rows) ? rows : []);
+      } catch {
+        if (alive) setIdbDateDeliveries([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, [selectedDateStr]);
+
+  const selectedDateDeliveries = useMemo(() => {
+    const byId = new Map();
+    (allDriverDeliveries || []).forEach((d) => {
+      if (d?.id && d?.delivery_date === selectedDateStr) byId.set(d.id, d);
+    });
+    (idbDateDeliveries || []).forEach((d) => {
+      if (d?.id && d?.delivery_date === selectedDateStr) byId.set(d.id, d);
+    });
+    (deliveries || []).forEach((d) => {
+      if (d?.id && d?.delivery_date === selectedDateStr) byId.set(d.id, { ...(byId.get(d.id) || {}), ...d });
+    });
+    return Array.from(byId.values());
+  }, [allDriverDeliveries, idbDateDeliveries, deliveries, selectedDateStr]);
+
+  // ── Month dots (same semantics as the Dashboard calendar) ──────────────────
+  useEffect(() => {
+    if (!isCalendarOpen || !calendarMonth) return;
+    let alive = true;
+    (async () => {
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const y = calendarMonth.getFullYear();
+        const m = calendarMonth.getMonth();
+        const pad = (n) => String(n).padStart(2, '0');
+        const fromStr = `${y}-${pad(m + 1)}-01`;
+        const toStr = `${y}-${pad(m + 1)}-${new Date(y, m + 1, 0).getDate()}`;
+        // Dots follow the SAME patients the page is showing: the store filter
+        // when one is set, otherwise every store of the selected city.
+        let storeIds = null;
+        if (storeFilter && storeFilter !== 'all') storeIds = [storeFilter];
+        else if (selectedCityId && selectedCityId !== 'all') {
+          storeIds = (stores || []).filter((st) => st?.city_id === selectedCityId).map((st) => st.id).filter(Boolean);
+        }
+        const flags = await offlineDB.getDeliveryCalendarFlags(fromStr, toStr, null, storeIds);
+        if (alive) setPatientCalendarBaseFlags(flags || {});
+      } catch {
+        if (alive) setPatientCalendarBaseFlags({});
+      }
+    })();
+    return () => { alive = false; };
+  }, [isCalendarOpen, calendarMonth, storeFilter, selectedCityId, stores]);
+
+  // In-memory overlay (selected date is the freshest) — pure memo, no IDB read,
+  // so realtime delivery updates never re-trigger a month scan.
+  const patientCalendarFlags = useMemo(() => {
+    const merged = { ...(patientCalendarBaseFlags || {}) };
+    let storeIds = null;
+    if (storeFilter && storeFilter !== 'all') storeIds = [storeFilter];
+    else if (selectedCityId && selectedCityId !== 'all') {
+      storeIds = (stores || []).filter((st) => st?.city_id === selectedCityId).map((st) => st.id).filter(Boolean);
+    }
+    (selectedDateDeliveries || []).forEach((d) => {
+      if (!d?.delivery_date) return;
+      if (storeIds && storeIds.length > 0 && !storeIds.includes(d.store_id)) return;
+      const f = merged[d.delivery_date] || (merged[d.delivery_date] = { hasAny: false, hasCompleted: false, hasFailed: false });
+      f.hasAny = true;
+      if (d.status === 'completed') f.hasCompleted = true;
+      if (d.status === 'failed') f.hasFailed = true;
+    });
+    return merged;
+  }, [patientCalendarBaseFlags, selectedDateDeliveries, storeFilter, selectedCityId, stores]);
+
   // Augment filteredPatients with selected-date delivery info and display priority
   const patientsWithDeliveryInfoAndPriority = useMemo(() => {
-    const selectedDateStr = typeof selectedDate === 'string' ? selectedDate : format(new Date(selectedDate), 'yyyy-MM-dd');
-    const todayActiveDeliveries = deliveries.filter((d) => d.delivery_date === selectedDateStr && ['pending', 'in_transit', 'completed', 'failed'].includes(d.status));
+    const todayActiveDeliveries = selectedDateDeliveries.filter((d) => ['pending', 'in_transit', 'completed', 'failed'].includes(d.status));
 
     const getPatientScoreForDisplayPriority = (patient, recurringInfo, daysSince) => {
       // High scores here indicate lower display priority
@@ -988,7 +1084,7 @@ export default function Patients() {
         distance_from_store: distanceFromStore // Add the calculated distance here
       };
     });
-  }, [filteredPatients, deliveries, getDistanceFromStore, selectedDate]);
+  }, [filteredPatients, selectedDateDeliveries, getDistanceFromStore, selectedDate]);
 
   const handleSaveDelivery = useCallback(async (deliveryData) => {
     const { createDeliveryLocal } = await import('../components/utils/offlineMutations');
@@ -1675,6 +1771,29 @@ export default function Patients() {
                         }}
                         month={calendarMonth}
                         onMonthChange={setCalendarMonth}
+                        components={{
+                          DayContent: ({ date }) => {
+                            const dateStr = format(date, 'yyyy-MM-dd');
+                            const info = patientCalendarFlags[dateStr];
+                            if (!info?.hasAny) return <span>{date.getDate()}</span>;
+                            const hasFinishedStops = info.hasCompleted || info.hasFailed;
+                            // Same rules as the Dashboard calendar: blue while
+                            // nothing is finished yet, green for completed,
+                            // red for failed (dots can combine).
+                            const showBlue = !hasFinishedStops;
+                            const showGreen = hasFinishedStops && info.hasCompleted;
+                            const showRed = hasFinishedStops && info.hasFailed;
+                            return (
+                              <div className="flex flex-col items-center justify-center gap-0.5">
+                                <span>{date.getDate()}</span>
+                                <span className="flex gap-px">
+                                  {showBlue && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#3b82f6' }} />}
+                                  {showGreen && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#16a34a' }} />}
+                                  {showRed && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#ef4444' }} />}
+                                </span>
+                              </div>);
+                          }
+                        }}
                         footer={
                           <div className="px-3 pb-2 pt-1 border-t border-surface">
                             <TooltipProvider><Tooltip>
@@ -1881,7 +2000,7 @@ export default function Patients() {
                     store={stores.find((s) => s.id === patient.store_id)}
                     drivers={drivers}
                     allPatients={allPatients}
-                    allDeliveries={deliveries}
+                    allDeliveries={selectedDateDeliveries}
                     onEdit={(p) => handleEditPatient(p)}
                     onDelete={(p) => handleDeletePatient(p)}
                     onCreateDelivery={(p) => handleAddToRoute(p)}
