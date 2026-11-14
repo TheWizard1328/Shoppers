@@ -415,10 +415,31 @@ export default function PatientForm({
   // carried so a same-store selection reuses it verbatim (a different store
   // recalculates via Google Distance Matrix in handleAddressSelect).
   const _addrOf = (pt) => String(pt?.street_address || pt?.address || pt?.full_address || '').trim();
+  // SELF-EXCLUSION GUARD (owner report Nov 13 2026): while EDITING a patient,
+  // the patient database ladder was returning the very record being edited, so
+  // their own saved address appeared as a "saved address" suggestion in the
+  // address field. The record under edit must never be offered back as a
+  // suggestion — matched on record id, with the PID+store pair as a fallback
+  // for callers that pass the patient without its id.
+  const editingPatientId = patient?.id || patient?.patientId || null;
+  const editingPatientPid = patient?.patient_id || null;
+  const editingPatientStore = patient?.store_id || null;
+  const _isSelfPatient = (pt) => {
+    if (!pt) return false;
+    if (!editingPatientId && !editingPatientPid) return false;
+    if (editingPatientId && pt.id && String(pt.id) === String(editingPatientId)) return true;
+    if (
+      editingPatientPid &&
+      String(pt.patient_id || '') === String(editingPatientPid) &&
+      String(pt.store_id || '') === String(editingPatientStore || formData.store_id || '')
+    ) return true;
+    return false;
+  };
   const searchLocalPatientAddresses = useCallback(async (searchText) => {
     const q = String(searchText || '').trim().toLowerCase();
     if (q.length < 3) return [];
     const _match = (pt) => {
+      if (_isSelfPatient(pt)) return false;
       const a = _addrOf(pt).toLowerCase();
       return a && a.includes(q);
     };
@@ -452,6 +473,9 @@ export default function PatientForm({
     const groupRows = (rows) => {
       const byKey = new Map();
       (rows || []).forEach((pt) => {
+        // Belt-and-braces: the record under edit can never become the label of
+        // a saved address, even when another patient shares the same address.
+        if (_isSelfPatient(pt)) return;
         const key = _addrKey(_addrOf(pt)) || _gpsKey(pt) || String(pt?.id || '');
         if (!key) return;
         const existing = byKey.get(key);
@@ -476,7 +500,7 @@ export default function PatientForm({
     if (sameStore.length > 0) return groupRows(sameStore).slice(0, 6);
     const allStores = (allPatients || []).filter((pt) => pt && _match(pt));
     return groupRows(allStores).slice(0, 6);
-  }, [allPatients, formData.store_id]);
+  }, [allPatients, formData.store_id, editingPatientId, editingPatientPid, editingPatientStore]);
 
   const handleAddressSelect = async (addressData) => {
     setIsAddressLookupActive(false);
