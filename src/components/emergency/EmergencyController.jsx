@@ -30,12 +30,17 @@ import {
 const COUNTDOWN_SECONDS = 10;
 const HOLD_MS = 5000;
 const HOLD_MOVE_TOLERANCE_PX = 12;
-// Crash sensing thresholds. accelerationIncludingGravity is m/s²; resting is
-// ~9.81. A real impact spikes well past 25, and the "no movement afterwards"
-// window filters out a phone dropped on a seat or a hard pothole.
-const CRASH_SPIKE = 28;
-const CRASH_QUIET_MS = 20000;
-const CRASH_QUIET_MAX_DELTA = 3.5;
+// Crash sensing thresholds. accelerationIncludingGravity rests at ~9.81 m/s²,
+// so "hit by hand / dropped on a table" samples land in the 25-45 range and a
+// sudden change of 12+ in one sample is already a sharp jolt.
+const GRAVITY = 9.81;
+const CRASH_SPIKE = 24;        // total magnitude that counts as an impact
+const CRASH_JERK = 12;         // sudden sample-to-sample change (any single hit)
+const STILL_BAND = 5;          // |magnitude - 9.81| below this = phone at rest
+const STILL_BAND_RAW = 2.5;    // same idea when the browser omits gravity
+const CRASH_QUIET_MS = 15000;  // stillness required after the impact
+const CRASH_GIVEUP_MS = 60000; // a stale spike with no stillness is a bumpy ride
+const CRASH_COOLDOWN_MS = 120000;
 
 const ALERT_LABELS = {
   accident: 'Accident',
@@ -55,7 +60,19 @@ const EmergencyController = ({ currentUser }) => {
   const [error, setError] = useState('');
 
   const countdownRef = useRef(null);
-  const crashStateRef = useRef({ lastMagnitude: null, spikeAt: null, quietSince: null, firedAt: 0 });
+  const crashStateRef = useRef({
+    lastMagnitude: null,
+    lastJerk: 0,
+    peak: 0,
+    spikeAt: null,
+    quietSince: null,
+    firedAt: 0,
+    lastEventAt: 0,
+    eventCount: 0
+  });
+  const [crashStatus, setCrashStatus] = useState('idle');
+  const [showSensorChip, setShowSensorChip] = useState(true);
+  const [sensorReadout, setSensorReadout] = useState({ magnitude: null, jerk: 0, peak: 0, events: 0, lastEventAt: 0 });
   const pendingRef = useRef(null);
   const activeRef = useRef(null);
 
@@ -133,51 +150,80 @@ const EmergencyController = ({ currentUser }) => {
   }, [openConfirm]);
 
   // ── Crash detection (prompt only) ─────────────────────────────────────────
+  // REWRITTEN Nov 14 2026. The first version could NEVER fire: firing required
+  // a 20 s stillness inside a branch that only ran while the spike was younger
+  // than 20 s. The state machine is now a simple spike → stillness window with
+  // no nested time paradox, and the thresholds are tuned for a phone hit by
+  // hand or dropped onto a table (gravity-inclusive magnitude, resting ~9.81).
   useEffect(() => {
     if (!enabled) return;
     let permissionAsked = false;
 
     const attach = () => {
-      window.addEventListener('devicemotion', handleMotion, { passive: true });
-      setCrashArmed(true);
+      try {
+        window.addEventListener('devicemotion', handleMotion, { passive: true });
+        setCrashArmed(true);
+      } catch { /* non-fatal */ }
     };
 
     const handleMotion = (event) => {
-      const acc = event?.accelerationIncludingGravity;
-      if (!acc) return;
-      const { x, y, z } = acc;
-      if (x == null || y == null || z == null) return;
-      const magnitude = Math.sqrt(x * x + y * y + z * z);
       const state = crashStateRef.current;
       const now = Date.now();
+      state.lastEventAt = now;
+      state.eventCount = (state.eventCount || 0) + 1;
+
+      // Some browsers ship only the gravity-free `acceleration`; treat it as a
+      // different scale (resting ~0) instead of pretending it is ~9.81.
+      const withGravity = event?.accelerationIncludingGravity;
+      const raw = withGravity || event?.acceleration;
+      if (!raw) return;
+      const { x, y, z } = raw;
+      if (x == null || y == null || z == null) return;
+
+      const magnitude = Math.sqrt(x * x + y * y + z * z);
+      const usesGravity = !!withGravity;
+      const baseline = usesGravity ? GRAVITY : 0;
+      const spikeThreshold = usesGravity ? CRASH_SPIKE : CRASH_SPIKE - GRAVITY;
+      const stillBand = usesGravity ? STILL_BAND : STILL_BAND_RAW;
+
       const previous = state.lastMagnitude;
       state.lastMagnitude = magnitude;
+      if (magnitude > (state.peak || 0)) state.peak = magnitude;
+      state.lastJerk = previous == null ? 0 : Math.abs(magnitude - previous);
 
-      // A spike counts only when it is BOTH large and sudden.
-      if (previous != null && magnitude > CRASH_SPIKE && magnitude - previous > 12) {
+      // ── Spike detection: one big sample, or one very sudden change ────────
+      const bigSample = magnitude >= spikeThreshold;
+      const bigJerk = previous != null && Math.abs(magnitude - previous) >= CRASH_JERK;
+      if ((bigSample || bigJerk) && now - (state.firedAt || 0) > CRASH_COOLDOWN_MS) {
+        // (Re)start the stillness window on every fresh impact.
         state.spikeAt = now;
         state.quietSince = now;
         return;
       }
-      if (state.spikeAt && now - state.spikeAt < CRASH_QUIET_MS) {
-        // After the spike the phone must stay nearly still for 20 seconds.
-        if (previous != null && Math.abs(magnitude - previous) > CRASH_QUIET_MAX_DELTA) {
-          state.quietSince = now; // movement resumed → keep waiting
-        }
-        const quietFor = now - (state.quietSince || now);
-        if (quietFor >= CRASH_QUIET_MS && now - state.firedAt > 120000) {
-          state.firedAt = now;
-          state.spikeAt = null;
-          openConfirm('crash', 'accident');
-        }
-      } else if (state.spikeAt && now - state.spikeAt >= CRASH_QUIET_MS) {
+
+      if (!state.spikeAt) return;
+
+      // ── Stillness confirmation ────────────────────────────────────────────
+      if (Math.abs(magnitude - baseline) > stillBand) {
+        state.quietSince = now;              // the phone is still moving
+      } else if (now - state.quietSince >= CRASH_QUIET_MS) {
+        state.firedAt = now;
         state.spikeAt = null;
+        state.peak = 0;
+        openConfirm('crash', 'accident');
+        return;
+      }
+
+      // A spike older than a minute with no stillness is just a bumpy ride.
+      if (now - state.spikeAt > CRASH_GIVEUP_MS) {
+        state.spikeAt = null;
+        state.peak = 0;
       }
     };
 
     // iOS 13+ needs an explicit permission grant, which must come from a user
-    // gesture. We ask once, quietly, on the first tap of the session; if the
-    // driver declines, crash sensing simply stays off and the manual hold works.
+    // gesture. We ask on the first tap of the session; if the driver declines,
+    // crash sensing stays off and the manual map hold still works.
     const askPermission = async () => {
       if (permissionAsked) return;
       permissionAsked = true;
@@ -186,6 +232,7 @@ const EmergencyController = ({ currentUser }) => {
         if (Ctor && typeof Ctor.requestPermission === 'function') {
           const result = await Ctor.requestPermission();
           if (result === 'granted') attach();
+          else setCrashStatus('blocked');
           return;
         }
         attach();
@@ -193,9 +240,12 @@ const EmergencyController = ({ currentUser }) => {
     };
 
     window.addEventListener('pointerdown', askPermission, { once: true });
-    if (typeof window.DeviceMotionEvent !== 'undefined' &&
-        typeof window.DeviceMotionEvent.requestPermission !== 'function') {
+    if (typeof window.DeviceMotionEvent === 'undefined') {
+      setCrashStatus('unsupported');
+    } else if (typeof window.DeviceMotionEvent.requestPermission !== 'function') {
       attach();
+    } else {
+      setCrashStatus('needs-gesture');
     }
 
     return () => {
@@ -204,6 +254,23 @@ const EmergencyController = ({ currentUser }) => {
       setCrashArmed(false);
     };
   }, [enabled, openConfirm]);
+
+  // Live sensor readout for the pilot (owner needs to SEE that a hit registers).
+  // Sampled twice a second so a 60 Hz sensor never causes a render storm.
+  useEffect(() => {
+    if (!enabled) return;
+    const id = setInterval(() => {
+      const state = crashStateRef.current;
+      setSensorReadout({
+        magnitude: state.lastMagnitude,
+        jerk: state.lastJerk,
+        peak: state.peak || 0,
+        events: state.eventCount || 0,
+        lastEventAt: state.lastEventAt || 0
+      });
+    }, 500);
+    return () => clearInterval(id);
+  }, [enabled]);
 
   // ── Send the alert ────────────────────────────────────────────────────────
   const sendAlert = useCallback(async (currentNotes = notes) => {
@@ -349,6 +416,44 @@ const EmergencyController = ({ currentUser }) => {
             </div>
           </div>
         </button>
+      )}
+
+      {/* ── Pilot sensor chip (owner only) ─────────────────────────────────
+          Proves a hit is being registered before we trust the thresholds.
+          Shows live magnitude so a real smash visibly jumps the number. */}
+      {showSensorChip && (
+        <div
+          style={{
+            position: 'fixed',
+            left: 8,
+            bottom: 84,
+            zIndex: 10060,
+            padding: '7px 9px',
+            borderRadius: 10,
+            background: 'rgba(15, 23, 42, 0.88)',
+            color: '#e2e8f0',
+            fontSize: 10.5,
+            lineHeight: 1.35,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+            maxWidth: 190
+          }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+            <span style={{ fontWeight: 800, color: sensorReadout.events > 0 ? '#4ade80' : '#f87171' }}>
+              {sensorReadout.events > 0 ? 'SENSOR OK' : 'NO MOTION DATA'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowSensorChip(false)}
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
+              title="Hide">
+              ✕
+            </button>
+          </div>
+          <div>now {sensorReadout.magnitude != null ? sensorReadout.magnitude.toFixed(1) : '—'} · jump {Number(sensorReadout.jerk || 0).toFixed(1)}</div>
+          <div>peak {Number(sensorReadout.peak || 0).toFixed(1)} → hit at {CRASH_SPIKE} / {CRASH_JERK}</div>
+          <div>events {sensorReadout.events} · {crashArmed ? 'armed' : crashStatus}</div>
+        </div>
       )}
 
       {/* ── Full-screen confirm blocker ───────────────────────────────────── */}
