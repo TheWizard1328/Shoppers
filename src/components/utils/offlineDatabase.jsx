@@ -1376,6 +1376,28 @@ const countStore = async (storeName) => {
 // transaction answers all of them at once, and if a write burst is still in
 // flight we serve the last snapshot instead of competing with it.
 let _lastStatsSnapshot = null;
+// TIMEOUT COOLDOWN (owner report Nov 14 2026): when the single-txn snapshot
+// timed out, getStats fell straight into 15 parallel per-store reads that
+// queued behind the SAME blocked writer and timed out too — a 32s stall with
+// nine dead transactions (Sharuk's Windows PC, Oct/Nov logs). A timed-out
+// snapshot now serves the cached snapshot and refuses to re-enter either read
+// path until the cooldown expires.
+const STATS_FAILURE_COOLDOWN_MS = 15000;
+let _statsBlockedUntil = 0;
+let _statsInFlight = null;
+
+const isStatsTimeoutError = (error) => /timed out|timeout/i.test(String(error?.message || ''));
+
+const _defaultStats = () => ({
+  patients: { count: 0, lastSync: 'Never' },
+  deliveries: { count: 0, lastSync: 'Never' },
+  appUsers: { count: 0, lastSync: 'Never' },
+  cities: { count: 0, lastSync: 'Never' },
+  stores: { count: 0, lastSync: 'Never' },
+  companies: { count: 0, lastSync: 'Never' },
+  squareTransactions: { count: 0, lastSync: 'Never' },
+  driverOverviewStats: { count: 0, lastSync: 'Never' }
+});
 
 const _readStatsSnapshot = async () => {
   const db = await openDatabase();
@@ -1423,13 +1445,32 @@ const getStats = async () => {
       if (!drained && _lastStatsSnapshot) return _lastStatsSnapshot;
     }
 
+    // Cooldown: a recent timeout means the writer lock is still choked. Serve
+    // the last snapshot (or neutral defaults if this is a cold boot) instead of
+    // queuing more doomed reads behind it.
+    if (_statsBlockedUntil > Date.now()) {
+      if (_lastStatsSnapshot) return _lastStatsSnapshot;
+      return _defaultStats();
+    }
+
     let counts = {};
     let syncRows = {};
     try {
-      const snapshot = await _readStatsSnapshot();
+      // Single-flight: concurrent dashboard/sync-indicator refreshes share one
+      // transaction instead of stacking their own.
+      if (!_statsInFlight) {
+        _statsInFlight = _readStatsSnapshot();
+        _statsInFlight.catch(() => {}).finally(() => { _statsInFlight = null; });
+      }
+      const snapshot = await _statsInFlight;
       counts = snapshot.counts || {};
       syncRows = snapshot.syncRows || {};
     } catch (snapshotError) {
+      if (isStatsTimeoutError(snapshotError)) {
+        _statsBlockedUntil = Date.now() + STATS_FAILURE_COOLDOWN_MS;
+        console.warn('[OfflineDB] stats snapshot timed out — serving ' + (_lastStatsSnapshot ? 'cached snapshot' : 'neutral defaults') + ' for ' + Math.round(STATS_FAILURE_COOLDOWN_MS / 1000) + 's (per-store fan-out skipped)');
+        return _lastStatsSnapshot || _defaultStats();
+      }
       console.warn('[OfflineDB] stats snapshot failed, using per-store fallback:', snapshotError?.message);
       const [patients, deliveries, appUsers, cities, stores, companies, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, companySync, squareTxSync] = await Promise.all([
         countStore(STORES.PATIENTS),
@@ -1513,18 +1554,15 @@ const getStats = async () => {
     _lastStatsSnapshot = result;
     return result;
   } catch (error) {
+    // A timeout here means the per-store fallback also lost the lock race:
+    // back off so the next refresh does not stack another 15 reads.
+    if (isStatsTimeoutError(error)) {
+      _statsBlockedUntil = Date.now() + STATS_FAILURE_COOLDOWN_MS;
+      if (_lastStatsSnapshot) return _lastStatsSnapshot;
+    }
     console.error('[OfflineDB] Error retrieving stats:', error);
     // CRITICAL: Return default stats structure instead of null
-    return {
-      patients: { count: 0, lastSync: 'Never' },
-      deliveries: { count: 0, lastSync: 'Never' },
-      appUsers: { count: 0, lastSync: 'Never' },
-      cities: { count: 0, lastSync: 'Never' },
-      stores: { count: 0, lastSync: 'Never' },
-      companies: { count: 0, lastSync: 'Never' },
-      squareTransactions: { count: 0, lastSync: 'Never' },
-      driverOverviewStats: { count: 0, lastSync: 'Never' }
-    };
+    return _defaultStats();
   }
 };
 
