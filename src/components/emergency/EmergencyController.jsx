@@ -750,15 +750,25 @@ const EmergencyController = ({ currentUser }) => {
           type="button"
           onClick={silenceEverywhere}
           title="Tap to silence this emergency on every device"
+          className="rx-eq-banner"
           style={{
             position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
+            width: '100%',
             zIndex: 10070,
             border: 'none',
             cursor: 'pointer',
+            font: 'inherit',
             padding: '10px 14px 12px',
+            // Top inset: on the APK the WebView is edge-to-edge (Android 15
+            // enforces it), so the banner sat UNDER the status bar / notification
+            // panel — owner report Nov 14 2026. MainActivity injects the real
+            // status-bar height as --native-safe-top; env(safe-area-inset-top) is
+            // the web/PWA fallback.
+            paddingTop: 'max(10px, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 6px))',
+            boxSizing: 'border-box',
             background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)',
             color: '#fff',
             boxShadow: '0 6px 24px rgba(220, 38, 38, 0.55)',
@@ -772,22 +782,39 @@ const EmergencyController = ({ currentUser }) => {
             }
             @keyframes rxEmergencyBlink { 50% { opacity: 0.35; } }
             @keyframes rxEmergencyRing  { 0% { transform: scale(0.85); opacity: 0.9; } 100% { transform: scale(1.6); opacity: 0; } }
+            /* Phones: keep every part of the banner on screen. The hint text is
+               the first thing to give up width, then the notes clamp to two
+               lines. Owner report Nov 14 2026: banner text ran off the right
+               edge on mobile. */
+            .rx-eq-banner { box-sizing: border-box; max-width: 100vw; overflow: hidden; text-align: left; }
+            .rx-eq-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; width: 100%; margin: 0 auto; }
+            .rx-eq-left { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+            .rx-eq-title { word-break: break-word; overflow-wrap: anywhere; }
+            .rx-eq-notes {
+              display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+              overflow: hidden; word-break: break-word; overflow-wrap: anywhere;
+            }
+            .rx-eq-hint { flex: 0 0 auto; font-size: 11px; font-weight: 800; text-align: right; line-height: 1.25; max-width: 96px; }
+            @media (max-width: 430px) {
+              .rx-eq-hint { font-size: 9px; max-width: 62px; letter-spacing: 0; }
+              .rx-eq-notes { -webkit-line-clamp: 3; }
+            }
           `}</style>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, maxWidth: 720, margin: '0 auto' }}>
-            <div style={{ textAlign: 'left' }}>
+          <div className="rx-eq-row" style={{ maxWidth: 720 }}>
+            <div className="rx-eq-left">
               <div style={{ fontSize: 11, letterSpacing: 1.2, fontWeight: 700, opacity: 0.9 }}>
                 <span style={{ animation: 'rxEmergencyBlink 0.9s steps(2, start) infinite' }}>●</span> EMERGENCY ACTIVE
               </div>
-              <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>
+              <div className="rx-eq-title" style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>
                 {activeAlert.driver_name || 'Driver'} — {ALERT_LABELS[activeAlert.alert_type] || 'Emergency'}
               </div>
               {activeAlert.notes ? (
-                <div style={{ fontSize: 12, opacity: 0.95, marginTop: 2, maxWidth: 460, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div className="rx-eq-notes" style={{ fontSize: 12, opacity: 0.95, marginTop: 2 }}>
                   {activeAlert.notes}
                 </div>
               ) : null}
             </div>
-            <div style={{ fontSize: 11, fontWeight: 800, textAlign: 'right', lineHeight: 1.25 }}>
+            <div className="rx-eq-hint">
               TAP TO SILENCE
               <br />
               ALL DEVICES
