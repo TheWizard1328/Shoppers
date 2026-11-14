@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { realtimeSync } from '../utils/realtimeSync';
 import PerFeatureApiKeysCard from './PerFeatureApiKeysCard';
+import EmergencySettingsPanel from './EmergencySettingsPanel';
 
 const DEFAULT_API_KEYS = ['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY'];
 
@@ -570,6 +571,9 @@ export default function AppSettingsPanel() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* GLOBAL EMERGENCY ACTIVATION + SENSITIVITY (owner request Nov 14 2026) */}
+          <EmergencySettingsPanel />
 
         </div>
       </div>

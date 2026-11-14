@@ -34,8 +34,7 @@ const HOLD_MOVE_TOLERANCE_PX = 12;
 // so "hit by hand / dropped on a table" samples land in the 25-45 range and a
 // sudden change of 12+ in one sample is already a sharp jolt.
 const GRAVITY = 9.81;
-const CRASH_SPIKE = 24;        // total magnitude that counts as an impact
-const CRASH_JERK = 12;         // sudden sample-to-sample change (any single hit)
+const CRASH_SPIKE = 38;        // fallback magnitude if the admin setting is missing
 const STILL_BAND = 5;          // |magnitude - 9.81| below this = phone at rest
 const STILL_BAND_RAW = 2.5;    // same idea when the browser omits gravity
 const CRASH_QUIET_MS = 15000;  // stillness required after the impact
@@ -79,19 +78,47 @@ const EmergencyController = ({ currentUser }) => {
     eventCount: 0
   });
   const [crashStatus, setCrashStatus] = useState('idle');
-  const [showSensorChip, setShowSensorChip] = useState(true);
-  const [sensorReadout, setSensorReadout] = useState({ magnitude: null, jerk: 0, peak: 0, events: 0, lastEventAt: 0 });
+  // Global activation + sensitivity (Admin Utilities > App > Emergency System).
+  const [emergencySettings, setEmergencySettings] = useState({
+    manual_enabled: true,
+    crash_enabled: true,
+    crash_threshold: 38
+  });
   const pendingRef = useRef(null);
   const activeRef = useRef(null);
 
   useEffect(() => { pendingRef.current = pending; }, [pending]);
   useEffect(() => { activeRef.current = activeAlert; }, [activeAlert]);
 
+  // ── Global settings (activation switches + hit sensitivity) ──────────────
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const load = async () => {
+      try {
+        const rows = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+        const stored = rows?.[0]?.setting_value?.emergency_settings;
+        if (!alive || !stored) return;
+        setEmergencySettings((prev) => ({ ...prev, ...stored }));
+      } catch { /* defaults stand */ }
+    };
+    load();
+    const onUpdated = (event) => {
+      const stored = event?.detail?.data?.setting_value?.emergency_settings;
+      if (stored) setEmergencySettings((prev) => ({ ...prev, ...stored }));
+    };
+    window.addEventListener('emergencySettingsUpdated', onUpdated);
+    return () => {
+      alive = false;
+      window.removeEventListener('emergencySettingsUpdated', onUpdated);
+    };
+  }, [enabled]);
+
   // Expose the gate so the map's long-press only draws its ring for an owner.
   useEffect(() => {
-    try { window.__rxEmergencyArmed = !!enabled; } catch { /* ignore */ }
+    try { window.__rxEmergencyArmed = !!(enabled && emergencySettings.manual_enabled); } catch { /* ignore */ }
     return () => { try { window.__rxEmergencyArmed = false; } catch { /* ignore */ } };
-  }, [enabled]);
+  }, [enabled, emergencySettings.manual_enabled]);
 
   // ── Load any live alert (and follow it across the owner's devices) ────────
   const loadActiveAlert = useCallback(async () => {
@@ -165,7 +192,7 @@ const EmergencyController = ({ currentUser }) => {
   // no nested time paradox, and the thresholds are tuned for a phone hit by
   // hand or dropped onto a table (gravity-inclusive magnitude, resting ~9.81).
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !emergencySettings.crash_enabled) return;
     let permissionAsked = false;
 
     const attach = () => {
@@ -192,7 +219,10 @@ const EmergencyController = ({ currentUser }) => {
       const magnitude = Math.sqrt(x * x + y * y + z * z);
       const usesGravity = !!withGravity;
       const baseline = usesGravity ? GRAVITY : 0;
-      const spikeThreshold = usesGravity ? CRASH_SPIKE : CRASH_SPIKE - GRAVITY;
+      // Sensitivity comes from Admin Utilities so the owner can tune it live
+      // (Nov 14 2026: placing the phone on a charger was tripping the default).
+      const configured = Number(emergencySettings.crash_threshold) || CRASH_SPIKE;
+      const spikeThreshold = usesGravity ? configured : Math.max(6, configured - GRAVITY);
       const stillBand = usesGravity ? STILL_BAND : STILL_BAND_RAW;
 
       const previous = state.lastMagnitude;
@@ -202,7 +232,8 @@ const EmergencyController = ({ currentUser }) => {
 
       // ── Spike detection: one big sample, or one very sudden change ────────
       const bigSample = magnitude >= spikeThreshold;
-      const bigJerk = previous != null && Math.abs(magnitude - previous) >= CRASH_JERK;
+      const jerkThreshold = Math.max(10, configured * 0.45);
+      const bigJerk = previous != null && Math.abs(magnitude - previous) >= jerkThreshold;
       if ((bigSample || bigJerk) && now - (state.firedAt || 0) > CRASH_COOLDOWN_MS) {
         // (Re)start the stillness window on every fresh impact.
         state.spikeAt = now;
@@ -262,7 +293,7 @@ const EmergencyController = ({ currentUser }) => {
       window.removeEventListener('devicemotion', handleMotion);
       setCrashArmed(false);
     };
-  }, [enabled, openConfirm]);
+  }, [enabled, openConfirm, emergencySettings.crash_enabled, emergencySettings.crash_threshold]);
 
   // ── Impact bar feed ──────────────────────────────────────────────────────
   // While a spike is live, publish how far through the stillness window we are
@@ -303,22 +334,19 @@ const EmergencyController = ({ currentUser }) => {
     };
   }, [enabled, impactProgress > 0]);
 
-  // Live sensor readout for the pilot (owner needs to SEE that a hit registers).
-  // Sampled twice a second so a 60 Hz sensor never causes a render storm.
+  // ── Legend signal ────────────────────────────────────────────────────────
+  // The top red bars are gone (owner request Nov 14 2026). Instead the DRIVER
+  // LEGEND fills red and shows "Impact detected" underneath while the hit
+  // window is running.
+  const impactActive = !pending && impactProgress > 0;
   useEffect(() => {
-    if (!enabled) return;
-    const id = setInterval(() => {
-      const state = crashStateRef.current;
-      setSensorReadout({
-        magnitude: state.lastMagnitude,
-        jerk: state.lastJerk,
-        peak: state.peak || 0,
-        events: state.eventCount || 0,
-        lastEventAt: state.lastEventAt || 0
-      });
-    }, 500);
-    return () => clearInterval(id);
-  }, [enabled]);
+    try {
+      window.dispatchEvent(new CustomEvent('rx-emergency-impact', { detail: { active: impactActive } }));
+    } catch { /* ignore */ }
+  }, [impactActive]);
+  useEffect(() => () => {
+    try { window.dispatchEvent(new CustomEvent('rx-emergency-impact', { detail: { active: false } })); } catch { /* ignore */ }
+  }, []);
 
   // ── Send the alert ────────────────────────────────────────────────────────
   const sendAlert = useCallback(async (currentNotes = notes) => {
@@ -428,69 +456,6 @@ const EmergencyController = ({ currentUser }) => {
 
   return (
     <>
-      {/* ── IMPACT BAR: shows the instant a hard hit registers, BEFORE the
-             confirm screen. Fills over the stillness window; tapping cancels. */}
-      {!pending && impactProgress > 0 && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 8, zIndex: 10090, pointerEvents: 'none' }}>
-          <div
-            style={{
-              height: '100%',
-              width: `${impactProgress * 100}%`,
-              background: 'linear-gradient(90deg, #dc2626, #f97316)',
-              boxShadow: '0 0 14px rgba(220,38,38,0.9)',
-              transition: 'width 110ms linear'
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: 10,
-              right: 10,
-              fontSize: 10.5,
-              fontWeight: 800,
-              letterSpacing: 0.6,
-              color: '#fecaca',
-              textShadow: '0 1px 4px rgba(0,0,0,0.85)'
-            }}>
-            IMPACT DETECTED · {Math.max(0, Math.ceil((1 - impactProgress) * (CRASH_QUIET_MS / 1000)))}s · TAP TO CANCEL
-          </div>
-        </div>
-      )}
-
-      {/* ── Red countdown bar: the system detected a hit and is counting down
-             to sending. It runs the moment the screen appears, then freezes
-             (amber) the instant the driver interacts with the app. ───────── */}
-      {pending && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 8, zIndex: 10090, pointerEvents: 'none' }}>
-          <div
-            style={{
-              height: '100%',
-              width: `${Math.max(0, Math.min(1, countdown / COUNTDOWN_SECONDS)) * 100}%`,
-              background: autoSendPaused
-                ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
-                : 'linear-gradient(90deg, #dc2626, #f97316)',
-              boxShadow: autoSendPaused
-                ? '0 0 10px rgba(245,158,11,0.7)'
-                : '0 0 14px rgba(220,38,38,0.9)',
-              transition: autoSendPaused ? 'background 180ms linear' : 'width 950ms linear'
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: 10,
-              right: 10,
-              fontSize: 10.5,
-              fontWeight: 800,
-              letterSpacing: 0.6,
-              color: autoSendPaused ? '#fbbf24' : '#fecaca',
-              textShadow: '0 1px 4px rgba(0,0,0,0.8)'
-            }}>
-            {autoSendPaused ? 'AUTO-SEND PAUSED' : `SENDING IN ${Math.max(0, countdown)}s`}
-          </div>
-        </div>
-      )}
-
       {/* ── Pulsing banner while an emergency is live ─────────────────────── */}
       {activeAlert && (
         <button
@@ -541,44 +506,6 @@ const EmergencyController = ({ currentUser }) => {
             </div>
           </div>
         </button>
-      )}
-
-      {/* ── Pilot sensor chip (owner only) ─────────────────────────────────
-          Proves a hit is being registered before we trust the thresholds.
-          Shows live magnitude so a real smash visibly jumps the number. */}
-      {showSensorChip && (
-        <div
-          style={{
-            position: 'fixed',
-            left: 8,
-            bottom: 84,
-            zIndex: 10060,
-            padding: '7px 9px',
-            borderRadius: 10,
-            background: 'rgba(15, 23, 42, 0.88)',
-            color: '#e2e8f0',
-            fontSize: 10.5,
-            lineHeight: 1.35,
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-            maxWidth: 190
-          }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-            <span style={{ fontWeight: 800, color: sensorReadout.events > 0 ? '#4ade80' : '#f87171' }}>
-              {sensorReadout.events > 0 ? 'SENSOR OK' : 'NO MOTION DATA'}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowSensorChip(false)}
-              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
-              title="Hide">
-              ✕
-            </button>
-          </div>
-          <div>now {sensorReadout.magnitude != null ? sensorReadout.magnitude.toFixed(1) : '—'} · jump {Number(sensorReadout.jerk || 0).toFixed(1)}</div>
-          <div>peak {Number(sensorReadout.peak || 0).toFixed(1)} → hit at {CRASH_SPIKE} / {CRASH_JERK}</div>
-          <div>events {sensorReadout.events} · {crashArmed ? 'armed' : crashStatus}</div>
-        </div>
       )}
 
       {/* ── Full-screen confirm blocker ───────────────────────────────────── */}

@@ -75,7 +75,17 @@ export default function StatsPanel({
   setMapStyle
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
+  // Emergency impact flag (owner request Nov 14 2026): while a detected hit is
+  // in its stillness window the driver legend fills red and an "Impact detected"
+  // line appears under it. Fed by the EmergencyController's window event.
+  const [emergencyImpactActive, setEmergencyImpactActive] = useState(false);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
+  useEffect(() => {
+    const onImpact = (event) => setEmergencyImpactActive(!!event?.detail?.active);
+    window.addEventListener('rx-emergency-impact', onImpact);
+    return () => window.removeEventListener('rx-emergency-impact', onImpact);
+  }, []);
+
   // CALENDAR DOTS (owner report Oct 23 2026): after the v1.9.26 IDB-first lazy
   // boot, in-memory deliveries only hold the SELECTED date's slice, so the
   // calendar's per-date complete/fail dots vanished for every other day. Load
@@ -1020,7 +1030,16 @@ export default function StatsPanel({
               const showStoreRow = showStoreStatusRow && storeStatusData.length > 0;
               if (!showDriverLegendRow && !showStoreRow) return null;
               return (
-                <div data-stats-legend="true" className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full bg-surface border-surface" style={{ opacity: 1 }}
+                <>
+                <div data-stats-legend="true" className={`backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full ${emergencyImpactActive ? 'border-red-500' : 'bg-surface border-surface'}`}
+                style={{
+                  opacity: 1,
+                  ...(emergencyImpactActive ? {
+                    background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)',
+                    color: '#fff',
+                    animation: 'rxLegendImpactPulse 1.1s ease-in-out infinite'
+                  } : {})
+                }}
                 onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
                   {showDriverLegendRow &&
                   <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
@@ -1092,6 +1111,32 @@ export default function StatsPanel({
                   })()
                   }
                 </div>
+                {/* IMPACT DETECTED — owner request Nov 14 2026: replaces the top
+                    red bar. Sits directly under the driver legend and pulses
+                    until the hit window ends, is tapped away, or the confirm
+                    screen takes over. */}
+                {emergencyImpactActive && (
+                  <div
+                    className="mt-1 w-full rounded-lg px-3 py-2 text-center font-extrabold uppercase tracking-wide"
+                    style={{
+                      background: 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)',
+                      color: '#fff',
+                      fontSize: 12,
+                      letterSpacing: 1.1,
+                      boxShadow: '0 6px 18px rgba(220,38,38,0.55)',
+                      animation: 'rxLegendImpactPulse 1.1s ease-in-out infinite'
+                    }}>
+                    <style>{`
+                      @keyframes rxLegendImpactPulse {
+                        0%   { filter: brightness(1); box-shadow: 0 6px 18px rgba(220,38,38,0.35); }
+                        50%  { filter: brightness(1.35); box-shadow: 0 10px 28px rgba(220,38,38,0.95); }
+                        100% { filter: brightness(1); box-shadow: 0 6px 18px rgba(220,38,38,0.35); }
+                      }
+                    `}</style>
+                    ⚠ Impact detected — tap to cancel
+                  </div>
+                )}
+                </>
               );
             })()}
         </div>{/* end stats card + legend */}
