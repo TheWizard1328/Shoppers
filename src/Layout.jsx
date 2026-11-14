@@ -54,7 +54,7 @@ import { DeviceProvider, useDevice } from './components/utils/DeviceContext';
 import DriverStatusToggle from './components/layout/DriverStatusToggle';
 import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
 import AppErrorBoundary from './components/layout/AppErrorBoundary';
-import { loadUserSettings, saveSetting, clearSettingsCache, getDeviceType, getDeviceIdentifier } from './components/utils/userSettingsManager';
+import { loadUserSettings, saveSetting, clearSettingsCache, getDeviceType, getDeviceIdentifier, defaultThemePreference } from './components/utils/userSettingsManager';
 import useAutoThemeSync from './components/utils/useAutoThemeSync';
 import DeviceSelectionModal from './components/devices/DeviceSelectionModal';
 import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
@@ -217,7 +217,9 @@ export default function Layout({ children, currentPageName }) {
       const cached = localStorage.getItem('rxdeliver_theme_preference');
       if (cached === 'light' || cached === 'dark' || cached === 'auto') return cached;
     } catch { /* private mode / blocked storage */ }
-    return 'light';
+    // DEVICE-AWARE DEFAULT (owner directive Nov 13 2026): phones/tablets start
+    // in Auto, PC/laptop starts in Light.
+    return defaultThemePreference();
   });
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 

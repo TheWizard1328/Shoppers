@@ -9,7 +9,7 @@ import { clearAllBreadcrumbCaches } from '../utils/locationBreadcrumbService';
 import { base44 } from '@/api/base44Client';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import { userHasRole } from '../utils/userRoles';
-import { loadUserSettings, clearSettingsCache, getDeviceType, getDeviceIdentifier } from '../utils/userSettingsManager';
+import { loadUserSettings, clearSettingsCache, getDeviceType, getDeviceIdentifier, defaultThemePreference } from '../utils/userSettingsManager';
 import { getCompanyBranding, getCachedBranding } from '../utils/brandingManager';
 import { offlineDB } from '../utils/offlineDatabase';
 import { initializeGlobalFilters } from './initializeGlobalFilters';
@@ -264,8 +264,11 @@ export function useLayoutInit({
           // the OS colour scheme is never consulted.
           // Persist alongside the state: Layout seeds its initial state from this
           // key, and index.html's head script reads it before React boots.
-          try { localStorage.setItem('rxdeliver_theme_preference', s.theme_preference || 'light'); } catch { /* storage blocked */ }
-          setThemePreference(s.theme_preference || 'light');
+          // No saved theme at all = DEVICE default (Auto on phones/tablets,
+          // Light on PC/laptop) — owner directive Nov 13 2026.
+          const resolvedThemePref = s.theme_preference || defaultThemePreference();
+          try { localStorage.setItem('rxdeliver_theme_preference', resolvedThemePref); } catch { /* storage blocked */ }
+          setThemePreference(resolvedThemePref);
           if (s.data_source) setDataSource(s.data_source);
           if (s.fab_map_cycle_phase && setInitialFabPhase) setInitialFabPhase(Number(s.fab_map_cycle_phase) || 1);
           initializeGlobalFilters(fetchedUser, s);

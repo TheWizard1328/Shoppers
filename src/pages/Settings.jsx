@@ -21,7 +21,7 @@ import { initPushNotifications, resetPushSubscription } from '@/components/utils
 import { toast } from 'sonner';
 import { useUser } from '@/components/utils/UserContext';
 import AccountDeletionSection from '@/components/settings/AccountDeletionSection';
-import { loadUserSettings, saveSetting } from '@/components/utils/userSettingsManager';
+import { loadUserSettings, saveSetting, defaultThemePreference } from '@/components/utils/userSettingsManager';
 import DevicesPanel from '@/components/devices/DevicesPanel';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
@@ -379,7 +379,8 @@ function SendTestPush({ userId }) {
 
 // ── Appearance Panel ──────────────────────────────────────────────────────────
 function AppearancePanel({ currentUser, settings, onThemeChange }) {
-  const [theme, setTheme] = useState(settings.theme_preference || 'light');
+  // No saved theme = DEVICE default (Auto on phones/tablets, Light on PC).
+  const [theme, setTheme] = useState(settings.theme_preference || defaultThemePreference());
   const [units, setUnits] = useState(settings.units_of_measurement || 'kilometers');
 
   const handleTheme = async (val) => {

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 // (owner report Nov 5 2026: light mode icons were invisible).
 import { syncNativeSystemBarTheme } from './nativeSystemBars';
 import { applyThemePreference } from './userSettingsManager';
+import { isMobileDeviceForTheme } from './deviceUtils';
 
 /**
  * THEME = LIGHT / DARK / AUTO (owner directive Nov 13 2026 evening — Auto was
@@ -12,6 +13,10 @@ import { applyThemePreference } from './userSettingsManager';
  * live (media-query listener below), which is what Auto has always meant.
  */
 export function resolveThemePreference(pref) {
+  // No saved preference = device default: Auto on phones/tablets, Light on PC.
+  if (pref === undefined || pref === null || pref === '') {
+    try { pref = isMobileDeviceForTheme() ? 'auto' : 'light'; } catch { pref = 'light'; }
+  }
   if (pref === 'auto') {
     try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch { return 'light'; }
   }

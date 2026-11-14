@@ -200,7 +200,7 @@ if (import.meta.hot) {
     // Imported lazily so the boot module graph is unchanged.
     try {
       const { applyThemePreference } = await import('@/components/utils/userSettingsManager');
-      applyThemePreference(localStorage.getItem('rxdeliver_theme_preference') || 'light');
+      applyThemePreference(localStorage.getItem('rxdeliver_theme_preference') || undefined);
     } catch (_) { /* non-fatal */ }
   });
 }

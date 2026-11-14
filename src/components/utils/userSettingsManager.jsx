@@ -90,6 +90,20 @@ export function getDeviceType() {
  * Default settings values
  * CRITICAL: Check device type to set appropriate default theme
  */
+/**
+ * DEVICE-AWARE THEME DEFAULT (owner directive Nov 13 2026 evening):
+ * a brand-new MOBILE device (phone OR tablet) starts in Auto so it follows the
+ * device's own light/dark setting, while a brand-new PC / desktop / laptop
+ * starts in Light. An explicit saved choice always wins over this default.
+ */
+export function defaultThemePreference() {
+  try {
+    return isMobileDeviceForTheme() ? 'auto' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
 const getInitialDefaultSettings = () => {
   return {
     fab_map_cycle_phase: 1,
@@ -100,7 +114,7 @@ const getInitialDefaultSettings = () => {
     sidebar_width: 240,
     right_panel_width: 350,
     breadcrumbs_enabled: true,
-    theme_preference: 'light'
+    theme_preference: defaultThemePreference()
   };
 };
 
@@ -446,7 +460,7 @@ export async function loadUserSettings(userId) {
             device_identifier: deviceIdentifier,
             device_type: deviceType,
             ...DEFAULT_SETTINGS,
-            theme_preference: 'light',
+            theme_preference: DEFAULT_SETTINGS.theme_preference || defaultThemePreference(),
             last_active_at: now
           }
         },
@@ -784,7 +798,10 @@ export function resolveThemePreferenceForPref(pref) {
 export function applyThemePreference(pref) {
   if (typeof document === 'undefined') return;
   // Normalise to one of the three real modes, then resolve what to paint.
-  const preference = pref === 'auto' ? 'auto' : (pref === 'dark' ? 'dark' : 'light');
+  // No saved preference at all = the DEVICE default (Auto on phones/tablets,
+  // Light on PC/laptop), never a hardcoded Light on mobile.
+  const rawPref = (pref === undefined || pref === null || pref === '') ? defaultThemePreference() : pref;
+  const preference = rawPref === 'auto' ? 'auto' : (rawPref === 'dark' ? 'dark' : 'light');
   const resolved = resolveThemePreferenceForPref(preference);
   const root = document.documentElement;
 
