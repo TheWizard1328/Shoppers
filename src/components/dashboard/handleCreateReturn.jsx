@@ -1,4 +1,5 @@
 import { invalidate } from '@/components/utils/dataManager';
+import { ensureDeliveryIdentity } from '@/components/utils/deliveryIdentity';
 import { updateDeliveryLocal, notifyMutation } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
@@ -241,7 +242,7 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
       commitStarted = true;
       let realReturn = null;
       try {
-        const createPayload = await sanitizeDeliveryPayload({ ...freshReturn, id: undefined, _isLocal: undefined });
+        const createPayload = ensureDeliveryIdentity(await sanitizeDeliveryPayload({ ...freshReturn, id: undefined, _isLocal: undefined }));
         delete createPayload.id;
         realReturn = await base44.entities.Delivery.create(createPayload);
       } catch (createErr) {

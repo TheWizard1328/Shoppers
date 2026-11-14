@@ -65,6 +65,7 @@ import DateListPanel from "../components/deliveries/DateListPanel";
 import RouteManagementContent from "../components/deliveries/RouteManagementContent";
 import { deleteDeliveryWithPolylineRefresh } from "../components/deliveries/deleteDeliveryWithPolylineRefresh";
 import { getData, invalidate } from '../components/utils/dataManager';
+import { ensureDeliveryIdentity } from '../components/utils/deliveryIdentity';
 
 import { getDriverDisplayName, getDriverNameForStorage, findDriverByName } from '../components/utils/driverUtils';
 import { useAutoRefresh } from '../components/utils/useAutoRefresh';
@@ -1439,7 +1440,11 @@ export default function DeliveriesPage() {
             stop_order: 1
           };
 
-          await base44.entities.Delivery.create(pickupPayload);
+          // Identity guard (owner report Nov 14 2026): pickups created here were
+          // reaching the database with a BLANK company_id because this path
+          // writes straight to the entity and never went through the
+          // createDeliveryLocal / createDelivery stamping.
+          await base44.entities.Delivery.create(ensureDeliveryIdentity(pickupPayload));
           await invalidate('Delivery');
         }
       });
@@ -1642,7 +1647,9 @@ export default function DeliveriesPage() {
           delete finalDeliveryData.distanceFromStore;
           delete finalDeliveryData.delivery_address;
 
-          await base44.entities.Delivery.create(finalDeliveryData);
+          // Identity guard: staged stops arrive without a company_id, so the
+          // blank used to land in the database. Stamp before the write.
+          await base44.entities.Delivery.create(ensureDeliveryIdentity(finalDeliveryData));
 
           if (actualDriver) {
             await optimizeRouteOrder(store.id, staged.delivery_date, actualDriver);
@@ -1750,7 +1757,8 @@ export default function DeliveriesPage() {
           stop_order: 9999
         };
 
-        await base44.entities.Delivery.create(finalDeliveryData);
+        // Identity guard: same blank-company_id leak on the single-stop path.
+        await base44.entities.Delivery.create(ensureDeliveryIdentity(finalDeliveryData));
         await invalidate('Delivery');
 
         if (actualDriver) {

@@ -99,6 +99,12 @@ export const buildPatientStagedDelivery = ({
 
   return ({
   ...draftWithoutRecordIdentity,
+  // IDENTITY (owner report Nov 14 2026): the patient builder was the only
+  // staged path with NO delivery_id and NO company_id, so every stop staged
+  // here reached the database with a blank company_id. Stamp both at the
+  // source, exactly like the pickup builder above.
+  delivery_id: `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+  company_id: resolveDeliveryCompanyId(),
   time_window_start: formData.time_window_start || patient?.time_window_start || '',
   time_window_end: formData.time_window_end || patient?.time_window_end || '',
   // Form data (manual entry) takes priority over patient time windows.

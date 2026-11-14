@@ -113,6 +113,10 @@ Deno.serve(async (req) => {
           const stopId = generateShortStopId();
           const createdPickup = await base44.asServiceRole.entities.Delivery.create({
             store_id: store.id,
+            // IDENTITY (owner report Nov 14 2026): backend-created pickups were
+            // missing company_id (and delivery_id) entirely.
+            company_id: store?.company_id || null,
+            delivery_id: `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
             driver_id: driverAppUser?.id || driverId,
             driver_name: driverAppUser?.user_name || '',
             created_by_app_user_id: creatorAppUser?.id || '',

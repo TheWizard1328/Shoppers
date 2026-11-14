@@ -1,3 +1,4 @@
+import { ensureDeliveryIdentity } from './deliveryIdentity';
 import { base44 } from '@/api/base44Client';
 
 const FALLBACK_ALLOWED_FIELDS = new Set([
@@ -181,7 +182,11 @@ export const sanitizeDeliveryPayload = async (delivery = {}) => {
   // Coercing pickup status to en_route was causing failed/pending statuses to be
   // cleared, preventing pending stops from attaching to their assigned pickup.
 
-  return clean;
+  // ▸ IDENTITY SAFETY NET (owner report Nov 14 2026): every create goes through
+  // this sanitizer, so stamping delivery_id + company_id HERE means no caller
+  // can ship a stop with a blank company_id even if it never called
+  // ensureDeliveryIdentity itself.
+  return ensureDeliveryIdentity(clean);
 };
 
 export const sanitizeDeliveryPayloads = async (deliveries = []) => Promise.all((deliveries || []).map((delivery) => sanitizeDeliveryPayload(delivery)));

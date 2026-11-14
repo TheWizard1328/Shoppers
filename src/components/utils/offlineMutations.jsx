@@ -977,7 +977,9 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
 
   try {
     
-    const localDeliveries = deliveriesData.map(d => ({
+    // Identity guard: bulk creates must carry delivery_id + company_id too.
+    const stampedDeliveries = deliveriesData.map(d => ensureDeliveryIdentity(d));
+    const localDeliveries = stampedDeliveries.map(d => ({
       ...d,
       id: d.id || `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       created_date: new Date().toISOString(),
@@ -1002,7 +1004,7 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
-      const backendPayloads = await sanitizeDeliveryPayloads(deliveriesData);
+      const backendPayloads = (await sanitizeDeliveryPayloads(stampedDeliveries)).map(d => ensureDeliveryIdentity(d));
       const backendDeliveries = await base44.entities.Delivery.bulkCreate(backendPayloads);
       
       // CRITICAL: Remove all temp records from IndexedDB

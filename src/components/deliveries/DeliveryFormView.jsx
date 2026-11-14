@@ -3,6 +3,7 @@
  * All logic remains in DeliveryForm.jsx; this file just renders it.
  */
 import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
+import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -2048,6 +2049,9 @@ export default function DeliveryFormView({
                     // AM before 14:00 local time, PM from 14:00 onwards
                     const ampmNow = new Date().getHours() < 14 ? 'AM' : 'PM';
                     const basePayload = {
+                      // IDENTITY (owner report Nov 14 2026): cycling markers were
+                      // also born without a company_id.
+                      company_id: resolveDeliveryCompanyId(),
                       delivery_date: formData.delivery_date,
                       driver_id: formData.driver_id,
                       driver_name: driver ? getDriverNameForStorage(driver) : formData.driver_name,

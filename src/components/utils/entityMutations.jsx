@@ -964,7 +964,7 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       }
     }
     const creatorAppUserId = await getCurrentCreatorAppUserId();
-    const deliveriesWithCreator = sanitizedDeliveriesData.map(d => ({
+    const deliveriesWithCreator = sanitizedDeliveriesData.map(d => ensureDeliveryIdentity({
       ...d,
       created_by_app_user_id: d.created_by_app_user_id || creatorAppUserId || ''
     }));
