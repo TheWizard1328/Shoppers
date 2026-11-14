@@ -648,8 +648,18 @@ const EmergencyController = ({ currentUser }) => {
             tag: 'rx-emergency',
             requireInteraction: true,
             force: true,
-            channel: 'rx_emergency',
-            data: { type: 'emergency', alert_id: record?.id, alert_type: record?.alert_type, source: record?.source }
+            channel: 'rx_emergency_v2',   // SILENT channel — the in-app siren is the only sound
+            data: {
+              type: 'emergency',
+              // title/body/tag ride in the DATA payload too: the native
+              // RxEmergencyPushService reads them when the WebView is dead.
+              title: 'RxDeliver EMERGENCY',
+              body: `${record?.driver_name || 'App Owner'}: ${ALERT_LABELS[record?.alert_type] || 'Emergency alert'}`,
+              tag: 'rx-emergency',
+              alert_id: record?.id,
+              alert_type: record?.alert_type,
+              source: record?.source
+            }
           });
         } catch (e) {
           console.warn('[Emergency] Alert push fan-out failed:', e?.message || e);

@@ -67,6 +67,19 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
+        <!-- Emergency push (Nov 14 2026): a minimised or swiped-away WebView runs
+             no JS, so the Capacitor listener cannot raise the alert. This service
+             catches type=emergency data messages natively and posts the SILENT
+             full-screen card that opens the app, whose own siren is the only
+             audible sound. -->
+        <service
+            android:name=".RxEmergencyPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Background Geolocation foreground service is auto-registered by the
              @capgo/background-geolocation plugin's own AndroidManifest at build time.
              Do NOT manually declare it here — a stale reference to the uninstalled
