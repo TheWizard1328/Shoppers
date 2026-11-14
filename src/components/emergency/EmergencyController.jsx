@@ -53,6 +53,10 @@ const EmergencyController = ({ currentUser }) => {
 
   const [pending, setPending] = useState(null); // { source, alertType }
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  // Owner spec Nov 14 2026: any deliberate interaction with the app while the
+  // detection screen is up HALTS the auto-send countdown. The screen then waits
+  // for an explicit Activate or Cancel instead of firing on a timer.
+  const [autoSendPaused, setAutoSendPaused] = useState(false);
   const [notes, setNotes] = useState('');
   const [activeAlert, setActiveAlert] = useState(null);
   const [sending, setSending] = useState(false);
@@ -135,6 +139,7 @@ const EmergencyController = ({ currentUser }) => {
     setNotes('');
     setError('');
     setCountdown(COUNTDOWN_SECONDS);
+    setAutoSendPaused(false);
     setPending({ source, alertType });
     playArmTick();
   }, [enabled]);
@@ -321,7 +326,7 @@ const EmergencyController = ({ currentUser }) => {
 
   // Auto-send after the countdown (owner spec: 10 seconds, cancel stays live).
   useEffect(() => {
-    if (!pending) {
+    if (!pending || autoSendPaused) {
       if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
       return;
     }
@@ -341,6 +346,20 @@ const EmergencyController = ({ currentUser }) => {
       if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, autoSendPaused]);
+
+  // A CLICK (a real tap, not a stray drag) while the screen is up pauses the
+  // automatic send. Stray touches from a phone sliding around do NOT count.
+  useEffect(() => {
+    if (!pending) return;
+    const onInteract = () => setAutoSendPaused(true);
+    const onKey = () => setAutoSendPaused(true);
+    window.addEventListener('click', onInteract, true);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('click', onInteract, true);
+      window.removeEventListener('keydown', onKey, true);
+    };
   }, [pending]);
 
   // ── Silence / resolve globally ────────────────────────────────────────────
@@ -366,6 +385,40 @@ const EmergencyController = ({ currentUser }) => {
 
   return (
     <>
+      {/* ── Red countdown bar: the system detected a hit and is counting down
+             to sending. It runs the moment the screen appears, then freezes
+             (amber) the instant the driver interacts with the app. ───────── */}
+      {pending && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 8, zIndex: 10090, pointerEvents: 'none' }}>
+          <div
+            style={{
+              height: '100%',
+              width: `${Math.max(0, Math.min(1, countdown / COUNTDOWN_SECONDS)) * 100}%`,
+              background: autoSendPaused
+                ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
+                : 'linear-gradient(90deg, #dc2626, #f97316)',
+              boxShadow: autoSendPaused
+                ? '0 0 10px rgba(245,158,11,0.7)'
+                : '0 0 14px rgba(220,38,38,0.9)',
+              transition: autoSendPaused ? 'background 180ms linear' : 'width 950ms linear'
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              fontSize: 10.5,
+              fontWeight: 800,
+              letterSpacing: 0.6,
+              color: autoSendPaused ? '#fbbf24' : '#fecaca',
+              textShadow: '0 1px 4px rgba(0,0,0,0.8)'
+            }}>
+            {autoSendPaused ? 'AUTO-SEND PAUSED' : `SENDING IN ${Math.max(0, countdown)}s`}
+          </div>
+        </div>
+      )}
+
       {/* ── Pulsing banner while an emergency is live ─────────────────────── */}
       {activeAlert && (
         <button
@@ -500,7 +553,9 @@ const EmergencyController = ({ currentUser }) => {
               {pending.source === 'crash'
                 ? 'Your phone stopped moving after a hard impact. If you are okay, cancel.'
                 : 'This alerts your dispatchers and other drivers.'}
-              {' '}Sending automatically in {countdown}s.
+              {autoSendPaused
+                ? ' Auto-send paused because you touched the app. Choose Activate or Cancel.'
+                : ` Sending automatically in ${countdown}s — touching the app stops it.`}
             </p>
 
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#fecaca', marginBottom: 6 }}>
