@@ -114,3 +114,39 @@ export const playArmTick = () => {
     } catch { /* ignore */ }
   });
 };
+
+// ── STAND-DOWN CHIME (owner request Nov 14 2026) ────────────────────────────
+// "We can send a similar set of notification for cancellation with pushes and a
+// green banner and a nicer sound." Three soft sine notes (C6-E6-G6) instead of
+// the sawtooth siren: obviously an all-clear, not another alarm. Same MEDIA
+// stream trick as the siren so it is audible on silent/vibrate Android devices.
+let chimeRunning = false;
+
+export const playCancellationChime = async () => {
+  if (chimeRunning) return;
+  chimeRunning = true;
+  try {
+    const ctx = await ensureContext();
+    if (!ctx) return;
+    const notes = [1046.5, 1318.5, 1568.0]; // C6, E6, G6
+    const start = ctx.currentTime + 0.02;
+    notes.forEach((freq, index) => {
+      try {
+        const at = start + index * 0.22;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, at);
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.28, at + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.42);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(at);
+        osc.stop(at + 0.45);
+      } catch { /* non-fatal */ }
+    });
+  } catch { /* non-fatal */ } finally {
+    setTimeout(() => { chimeRunning = false; }, 1200);
+  }
+};

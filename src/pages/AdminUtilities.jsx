@@ -33,6 +33,7 @@ import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
+import EmergencyAlertsTab from '../components/admin/EmergencyAlertsTab';
 import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';
 import DeliveryRouteDataCell from '../components/admin/DeliveryRouteDataCell';
 import { ResizableColumnHeader, ColumnVisibilityControl } from '../components/admin/AdminTableControls';
@@ -1756,6 +1757,7 @@ export default function AdminUtilities() {
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patients</TabsTrigger>
                        <TabsTrigger value="stores" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Stores</TabsTrigger>
+                       <TabsTrigger value="alerts" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Alerts</TabsTrigger>
                        {!TEMP_MONITORING_DISABLED && (<TabsTrigger value="ble-diagnostic" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ BLE Diag</TabsTrigger>)}
                        </TabsList></div>
 
@@ -1913,6 +1915,7 @@ export default function AdminUtilities() {
                   <TabsContent value="polylines" className="mt-4 flex flex-col overflow-hidden data-[state=inactive]:hidden" style={{ height: 'calc(100vh - 220px)' }}><PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} /></TabsContent>
                   {!TEMP_MONITORING_DISABLED && (<TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>)}
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
+                  <TabsContent value="alerts" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><EmergencyAlertsTab /></TabsContent>
                   {!TEMP_MONITORING_DISABLED && (<TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent>)}</Tabs>
               </div>
           </TabsContent>

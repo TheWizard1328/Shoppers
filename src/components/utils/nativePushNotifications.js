@@ -157,6 +157,28 @@ export async function initNativePushNotifications(userId) {
         if (!window.__receivedPushNotifs) window.__receivedPushNotifs = [];
         window.__receivedPushNotifs.push({ ts: Date.now(), title: notifTitle, body: notifBody, data: extraData, isInteractive });
 
+        // ── EMERGENCY STAND-DOWN (owner request Nov 14 2026) ─────────────────
+        // A cancellation is the opposite of an alarm: no siren, no full-screen
+        // intent. Hand it to the in-app controller (green banner + soft chime)
+        // and let the silent local notification below carry it, so a visible
+        // app never gets a second sound on top of the chime.
+        if (extraData?.type === 'emergency_cancelled') {
+          try {
+            window.dispatchEvent(new CustomEvent('rx-emergency-cancelled', {
+              detail: {
+                alert_id: extraData.alert_id || null,
+                latitude: extraData.latitude ?? null,
+                longitude: extraData.longitude ?? null,
+                address: extraData.address || null,
+                map_url: extraData.map_url || null,
+                by: extraData.by || null,
+                title: notifTitle,
+                body: notifBody
+              }
+            }));
+          } catch { /* ignore */ }
+        }
+
         // ── EMERGENCY (owner bug report Nov 14 2026) ─────────────────────────
         // Emergency pushes must not become a quiet default-channel card. Hand
         // them to the native bridge so they land on the rx_emergency channel
@@ -191,6 +213,8 @@ export async function initNativePushNotifications(userId) {
             // Small status-bar icon stays — monochrome silhouette, tinted brand green.
             smallIcon: 'ic_stat_notify',
             iconColor: '#22c55e',
+            // Cancellations are silent: the app plays its own soft chime.
+            ...(extraData?.type === 'emergency_cancelled' ? { sound: null } : {}),
           };
           // Attach the registered action type so real tappable buttons render —
           // this is what gives Android parity with the desktop Web Push buttons.

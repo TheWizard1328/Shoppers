@@ -5,8 +5,21 @@ import {
   startEmergencyAlarm,
   stopEmergencyAlarm,
   playArmTick,
+  playCancellationChime,
   isEmergencyAlarmRunning
 } from './emergencyAlarm';
+import {
+  beginEmergencyIncident,
+  markIncidentConfirmed,
+  markIncidentCancelled,
+  markIncidentResolved,
+  markIncidentAutoSendPaused,
+  getIncidentLocation,
+  buildAlertLocationText,
+  startEmergencyLogHousekeeping,
+  clearCurrentIncident
+} from './emergencyAlertLog';
+import { formatCoords, buildMapUrl } from '../utils/reverseGeocode';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EMERGENCY SYSTEM — OWNER-DEVICE PILOT (Nov 14 2026)
@@ -50,6 +63,16 @@ const ALERT_LABELS = {
 };
 
 const IMPACT_NOTIFICATION_ID = 9911;
+// How long the green "stand down" banner stays on screen.
+const STAND_DOWN_BANNER_MS = 12000;
+
+const readDeviceIdentifier = () => {
+  try { return localStorage.getItem('rxdeliver_device_identifier') || null; } catch { return null; }
+};
+
+const readDeviceName = () => {
+  try { return localStorage.getItem('rxdeliver_device_name') || null; } catch { return null; }
+};
 // A hidden impact has to survive a full activity relaunch: the native
 // bringToFront bridge (or the full-screen-intent notification) can recreate
 // MainActivity, which throws away all in-memory state. The queue is therefore
@@ -189,6 +212,11 @@ const EmergencyController = ({ currentUser }) => {
   const [sending, setSending] = useState(false);
   const [crashArmed, setCrashArmed] = useState(false);
   const [error, setError] = useState('');
+  // Green stand-down banner (owner request Nov 14 2026): shown to everyone who
+  // received the red alert once it is cancelled.
+  const [standDown, setStandDown] = useState(null);
+  const standDownTimerRef = useRef(null);
+  const lastStandDownRef = useRef({ id: null, at: 0 });
 
   const countdownRef = useRef(null);
   const crashStateRef = useRef({
@@ -217,6 +245,12 @@ const EmergencyController = ({ currentUser }) => {
 
   useEffect(() => { pendingRef.current = pending; }, [pending]);
   useEffect(() => { activeRef.current = activeAlert; }, [activeAlert]);
+
+  // Replay offline log rows and close out a row left pending by a crash.
+  useEffect(() => {
+    if (!enabled) return undefined;
+    return startEmergencyLogHousekeeping();
+  }, [enabled]);
 
   // ── Global settings (activation switches + hit sensitivity) ──────────────
   useEffect(() => {
@@ -283,6 +317,8 @@ const EmergencyController = ({ currentUser }) => {
         } else {
           setActiveAlert((prev) => (prev && prev.id === record.id ? null : prev));
           if (!activeRef.current || activeRef.current.id === record.id) stopEmergencyAlarm();
+          // Another device stood the alert down: green banner + soft chime here.
+          if (record.status === 'cancelled') handleRemoteStandDown(record);
         }
       });
     } catch { /* realtime unavailable — the poll below still covers us */ }
@@ -315,7 +351,30 @@ const EmergencyController = ({ currentUser }) => {
     // running if the alert sends, and stops on Cancel.
     playArmTick();
     startEmergencyAlarm();
-  }, [enabled]);
+
+    // ── HISTORY ROW (owner request Nov 14 2026) ────────────────────────────
+    // Opened the moment the screen appears, so a countdown that is cancelled
+    // AND one that proceeds both land in EmergencyAlertLog with the trigger
+    // time, the GPS fix and the nearest address. Written in the background —
+    // nothing here is awaited.
+    try {
+      beginEmergencyIncident({
+        source,
+        alertType,
+        peakForce: crashStateRef.current?.peak || impactPeak || null,
+        sensitivity: emergencySettings.crash_threshold,
+        countdownSeconds: COUNTDOWN_SECONDS,
+        driverId: currentUser?.user_id || currentUser?.id || null,
+        driverName: currentUser?.full_name || currentUser?.user_name || 'App Owner',
+        deviceIdentifier: readDeviceIdentifier(),
+        deviceName: readDeviceName(),
+        cityId: currentUser?.city_id || null,
+        storeIds: Array.isArray(currentUser?.store_ids) ? currentUser.store_ids : []
+      });
+    } catch (e) {
+      console.warn('[Emergency] Could not open the alert history row:', e?.message || e);
+    }
+  }, [enabled, currentUser, emergencySettings.crash_threshold, impactPeak]);
 
   // Map long-press (5s) → same confirm screen.
   useEffect(() => {
@@ -594,6 +653,55 @@ const EmergencyController = ({ currentUser }) => {
     try { window.dispatchEvent(new CustomEvent('rx-emergency-impact', { detail: { active: false } })); } catch { /* ignore */ }
   }, []);
 
+  // ── Stand-down notice (green banner + soft chime) ─────────────────────────
+  // Owner request Nov 14 2026: "a similar set of notification for cancellation
+  // with pushes and a green banner and a nicer sound." Shown on every device
+  // that received the red alert, including the one that cancelled.
+  const showStandDown = useCallback((detail = {}) => {
+    try {
+      setStandDown({ ...detail, at: Date.now() });
+      playCancellationChime();
+      if (standDownTimerRef.current) clearTimeout(standDownTimerRef.current);
+      standDownTimerRef.current = setTimeout(() => setStandDown(null), STAND_DOWN_BANNER_MS);
+    } catch { /* never let a banner break the alert flow */ }
+  }, []);
+
+  const handleRemoteStandDown = useCallback((record, extra = {}) => {
+    if (!record?.id) return;
+    const now = Date.now();
+    // Realtime echo + push usually arrive for the same cancel: chime once.
+    if (lastStandDownRef.current.id === record.id && (now - lastStandDownRef.current.at) < 20000) return;
+    lastStandDownRef.current = { id: record.id, at: now };
+    const coords = formatCoords(record.latitude, record.longitude, record.gps_accuracy);
+    showStandDown({
+      by: extra.by || record.resolved_by_name || record.muted_by || 'Dispatch',
+      address: extra.address || record.nearest_address || '',
+      coords: extra.coords || coords || '',
+      mapUrl: record.map_url || ''
+    });
+  }, [showStandDown]);
+
+  // Wearable/APK push listener hands us 'rx-emergency-cancelled' when another
+  // device stands the alert down while this app is open.
+  useEffect(() => {
+    const onCancelled = (event) => {
+      const detail = event?.detail || {};
+      handleRemoteStandDown({
+        id: detail.alert_id,
+        latitude: detail.latitude,
+        longitude: detail.longitude,
+        nearest_address: detail.address,
+        map_url: detail.map_url,
+        resolved_by_name: detail.by || detail.title
+      }, { by: detail.by, address: detail.address, map_url: detail.map_url });
+    };
+    window.addEventListener('rx-emergency-cancelled', onCancelled);
+    return () => {
+      window.removeEventListener('rx-emergency-cancelled', onCancelled);
+      if (standDownTimerRef.current) clearTimeout(standDownTimerRef.current);
+    };
+  }, [handleRemoteStandDown]);
+
   // ── Send the alert ────────────────────────────────────────────────────────
   const sendAlert = useCallback(async (currentNotes = notes) => {
     if (!pendingRef.current || sending) return;
@@ -602,14 +710,24 @@ const EmergencyController = ({ currentUser }) => {
     const payloadNotes = String(currentNotes || '').trim() ||
       `${ALERT_LABELS[pendingRef.current.alertType] || 'Emergency'} declared from the RxDeliver dashboard${pendingRef.current.source === 'crash' ? ' after impact detection' : ''}.`;
 
-    const position = await new Promise((resolve) => {
-      if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(null);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 }
-      );
-    });
+    // Location was already captured when the screen opened (the 10s countdown
+    // gave the GPS + HERE reverse geocode time to land). Fall back to a fresh
+    // fix only when that came back empty — a dispatcher must get coords with the
+    // push even if the address lookup failed (owner request Nov 14 2026).
+    let fix = await getIncidentLocation();
+    if (!fix || !Number.isFinite(Number(fix.latitude))) {
+      const position = await new Promise((resolve) => {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(null);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 }
+        );
+      });
+      fix = position || null;
+    }
+    const locationText = buildAlertLocationText(fix);
+    const mapUrl = fix && Number.isFinite(Number(fix.latitude)) ? buildMapUrl(fix.latitude, fix.longitude) : '';
 
     try {
       const record = await base44.entities.EmergencyAlert.create({
@@ -620,8 +738,11 @@ const EmergencyController = ({ currentUser }) => {
         notes: payloadNotes,
         status: 'active',
         activated_at: new Date().toISOString(),
-        latitude: position?.latitude ?? null,
-        longitude: position?.longitude ?? null,
+        latitude: fix?.latitude ?? null,
+        longitude: fix?.longitude ?? null,
+        gps_accuracy: Number.isFinite(Number(fix?.accuracy)) ? Math.round(Number(fix.accuracy)) : null,
+        nearest_address: fix?.address || null,
+        map_url: mapUrl || null,
         store_ids: Array.isArray(currentUser?.store_ids) ? currentUser.store_ids : [],
         city_id: currentUser?.city_id || null,
         device_identifier: (() => { try { return localStorage.getItem('rxdeliver_device_identifier') || null; } catch { return null; } })()
@@ -629,6 +750,16 @@ const EmergencyController = ({ currentUser }) => {
       setActiveAlert(record);
       startEmergencyAlarm();
       setPending(null);
+      // Close out the history row: the confirmation screen proceeded.
+      try {
+        markIncidentConfirmed({
+          alertId: record?.id || null,
+          notes: payloadNotes,
+          recipientUserIds: [currentUser?.user_id || currentUser?.id || null].filter(Boolean)
+        });
+      } catch (e) {
+        console.warn('[Emergency] Could not confirm the alert history row:', e?.message || e);
+      }
       // ── DEVICE FAN-OUT (owner bug report Nov 14 2026) ─────────────────────
       // Realtime alone NEVER reached the tablet: an Android APK whose WebView is
       // minimised or swiped away has no live JS, so the EmergencyAlert subscribe
@@ -639,14 +770,18 @@ const EmergencyController = ({ currentUser }) => {
       // full-screen intent on the APK).
       (async () => {
         try {
-          const selfDevice = (() => { try { return localStorage.getItem('rxdeliver_device_identifier') || null; } catch { return null; } })();
+          const selfDevice = readDeviceIdentifier();
           const targetUserId = currentUser?.user_id || currentUser?.id;
           if (!targetUserId) return;
-          await base44.functions.invoke('sendPushNotification', {
+          // GPS coords + nearest address ride in BOTH the visible body and the
+          // data payload, so a dispatcher knows where the driver is without
+          // opening the app (owner request Nov 14 2026).
+          const pushBody = `${record?.driver_name || 'App Owner'}: ${ALERT_LABELS[record?.alert_type] || 'Emergency alert'} (${record?.source === 'crash' ? 'impact detected' : 'manual'})${locationText ? ` — ${locationText}` : ' — location unavailable'}`;
+          const pushRes = await base44.functions.invoke('sendPushNotification', {
             user_id: targetUserId,
             exclude_device: selfDevice,
             title: 'RxDeliver EMERGENCY',
-            body: `${record?.driver_name || 'App Owner'}: ${ALERT_LABELS[record?.alert_type] || 'Emergency alert'} (${record?.source === 'crash' ? 'impact detected' : 'manual'})`,
+            body: pushBody,
             url: '/dashboard',
             tag: 'rx-emergency',
             requireInteraction: true,
@@ -657,13 +792,36 @@ const EmergencyController = ({ currentUser }) => {
               // title/body/tag ride in the DATA payload too: the native
               // RxEmergencyPushService reads them when the WebView is dead.
               title: 'RxDeliver EMERGENCY',
-              body: `${record?.driver_name || 'App Owner'}: ${ALERT_LABELS[record?.alert_type] || 'Emergency alert'}`,
+              body: pushBody,
               tag: 'rx-emergency',
               alert_id: record?.id,
               alert_type: record?.alert_type,
-              source: record?.source
+              source: record?.source,
+              latitude: fix?.latitude ?? null,
+              longitude: fix?.longitude ?? null,
+              accuracy: Number.isFinite(Number(fix?.accuracy)) ? Math.round(Number(fix.accuracy)) : null,
+              address: fix?.address || null,
+              map_url: mapUrl || null
             }
           });
+          // Save what the fan-out actually reported (recipients reached) onto
+          // the history row so the audit shows who got the coords.
+          try {
+            const summary = pushRes?.data || pushRes || {};
+            markIncidentConfirmed({
+              alertId: record?.id || null,
+              notes: payloadNotes,
+              recipientUserIds: [targetUserId],
+              recipientCount: Number.isFinite(Number(summary?.sent)) ? Number(summary.sent) : null,
+              pushResult: JSON.stringify({
+                sent: summary?.sent ?? null,
+                fcmSent: summary?.fcmSent ?? null,
+                webSent: summary?.webSent ?? null,
+                skipped: summary?.skipped ?? null,
+                errors: Array.isArray(summary?.errors) ? summary.errors.slice(0, 3) : undefined
+              })
+            });
+          } catch { /* logging must never break the alert */ }
         } catch (e) {
           console.warn('[Emergency] Alert push fan-out failed:', e?.message || e);
         }
@@ -681,6 +839,15 @@ const EmergencyController = ({ currentUser }) => {
     // Cancelling kills the confirmation siren. (An already-active alert keeps
     // its own siren — that is handled by the active-alert effect.)
     if (!activeRef.current) stopEmergencyAlarm();
+    // Owner request Nov 14 2026: a cancelled confirmation is recorded too, with
+    // the trigger time, location and how long the screen was up. Nobody was
+    // notified for this one, so no stand-down push goes out.
+    try {
+      markIncidentCancelled({ stage: 'confirm_screen', notified: false });
+      clearCurrentIncident();
+    } catch (e) {
+      console.warn('[Emergency] Could not log the cancelled confirmation:', e?.message || e);
+    }
   }, []);
 
   // Auto-send after the countdown (owner spec: 10 seconds, cancel stays live).
@@ -711,8 +878,8 @@ const EmergencyController = ({ currentUser }) => {
   // automatic send. Stray touches from a phone sliding around do NOT count.
   useEffect(() => {
     if (!pending) return;
-    const onInteract = () => setAutoSendPaused(true);
-    const onKey = () => setAutoSendPaused(true);
+    const onInteract = () => { setAutoSendPaused(true); try { markIncidentAutoSendPaused(); } catch { /* ignore */ } };
+    const onKey = () => { setAutoSendPaused(true); try { markIncidentAutoSendPaused(); } catch { /* ignore */ } };
     window.addEventListener('click', onInteract, true);
     window.addEventListener('keydown', onKey, true);
     return () => {
@@ -727,18 +894,88 @@ const EmergencyController = ({ currentUser }) => {
     if (!alert?.id) return;
     stopEmergencyAlarm();
     setActiveAlert(null);
+    const byName = currentUser?.full_name || currentUser?.user_name || 'App Owner';
+
+    // Show the stand-down here too, and claim the id so the realtime echo of our
+    // own write does not chime a second time.
+    lastStandDownRef.current = { id: alert.id, at: Date.now() };
+    showStandDown({
+      by: byName,
+      address: alert.nearest_address || '',
+      coords: formatCoords(alert.latitude, alert.longitude, alert.gps_accuracy),
+      mapUrl: alert.map_url || ''
+    });
+
     try {
       await base44.entities.EmergencyAlert.update(alert.id, {
-        status: 'resolved',
+        status: 'cancelled',
         resolved_at: new Date().toISOString(),
         resolved_by: currentUser?.user_id || currentUser?.id || null,
-        resolved_by_name: currentUser?.full_name || currentUser?.user_name || 'App Owner',
-        muted_by: currentUser?.full_name || currentUser?.user_name || 'App Owner'
+        resolved_by_name: byName,
+        muted_by: byName
       });
     } catch (err) {
-      console.warn('[Emergency] Could not resolve alert:', err?.message || err);
+      console.warn('[Emergency] Could not cancel alert:', err?.message || err);
     }
-  }, [currentUser]);
+
+    // ── STAND-DOWN PUSH (owner request Nov 14 2026) ────────────────────────
+    // Every device that got the red alert gets the green one, with the same
+    // coords + nearest address, and the in-app chime plays on arrival.
+    let pushSummary = null;
+    try {
+      const targetUserId = currentUser?.user_id || currentUser?.id;
+      if (targetUserId) {
+        const locationText = buildAlertLocationText({
+          latitude: alert.latitude,
+          longitude: alert.longitude,
+          accuracy: alert.gps_accuracy,
+          address: alert.nearest_address
+        });
+        const res = await base44.functions.invoke('sendPushNotification', {
+          user_id: targetUserId,
+          exclude_device: readDeviceIdentifier(),
+          title: 'RxDeliver EMERGENCY CANCELLED',
+          body: `${byName} cancelled the emergency${locationText ? ` — ${locationText}` : ''}`,
+          url: '/dashboard',
+          tag: 'rx-emergency-cancelled',
+          force: true,
+          channel: 'rx_emergency_v2',
+          data: {
+            type: 'emergency_cancelled',
+            title: 'RxDeliver EMERGENCY CANCELLED',
+            body: `${byName} cancelled the emergency`,
+            by: byName,
+            tag: 'rx-emergency-cancelled',
+            alert_id: alert.id,
+            latitude: alert.latitude ?? null,
+            longitude: alert.longitude ?? null,
+            address: alert.nearest_address || null,
+            map_url: alert.map_url || null
+          }
+        });
+        pushSummary = res?.data || res || null;
+      }
+    } catch (err) {
+      console.warn('[Emergency] Stand-down push failed:', err?.message || err);
+    }
+
+    // Log the stand-down on the driver's history row, then release it.
+    try {
+      markIncidentCancelled({
+        stage: 'active_alert',
+        reason: `stood down by ${byName}`,
+        notified: !!(pushSummary && Number(pushSummary?.sent) > 0),
+        pushResult: pushSummary ? JSON.stringify({
+          sent: pushSummary?.sent ?? null,
+          fcmSent: pushSummary?.fcmSent ?? null,
+          webSent: pushSummary?.webSent ?? null
+        }) : null
+      });
+      clearCurrentIncident();
+    } catch (e) {
+      console.warn('[Emergency] Could not log the stand-down:', e?.message || e);
+    }
+  }, [currentUser, showStandDown]);
 
   if (!enabled) return null;
 
@@ -813,11 +1050,69 @@ const EmergencyController = ({ currentUser }) => {
                   {activeAlert.notes}
                 </div>
               ) : null}
+              {/* Location line (owner request Nov 14 2026): the same nearest
+                  address + coords the push carries, visible on screen too. */}
+              {(activeAlert.nearest_address || activeAlert.latitude) ? (
+                <div className="rx-eq-notes" style={{ fontSize: 12, opacity: 0.95, marginTop: 2, fontWeight: 700 }}>
+                  {activeAlert.nearest_address
+                    ? activeAlert.nearest_address
+                    : formatCoords(activeAlert.latitude, activeAlert.longitude, activeAlert.gps_accuracy)}
+                  {activeAlert.latitude ? ` · ${formatCoords(activeAlert.latitude, activeAlert.longitude, null)}` : ''}
+                </div>
+              ) : null}
             </div>
             <div className="rx-eq-hint">
               TAP TO SILENCE
               <br />
               ALL DEVICES
+            </div>
+          </div>
+        </button>
+      )}
+
+      {/* ── Green stand-down banner (owner request Nov 14 2026) ───────────── */}
+      {standDown && !activeAlert && (
+        <button
+          type="button"
+          onClick={() => setStandDown(null)}
+          title="Tap to dismiss"
+          className="rx-eq-banner"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            zIndex: 10065,
+            border: 'none',
+            cursor: 'pointer',
+            font: 'inherit',
+            padding: '10px 14px 12px',
+            paddingTop: 'max(10px, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 6px))',
+            boxSizing: 'border-box',
+            background: 'linear-gradient(180deg, #16a34a 0%, #15803d 100%)',
+            color: '#fff',
+            boxShadow: '0 6px 24px rgba(22, 163, 74, 0.45)'
+          }}>
+          <div className="rx-eq-row" style={{ maxWidth: 720 }}>
+            <div className="rx-eq-left">
+              <div style={{ fontSize: 11, letterSpacing: 1.2, fontWeight: 700, opacity: 0.9 }}>
+                ● EMERGENCY CANCELLED
+              </div>
+              <div className="rx-eq-title" style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>
+                {standDown.by || 'Dispatch'} stood the alert down
+              </div>
+              {(standDown.address || standDown.coords) ? (
+                <div className="rx-eq-notes" style={{ fontSize: 12, opacity: 0.95, marginTop: 2, fontWeight: 700 }}>
+                  {standDown.address || standDown.coords}
+                  {standDown.address && standDown.coords ? ` · ${standDown.coords}` : ''}
+                </div>
+              ) : null}
+            </div>
+            <div className="rx-eq-hint" style={{ opacity: 0.85 }}>
+              NO ACTION
+              <br />
+              NEEDED
             </div>
           </div>
         </button>
