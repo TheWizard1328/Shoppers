@@ -16,10 +16,7 @@ import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
-import {
-  User, Bell, Moon, Smartphone, LogOut, ChevronRight,
-  Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download, RefreshCw, X,
-} from 'lucide-react';
+import { Bell, Check, ChevronRight, Download, Loader2, LogOut, MonitorSmartphone, Moon, RefreshCw, Ruler, Save, ShieldAlert, Smartphone, Sun, User, X } from 'lucide-react';
 import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
 import { toast } from 'sonner';
 import { useUser } from '@/components/utils/UserContext';
@@ -402,7 +399,7 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
     <div className="space-y-6 p-1">
       <div>
         <p className="text-sm font-medium mb-3 text-body">Theme</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button onClick={() => handleTheme('light')}
             className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium ${theme === 'light' ? 'border-blue-500' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}
             style={{ background: '#ffffff' }}>
@@ -416,6 +413,13 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
             <Moon className="w-5 h-5" style={{ color: '#e2e8f0' }} />
             <span style={{ color: '#e2e8f0' }}>Dark</span>
             {theme === 'dark' && <Check className="w-3 h-3" style={{ color: '#4ade80' }} />}
+          </button>
+          <button onClick={() => handleTheme('auto')}
+            className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium ${theme === 'auto' ? 'border-blue-500' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}
+            style={{ background: 'linear-gradient(135deg, #ffffff 0%, #ffffff 49%, #0f172a 51%, #0f172a 100%)' }}>
+            <MonitorSmartphone className="w-5 h-5" style={{ color: '#475569' }} />
+            <span style={{ color: '#475569' }}>Auto</span>
+            {theme === 'auto' && <Check className="w-3 h-3" style={{ color: '#16a34a' }} />}
           </button>
         </div>
       </div>

@@ -154,7 +154,8 @@ export default function SettingsMenu({
               onValueChange={onThemeChange}
               options={[
                 { value: 'light', label: 'Light' },
-                { value: 'dark', label: 'Dark' }
+                { value: 'dark', label: 'Dark' },
+                { value: 'auto', label: 'Auto' }
               ]}
             />
           ) : (
@@ -169,6 +170,7 @@ export default function SettingsMenu({
               >
                 <SelectItem value="light" className="text-body">Light</SelectItem>
                 <SelectItem value="dark" className="text-body">Dark</SelectItem>
+                <SelectItem value="auto" className="text-body">Auto</SelectItem>
               </SelectContent>
             </Select>
           )}

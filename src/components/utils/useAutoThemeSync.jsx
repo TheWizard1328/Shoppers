@@ -5,13 +5,16 @@ import { syncNativeSystemBarTheme } from './nativeSystemBars';
 import { applyThemePreference } from './userSettingsManager';
 
 /**
- * THEME = LIGHT OR DARK ONLY (owner spec Nov 13 2026).
- * Light is the default and the saved app setting is the SINGLE source of truth:
- * the OS colour scheme is never consulted (no prefers-color-scheme query
- * anywhere in the app), so Dashboard, Clients, Routes and every other page look
- * exactly the same whatever the device's own light/dark setting is.
+ * THEME = LIGHT / DARK / AUTO (owner directive Nov 13 2026 evening — Auto was
+ * removed earlier the same day without being asked for and is restored here).
+ * Light is the default. Light and Dark are explicit overrides and never consult
+ * the OS. Auto follows the device's prefers-color-scheme and keeps following it
+ * live (media-query listener below), which is what Auto has always meant.
  */
 export function resolveThemePreference(pref) {
+  if (pref === 'auto') {
+    try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch { return 'light'; }
+  }
   return pref === 'dark' ? 'dark' : 'light';
 }
 
@@ -43,6 +46,7 @@ export default function useAutoThemeSync(themePreference) {
     const expectedClasses = (pref) => (
       resolveThemePreference(pref) === 'dark' ? ['dark', 'dark-theme'] : ['light-theme']
     );
+    const expectedWithAuto = (pref) => (pref === 'auto' ? [...expectedClasses(pref), 'auto-theme'] : expectedClasses(pref));
     let fixing = false;
     // FIGHT GUARD (owner report Nov 12 2026: picking a theme froze the app).
     // The Base44 editor preview writes its own theme classes onto <html>, so
@@ -60,7 +64,7 @@ export default function useAutoThemeSync(themePreference) {
       if (now < backoffUntil) return;
       if (now - windowStart > 2000) { windowStart = now; applyCount = 0; }
       const pref = savedPreference();
-      const want = expectedClasses(pref);
+      const want = expectedWithAuto(pref);
       const missing = want.some((c) => !root.classList.contains(c));
       const foreign = ALL.some((c) => !want.includes(c) && root.classList.contains(c));
       if (!missing && !foreign) return;
@@ -103,5 +107,19 @@ export default function useAutoThemeSync(themePreference) {
     // applyThemePreference caches the resolved value too, so index.html's
     // pre-React head script paints the correct theme on the very next load.
     applyThemeClasses(themePreference);
+  }, [themePreference, applyThemeClasses]);
+
+  // AUTO MODE (restored Nov 13 2026): while the preference is 'auto' the app
+  // repaints the moment the device flips its own light/dark setting, instead of
+  // waiting for the next load or the 60s self-heal tick.
+  useEffect(() => {
+    if (themePreference !== 'auto' || typeof window === 'undefined' || !window.matchMedia) return;
+    let mq;
+    try { mq = window.matchMedia('(prefers-color-scheme: dark)'); } catch { return; }
+    const onChange = () => applyThemeClasses('auto');
+    try { mq.addEventListener('change', onChange); } catch { mq.addListener?.(onChange); }
+    return () => {
+      try { mq.removeEventListener('change', onChange); } catch { mq.removeListener?.(onChange); }
+    };
   }, [themePreference, applyThemeClasses]);
 }

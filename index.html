@@ -63,13 +63,15 @@
       try {
         var pref = localStorage.getItem('rxdeliver_theme_preference');
         var root = document.documentElement;
-        // THE APP'S OWN SETTING IS THE ONLY SOURCE OF TRUTH (Nov 13 2026).
-        // Light is the DEFAULT and there is deliberately NO prefers-color-scheme
-        // query here: the OS colour scheme is never consulted, so a Windows/macOS
-        // dark mode can never paint the app dark while the app is set to Light.
-        // Whatever the app wants, foreign classes are cleared first.
-        var resolved = pref === 'dark' ? 'dark' : 'light';
+        // LIGHT / DARK / AUTO (Auto restored Nov 13 2026 evening). Light is the
+        // DEFAULT. An explicit Light or Dark choice never consults the OS; 'auto'
+        // follows the device's prefers-color-scheme. Whatever the app wants,
+        // foreign classes are cleared first.
+        var resolved = pref === 'auto'
+          ? ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light')
+          : (pref === 'dark' ? 'dark' : 'light');
         root.classList.remove('dark', 'dark-theme', 'auto-theme', 'light-theme');
+        if (pref === 'auto') root.classList.add('auto-theme');
         var isDark = resolved === 'dark';
         if (isDark) {
           document.documentElement.classList.add('dark');

@@ -768,21 +768,39 @@ export function getSetting(key) {
  * exists anywhere in the app — so Dashboard, Clients, Routes and every other
  * page render exactly the chosen theme regardless of the device's setting.
  */
+/**
+ * AUTO MODE RESTORED (owner directive Nov 13 2026 evening): the three-way
+ * Light / Dark / Auto choice is back. 'auto' follows the device's own
+ * prefers-color-scheme and keeps following it live; Light and Dark stay
+ * explicit overrides that never consult the OS.
+ */
+export function resolveThemePreferenceForPref(pref) {
+  if (pref === 'auto') {
+    try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch { return 'light'; }
+  }
+  return pref === 'dark' ? 'dark' : 'light';
+}
+
 export function applyThemePreference(pref) {
   if (typeof document === 'undefined') return;
-  const preference = pref === 'dark' ? 'dark' : 'light';
+  // Normalise to one of the three real modes, then resolve what to paint.
+  const preference = pref === 'auto' ? 'auto' : (pref === 'dark' ? 'dark' : 'light');
+  const resolved = resolveThemePreferenceForPref(preference);
   const root = document.documentElement;
 
   // Cached so index.html's pre-React head script paints the right theme on load.
+  // The PREFERENCE is cached (never the resolved value) so 'auto' survives a reload.
   try { localStorage.setItem('rxdeliver_theme_preference', preference); } catch { /* non-fatal */ }
 
   root.classList.remove('dark', 'dark-theme', 'auto-theme', 'light-theme');
-  if (preference === 'dark') {
+  if (resolved === 'dark') {
     root.classList.add('dark', 'dark-theme');
   } else {
     root.classList.add('light-theme');
   }
-  root.setAttribute('data-system-theme', preference);
+  if (preference === 'auto') root.classList.add('auto-theme');
+  root.setAttribute('data-system-theme', resolved);
+  root.setAttribute('data-theme-preference', preference);
 }
 
 let userSettingsSaveTimeouts = new Map();

@@ -215,7 +215,7 @@ export default function Layout({ children, currentPageName }) {
   const [themePreference, setThemePreference] = useState(() => {
     try {
       const cached = localStorage.getItem('rxdeliver_theme_preference');
-      if (cached === 'light' || cached === 'dark') return cached;
+      if (cached === 'light' || cached === 'dark' || cached === 'auto') return cached;
     } catch { /* private mode / blocked storage */ }
     return 'light';
   });
