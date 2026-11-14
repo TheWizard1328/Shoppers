@@ -159,6 +159,32 @@ class NativeLocationProvider {
   }
 
   /**
+   * Deliberately restart the foreground service with the SAME options/callback.
+   * Used by LocationTracker after a silence gap so the antenna re-locks: stop()
+   * then start() is the only way to force a fresh hardware acquisition while a
+   * singleton watcher is already live. Returns true when the service is running.
+   */
+  async kick() {
+    if (!this.isAvailable() || !this._lastStartOpts || !this._lastCallback) return false;
+    try {
+      await CapGoGeolocation.stop();
+    } catch (_) { /* already stopped */ }
+    try {
+      await CapGoGeolocation.start(this._lastStartOpts, this._lastCallback);
+      this._active = true;
+      return true;
+    } catch (e) {
+      const msg = String(e?.message || e || '');
+      if (/ALREADY_STARTED|Service already started/i.test(msg)) {
+        this._active = true;
+        return true;
+      }
+      console.warn('📱 [NativeProvider] kick() failed:', msg);
+      return false;
+    }
+  }
+
+  /**
    * Wait up to `ms` for the already-running watcher to deliver a fix.
    * Returns a normalized position or null.
    */
@@ -250,6 +276,11 @@ class NativeLocationProvider {
       url: startOpts.url ? startOpts.url.replace(/\/functions\/.*$/, '/functions/***') : undefined,
       headers: startOpts.headers ? { ...startOpts.headers, Authorization: 'Bearer ***' } : undefined,
     });
+
+    // Remember the exact start config + callback so kick() can restart the
+    // service identically after a silence gap (LocationTracker._kickLiveWatch).
+    this._lastStartOpts = startOpts;
+    this._lastCallback = this._callback;
 
     try {
       await CapGoGeolocation.start(

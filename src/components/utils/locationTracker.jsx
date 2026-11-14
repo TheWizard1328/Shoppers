@@ -333,7 +333,7 @@ class LocationTracker {
     return null;
   }
 
-  async _requestSharedFix({ enableHighAccuracy = true, timeout = 4000, maximumAge = 0, requestPermissions = false } = {}) {
+  async _requestSharedFix({ enableHighAccuracy = true, timeout = 4000, maximumAge = 0, requestPermissions = false, forceAntenna = false } = {}) {
     if (maximumAge !== 0 || requestPermissions) {
       return this.locationProvider.getCurrentPosition({ enableHighAccuracy, timeout, maximumAge, requestPermissions });
     }
@@ -341,7 +341,7 @@ class LocationTracker {
     // already streaming, a one-shot request is what triggers ALREADY_STARTED and
     // interrupts the stream. Take the next streamed fix instead, and only fall
     // back to the cached position if the stream is silent.
-    if (this._hasLiveWatch()) {
+    if (!forceAntenna && this._hasLiveWatch()) {
       const sinceAt = Number(this._lastFixAt) || 0;
       const live = await this._awaitWatchFix(sinceAt, Math.min(4000, Math.max(1200, timeout)));
       if (live) return { coords: { latitude: live.latitude, longitude: live.longitude, accuracy: live.accuracy } };
@@ -2076,6 +2076,74 @@ class LocationTracker {
   }
 
   /**
+   * Restart the live foreground service so the antenna re-locks after a silence
+   * gap. Deliberate, gated stop/start — NOT the accidental duplicate start that
+   * used to throw ALREADY_STARTED.
+   */
+  async _kickLiveWatch() {
+    try {
+      if (typeof this.locationProvider?.kick === 'function') {
+        const ok = await this.locationProvider.kick();
+        console.log(`📍 [LocationTracker] watch kick: ${ok ? 'service restarted' : 'no-op'}`);
+        return ok;
+      }
+    } catch (e) {
+      console.warn('📍 [LocationTracker] watch kick failed:', e?.message);
+    }
+    return false;
+  }
+
+  /**
+   * FOREGROUND-RESUME FRESH FIX (owner fix Nov 14 2026).
+   *
+   * The hourly digest showed 13 breadcrumb gaps on one device, worst 11.5 min,
+   * plus 6 stale fixes dropped and 12 deviation regens that flowed from them.
+   * Cause: on resume we asked the antenna for a fix through the normal path,
+   * which either lost to the live stream or was answered with an OS-cached
+   * (stale) position that the stale-fix gate then DROPPED — so nothing was
+   * committed and the gap stayed open.
+   *
+   * This acquires a REAL fix before the next watchPosition tick is accepted:
+   *   1. Take the next streamed fix if the stream is still delivering (fast).
+   *   2. Otherwise KICK the foreground service (one gated stop/start) to force
+   *      the antenna to re-lock, then wait for the fix it produces.
+   *   3. No live watch at all (web / off duty) → plain one-shot request.
+   * Returns a flat { latitude, longitude, accuracy } or null. Never throws, so
+   * the resume path always continues to the timer resets below.
+   */
+  async _acquireResumeFix() {
+    const sinceAt = Number(this._lastFixAt) || 0;
+
+    if (this._hasLiveWatch()) {
+      const streamed = await this._awaitWatchFix(sinceAt, 1500);
+      if (streamed) return streamed;
+
+      // Stream is silent — kick the service and wait for a genuine fix.
+      const kicked = await this._kickLiveWatch();
+      const afterKick = await this._awaitWatchFix(Date.now(), kicked ? 8000 : 3000);
+      if (afterKick) return afterKick;
+      console.warn('📍 [LocationTracker] Resume fix: stream silent after kick, falling back to cached position');
+    }
+
+    try {
+      const pos = await this._requestSharedFix({
+        enableHighAccuracy: true,
+        timeout: 7000,
+        maximumAge: 0,
+        requestPermissions: false,
+        forceAntenna: true
+      });
+      const c = pos?.coords;
+      if (c && Number.isFinite(c.latitude) && Number.isFinite(c.longitude)) {
+        return { latitude: c.latitude, longitude: c.longitude, accuracy: c.accuracy };
+      }
+    } catch (e) {
+      console.warn('📍 [LocationTracker] Resume fix: one-shot failed:', e?.message);
+    }
+    return null;
+  }
+
+  /**
    * Called when the app returns to focus after being away long enough to potentially stale out.
    * 1. Immediately acquires a fresh GPS fix and uploads it.
    * 2. Resets the breadcrumb timer so the next 5s tick fires with a valid position.
@@ -2089,14 +2157,13 @@ class LocationTracker {
     // This ensures both the blue dot and the breadcrumb polyline jump to the real current
     // position instead of the stale pre-background position.
     try {
-      const position = await this._requestSharedFix({
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 0,
-        requestPermissions: false
-      });
+      // Owner fix Nov 14 2026: acquire a REAL fix before accepting the next watch
+      // tick (see _acquireResumeFix). A null result keeps the old behaviour of
+      // leaving lastPosition alone instead of writing back a fixed-over value.
+      const resumeFix = await this._acquireResumeFix();
+      if (!resumeFix) throw new Error('no resume fix available');
 
-      const { latitude, longitude, accuracy } = position.coords;
+      const { latitude, longitude, accuracy } = resumeFix;
       const now = Date.now();
 
 
