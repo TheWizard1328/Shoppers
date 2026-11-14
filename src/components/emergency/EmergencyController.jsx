@@ -180,7 +180,11 @@ const EmergencyController = ({ currentUser }) => {
     setCountdown(COUNTDOWN_SECONDS);
     setAutoSendPaused(false);
     setPending({ source, alertType });
+    // Sound the emergency siren the moment the confirmation window opens, so
+    // the driver knows the system fired (owner request Nov 14 2026). It keeps
+    // running if the alert sends, and stops on Cancel.
     playArmTick();
+    startEmergencyAlarm();
   }, [enabled]);
 
   // Map long-press (5s) → same confirm screen.
@@ -427,6 +431,9 @@ const EmergencyController = ({ currentUser }) => {
   const cancelPending = useCallback(() => {
     setPending(null);
     setError('');
+    // Cancelling kills the confirmation siren. (An already-active alert keeps
+    // its own siren — that is handled by the active-alert effect.)
+    if (!activeRef.current) stopEmergencyAlarm();
   }, []);
 
   // Auto-send after the countdown (owner spec: 10 seconds, cancel stays live).

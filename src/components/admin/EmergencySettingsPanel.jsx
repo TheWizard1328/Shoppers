@@ -32,7 +32,10 @@ const thresholdToSensitivity = (threshold) => {
 };
 const sensitivityToThreshold = (sensitivity) => {
   const pct = Math.max(0, Math.min(100, Number(sensitivity) || 0));
-  return Math.round(MAX_THRESHOLD - (pct / 100) * (MAX_THRESHOLD - MIN_THRESHOLD));
+  const raw = MAX_THRESHOLD - (pct / 100) * (MAX_THRESHOLD - MIN_THRESHOLD);
+  // Owner request Nov 14 2026: the control must move in clean 5 m/s² steps
+  // instead of landing on odd numbers like 38 or 47.
+  return Math.round(raw / 5) * 5;
 };
 
 const EmergencySettingsPanel = () => {
