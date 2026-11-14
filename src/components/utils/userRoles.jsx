@@ -47,6 +47,38 @@ export const isAppOwner = (user) => {
 };
 
 /**
+ * TESTING USERS — accounts that run OWNER-ONLY features while they are being
+ * tested in the field (owner request Nov 14 2026: "add Sharuk to the testing
+ * list of users").
+ *
+ * This is the single list to edit when another person joins a test. Entries are
+ * matched against BOTH ids a user object can carry — the platform auth id
+ * (`user.id`, which equals AppUser.user_id) and the AppUser record id
+ * (`user.user_id`, which equals AppUser.id) — because a Delivery/AppUser id and
+ * an auth id are two different things in this app. Emails are matched too, in
+ * lowercase, for accounts whose id changes on re-invite.
+ *
+ * The App Owner is ALWAYS a testing user (see isTestingUser) — nothing to add.
+ */
+export const TESTING_USER_IDS = [
+  '696825d8ffeeeb3965f2db70', // Sharuk — auth id (AppUser.user_id), driver, added Nov 14 2026
+  '6968265f58e58d9cee41e741', // Sharuk — AppUser record id
+];
+export const TESTING_USER_EMAILS = [];
+
+/** True for the App Owner and for anyone on the testing list. */
+export const isTestingUser = (user) => {
+  if (!user) return false;
+  if (isAppOwner(user)) return true;
+  const ids = [user.id, user.user_id]
+    .filter(Boolean)
+    .map((v) => String(v));
+  if (ids.some((id) => TESTING_USER_IDS.includes(id))) return true;
+  const email = String(user.email || '').toLowerCase();
+  return !!email && TESTING_USER_EMAILS.includes(email);
+};
+
+/**
  * Get all roles assigned to a user
  * Returns app_roles array from AppUser entity
  */

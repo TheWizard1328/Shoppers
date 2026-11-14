@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { isAppOwner } from '@/components/utils/userRoles';
+import { isTestingUser } from '@/components/utils/userRoles';
 import {
   startEmergencyAlarm,
   stopEmergencyAlarm,
@@ -166,7 +166,10 @@ const notifyImpactWhileHidden = () => {
 };
 
 const EmergencyController = ({ currentUser }) => {
-  const enabled = useMemo(() => isAppOwner(currentUser), [currentUser]);
+  // Owner + the TESTING USER list (userRoles.jsx) — owner request Nov 14 2026:
+  // "add Sharuk to the testing list of users" so a second driver device can run
+  // the emergency system (triggers, banners, siren) side by side during testing.
+  const enabled = useMemo(() => isTestingUser(currentUser), [currentUser]);
 
   const [pending, setPending] = useState(null); // { source, alertType }
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
