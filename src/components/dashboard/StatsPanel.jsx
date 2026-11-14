@@ -1067,7 +1067,7 @@ export default function StatsPanel({
                       return (
                         <button
                           key={route.driverId}
-                          type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors px-0.5 py-0 h-[20px]    ${shouldUnderline ? 'underline underline-offset-2 font-semibold' : ''}`}
+                          type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center transition-colors px-0.5 py-0 h-[20px] ${emergencyImpactActive ? 'bg-transparent dark:bg-transparent' : 'hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700'} ${shouldUnderline ? 'underline underline-offset-2 font-semibold' : ''}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (useLegacyClick) {
@@ -1090,9 +1090,12 @@ export default function StatsPanel({
                               style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
 
                         </div>
-                        <span className="text-sm font-medium leading-none whitespace-nowrap text-body-2">{route.driverName || 'Unknown'}</span>
+                        {/* Owner request Nov 14 2026: labels go transparent while the
+                            impact/hold fill is running so the red shows through, with
+                            white text to keep the name readable on top of it. */}
+                        <span className={`text-sm font-medium leading-none whitespace-nowrap ${emergencyImpactActive ? 'text-white' : 'text-body-2'}`}>{route.driverName || 'Unknown'}</span>
                         {!(isDriver && !isAdmin) &&
-                          <span className="text-sm leading-none text-soft">({route.totalStops})</span>
+                          <span className={`text-sm leading-none ${emergencyImpactActive ? 'text-white/90' : 'text-soft'}`}>({route.totalStops})</span>
                           }
                       </button>);
 
