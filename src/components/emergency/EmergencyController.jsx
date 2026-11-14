@@ -180,6 +180,13 @@ const EmergencyController = ({ currentUser }) => {
     setCountdown(COUNTDOWN_SECONDS);
     setAutoSendPaused(false);
     setPending({ source, alertType });
+    // The confirmation panel takes over every visual cue: clear the legend fill
+    // and its message the moment it opens (owner request Nov 14 2026).
+    setHoldProgress(0);
+    setImpactProgress(0);
+    try {
+      window.dispatchEvent(new CustomEvent('rx-emergency-impact', { detail: { active: false, progress: 0, label: 'Impact detected' } }));
+    } catch { /* ignore */ }
     // Sound the emergency siren the moment the confirmation window opens, so
     // the driver knows the system fired (owner request Nov 14 2026). It keeps
     // running if the alert sends, and stops on Cancel.

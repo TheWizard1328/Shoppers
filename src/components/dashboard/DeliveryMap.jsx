@@ -2257,6 +2257,16 @@ function DeliveryMap({
               if (event.button != null && event.button !== 0) return;
               startPoint = { x: event.clientX, y: event.clientY, at: Date.now() };
               holding = false; // becomes true only once the press proves it is a hold
+              // The hold is 5 SECONDS MEASURED FROM THE PRESS (owner confirmed
+              // Nov 14 2026) — the 400 ms reveal below only hides the first
+              // sliver of the sweep so a quick tap never shows anything.
+              holdTimer = setTimeout(() => {
+                const fired = startPoint;
+                clearHold(true);
+                if (!fired) return;
+                try { if (navigator.vibrate) navigator.vibrate([40, 60, 40]); } catch { /* ignore */ }
+                window.dispatchEvent(new CustomEvent('rx-emergency-trigger', { detail: { source: 'manual', alertType: 'accident' } }));
+              }, 5000);
               revealTimer = setTimeout(() => {
                 revealTimer = null;
                 if (!startPoint) return;
@@ -2268,13 +2278,6 @@ function DeliveryMap({
                   window.dispatchEvent(new CustomEvent('rx-emergency-hold-progress', { detail: { progress } }));
                 }, 80);
               }, HOLD_REVEAL_MS);
-              holdTimer = setTimeout(() => {
-                const fired = startPoint;
-                clearHold(false);
-                if (!fired) return;
-                try { if (navigator.vibrate) navigator.vibrate([40, 60, 40]); } catch { /* ignore */ }
-                window.dispatchEvent(new CustomEvent('rx-emergency-trigger', { detail: { source: 'manual', alertType: 'accident' } }));
-              }, 5000);
             };
 
             const onPointerMove = (event) => {
