@@ -50,6 +50,26 @@ const ALERT_LABELS = {
 };
 
 const IMPACT_NOTIFICATION_ID = 9911;
+// A hidden impact has to survive a full activity relaunch: the native
+// bringToFront bridge (or the full-screen-intent notification) can recreate
+// MainActivity, which throws away all in-memory state. The queue is therefore
+// mirrored into localStorage and consumed on the next boot.
+const QUEUED_IMPACT_KEY = 'rx_emergency_queued_impact';
+const QUEUED_IMPACT_MAX_AGE_MS = 5 * 60 * 1000;
+
+const persistQueuedImpact = () => {
+  try { localStorage.setItem(QUEUED_IMPACT_KEY, String(Date.now())); } catch { /* ignore */ }
+};
+
+const consumeQueuedImpact = () => {
+  try {
+    const raw = localStorage.getItem(QUEUED_IMPACT_KEY);
+    if (!raw) return false;
+    localStorage.removeItem(QUEUED_IMPACT_KEY);
+    const at = Number(raw);
+    return Number.isFinite(at) && Date.now() - at <= QUEUED_IMPACT_MAX_AGE_MS;
+  } catch { return false; }
+};
 
 const isHiddenNow = () => {
   try {
@@ -59,10 +79,35 @@ const isHiddenNow = () => {
   }
 };
 
+// Bring RxDeliver forward on an impact using THE SAME NATIVE PATH the GPS
+// arrival trigger uses (proximityForegroundTrigger → window.AndroidNative
+// .bringToFront, implemented in MainActivity.java). Owner spec Nov 14 2026:
+// "do it like the GPS does when we arrive at a delivery". That bridge:
+//   1. no-ops if we are already in front,
+//   2. relaunches MainActivity directly when "Display over other apps" is
+//      granted (true auto-foreground),
+//   3. otherwise posts a full-screen-intent notification that opens the app
+//      over the lock screen.
+// Because the CapGo GPS foreground service keeps the app process alive on duty
+// or on break, this works while minimised — the same reason arrival detection
+// works there.
+const bringAppForward = (title, message) => {
+  try {
+    if (typeof window !== 'undefined' && typeof window.AndroidNative?.bringToFront === 'function') {
+      const status = window.AndroidNative.bringToFront(title, message);
+      console.log('[Emergency] bringToFront:', status);
+      return String(status || '');
+    }
+  } catch (e) {
+    console.warn('[Emergency] bringToFront failed:', e?.message);
+  }
+  return '';
+};
+
 // Fire-and-forget alert that works with the app in the background:
-//  • Android APK: a high-priority local notification. Tapping it brings
-//    RxDeliver to the foreground (the OS owns that hand-off — no app may raise
-//    itself from the background), where the queued confirm panel is waiting.
+//  • Android APK: the native bringToFront bridge above (same as GPS arrival),
+//    with a high-priority local notification as the fallback when the bridge is
+//    unavailable. Either way the queued confirm panel is waiting on return.
 //  • Browser/PWA: a service-worker notification where available, falling back
 //    to a plain Notification.
 // The siren + vibration are also attempted here in case the OS still lets
@@ -70,6 +115,12 @@ const isHiddenNow = () => {
 const notifyImpactWhileHidden = () => {
   (async () => {
     try { startEmergencyAlarm(); } catch { /* audio may be blocked while hidden */ }
+    // Native APK: hand off to the same bridge the GPS arrival trigger uses.
+    const bridgeStatus = bringAppForward(
+      'Possible impact detected',
+      'Tap to open RxDeliver and confirm your emergency.'
+    );
+    if (bridgeStatus) return;
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (Capacitor?.isNativePlatform?.()) {
@@ -347,6 +398,7 @@ const EmergencyController = ({ currentUser }) => {
         // brings RxDeliver forward) and open the panel on resume.
         if (isHiddenNow()) {
           queuedImpactRef.current = true;
+          persistQueuedImpact();
           notifyImpactWhileHidden();
         } else {
           openConfirm('crash', 'accident');
@@ -414,10 +466,17 @@ const EmergencyController = ({ currentUser }) => {
         state.spikeAt = null;
         state.peak = 0;
       }
-      if (!queuedImpactRef.current) return;
+      if (!queuedImpactRef.current && !consumeQueuedImpact()) return;
       queuedImpactRef.current = false;
+      try { localStorage.removeItem(QUEUED_IMPACT_KEY); } catch { /* ignore */ }
       openConfirm('crash', 'accident');
     };
+
+    // Activity recreated by the bringToFront hand-off or the full-screen
+    // notification: pick the queued impact up once the app has settled.
+    const bootTimer = setTimeout(() => {
+      if (consumeQueuedImpact()) openConfirm('crash', 'accident');
+    }, 2000);
 
     const onVisibility = () => { if (!isHiddenNow()) resume(); };
     document.addEventListener('visibilitychange', onVisibility);
@@ -448,6 +507,7 @@ const EmergencyController = ({ currentUser }) => {
     })();
 
     return () => {
+      clearTimeout(bootTimer);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('focus', onVisibility);
       try { appStateHandle?.remove?.(); } catch { /* ignore */ }
