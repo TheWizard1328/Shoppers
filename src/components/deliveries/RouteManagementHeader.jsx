@@ -140,7 +140,7 @@ export default function RouteManagementHeader({
       <div className="flex items-center gap-3">
         <div className="relative flex-grow">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400" />
-          <Input placeholder="Search patient, address, Rx details, tracking..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="pl-10 w-full bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" />
+          <Input placeholder="Search patient, address, notes, Rx, COD..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="pl-10 w-full bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" />
         </div>
         <Select value={driverFilter} onValueChange={handleDriverChange} disabled={(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin'))}>
           <SelectTrigger className={`w-[140px] bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 ${(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) ? 'opacity-60 cursor-not-allowed' : ''}`}><SelectValue placeholder="Select driver" /></SelectTrigger>

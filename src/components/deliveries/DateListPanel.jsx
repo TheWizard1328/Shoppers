@@ -20,6 +20,10 @@ export default function DateListPanel({
   onDeleteRoute,
   onDeleteMonth,
   dateListWithStats = null,
+  // Optional Set/array of 'yyyy-MM-dd' strings. When the Route Management
+  // search is active this narrows the cards to the dates that actually match,
+  // for dispatchers too (their list is derived from the raw deliveries prop).
+  visibleDates = null,
   currentUser
 }) {
   const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
@@ -112,8 +116,19 @@ export default function DateListPanel({
 
   // Dispatchers always use datesWithDeliveries (computed from raw deliveries prop = all store deliveries,
   // all drivers) so the driver filter selection doesn't hide dates.
+  const visibleDateSet = useMemo(() => {
+    if (!visibleDates) return null;
+    const source = visibleDates instanceof Set ? Array.from(visibleDates) : (Array.isArray(visibleDates) ? visibleDates : []);
+    return new Set(source.map((value) => String(value)));
+  }, [visibleDates]);
+
   const itemsToRender = (isDispatcher ? datesWithDeliveries : (dateListWithStats || datesWithDeliveries))
-    .filter((d) => d.total > 0)
+    .filter((d) => {
+      if (!(d.total > 0)) return false;
+      if (!visibleDateSet) return true;
+      const key = d.dateStr || (typeof d.date === 'string' ? d.date : format(d.date, 'yyyy-MM-dd'));
+      return visibleDateSet.has(String(key));
+    })
     .map((item) => ({
       ...item,
       driversCount: item.driversCount ?? driversCountByDate[item.dateStr || item.date] ?? 0

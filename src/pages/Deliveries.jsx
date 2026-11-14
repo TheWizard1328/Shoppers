@@ -83,7 +83,7 @@ import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { ProjectedPickupCard } from '../components/deliveries/RouteManagementHelpers';
-import { applyRouteToolbarFilters, getDriverFilterOptions, getRouteScopedStoreOptions, sortDeliveriesByTime } from '../components/deliveries/routeToolbarFilters';
+import { applyRouteToolbarFilters, createRouteSearchMatcher, getDriverFilterOptions, getRouteScopedStoreOptions, sortDeliveriesByTime } from '../components/deliveries/routeToolbarFilters';
 import DriverRouteHeader from "../components/deliveries/DriverRouteHeader";
 import { useProjectedRoutes } from "../components/deliveries/useProjectedRoutes";
 import { useDeliveryRealtimeSync } from "../components/deliveries/useDeliveryRealtimeSync";
@@ -1298,31 +1298,46 @@ export default function DeliveriesPage() {
     sortDeliveriesByTime
   }), [selectedDateDeliveries, storeFilter, statusFilter, searchTerm, effectivePatients, stores, sortDeliveriesByTime]);
 
-  // Filter date cards based on search term (search across all available dates)
+  // Filter date cards based on search term (search across all available dates).
+  // Owner spec Nov 13 2026: the cards must survive the SAME matches the stop
+  // list uses — patient notes, delivery notes, COD amounts and the COD/tender
+  // keywords — so a COD search lights up every date that carries one.
   const filteredDatesBySearch = useMemo(() => {
-    if (!searchTerm) {
+    const matcher = createRouteSearchMatcher(searchTerm, effectivePatients, stores);
+    if (!matcher) {
       return dateListWithStats;
     }
 
-    const lowerSearch = searchTerm.toLowerCase();
-    return dateListWithStats.filter((dateItem) => {
-      // Get deliveries for this date and check if any match the search
-      const deliveriesOnDate = driverFilteredDeliveries.filter((d) => d.delivery_date === dateItem.date);
-
-      return deliveriesOnDate.some((d) => {
-        const patient = effectivePatients.find((p) => p.id === d.patient_id);
-        const store = stores.find((s) => s.id === d.store_id);
-
-        return (
-          (patient?.full_name || '').toLowerCase().includes(lowerSearch) ||
-          (patient?.address || '').toLowerCase().includes(lowerSearch) ||
-          (d.driver_name || '').toLowerCase().includes(lowerSearch) ||
-          (store?.name || '').toLowerCase().includes(lowerSearch) ||
-          (d.prescription_number || '').toLowerCase().includes(lowerSearch));
-
-      });
+    const deliveriesByDate = new Map();
+    (driverFilteredDeliveries || []).forEach((d) => {
+      if (!d?.delivery_date) return;
+      const bucket = deliveriesByDate.get(d.delivery_date);
+      if (bucket) bucket.push(d);
+      else deliveriesByDate.set(d.delivery_date, [d]);
     });
+
+    return dateListWithStats.filter((dateItem) => (deliveriesByDate.get(dateItem.date) || []).some(matcher));
   }, [searchTerm, dateListWithStats, driverFilteredDeliveries, effectivePatients, stores]);
+
+  // Dates the Route Date cards are allowed to show while a search is active.
+  const searchVisibleDates = useMemo(() => {
+    if (!searchTerm) return null;
+    return new Set(filteredDatesBySearch.map((item) => item.date));
+  }, [searchTerm, filteredDatesBySearch]);
+
+  // While searching, if the selected date has no matches but other dates do,
+  // jump to the most recent matching date so the stop list isn't empty.
+  useEffect(() => {
+    if (!searchTerm || isLoading || isLoadingData) return;
+    if (filteredDatesBySearch.length === 0) return;
+    const currentDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+    if (currentDateStr && filteredDatesBySearch.some((item) => item.date === currentDateStr)) return;
+    const targetDate = filteredDatesBySearch[0]?.date;
+    if (!targetDate) return;
+    const [y, m, d] = targetDate.split('-').map(Number);
+    setSelectedDate(new Date(y, m - 1, d));
+    updateUrl({ date: targetDate });
+  }, [searchTerm, filteredDatesBySearch, selectedDate, setSelectedDate, updateUrl, isLoading, isLoadingData]);
 
   const createDriverPickupStops = useCallback(async (driver, deliveryDate) => {
     try {
@@ -2924,7 +2939,8 @@ export default function DeliveriesPage() {
               <DateListPanel
               deliveries={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? allDeliveries.filter((d) => d && (currentUser.store_ids || []).includes(d.store_id)) : driverFilteredDeliveries}
               selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-              dateListWithStats={dateListWithStats}
+              dateListWithStats={filteredDatesBySearch}
+              visibleDates={searchVisibleDates}
               onDateSelect={handleDateSelect}
               patients={effectivePatients}
               selectedDriverId={driverFilter}
@@ -3024,7 +3040,8 @@ export default function DeliveriesPage() {
                 <DateListPanel
                 deliveries={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? allDeliveries.filter((d) => d && (currentUser.store_ids || []).includes(d.store_id)) : driverFilteredDeliveries}
                 selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-                dateListWithStats={dateListWithStats}
+                dateListWithStats={filteredDatesBySearch}
+                visibleDates={searchVisibleDates}
                 onDateSelect={(dateStr) => {
                   handleDateSelect(dateStr);
                   setIsMobileMenuOpen(false);

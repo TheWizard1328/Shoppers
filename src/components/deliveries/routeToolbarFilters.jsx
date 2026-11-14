@@ -47,6 +47,89 @@ export function getDriverFilterOptions({ effectiveDrivers = [], effectiveDeliver
   });
 }
 
+
+// ── Route Management search ────────────────────────────────────────────────
+// Owner spec Nov 13 2026: the search box must also look inside PATIENT NOTES,
+// DELIVERY NOTES and the COD amounts, and typing COD (or any of its tender
+// words) must surface every COD stop — including on the Route Date cards.
+const COD_SEARCH_WORDS = new Set([
+  'cod', 'cods', 'cash', 'debit', 'credit', 'cheque', 'check', 'checks',
+  'etransfer', 'etrans', 'etransfers', 'emt', 'etfr', 'eft'
+]);
+
+const normalizeSearchWord = (word) => String(word || '').toLowerCase().replace(/[\s\-_.]/g, '');
+
+const isCodSearchWord = (word) => COD_SEARCH_WORDS.has(normalizeSearchWord(word));
+
+// A delivery "has a COD" when an amount is outstanding, refunded, or a payment
+// was recorded. Description-tagged COD items are not needed here: the amount
+// and the payment rows are the authoritative signal.
+export function deliveryHasCod(delivery) {
+  if (!delivery) return false;
+  const amount = Number(delivery.cod_total_amount_required) || 0;
+  const refunded = Number(delivery.cod_refunded_amount) || 0;
+  const payments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
+  return amount > 0 || refunded > 0 || payments.length > 0;
+}
+
+const amountToSearchStrings = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num === 0) return [];
+  return [String(num), num.toFixed(2)];
+};
+
+// Everything a search term can match, as one lowercase haystack.
+export function buildRouteSearchHaystack(delivery, patient, store) {
+  const parts = [
+    patient?.full_name,
+    patient?.address,
+    patient?.unit_number,
+    patient?.phone,
+    patient?.notes,
+    delivery?.driver_name,
+    delivery?.delivery_notes,
+    delivery?.prescription_number,
+    store?.name,
+    store?.abbreviation
+  ];
+  amountToSearchStrings(delivery?.cod_total_amount_required).forEach((v) => parts.push(v));
+  amountToSearchStrings(delivery?.cod_refunded_amount).forEach((v) => parts.push(v));
+  if (Array.isArray(delivery?.cod_payments)) {
+    delivery.cod_payments.forEach((payment) => {
+      amountToSearchStrings(payment?.amount).forEach((v) => parts.push(v));
+      if (payment?.type) parts.push(payment.type);
+    });
+  }
+  return parts.filter(Boolean).join(' ').toLowerCase();
+}
+
+// Builds a reusable predicate so the stop list and the Route Date cards agree.
+export function createRouteSearchMatcher(searchTerm, effectivePatients = [], stores = []) {
+  const raw = String(searchTerm || '').trim().toLowerCase();
+  if (!raw) return null;
+
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  const codOnly = tokens.some(isCodSearchWord);
+  const textTokens = tokens.filter((t) => !isCodSearchWord(t));
+
+  const patientMap = new Map((effectivePatients || []).filter((p) => p?.id).map((p) => [p.id, p]));
+  const storeMap = new Map((stores || []).filter((s) => s?.id).map((s) => [s.id, s]));
+
+  return (delivery) => {
+    if (!delivery) return false;
+    if (codOnly && !deliveryHasCod(delivery)) return false;
+    if (textTokens.length === 0) return true;
+    const haystack = buildRouteSearchHaystack(
+      delivery,
+      patientMap.get(delivery.patient_id),
+      storeMap.get(delivery.store_id)
+    );
+    // Multi-word terms AND together, matching the older single-term behaviour
+    // for anything that is not a COD keyword.
+    return textTokens.every((token) => haystack.includes(token));
+  };
+}
+
 export function applyRouteToolbarFilters({ selectedDateDeliveries = [], storeFilter = 'all', statusFilter = 'all', searchTerm = '', effectivePatients = [], stores = [], sortDeliveriesByTime }) {
   let filtered = selectedDateDeliveries;
 
@@ -58,19 +141,9 @@ export function applyRouteToolbarFilters({ selectedDateDeliveries = [], storeFil
     filtered = filtered.filter((delivery) => delivery.status === statusFilter);
   }
 
-  if (searchTerm) {
-    const lowerSearch = searchTerm.toLowerCase();
-    filtered = filtered.filter((delivery) => {
-      const patient = effectivePatients.find((p) => p.id === delivery.patient_id);
-      const store = stores.find((s) => s.id === delivery.store_id);
-      return (
-        (patient?.full_name || '').toLowerCase().includes(lowerSearch) ||
-        (patient?.address || '').toLowerCase().includes(lowerSearch) ||
-        (delivery.driver_name || '').toLowerCase().includes(lowerSearch) ||
-        (store?.name || '').toLowerCase().includes(lowerSearch) ||
-        (delivery.prescription_number || '').toLowerCase().includes(lowerSearch)
-      );
-    });
+  const searchMatcher = createRouteSearchMatcher(searchTerm, effectivePatients, stores);
+  if (searchMatcher) {
+    filtered = filtered.filter(searchMatcher);
   }
 
   return sortDeliveriesByTime(filtered).map((delivery, index) => ({
