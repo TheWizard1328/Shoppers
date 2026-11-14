@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset=utf-8><style>
+body{margin:0;background:#eef2f7;font-family:system-ui,-apple-system,Roboto,sans-serif}
+.wrap{display:flex;gap:24px;padding:16px;align-items:flex-start}
+.phone{width:360px;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.15);position:relative}
+.phone.tall{height:300px}
+.panelbar{height:28px;background:#0b1020;color:#9aa4b2;font:11px system-ui;display:flex;align-items:center;padding:0 10px}
+@keyframes rxEmergencyPulse{0%{box-shadow:0 6px 24px rgba(220,38,38,.35);filter:brightness(1)}50%{box-shadow:0 10px 34px rgba(220,38,38,.95);filter:brightness(1.28)}100%{box-shadow:0 6px 24px rgba(220,38,38,.35);filter:brightness(1)}}
+@keyframes rxEmergencyBlink{50%{opacity:.35}}
+.rx-eq-banner{box-sizing:border-box;max-width:100vw;overflow:hidden;text-align:left}
+.rx-eq-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;margin:0 auto}
+.rx-eq-left{flex:1 1 auto;min-width:0;overflow:hidden}
+.rx-eq-title{word-break:break-word;overflow-wrap:anywhere}
+.rx-eq-notes{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;overflow-wrap:anywhere}
+.rx-eq-hint{flex:0 0 auto;font-size:11px;font-weight:800;text-align:right;line-height:1.25;max-width:96px}
+@media (max-width:430px){.rx-eq-hint{font-size:9px;max-width:62px;letter-spacing:0}.rx-eq-notes{-webkit-line-clamp:3}}
+</style></head><body><div class=wrap>
+<div class=phone><div class=panelbar>status bar</div>
+ <div class="rx-eq-banner" style="position:relative;width:100%;border:none;cursor:pointer;font:inherit;padding:10px 14px 12px;paddingTop:max(10px,calc(26px + 6px));background:linear-gradient(180deg,#dc2626 0%,#b91c1c 100%);color:#fff">
+  <div class="rx-eq-row" style="max-width:720px">
+   <div class="rx-eq-left">
+    <div style="font-size:11px;letter-spacing:1.2px;font-weight:700;opacity:.9"><span style="animation:rxEmergencyBlink .9s steps(2,start) infinite">&#9679;</span> EMERGENCY ACTIVE</div>
+    <div class="rx-eq-title" style="font-size:15px;font-weight:800;margin-top:2px">Robert &#8212; Accident</div>
+    <div class="rx-eq-notes" style="font-size:12px;opacity:.95;margin-top:2px">Accident declared from the RxDeliver dashboard after impact detection. DEV</div>
+   </div>
+   <div class="rx-eq-hint">TAP TO SILENCE<br>ALL DEVICES</div>
+  </div>
+ </div>
+ <div style="padding:10px 14px;font:12px system-ui;color:#475569">rest of app&#8230;</div>
+</div>
+<div class=phone style="width:390px"><div class=panelbar>status bar</div>
+ <div class="rx-eq-banner" style="position:relative;width:100%;border:none;font:inherit;padding:10px 14px 12px;paddingTop:max(10px,calc(26px + 6px));background:linear-gradient(180deg,#dc2626 0%,#b91c1c 100%);color:#fff">
+  <div class="rx-eq-row" style="max-width:720px"><div class="rx-eq-left">
+   <div style="font-size:11px;letter-spacing:1.2px;font-weight:700;opacity:.9">&#9679; EMERGENCY ACTIVE</div>
+   <div class="rx-eq-title" style="font-size:15px;font-weight:800;margin-top:2px">Sharuk &#8212; Manual Activation</div>
+   <div class="rx-eq-notes" style="font-size:12px;opacity:.95;margin-top:2px">Driver activated from the dashboard hold-to-activate control on the map.</div></div>
+   <div class="rx-eq-hint">TAP TO SILENCE<br>ALL DEVICES</div></div></div>
+ <div style="padding:10px 14px;font:12px system-ui;color:#475569">rest of app&#8230;</div>
+</div></div></body></html>

@@ -1090,12 +1090,14 @@ export default function StatsPanel({
                               style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
 
                         </div>
-                        {/* Owner request Nov 14 2026: labels go transparent while the
-                            impact/hold fill is running so the red shows through, with
-                            white text to keep the name readable on top of it. */}
-                        <span className={`text-sm font-medium leading-none whitespace-nowrap ${emergencyImpactActive ? 'text-white' : 'text-body-2'}`}>{route.driverName || 'Unknown'}</span>
+                        {/* Owner request Nov 14 2026: labels stay on top of the red
+                            fill while the impact/hold sweep runs. Text colour is
+                            theme-aware — LIGHT MODE MUST STAY BLACK (owner report
+                            Nov 14 2026: names turned white and vanished on the
+                            unfilled part of the legend), dark mode keeps white. */}
+                        <span className={`text-sm font-medium leading-none whitespace-nowrap ${emergencyImpactActive ? 'text-slate-900 dark:text-white' : 'text-body-2'}`}>{route.driverName || 'Unknown'}</span>
                         {!(isDriver && !isAdmin) &&
-                          <span className={`text-sm leading-none ${emergencyImpactActive ? 'text-white/90' : 'text-soft'}`}>({route.totalStops})</span>
+                          <span className={`text-sm leading-none ${emergencyImpactActive ? 'text-slate-900/80 dark:text-white/90' : 'text-soft'}`}>({route.totalStops})</span>
                           }
                       </button>);
 
