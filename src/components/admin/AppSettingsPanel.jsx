@@ -499,6 +499,10 @@ export default function AppSettingsPanel() {
           </Card>
           </div>
 
+          {/* Third column: Fridge Temp Ranges stacked with the Emergency panel
+              (owner request Nov 14 2026: Emergency System sits directly BELOW
+              the Fridge Temp Ranges panel, not on a new grid row). */}
+          <div className="space-y-5">
           {/* Fridge Temperature Range Settings — featured with amber glow */}
           <Card
             className={`rounded-[14px] border transition-all ${
@@ -574,6 +578,7 @@ export default function AppSettingsPanel() {
 
           {/* GLOBAL EMERGENCY ACTIVATION + SENSITIVITY (owner request Nov 14 2026) */}
           <EmergencySettingsPanel />
+          </div>
 
         </div>
       </div>
