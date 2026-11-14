@@ -49,6 +49,71 @@ const ALERT_LABELS = {
   other: 'Emergency'
 };
 
+const IMPACT_NOTIFICATION_ID = 9911;
+
+const isHiddenNow = () => {
+  try {
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  } catch {
+    return false;
+  }
+};
+
+// Fire-and-forget alert that works with the app in the background:
+//  • Android APK: a high-priority local notification. Tapping it brings
+//    RxDeliver to the foreground (the OS owns that hand-off — no app may raise
+//    itself from the background), where the queued confirm panel is waiting.
+//  • Browser/PWA: a service-worker notification where available, falling back
+//    to a plain Notification.
+// The siren + vibration are also attempted here in case the OS still lets
+// audio play while hidden.
+const notifyImpactWhileHidden = () => {
+  (async () => {
+    try { startEmergencyAlarm(); } catch { /* audio may be blocked while hidden */ }
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor?.isNativePlatform?.()) {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        try {
+          const perm = await LocalNotifications.checkPermissions();
+          if (perm?.display !== 'granted') await LocalNotifications.requestPermissions();
+        } catch { /* ignore */ }
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: IMPACT_NOTIFICATION_ID,
+            title: 'Possible impact detected',
+            body: 'Tap to open RxDeliver and confirm your emergency.',
+            smallIcon: 'ic_stat_notify',
+            iconColor: '#dc2626',
+            sound: undefined,
+            ongoing: true,
+            autoCancel: false,
+            extra: { __emergency_impact: true }
+          }]
+        });
+        return;
+      }
+    } catch { /* not native */ }
+
+    try {
+      if (typeof Notification === 'undefined') return;
+      if (Notification.permission === 'default') await Notification.requestPermission();
+      if (Notification.permission !== 'granted') return;
+      const options = {
+        body: 'Tap to open RxDeliver and confirm your emergency.',
+        tag: 'rx-emergency-impact',
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [700, 250, 700, 250],
+        data: { __emergency_impact: true }
+      };
+      const reg = await navigator.serviceWorker?.getRegistration?.();
+      if (reg?.showNotification) await reg.showNotification('Possible impact detected', options);
+      else new Notification('Possible impact detected', options);
+    } catch { /* ignore */ }
+  })();
+};
+
 const EmergencyController = ({ currentUser }) => {
   const enabled = useMemo(() => isAppOwner(currentUser), [currentUser]);
 
@@ -91,6 +156,10 @@ const EmergencyController = ({ currentUser }) => {
   });
   const pendingRef = useRef(null);
   const activeRef = useRef(null);
+  // A confirmed impact that happened while the app was hidden or backgrounded.
+  // The panel cannot be shown over another app, so it is queued and opened the
+  // moment RxDeliver comes back to the foreground.
+  const queuedImpactRef = useRef(false);
 
   useEffect(() => { pendingRef.current = pending; }, [pending]);
   useEffect(() => { activeRef.current = activeAlert; }, [activeAlert]);
@@ -272,7 +341,16 @@ const EmergencyController = ({ currentUser }) => {
         state.firedAt = now;
         state.spikeAt = null;
         state.peak = 0;
-        openConfirm('crash', 'accident');
+        // OWNER SPEC Nov 14 2026: detection must survive the app being
+        // minimised. If we are hidden, we cannot draw the panel over another
+        // app, so queue it, fire a high-priority local notification (its tap
+        // brings RxDeliver forward) and open the panel on resume.
+        if (isHiddenNow()) {
+          queuedImpactRef.current = true;
+          notifyImpactWhileHidden();
+        } else {
+          openConfirm('crash', 'accident');
+        }
         return;
       }
 
@@ -316,6 +394,66 @@ const EmergencyController = ({ currentUser }) => {
       setCrashArmed(false);
     };
   }, [enabled, openConfirm, emergencySettings.crash_enabled, emergencySettings.crash_threshold]);
+
+  // ── Background / resume handling ─────────────────────────────────────────
+  // Keeps the pilot honest when the app is minimised: whatever was detected
+  // while hidden is turned into the confirm panel the instant RxDeliver is back
+  // in front, whether the driver returned by tapping the notification or by
+  // reopening the app.
+  useEffect(() => {
+    if (!enabled) return;
+
+    const resume = () => {
+      const state = crashStateRef.current;
+      // Sensors freeze while the app is hidden, so a spike captured just before
+      // backgrounding is judged on wall-clock time: hit, then nothing for the
+      // whole stillness window == confirmed.
+      if (!queuedImpactRef.current && state.spikeAt && state.quietSince &&
+          Date.now() - state.quietSince >= CRASH_QUIET_MS) {
+        queuedImpactRef.current = true;
+        state.spikeAt = null;
+        state.peak = 0;
+      }
+      if (!queuedImpactRef.current) return;
+      queuedImpactRef.current = false;
+      openConfirm('crash', 'accident');
+    };
+
+    const onVisibility = () => { if (!isHiddenNow()) resume(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onVisibility);
+
+    let appStateHandle = null;
+    let notifHandle = null;
+    (async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (!Capacitor?.isNativePlatform?.()) return;
+        try {
+          const { App } = await import('@capacitor/app');
+          appStateHandle = await App.addListener('appStateChange', (state) => {
+            if (state?.isActive) resume();
+          });
+        } catch { /* plugin missing */ }
+        try {
+          const { LocalNotifications } = await import('@capacitor/local-notifications');
+          notifHandle = await LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+            const isImpact = !!action?.notification?.extra?.__emergency_impact;
+            if (!isImpact) return;
+            queuedImpactRef.current = true;
+            resume();
+          });
+        } catch { /* plugin missing */ }
+      } catch { /* web */ }
+    })();
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onVisibility);
+      try { appStateHandle?.remove?.(); } catch { /* ignore */ }
+      try { notifHandle?.remove?.(); } catch { /* ignore */ }
+    };
+  }, [enabled, openConfirm]);
 
   // ── Impact bar feed ──────────────────────────────────────────────────────
   // While a spike is live, publish how far through the stillness window we are
