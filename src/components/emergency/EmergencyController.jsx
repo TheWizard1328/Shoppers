@@ -57,6 +57,10 @@ const EmergencyController = ({ currentUser }) => {
   // detection screen is up HALTS the auto-send countdown. The screen then waits
   // for an explicit Activate or Cancel instead of firing on a timer.
   const [autoSendPaused, setAutoSendPaused] = useState(false);
+  // Live progress of the impact-detection window. Drives the red bar that shows
+  // BEFORE the confirm screen, so the driver can see a hard hit registered.
+  const [impactProgress, setImpactProgress] = useState(0);
+  const [impactPeak, setImpactPeak] = useState(0);
   const [notes, setNotes] = useState('');
   const [activeAlert, setActiveAlert] = useState(null);
   const [sending, setSending] = useState(false);
@@ -260,6 +264,45 @@ const EmergencyController = ({ currentUser }) => {
     };
   }, [enabled, openConfirm]);
 
+  // ── Impact bar feed ──────────────────────────────────────────────────────
+  // While a spike is live, publish how far through the stillness window we are
+  // so the top bar can fill. Resets to 0 whenever the phone moves again, and the
+  // bar disappears the instant the window completes (confirm screen takes over)
+  // or the driver taps to cancel.
+  useEffect(() => {
+    if (!enabled) return;
+    const id = setInterval(() => {
+      const state = crashStateRef.current;
+      if (!state.spikeAt || !state.quietSince) {
+        setImpactProgress((prev) => (prev === 0 ? prev : 0));
+        return;
+      }
+      const progress = Math.max(0, Math.min(1, (Date.now() - state.quietSince) / CRASH_QUIET_MS));
+      setImpactProgress(progress);
+      setImpactPeak(state.peak || 0);
+    }, 120);
+    return () => clearInterval(id);
+  }, [enabled]);
+
+  // A deliberate tap during the impact window cancels the detection (owner
+  // spec: "an interaction in the app will stop it"). No prompt is shown.
+  useEffect(() => {
+    if (!enabled || impactProgress <= 0) return;
+    const cancel = () => {
+      const state = crashStateRef.current;
+      state.spikeAt = null;
+      state.quietSince = null;
+      state.peak = 0;
+      setImpactProgress(0);
+    };
+    window.addEventListener('click', cancel, true);
+    window.addEventListener('keydown', cancel, true);
+    return () => {
+      window.removeEventListener('click', cancel, true);
+      window.removeEventListener('keydown', cancel, true);
+    };
+  }, [enabled, impactProgress > 0]);
+
   // Live sensor readout for the pilot (owner needs to SEE that a hit registers).
   // Sampled twice a second so a 60 Hz sensor never causes a render storm.
   useEffect(() => {
@@ -385,6 +428,35 @@ const EmergencyController = ({ currentUser }) => {
 
   return (
     <>
+      {/* ── IMPACT BAR: shows the instant a hard hit registers, BEFORE the
+             confirm screen. Fills over the stillness window; tapping cancels. */}
+      {!pending && impactProgress > 0 && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 8, zIndex: 10090, pointerEvents: 'none' }}>
+          <div
+            style={{
+              height: '100%',
+              width: `${impactProgress * 100}%`,
+              background: 'linear-gradient(90deg, #dc2626, #f97316)',
+              boxShadow: '0 0 14px rgba(220,38,38,0.9)',
+              transition: 'width 110ms linear'
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              fontSize: 10.5,
+              fontWeight: 800,
+              letterSpacing: 0.6,
+              color: '#fecaca',
+              textShadow: '0 1px 4px rgba(0,0,0,0.85)'
+            }}>
+            IMPACT DETECTED · {Math.max(0, Math.ceil((1 - impactProgress) * (CRASH_QUIET_MS / 1000)))}s · TAP TO CANCEL
+          </div>
+        </div>
+      )}
+
       {/* ── Red countdown bar: the system detected a hit and is counting down
              to sending. It runs the moment the screen appears, then freezes
              (amber) the instant the driver interacts with the app. ───────── */}
