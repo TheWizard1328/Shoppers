@@ -302,10 +302,58 @@ class LocationTracker {
    * pass through untouched.
    * @returns the RAW provider position (has .coords) — same shape call sites expect.
    */
+  /**
+   * True while a live continuous fix stream is feeding us (the CapGo foreground
+   * service on the APK). While that stream is live the ONE-SHOT antenna path must
+   * never be used: the native plugin answers it by trying to start its foreground
+   * service a second time and rejecting with ALREADY_STARTED / "Service already
+   * started" — the 5-per-hour warning Sharuk's phone produced, and part of the
+   * 285-690s breadcrumb gaps that came with the stop/start churn.
+   *
+   * Web browsers tolerate a one-shot alongside a watch, so this is native-only.
+   */
+  _hasLiveWatch() {
+    return this.isTracking === true && !!this.watchId && this.locationProvider?.name === 'native';
+  }
+
+  /**
+   * Wait up to `ms` for the live stream to deliver a fix newer than `sinceAt`.
+   * Returns a flat { latitude, longitude, accuracy } or null. The stream ticks
+   * every 1-5s, so this normally resolves in about one tick.
+   */
+  async _awaitWatchFix(sinceAt, ms) {
+    const deadline = Date.now() + Math.max(0, ms);
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (Number(this._lastFixAt) > sinceAt) {
+        const cached = this.getCachedPosition();
+        if (cached) return cached;
+      }
+    }
+    return null;
+  }
+
   async _requestSharedFix({ enableHighAccuracy = true, timeout = 4000, maximumAge = 0, requestPermissions = false } = {}) {
     if (maximumAge !== 0 || requestPermissions) {
       return this.locationProvider.getCurrentPosition({ enableHighAccuracy, timeout, maximumAge, requestPermissions });
     }
+    // LIVE-STREAM GUARD (owner fix Nov 14 2026): with the foreground service
+    // already streaming, a one-shot request is what triggers ALREADY_STARTED and
+    // interrupts the stream. Take the next streamed fix instead, and only fall
+    // back to the cached position if the stream is silent.
+    if (this._hasLiveWatch()) {
+      const sinceAt = Number(this._lastFixAt) || 0;
+      const live = await this._awaitWatchFix(sinceAt, Math.min(4000, Math.max(1200, timeout)));
+      if (live) return { coords: { latitude: live.latitude, longitude: live.longitude, accuracy: live.accuracy } };
+      const cachedWhileLive = this.getCachedPosition();
+      if (cachedWhileLive) {
+        return { coords: { latitude: cachedWhileLive.latitude, longitude: cachedWhileLive.longitude, accuracy: cachedWhileLive.accuracy } };
+      }
+      // Nothing to hand back yet — a benign, silently-filtered rejection beats
+      // restarting the foreground service.
+      throw new Error('ALREADY_STARTED: live watch has not produced a fix yet');
+    }
+
     if (!this._sharedFixState) this._sharedFixState = { inflight: null, lastResult: null, lastAt: 0 };
     const now = Date.now();
     if (this._sharedFixState.lastResult && now - this._sharedFixState.lastAt < 2500) {

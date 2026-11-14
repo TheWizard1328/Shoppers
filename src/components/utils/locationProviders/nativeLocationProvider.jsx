@@ -96,10 +96,12 @@ class NativeLocationProvider {
       if (this._lastPosition) {
         return normalizeNativePosition(this._lastPosition);
       }
-      // No cached position — start a temporary one-shot
-      // This will stop the active watcher temporarily... not ideal.
-      // Better to just wait for the next callback.
-      throw new Error('Native watcher already active but no cached position available');
+      // Watcher is live but has not delivered a fix yet (e.g. right after a
+      // reload): WAIT for its next callback rather than starting a second
+      // session, which the OS rejects with ALREADY_STARTED.
+      const waited = await this._waitForStreamedFix(options.timeout ?? 10000);
+      if (waited) return waited;
+      throw { code: 'ALREADY_STARTED', message: 'Service already started and no fix delivered yet' };
     }
 
     await ensureBackgroundNotificationPermission();
@@ -154,6 +156,19 @@ class NativeLocationProvider {
         await finish(() => reject(normalizeNativeError(error)));
       });
     });
+  }
+
+  /**
+   * Wait up to `ms` for the already-running watcher to deliver a fix.
+   * Returns a normalized position or null.
+   */
+  async _waitForStreamedFix(ms) {
+    const deadline = Date.now() + Math.max(0, ms);
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (this._lastPosition) return normalizeNativePosition(this._lastPosition);
+    }
+    return null;
   }
 
   /**
@@ -236,10 +251,25 @@ class NativeLocationProvider {
       headers: startOpts.headers ? { ...startOpts.headers, Authorization: 'Bearer ***' } : undefined,
     });
 
-    await CapGoGeolocation.start(
-      startOpts,
-      this._callback
-    );
+    try {
+      await CapGoGeolocation.start(
+        startOpts,
+        this._callback
+      );
+    } catch (startError) {
+      const msg = String(startError?.message || startError || '');
+      // A WebView reload (every web deploy) leaves the native FOREGROUND SERVICE
+      // running while this fresh JS module starts with _active = false, so CapGo
+      // rejects the duplicate start with ALREADY_STARTED / "Service already
+      // started" even though tracking is genuinely live. Treat it as success and
+      // adopt the running service instead of tearing it down and restarting.
+      if (/ALREADY_STARTED|Service already started/i.test(msg)) {
+        console.log('📱 [NativeProvider] Foreground Service already running — reusing it (no restart)');
+        this._active = true;
+        return true;
+      }
+      throw startError;
+    }
 
     this._active = true;
     console.log('✅ [NativeProvider] Foreground Service GPS started (CapGo singleton)');
