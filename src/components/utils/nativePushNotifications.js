@@ -157,6 +157,24 @@ export async function initNativePushNotifications(userId) {
         if (!window.__receivedPushNotifs) window.__receivedPushNotifs = [];
         window.__receivedPushNotifs.push({ ts: Date.now(), title: notifTitle, body: notifBody, data: extraData, isInteractive });
 
+        // ── EMERGENCY (owner bug report Nov 14 2026) ─────────────────────────
+        // Emergency pushes must not become a quiet default-channel card. Hand
+        // them to the native bridge so they land on the rx_emergency channel
+        // (ALARM-stream sound: audible in silent/vibrate) with a full-screen
+        // intent, exactly like the proximity auto-foreground path.
+        if (extraData?.type === 'emergency' || extraData?.channel === 'rx_emergency') {
+          try {
+            const status = window.AndroidNative?.raiseEmergencyAlarm?.(
+              notifTitle || 'RxDeliver EMERGENCY',
+              notifBody || 'An emergency alert is active.'
+            );
+            console.log('[NativePush] Emergency alarm raised:', status);
+            return;
+          } catch (e) {
+            console.warn('[NativePush] Emergency alarm bridge failed:', e?.message);
+          }
+        }
+
         try {
           const { LocalNotifications } = await import('@capacitor/local-notifications');
           const notifId = Math.floor(Math.random() * 100000) + 1;

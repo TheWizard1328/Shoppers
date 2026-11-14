@@ -96,6 +96,12 @@ public class MainActivity extends BridgeActivity {
     // android.notification.channel_id in sendPushNotification targets these.
     private static final String SQUARE_TOPUP_CHANNEL_ID = "square_topup";
     private static final String STOPS_ASSIGNED_CHANNEL_ID = "stops_assigned";
+    // EMERGENCY (owner request Nov 14 2026): a dedicated channel whose sound is
+    // routed to the ALARM audio stream, so a RxDeliver emergency is audible even
+    // with the ringer on silent or vibrate. FCM pushes target this id from
+    // sendPushNotification(channel: 'rx_emergency').
+    private static final String EMERGENCY_CHANNEL_ID = "rx_emergency";
+    private static final int EMERGENCY_NOTIFICATION_ID = 4712;
     private static final int PROXIMITY_NOTIFICATION_ID = 4711;
     private boolean activityResumed = false;
 
@@ -211,6 +217,17 @@ public class MainActivity extends BridgeActivity {
     // the DownloadManager service, WebView caching prevents the
     // DownloadListener from firing, etc.).
     public class NativeDownloadInterface {
+        /**
+         * window.AndroidNative.raiseEmergencyAlarm(title, message) — posts a
+         * full-screen alarm notification on the rx_emergency channel (see the
+         * delegate on MainActivity). Used when an emergency arrives while the
+         * WebView has no live JS.
+         */
+        @JavascriptInterface
+        public String raiseEmergencyAlarm(String title, String message) {
+            return MainActivity.this.raiseEmergencyAlarm(title, message);
+        }
+
         // Update channel for the JS layer: "playstore" builds must NEVER use the
         // in-app APK self-updater (Play policy) — updates come from Google Play.
         // Sideload (debug) builds keep the green/blue arrow updater.
@@ -1070,6 +1087,8 @@ public class MainActivity extends BridgeActivity {
             nm.createNotificationChannel(topup);
         }
 
+        ensureEmergencyChannel();
+
         if (nm.getNotificationChannel(STOPS_ASSIGNED_CHANNEL_ID) == null) {
             NotificationChannel stops = new NotificationChannel(
                 STOPS_ASSIGNED_CHANNEL_ID,
@@ -1081,6 +1100,110 @@ public class MainActivity extends BridgeActivity {
             stops.setVibrationPattern(new long[]{0, 200, 100, 200});
             stops.enableVibration(true);
             nm.createNotificationChannel(stops);
+        }
+    }
+
+    /**
+     * Emergency channel — ALARM-stream sound + strong vibration, so the alert is
+     * audible with the ringer on silent or vibrate. Web Audio (what the in-page
+     * siren uses) cannot do that: the OS mutes media/silent streams, but the
+     * ALARM stream is allowed even in vibrate mode. Bypass-DND is requested too;
+     * Android honours it when the user allows the channel (or grants notification
+     * policy access).
+     */
+    private void ensureEmergencyChannel() {
+        if (Build.VERSION.SDK_INT < 26) return;
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm == null || nm.getNotificationChannel(EMERGENCY_CHANNEL_ID) != null) return;
+
+        NotificationChannel emergency = new NotificationChannel(
+            EMERGENCY_CHANNEL_ID,
+            "Emergency alerts",
+            NotificationManager.IMPORTANCE_HIGH
+        );
+        emergency.setDescription("RxDeliver emergency alerts — sounds even in silent or vibrate mode");
+        emergency.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        emergency.enableVibration(true);
+        emergency.setVibrationPattern(new long[]{0, 900, 300, 900, 300, 900});
+
+        // ALARM stream = the only stream Android lets through while the ringer is
+        // silenced. Fall back to the notification tone if the device has no alarm
+        // sound configured, so the card is never silent.
+        android.net.Uri alarmUri = android.media.RingtoneManager.getDefaultUri(
+            android.media.RingtoneManager.TYPE_ALARM);
+        if (alarmUri == null) {
+            alarmUri = android.media.RingtoneManager.getDefaultUri(
+                android.media.RingtoneManager.TYPE_NOTIFICATION);
+        }
+        if (alarmUri != null) {
+            android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+            emergency.setSound(alarmUri, attrs);
+        }
+
+        try {
+            emergency.setBypassDnd(true);
+        } catch (Throwable ignored) { /* needs policy access on some builds */ }
+        emergency.setShowBadge(true);
+        nm.createNotificationChannel(emergency);
+    }
+
+    /**
+     * Raise a full-screen emergency alarm on the ALARM channel.
+     * Exposed to JS as window.AndroidNative.raiseEmergencyAlarm(title, message).
+     * Mirrors bringToFront(): direct relaunch when "Display over other apps" is
+     * granted, otherwise a full-screen-intent notification (opens over the lock
+     * screen). Returns a status string for JS diagnostics.
+     */
+    @JavascriptInterface
+    public String raiseEmergencyAlarm(String title, String message) {
+        try {
+            ensureEmergencyChannel();
+
+            Intent launch = buildProximityLaunchIntent();
+            launch.putExtra("rx_emergency_launch", true);
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+            PendingIntent fullScreenPI = PendingIntent.getActivity(
+                MainActivity.this, EMERGENCY_NOTIFICATION_ID, launch, piFlags);
+
+            String safeTitle = (title == null || title.isEmpty()) ? "RxDeliver EMERGENCY" : title;
+            String safeMessage = (message == null || message.isEmpty())
+                ? "An emergency alert is active. Tap to open RxDeliver." : message;
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(MainActivity.this, EMERGENCY_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_notify)
+                .setContentTitle(safeTitle)
+                .setContentText(safeMessage)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setAutoCancel(true)
+                .setOngoing(false)
+                .setContentIntent(fullScreenPI)
+                .setFullScreenIntent(fullScreenPI, true);
+
+            try {
+                NotificationManagerCompat.from(MainActivity.this)
+                    .notify(EMERGENCY_NOTIFICATION_ID, builder.build());
+            } catch (SecurityException se) {
+                return "error:no_notification_permission";
+            }
+
+            // Direct raise when we are allowed to draw over other apps.
+            if (Settings.canDrawOverlays(MainActivity.this)) {
+                runOnUiThread(() -> {
+                    try {
+                        startActivity(launch);
+                    } catch (Exception ignored) { /* the notification path already fired */ }
+                });
+                return "launched_direct";
+            }
+            return "notified_fullscreen";
+        } catch (Exception e) {
+            android.util.Log.e("RxDeliver", "raiseEmergencyAlarm failed: " + e.getMessage());
+            return "error:" + e.getMessage();
         }
     }
 

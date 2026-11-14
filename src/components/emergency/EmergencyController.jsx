@@ -626,6 +626,35 @@ const EmergencyController = ({ currentUser }) => {
       setActiveAlert(record);
       startEmergencyAlarm();
       setPending(null);
+      // ── DEVICE FAN-OUT (owner bug report Nov 14 2026) ─────────────────────
+      // Realtime alone NEVER reached the tablet: an Android APK whose WebView is
+      // minimised or swiped away has no live JS, so the EmergencyAlert subscribe
+      // callback (and the 60s poll) cannot fire, and the siren cannot start.
+      // Push is the only channel that survives that state, so every owner device
+      // except the one that raised the alert gets an FCM/WebPush notification on
+      // the dedicated rx_emergency channel (alarm-stream sound, high importance,
+      // full-screen intent on the APK).
+      (async () => {
+        try {
+          const selfDevice = (() => { try { return localStorage.getItem('rxdeliver_device_identifier') || null; } catch { return null; } })();
+          const targetUserId = currentUser?.user_id || currentUser?.id;
+          if (!targetUserId) return;
+          await base44.functions.invoke('sendPushNotification', {
+            user_id: targetUserId,
+            exclude_device: selfDevice,
+            title: 'RxDeliver EMERGENCY',
+            body: `${record?.driver_name || 'App Owner'}: ${ALERT_LABELS[record?.alert_type] || 'Emergency alert'} (${record?.source === 'crash' ? 'impact detected' : 'manual'})`,
+            url: '/dashboard',
+            tag: 'rx-emergency',
+            requireInteraction: true,
+            force: true,
+            channel: 'rx_emergency',
+            data: { type: 'emergency', alert_id: record?.id, alert_type: record?.alert_type, source: record?.source }
+          });
+        } catch (e) {
+          console.warn('[Emergency] Alert push fan-out failed:', e?.message || e);
+        }
+      })();
     } catch (err) {
       setError(err?.message || 'Could not send the emergency alert.');
     } finally {

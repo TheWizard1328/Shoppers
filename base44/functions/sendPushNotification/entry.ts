@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { user_id, title, body, url, tag, requireInteraction, force, actions, data, channel } = await req.json();
+    const { user_id, title, body, url, tag, requireInteraction, force, actions, data, channel, exclude_device } = await req.json();
     if (!user_id || !title || !body) return Response.json({ error: 'user_id, title, and body are required' }, { status: 400 });
 
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
@@ -144,7 +144,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id });
+    // OPTIONAL DEVICE EXCLUSION (owner request Nov 14 2026): the device that
+    // RAISED an emergency alert must not also receive its own fan-out push.
+    const _allSubs = await base44.asServiceRole.entities.PushSubscription.filter({ user_id });
+    const subscriptions = exclude_device
+      ? (_allSubs || []).filter((s: any) => s.device_identifier !== exclude_device)
+      : _allSubs;
     console.log('[sendPush] total subscriptions:', subscriptions?.length || 0);
     console.log('[sendPush] FCM subscriptions:', subscriptions?.filter(s => s.endpoint?.startsWith('fcm://')).length || 0);
     console.log('[sendPush] Web Push subscriptions:', subscriptions?.filter(s => !s.endpoint?.startsWith('fcm://')).length || 0);
