@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useAppData } from '@/components/utils/AppDataContext';
+import { queueEntityRequest } from '@/components/utils/requestQueue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, Save, ShieldAlert, Hand, Activity, Gauge, Users, Search, Check } from 'lucide-react';
+import { Loader2, Save, ShieldAlert, Hand, Activity, Gauge, RefreshCw, Users, Search, Check } from 'lucide-react';
 import {
   DEFAULT_EMERGENCY_SETTINGS,
   mergeEmergencySettings,
@@ -78,30 +80,58 @@ const EmergencySettingsPanel = () => {
 
   // Everybody who can be put on the pilot. AppUser is the app-side directory;
   // its `user_id` is the auth id the signed-in user object carries.
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setPeopleLoading(true);
+  //
+  // TWO THINGS LEARNED THE HARD WAY (Nov 15 2026):
+  //  1. `status` is the ACCOUNT status (active/inactive). `driver_status` is the
+  //     on/off-duty/break flag and must never filter this list — at 8am every
+  //     driver is off duty and the picker emptied out.
+  //  2. A single swallowed fetch left the list silently empty: one 429 and the
+  //     owner saw "No app users found." forever. The directory the app already
+  //     holds in memory is used first, and a network fallback retries.
+  const { appUsers: contextAppUsers } = useAppData();
+  const [peopleError, setPeopleError] = useState(null);
+
+  const fetchPeople = useCallback(async () => {
+    setPeopleLoading(true);
+    setPeopleError(null);
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         // Positional pagination returns an array (same call shape as DevicesPanel);
         // also tolerate a cursor page object so an SDK bump cannot blank the list.
-        const res = await base44.entities.AppUser.list('user_name', 500);
+        const res = await queueEntityRequest(
+          () => base44.entities.AppUser.list('user_name', 500),
+          'emergency pilot user list'
+        );
         const rows = Array.isArray(res) ? res : (res?.items || []);
-        if (!alive) return;
-        const seen = new Set();
-        // Active accounts only, in the app's usual user order (see
-        // buildPilotPeople in emergencyAccess.jsx).
-        const list = buildPilotPeople(rows || []);
-        setPeople(list);
+        setPeople(buildPilotPeople(rows));
+        setPeopleError(null);
+        setPeopleLoading(false);
+        return;
       } catch (err) {
-        console.warn('[EmergencySettings] user list failed:', err?.message || err);
-        if (alive) setPeople([]);
-      } finally {
-        if (alive) setPeopleLoading(false);
+        lastError = err;
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+        }
       }
-    })();
-    return () => { alive = false; };
+    }
+    console.warn('[EmergencySettings] user list failed:', lastError?.message || lastError);
+    setPeopleError(lastError?.message || 'Could not load app users');
+    setPeopleLoading(false);
   }, []);
+
+  useEffect(() => {
+    // Preferred source: the directory Layout already loaded (offline-first, no
+    // request, no 429, and it tracks admin edits live).
+    const fromContext = Array.isArray(contextAppUsers) ? contextAppUsers : [];
+    if (fromContext.length > 0) {
+      setPeople(buildPilotPeople(fromContext));
+      setPeopleError(null);
+      setPeopleLoading(false);
+      return;
+    }
+    fetchPeople();
+  }, [contextAppUsers, fetchPeople]);
 
   // Column count is measured from the card's OWN width, not the viewport: the
   // admin area sits right of a user-resizable sidebar, so a 1440px screen can
@@ -284,7 +314,20 @@ const EmergencySettingsPanel = () => {
                     </div>
                   ) : filteredPeople.length === 0 ? (
                     <div className="px-3 py-6 text-center text-xs text-slate-500 dark:text-[#a89b8f]">
-                      {people.length === 0 ? 'No app users found.' : 'Nobody matches that search.'}
+                      {people.length === 0 ? (
+                        peopleError ? (
+                          <div className="space-y-2">
+                            <div className="text-red-600 dark:text-red-400">Could not load app users.</div>
+                            <div className="text-[11px] opacity-80">{peopleError}</div>
+                            <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={fetchPeople}>
+                              <RefreshCw className="mr-1 h-3 w-3" />
+                              Try again
+                            </Button>
+                          </div>
+                        ) : (
+                          'No active app users found.'
+                        )
+                      ) : 'Nobody matches that search.'}
                     </div>
                   ) : (
                     filteredPeople.map((person) => {

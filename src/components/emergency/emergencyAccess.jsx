@@ -76,7 +76,9 @@ export const mergeEmergencySettings = (stored) => {
 export const buildPilotPeople = (rows = []) => {
   const seen = new Set();
   return (rows || [])
-    .filter((row) => row && row.user_id && row.status !== 'inactive')
+    // `status` is the ACCOUNT status. Never filter on driver_status: that is the
+    // on/off-duty/break flag, and an 8am check would empty the list.
+    .filter((row) => row && row.user_id && String(row.status || 'active').toLowerCase() !== 'inactive')
     .map((row) => ({
       id: String(row.id),
       user_id: row.user_id ? String(row.user_id) : null,
