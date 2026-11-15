@@ -294,8 +294,13 @@ const EmergencyController = ({ currentUser }) => {
       if (stored) applySettings(typeof stored === 'string' ? (() => { try { return JSON.parse(stored); } catch { return null; } })() : stored);
     };
     window.addEventListener('emergencySettingsUpdated', onUpdated);
+    // A device that stays open for hours must pick up a scope change without a
+    // reload (owner request: pick testers at any time). One small cached read
+    // every 5 minutes also DISARMS an account that was removed from the list.
+    const poll = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 5 * 60 * 1000);
     return () => {
       alive = false;
+      clearInterval(poll);
       window.removeEventListener('emergencySettingsUpdated', onUpdated);
     };
   }, []);
