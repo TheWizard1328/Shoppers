@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { isTestingUser } from '@/components/utils/userRoles';
+import {
+  DEFAULT_EMERGENCY_SETTINGS,
+  isEmergencyEnabledForUser,
+  mergeEmergencySettings,
+  readCachedEmergencySettings,
+  writeCachedEmergencySettings
+} from './emergencyAccess';
 import {
   startEmergencyAlarm,
   stopEmergencyAlarm,
@@ -189,10 +195,10 @@ const notifyImpactWhileHidden = () => {
 };
 
 const EmergencyController = ({ currentUser }) => {
-  // Owner + the TESTING USER list (userRoles.jsx) — owner request Nov 14 2026:
-  // "add Sharuk to the testing list of users" so a second driver device can run
-  // the emergency system (triggers, banners, siren) side by side during testing.
-  const enabled = useMemo(() => isTestingUser(currentUser), [currentUser]);
+  // Pilot scope (owner request Nov 14 2026): App Owner, "All users", or the
+  // accounts picked in Admin Utilities > Data > Alerts > Emergency System.
+  // emergencySettings is declared below and feeds the gate, so the scope can be
+  // changed without a code push. Legacy hardcoded testers still count.
 
   const [pending, setPending] = useState(null); // { source, alertType }
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
@@ -230,18 +236,23 @@ const EmergencyController = ({ currentUser }) => {
     eventCount: 0
   });
   const [crashStatus, setCrashStatus] = useState('idle');
-  // Global activation + sensitivity (Admin Utilities > App > Emergency System).
-  const [emergencySettings, setEmergencySettings] = useState({
-    manual_enabled: true,
-    crash_enabled: true,
-    crash_threshold: 42
-  });
+  // Global activation + sensitivity + pilot scope, all stored in one place
+  // (Admin Utilities > Data > Alerts > Emergency System). Seeded from the local
+  // cache so a selected test device is armed on the first render, not a beat later.
+  const [emergencySettings, setEmergencySettings] = useState(
+    () => readCachedEmergencySettings() || { ...DEFAULT_EMERGENCY_SETTINGS }
+  );
   const pendingRef = useRef(null);
   const activeRef = useRef(null);
   // A confirmed impact that happened while the app was hidden or backgrounded.
   // The panel cannot be shown over another app, so it is queued and opened the
   // moment RxDeliver comes back to the foreground.
   const queuedImpactRef = useRef(false);
+
+  const enabled = useMemo(
+    () => isEmergencyEnabledForUser(currentUser, emergencySettings),
+    [currentUser, emergencySettings]
+  );
 
   useEffect(() => { pendingRef.current = pending; }, [pending]);
   useEffect(() => { activeRef.current = activeAlert; }, [activeAlert]);
@@ -253,9 +264,19 @@ const EmergencyController = ({ currentUser }) => {
   }, [enabled]);
 
   // ── Global settings (activation switches + hit sensitivity) ──────────────
+  // NOTE: this loader must NOT be gated on `enabled` — it is what decides
+  // `enabled` (pilot scope list). Every signed-in device reads one small
+  // AppSettings row on boot; the result is cached locally for instant arming.
   useEffect(() => {
-    if (!enabled) return;
     let alive = true;
+    const applySettings = (stored) => {
+      if (!stored) return;
+      setEmergencySettings((prev) => {
+        const next = mergeEmergencySettings({ ...prev, ...stored });
+        writeCachedEmergencySettings(next);
+        return next;
+      });
+    };
     const load = async () => {
       try {
         const rows = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
@@ -264,20 +285,20 @@ const EmergencyController = ({ currentUser }) => {
         let stored = raw?.emergency_settings;
         if (typeof stored === 'string') { try { stored = JSON.parse(stored); } catch { stored = null; } }
         if (!alive || !stored) return;
-        setEmergencySettings((prev) => ({ ...prev, ...stored }));
+        applySettings(stored);
       } catch { /* defaults stand */ }
     };
     load();
     const onUpdated = (event) => {
       const stored = event?.detail?.data?.setting_value?.emergency_settings;
-      if (stored) setEmergencySettings((prev) => ({ ...prev, ...stored }));
+      if (stored) applySettings(typeof stored === 'string' ? (() => { try { return JSON.parse(stored); } catch { return null; } })() : stored);
     };
     window.addEventListener('emergencySettingsUpdated', onUpdated);
     return () => {
       alive = false;
       window.removeEventListener('emergencySettingsUpdated', onUpdated);
     };
-  }, [enabled]);
+  }, []);
 
   // Expose the gate so the map's long-press only draws its ring for an owner.
   useEffect(() => {

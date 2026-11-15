@@ -4,7 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Save, ShieldAlert, Hand, Activity, Gauge } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, Save, ShieldAlert, Hand, Activity, Gauge, Users, Search, Check } from 'lucide-react';
+import {
+  DEFAULT_EMERGENCY_SETTINGS,
+  mergeEmergencySettings,
+  normalizeTestUsers
+} from '@/components/emergency/emergencyAccess';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GLOBAL EMERGENCY ACTIVATION + SENSITIVITY (owner request Nov 14 2026)
@@ -15,11 +22,8 @@ import { Loader2, Save, ShieldAlert, Hand, Activity, Gauge } from 'lucide-react'
 // same values — this is what gets flipped on globally when the pilot ends.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DEFAULT_EMERGENCY_SETTINGS = {
-  manual_enabled: true,   // 5 second press-and-hold on the Dashboard map
-  crash_enabled: true,    // impact detection prompt
-  crash_threshold: 42     // accelerationIncludingGravity magnitude that counts as a hit (m/s²)
-};
+// Re-exported for existing imports; the real defaults live in emergencyAccess.
+export { DEFAULT_EMERGENCY_SETTINGS };
 
 // Slider runs on "sensitivity" (1 = barely reacts, 100 = reacts to anything) and
 // maps to a real acceleration threshold, because a m/s² number means nothing to
@@ -46,6 +50,11 @@ const EmergencySettingsPanel = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  // Pilot scope picker (owner request Nov 14 2026): All users, or multi-select.
+  const [people, setPeople] = useState([]);
+  const [peopleLoading, setPeopleLoading] = useState(true);
+  const [peopleSearch, setPeopleSearch] = useState('');
+  const [showOnlySelected, setShowOnlySelected] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -55,7 +64,7 @@ const EmergencySettingsPanel = () => {
       if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
       let stored = raw?.emergency_settings;
       if (typeof stored === 'string') { try { stored = JSON.parse(stored); } catch { stored = null; } }
-      const merged = { ...DEFAULT_EMERGENCY_SETTINGS, ...(stored && typeof stored === 'object' ? stored : {}) };
+      const merged = mergeEmergencySettings(stored);
       setSettings(merged);
       setSavedSettings(merged);
     } catch (err) {
@@ -66,6 +75,64 @@ const EmergencySettingsPanel = () => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Everybody who can be put on the pilot. AppUser is the app-side directory;
+  // its `user_id` is the auth id the signed-in user object carries.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setPeopleLoading(true);
+      try {
+        // Positional pagination returns an array (same call shape as DevicesPanel);
+        // also tolerate a cursor page object so an SDK bump cannot blank the list.
+        const res = await base44.entities.AppUser.list('user_name', 500);
+        const rows = Array.isArray(res) ? res : (res?.items || []);
+        if (!alive) return;
+        const seen = new Set();
+        const list = (rows || [])
+          .filter((row) => row && row.user_id)
+          .map((row) => ({
+            id: String(row.id),
+            user_id: row.user_id ? String(row.user_id) : null,
+            name: row.user_name || row.user_id,
+            roles: Array.isArray(row.app_roles) ? row.app_roles : [],
+            duty: row.driver_status || null
+          }))
+          .filter((row) => {
+            if (seen.has(row.id)) return false;
+            seen.add(row.id);
+            return true;
+          })
+          .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        setPeople(list);
+      } catch (err) {
+        console.warn('[EmergencySettings] user list failed:', err?.message || err);
+        if (alive) setPeople([]);
+      } finally {
+        if (alive) setPeopleLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const selectedIds = (settings.test_users || []).map((entry) => String(entry.id));
+  const toggleUser = (person) => {
+    setSettings((prev) => {
+      const current = normalizeTestUsers(prev.test_users);
+      const exists = current.some((entry) => entry.id === person.id);
+      const next = exists
+        ? current.filter((entry) => entry.id !== person.id)
+        : [...current, { id: person.id, user_id: person.user_id, name: person.name }];
+      return { ...prev, test_users: next };
+    });
+  };
+  const filteredPeople = people.filter((person) => {
+    if (showOnlySelected && !selectedIds.includes(person.id)) return false;
+    const q = peopleSearch.trim().toLowerCase();
+    if (!q) return true;
+    return String(person.name).toLowerCase().includes(q)
+      || person.roles.join(' ').toLowerCase().includes(q);
+  });
 
   const save = useCallback(async () => {
     setIsSaving(true);
@@ -78,7 +145,10 @@ const EmergencySettingsPanel = () => {
         emergency_settings: {
           manual_enabled: !!settings.manual_enabled,
           crash_enabled: !!settings.crash_enabled,
-          crash_threshold: Math.round(Number(settings.crash_threshold) || DEFAULT_EMERGENCY_SETTINGS.crash_threshold)
+          crash_threshold: Math.round(Number(settings.crash_threshold) || DEFAULT_EMERGENCY_SETTINGS.crash_threshold),
+          // Pilot scope — who runs the emergency system right now.
+          test_all_users: !!settings.test_all_users,
+          test_users: normalizeTestUsers(settings.test_users)
         }
       };
       if (rows && rows.length > 0) {
@@ -119,7 +189,7 @@ const EmergencySettingsPanel = () => {
           Emergency System
         </CardTitle>
         <CardDescription className="text-slate-500 dark:text-[#a89b8f]">
-          Global activation and hit sensitivity. Applies to every device once the system is released beyond App Owner accounts.
+          Pilot scope, activation and hit sensitivity. This card decides which accounts run the emergency system, so it lives with the alert history.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -129,6 +199,98 @@ const EmergencySettingsPanel = () => {
           </div>
         ) : (
           <>
+            {/* PILOT SCOPE — All users, or multi-select (owner request Nov 14 2026) */}
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 dark:border-[#3a2e24] dark:bg-[#1a1410]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                    <Users className="w-4 h-4 text-red-500" />
+                    Testing phase users
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-[#a89b8f]">
+                    Only these accounts get the map hold, impact detection, alert banner and siren. The App Owner is always included.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:text-red-300">
+                  {settings.test_all_users ? 'All users' : `${selectedIds.length} selected`}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-slate-300 bg-white px-3 py-2 dark:border-[#3a2e24] dark:bg-[#120d0a]">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-slate-900 dark:text-white">All users</div>
+                  <p className="text-[11px] text-slate-500 dark:text-[#a89b8f]">Every signed-in account runs the emergency system.</p>
+                </div>
+                <Switch
+                  checked={!!settings.test_all_users}
+                  onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, test_all_users: !!checked }))}
+                />
+              </div>
+
+              <div className={`mt-3 space-y-2 transition-opacity ${settings.test_all_users ? 'pointer-events-none opacity-40' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={peopleSearch}
+                      onChange={(e) => setPeopleSearch(e.target.value)}
+                      placeholder="Search people or roles…"
+                      className="h-8 pl-7 text-xs"
+                      disabled={!!settings.test_all_users}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant={showOnlySelected ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-8 shrink-0 px-2 text-[11px]"
+                    disabled={!!settings.test_all_users}
+                    onClick={() => setShowOnlySelected((prev) => !prev)}
+                  >
+                    <Check className="mr-1 h-3 w-3" />
+                    Selected
+                  </Button>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto rounded-md border border-slate-300 bg-white dark:border-[#3a2e24] dark:bg-[#120d0a]">
+                  {peopleLoading ? (
+                    <div className="flex items-center justify-center py-6 text-xs text-slate-500 dark:text-[#a89b8f]">
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading users…
+                    </div>
+                  ) : filteredPeople.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-xs text-slate-500 dark:text-[#a89b8f]">
+                      {people.length === 0 ? 'No app users found.' : 'Nobody matches that search.'}
+                    </div>
+                  ) : (
+                    filteredPeople.map((person) => {
+                      const checked = selectedIds.includes(person.id);
+                      return (
+                        <label
+                          key={person.id}
+                          className={`flex cursor-pointer items-center gap-2 border-b border-slate-200 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:border-[#2a2019] dark:hover:bg-[#1a1410] ${checked ? 'bg-red-50/60 dark:bg-[#241713]' : ''}`}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            disabled={!!settings.test_all_users}
+                            onCheckedChange={() => toggleUser(person)}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-semibold text-slate-900 dark:text-white">{person.name}</span>
+                            <span className="block truncate text-[11px] text-slate-500 dark:text-[#a89b8f]">
+                              {[person.roles.join(', ') || 'no role', person.duty].filter(Boolean).join(' · ')}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-[#a89b8f]">
+                  Saved to the app settings, so a selected device arms itself on next load — no rebuild needed.
+                </p>
+              </div>
+            </div>
+
             {/* Toggle 1 — manual map hold */}
             <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-300 bg-slate-50 p-3 dark:border-[#3a2e24] dark:bg-[#1a1410]">
               <div className="min-w-0">
@@ -200,7 +362,7 @@ const EmergencySettingsPanel = () => {
             </div>
 
             <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-xs text-slate-600 space-y-1 dark:border-[#3a2e24] dark:bg-[#1a1410] dark:text-[#a89b8f]">
-              <div>Pilot scope: App Owner devices only, regardless of these switches.</div>
+              <div>Pilot scope is the user list above; the App Owner is always included.</div>
               <div>A real hit must also be followed by ~15s of stillness before anything is sent.</div>
             </div>
 
