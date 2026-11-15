@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -115,6 +115,37 @@ const EmergencySettingsPanel = () => {
     return () => { alive = false; };
   }, []);
 
+  // Column count is measured from the card's OWN width, not the viewport: the
+  // admin area sits right of a user-resizable sidebar, so a 1440px screen can
+  // leave this panel under 1000px wide. ResizeObserver keeps it honest.
+  const gridRef = useRef(null);
+  const [columns, setColumns] = useState(1);
+  useEffect(() => {
+    const node = gridRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = (width) => {
+      const next = width >= 900 ? 3 : width >= 620 ? 2 : 1;
+      setColumns((prev) => (prev === next ? prev : next));
+    };
+    measure(node.getBoundingClientRect().width);
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect?.width || 0;
+      if (width) measure(width);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isLoading]);
+
+  // At 2 columns the picker takes the full first row and the switches sit beside
+  // the sensitivity block; at 3 columns they are one row.
+  const gridStyle = {
+    display: 'grid',
+    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+    gap: columns >= 3 ? 16 : 12,
+    alignItems: 'start'
+  };
+  const userPanelStyle = columns === 2 ? { gridColumn: 'span 2' } : undefined;
+
   const selectedIds = (settings.test_users || []).map((entry) => String(entry.id));
   const toggleUser = (person) => {
     setSettings((prev) => {
@@ -192,15 +223,21 @@ const EmergencySettingsPanel = () => {
           Pilot scope, activation and hit sensitivity. This card decides which accounts run the emergency system, so it lives with the alert history.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {isLoading ? (
           <div className="flex items-center justify-center py-8 text-slate-500 dark:text-[#a89b8f]">
             <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
           </div>
         ) : (
           <>
+            {/* Wide screens were a single tall stack (owner request Nov 14 2026:
+                "make the card a bit cleaner ... a 2 or 3 column layout to reduce
+                its height"). Measured columns: 1 on phones, 2 on tablets/small
+                laptops (picker across the top, switches beside sensitivity),
+                3 on desktop (scope | activation | sensitivity). */}
+            <div ref={gridRef} style={gridStyle}>
             {/* PILOT SCOPE — All users, or multi-select (owner request Nov 14 2026) */}
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 dark:border-[#3a2e24] dark:bg-[#1a1410]">
+            <div style={userPanelStyle} className="rounded-lg border border-slate-300 bg-slate-50 p-3 dark:border-[#3a2e24] dark:bg-[#1a1410]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
@@ -252,7 +289,7 @@ const EmergencySettingsPanel = () => {
                   </Button>
                 </div>
 
-                <div className="max-h-64 overflow-y-auto rounded-md border border-slate-300 bg-white dark:border-[#3a2e24] dark:bg-[#120d0a]">
+                <div className="max-h-56 overflow-y-auto rounded-md border border-slate-300 bg-white dark:border-[#3a2e24] dark:bg-[#120d0a]">
                   {peopleLoading ? (
                     <div className="flex items-center justify-center py-6 text-xs text-slate-500 dark:text-[#a89b8f]">
                       <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading users…
@@ -291,6 +328,8 @@ const EmergencySettingsPanel = () => {
               </div>
             </div>
 
+            {/* COLUMN 2 — activation switches */}
+            <div className="min-w-0 space-y-3">
             {/* Toggle 1 — manual map hold */}
             <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-300 bg-slate-50 p-3 dark:border-[#3a2e24] dark:bg-[#1a1410]">
               <div className="min-w-0">
@@ -325,6 +364,10 @@ const EmergencySettingsPanel = () => {
               />
             </div>
 
+            </div>
+
+            {/* COLUMN 3 — sensitivity + reference notes */}
+            <div className="min-w-0 space-y-3">
             {/* Slider — sensitivity */}
             <div className={`rounded-lg border p-3 transition-opacity ${settings.crash_enabled ? 'border-slate-300 bg-slate-50 dark:border-[#3a2e24] dark:bg-[#1a1410]' : 'border-slate-200 bg-slate-50/40 opacity-50 dark:border-[#3a2e24] dark:bg-[#1a1410]'}`}>
               <div className="flex items-center justify-between">
@@ -366,11 +409,14 @@ const EmergencySettingsPanel = () => {
               <div>A real hit must also be followed by ~15s of stillness before anything is sent.</div>
             </div>
 
+            </div>
+            </div>
+
             <Button
               onClick={save}
               disabled={isSaving || !dirty}
               size="sm"
-              className="w-full gap-2 border-0 font-semibold bg-red-100 text-red-900 hover:bg-red-200 dark:bg-[#f3c9c9] dark:text-[#1a1410] focus-visible:ring-red-500/40"
+              className="mt-3 w-full gap-2 border-0 font-semibold bg-red-100 text-red-900 hover:bg-red-200 dark:bg-[#f3c9c9] dark:text-[#1a1410] focus-visible:ring-red-500/40"
             >
               {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               {isSaving ? 'Saving…' : justSaved && !dirty ? '✓ Saved' : 'Save Emergency Settings'}
