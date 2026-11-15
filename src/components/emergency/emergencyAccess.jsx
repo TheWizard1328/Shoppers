@@ -66,6 +66,40 @@ export const mergeEmergencySettings = (stored) => {
  * App Owner always. Then "All users". Then the picked accounts. Then the legacy
  * hardcoded testing list so an existing tester never loses access on deploy.
  */
+/**
+ * Turn raw AppUser rows into the pilot-scope picker list.
+ * Owner request Nov 15 2026: ACTIVE accounts only, ordered the way every other
+ * user list in the app orders them — manual sort_order first (layoutDataHelpers
+ * sortUsers), un-numbered accounts after it, alphabetical inside each group.
+ * Rows without a status count as active (AppUser defaults to 'active').
+ */
+export const buildPilotPeople = (rows = []) => {
+  const seen = new Set();
+  return (rows || [])
+    .filter((row) => row && row.user_id && row.status !== 'inactive')
+    .map((row) => ({
+      id: String(row.id),
+      user_id: row.user_id ? String(row.user_id) : null,
+      name: row.user_name || row.user_id,
+      roles: Array.isArray(row.app_roles) ? row.app_roles : [],
+      duty: row.driver_status || null,
+      sort_order: row.sort_order === null || row.sort_order === undefined || row.sort_order === ''
+        ? null
+        : (Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : null)
+    }))
+    .filter((row) => {
+      if (seen.has(row.id)) return false;
+      seen.add(row.id);
+      return true;
+    })
+    .sort((a, b) => {
+      const sa = a.sort_order ?? Infinity;
+      const sb = b.sort_order ?? Infinity;
+      if (sa !== sb) return sa - sb;
+      return String(a.name).localeCompare(String(b.name));
+    });
+};
+
 export const isEmergencyEnabledForUser = (currentUser, settings) => {
   if (!currentUser) return false;
   if (isAppOwner(currentUser)) return true;

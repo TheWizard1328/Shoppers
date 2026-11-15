@@ -89,21 +89,9 @@ const EmergencySettingsPanel = () => {
         const rows = Array.isArray(res) ? res : (res?.items || []);
         if (!alive) return;
         const seen = new Set();
-        const list = (rows || [])
-          .filter((row) => row && row.user_id)
-          .map((row) => ({
-            id: String(row.id),
-            user_id: row.user_id ? String(row.user_id) : null,
-            name: row.user_name || row.user_id,
-            roles: Array.isArray(row.app_roles) ? row.app_roles : [],
-            duty: row.driver_status || null
-          }))
-          .filter((row) => {
-            if (seen.has(row.id)) return false;
-            seen.add(row.id);
-            return true;
-          })
-          .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        // Active accounts only, in the app's usual user order (see
+        // buildPilotPeople in emergencyAccess.jsx).
+        const list = buildPilotPeople(rows || []);
         setPeople(list);
       } catch (err) {
         console.warn('[EmergencySettings] user list failed:', err?.message || err);
