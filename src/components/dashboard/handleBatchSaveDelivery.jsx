@@ -4,6 +4,11 @@ import { generateUniqueSID, addMinutesToTime } from "@/components/dashboard/Dash
 import { batchCreateDeliveriesLocal, updateDeliveryLocal, enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
 import { base44 } from "@/api/base44Client";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
+import {
+  resolvePickupBaseNumbering,
+  parsePickupTrackingNumber,
+  getNextPickupTrackingNumber
+} from './pickupBaseNumbering';
 import { calculateDistanceKmSafe as calculateDistance } from '@/components/utils/geoUtils';
 import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
 
@@ -316,46 +321,27 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    const parsePickupTrackingNumber = (value) => {
-      if (value === null || value === undefined) return null;
-      const match = String(value).match(/\d+/);
-      if (!match) return null;
-      const parsed = parseInt(match[0], 10);
-      return Number.isNaN(parsed) ? null : parsed;
-    };
+    // Shared implementation lives in pickupBaseNumbering.jsx (one source of truth).
 
-    const getNextPickupTrackingNumber = (pickups = []) => {
-      const usedTrackingNumbers = [...new Set(
-        pickups
-          .map((pickup) => parsePickupTrackingNumber(pickup?.tracking_number))
-          .filter((value) => value !== null && value >= 0 && value % 20 === 0)
-      )].sort((a, b) => a - b);
-
-      let expectedTrackingNumber = 0;
-      for (const trackingNumber of usedTrackingNumbers) {
-        if (trackingNumber > expectedTrackingNumber) break;
-        if (trackingNumber === expectedTrackingNumber) expectedTrackingNumber += 20;
-      }
-
-      return String(expectedTrackingNumber).padStart(2, '0');
-    };
-
-    const storePickupTRMap = {};
-    const allExistingPickupTRs = (driverDeliveriesForDate || [])
-      .filter((stop) => stop && !stop.patient_id)
-      .map((stop) => parsePickupTrackingNumber(stop.tracking_number))
-      .filter((value) => value !== null && value >= 0);
-
-    for (const stop of driverDeliveriesForDate || []) {
-      if (!stop || stop.patient_id !== null) continue;
-      const mapKey = `${stop.store_id}-${stop.ampm_deliveries || 'AM'}`;
-      const existingTR = parseInt(stop.tracking_number, 10);
-      if (!isNaN(existingTR) && storePickupTRMap[mapKey] === undefined) {
-        storePickupTRMap[mapKey] = existingTR;
-      }
-    }
-
-    const pickupTrackingPool = (driverDeliveriesForDate || []).filter((stop) => stop && !stop.patient_id);
+    // ── PICKUP CONTAINERS CREATED IN THIS SAVE (owner fix Nov 15 2026) ────────
+    // handleBatchSave ensures the pickup container (ensurePickupForDelivery /
+    // ensureDefaultPickupsForDriver) BEFORE calling this handler, but those rows
+    // were never part of the pool this numbering pass reads: a pickup created
+    // seconds earlier was invisible, storePickupTRMap had no base for its
+    // store+slot, and every stop added in that save fell through to TR#99
+    // ("No pickup found for delivery ... using TR#99").
+    // resolvePickupBaseNumbering merges this batch's pickups with the persisted
+    // ones so a new stop inherits its pickup slot and base (00, 20, 40 ...).
+    const {
+      storePickupTRMap,
+      pickupTrackingPool,
+      ensuredPickupTRUpdates
+    } = resolvePickupBaseNumbering({
+      routePickups: driverDeliveriesForDate || [],
+      ensuredPickups: ensuredPickupRecords || [],
+      driverId,
+      deliveryDate
+    });
 
     for (const stop of optimizedRoute) {
       if (!stop || !stop.isNew || stop.patient_id !== null) continue;
@@ -538,6 +524,17 @@ export const handleBatchSaveDelivery = async ({
       for (const { id, updates } of deliveriesToUpdate) {
         if (!id || !updates) continue;
         const updated = await updateDeliveryLocal(id, updates);
+        if (updated) allUpdatedDeliveries.push(updated);
+      }
+    }
+
+    // Pickup rows that were given a base in the numbering pass above (see the
+    // ensured-pickup block). Keep the record in step with the numbers its
+    // deliveries just received.
+    if (ensuredPickupTRUpdates.length > 0) {
+      for (const { id, updates } of ensuredPickupTRUpdates) {
+        if (!id || !updates) continue;
+        const updated = await updateDeliveryLocal(id, updates).catch(() => null);
         if (updated) allUpdatedDeliveries.push(updated);
       }
     }
