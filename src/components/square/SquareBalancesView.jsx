@@ -3267,6 +3267,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   const allCollectedRows = [...(codCollectedTodayByLoc[loc.location_id] || []), ...carryOverNotTappedRows];
                   const collectedTodayRows = !driverScopeId ? allCollectedRows : allCollectedRows.filter((r) => String(r.driver_id || '') === driverScopeId);
                   // Refunded rows show the refunded COD amount but are NOT kept money, so they never join the total.
+                  // OWNER SPEC (Nov 14 2026): the Uncollected and Awaiting Pickup
+                  // lists read by date, SOONEST FIRST, so whatever has been
+                  // outstanding longest sits at the top. Rows with no date sort
+                  // last (they are undated rather than old), and equal dates fall
+                  // back to patient name so the order stays stable between refreshes.
+                  const sortRowsByDateAsc = (rows = []) => rows.slice().sort((a, b) => {
+                    const da = a?.date || '9999-12-31';
+                    const db = b?.date || '9999-12-31';
+                    if (da !== db) return da < db ? -1 : 1;
+                    return String(a?.patientName || '').localeCompare(String(b?.patientName || ''));
+                  });
                   const sumOf = (rows) => rows.reduce((s, r) => s + (r.refunded ? 0 : Number(r.amount || 0)), 0);
                   return (
                     <CardCodList
@@ -3285,9 +3296,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
                       { label: 'Collected', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
-                      { label: 'Uncollected Today', color: '#d97706', rows: uncollectedTodayRows, total: sumOf(uncollectedTodayRows) },
-                      { label: 'Uncollected Past', color: '#64748b', rows: pastUncollectedRows, total: sumOf(pastUncollectedRows) },
-                      { label: 'Awaiting Pickup', color: '#7c3aed', rows: awaitingPickupRows, total: sumOf(awaitingPickupRows) }]
+                      { label: 'Uncollected Today', color: '#d97706', rows: sortRowsByDateAsc(uncollectedTodayRows), total: sumOf(uncollectedTodayRows) },
+                      { label: 'Uncollected Past', color: '#64748b', rows: sortRowsByDateAsc(pastUncollectedRows), total: sumOf(pastUncollectedRows) },
+                      { label: 'Awaiting Pickup', color: '#7c3aed', rows: sortRowsByDateAsc(awaitingPickupRows), total: sumOf(awaitingPickupRows) }]
                       } />);
 
 

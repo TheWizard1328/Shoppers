@@ -8,7 +8,7 @@ import { format, subDays } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import { isHiddenSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 import { isPatientThreadConversationId } from './patientThreads';
-import { loadGroupsWithPreview } from './groupConversationLoader';
+import { loadGroupsWithPreview, patchGroupPreviewCache, invalidateGroupPreviewCache, clearGroupUnread } from './groupConversationLoader';
 import { resolveGroupMemberIds, PRESET_LABELS, PRESET_BADGE_STYLES } from './groupHelpers';
 import NewGroupDialog from './NewGroupDialog';
 
@@ -33,8 +33,10 @@ export default function ConversationsList({
     if (openNewGroupSignal > 0) setShowNewGroupDialog(true);
   }, [openNewGroupSignal]);
 
-  const fetchGroups = useCallback(async () => {
-    const previews = await loadGroupsWithPreview(currentUser, users);
+  // `force` bypasses the loader's 20s cache. Called with no args everywhere else,
+  // so an optional flag keeps those call sites untouched.
+  const fetchGroups = useCallback(async (force = false) => {
+    const previews = await loadGroupsWithPreview(currentUser, users, { force: force === true });
     setGroupPreviews(previews);
   }, [currentUser, users]);
 
@@ -103,18 +105,23 @@ export default function ConversationsList({
           return exists ? prev.map(m => m.id === messageData.id ? messageData : m) : [...prev, messageData];
         });
 
-        // If this is a new group message and it's not from me, refresh that group's preview
-        if (messageData?.is_group && messageData?.sender_id !== currentUser.id) {
-          fetchGroups();
+        // A group message used to refetch EVERY group preview (1 + N reads per
+        // message — the burst behind the RATE LIMIT toasts, Nov 14 2026). Patch
+        // the affected preview in place; only an unknown conversation refetches.
+        if (messageData?.is_group) {
+          const patched = patchGroupPreviewCache(currentUser.id, messageData);
+          if (patched) setGroupPreviews(patched);
+          else fetchGroups(true);
         }
       }
     };
 
     const handleRealtimeGroup = (payload) => {
       const event = payload?.detail || payload;
-      // Refresh group previews on any group create/update/delete (membership could have changed)
+      // Membership can change here, so the cached previews are invalidated.
       if (['create', 'update', 'delete'].includes(event.type)) {
-        fetchGroups();
+        invalidateGroupPreviewCache();
+        fetchGroups(true);
       }
     };
 
@@ -289,7 +296,8 @@ export default function ConversationsList({
   const handleGroupCreated = useCallback((groupRecord) => {
     setShowNewGroupDialog(false);
     // Refresh group previews then open the new conversation
-    fetchGroups().then(() => {
+    invalidateGroupPreviewCache();
+    fetchGroups(true).then(() => {
       onSelectConversation(groupRecord.id, null, groupRecord.name, groupRecord);
     });
   }, [fetchGroups, onSelectConversation]);
@@ -396,6 +404,12 @@ export default function ConversationsList({
               onClick={() => {
                 // Second tap on the open thread closes it (owner request Nov 4 2026).
                 if (selectedConversationId === conv.id) { onDeselectConversation?.(); return; }
+                // Opening a group clears its badge locally too, so the cached
+                // previews (20s TTL) never leave unread showing after a read.
+                if (isGroup) {
+                  const cleared = clearGroupUnread(conv.id);
+                  if (cleared) setGroupPreviews(cleared);
+                }
                 onSelectConversation(conv.id, conv.otherUserId, conv.otherUserName, isGroup ? conv.group : undefined);
               }}
               aria-pressed={selectedConversationId === conv.id}

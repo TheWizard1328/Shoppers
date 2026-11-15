@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { globalFilters } from '@/components/utils/globalFilters';
@@ -9,8 +9,16 @@ import { userHasRole } from '@/components/utils/userRoles';
  * based on the dashboard's selected date and the driver's pay cycle type.
  * Reads from offline DB first; falls back to API only on cache miss.
  */
+// A forced (network) payroll read is pointless more than once every two minutes:
+// smartRefreshComplete, pullToSyncComplete and the payroll events all fired on the
+// same refresh cycle, so one cycle could cost three Payroll GETs. That traffic
+// counted against the 210 requests/60s per-caller limit and showed up as a
+// RATE LIMIT toast on Payroll (Nov 14 2026).
+const FORCED_FETCH_MIN_INTERVAL_MS = 120000;
+
 export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
   const [currentPayrollGrossPay, setCurrentPayrollGrossPay] = useState(null);
+  const lastNetworkFetchRef = useRef(0);
 
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
@@ -46,7 +54,10 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
           }
         }
 
-        // 2. Fetch fresh from API and update offline cache
+        // 2. Fetch fresh from API and update offline cache — at most once every
+        // two minutes even when several refresh events land together.
+        if (forceFresh && (Date.now() - lastNetworkFetchRef.current) < FORCED_FETCH_MIN_INTERVAL_MS) return;
+        lastNetworkFetchRef.current = Date.now();
         const ps = await base44.entities.Payroll.filter({ driver_id: did });
         if (ps && ps.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.PAYROLL, ps);
@@ -64,14 +75,19 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
 
     const handleForceFresh = () => fetchPayroll(true);
 
+    // NOTE: the filter handler used to pass the EVENT to fetchPayroll as its
+    // first argument, which read as `forceFresh = true` and forced a network read
+    // on every filter change. Explicit wrapper keeps that on the IDB path.
+    const handleFiltersChanged = () => fetchPayroll(false);
+
     fetchPayroll();
-    window.addEventListener('globalFiltersChanged', fetchPayroll);
+    window.addEventListener('globalFiltersChanged', handleFiltersChanged);
     window.addEventListener('payrollUpdated', handleForceFresh);
     window.addEventListener('payrollRecordsUpdated', handleForceFresh);
     window.addEventListener('pullToSyncComplete', handleForceFresh);
     window.addEventListener('smartRefreshComplete', handleForceFresh);
     return () => {
-      window.removeEventListener('globalFiltersChanged', fetchPayroll);
+      window.removeEventListener('globalFiltersChanged', handleFiltersChanged);
       window.removeEventListener('payrollUpdated', handleForceFresh);
       window.removeEventListener('payrollRecordsUpdated', handleForceFresh);
       window.removeEventListener('pullToSyncComplete', handleForceFresh);
