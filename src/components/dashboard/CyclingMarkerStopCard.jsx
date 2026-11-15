@@ -3,6 +3,7 @@ import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2, Navigation } f
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { getCyclingLocationsCached } from '@/components/utils/cyclingLocationCache';
 
 const getCyclingType = (delivery) => {
   const notes = (delivery?.delivery_notes || '').trim().toLowerCase();
@@ -18,23 +19,10 @@ const END_COLOR = '#dc2626';
 // fetched the ENTIRE entity collection per card. With several cards mounted that
 // was a major contributor to the post-load 429 storm. Cached for 5 minutes and
 // shared across all card instances.
-let _cyclingLocationCache = null;
-let _cyclingLocationCacheAt = 0;
-const _CYCLING_LOCATION_TTL_MS = 5 * 60 * 1000;
-const _getCyclingLocations = async () => {
-  if (_cyclingLocationCache && Date.now() - _cyclingLocationCacheAt < _CYCLING_LOCATION_TTL_MS) {
-    return _cyclingLocationCache;
-  }
-  try {
-    const { base44 } = await import('@/api/base44Client');
-    const results = await base44.entities.CyclingLocation.list();
-    _cyclingLocationCache = results || [];
-    _cyclingLocationCacheAt = Date.now();
-    return _cyclingLocationCache;
-  } catch (_) {
-    return [];
-  }
-};
+// The cache itself now lives in cyclingLocationCache, shared with
+// RouteActionButtons, so ONE read serves the whole session (owner report
+// Nov 15 2026: each refresh re-listed the entity from two modules).
+const _getCyclingLocations = () => getCyclingLocationsCached();
 
 export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery, currentUser, bulkSelectionEnabled = false, isBulkSelected = false, onBulkSelectionChange }) {
   const isDispatcher = Array.isArray(currentUser?.app_roles)

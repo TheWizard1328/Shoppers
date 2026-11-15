@@ -24,6 +24,7 @@ import { indexInterStoreLocation, resetInterStoreLocationsCache } from '../utils
 import { heartbeatService } from '../utils/heartbeatService';
 import { runPatientDbPrioritySync } from '../utils/patientDbPrioritySync';
 import { loadBootDeliverySlice, loadBootPatientSlice } from '../utils/idbFirstLoaders';
+import { dedupeAppUsers } from '../utils/appUserDedupe';
 
 /**
  * useLayoutInit
@@ -130,10 +131,13 @@ export function useLayoutInit({
           // slice (all drivers; UI filters by city/driver at render). Patients for
           // that date are hydrated right after, from the deliveries' references.
           loadBootDeliverySlice(todayStr).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS).catch(() => []),
+          // STRICT reads (owner report Nov 15 2026): getAll() swallows a timed-out
+          // read as [], which looked identical to a genuinely empty cache and
+          // fired the full priority server fetch. null = the READ failed.
+          offlineDB.getAllStrict(offlineDB.STORES.APP_USERS).catch(() => null),
+          offlineDB.getAllStrict(offlineDB.STORES.STORES).catch(() => null),
+          offlineDB.getAllStrict(offlineDB.STORES.CITIES).catch(() => null),
+          offlineDB.getAllStrict(offlineDB.STORES.SQUARE_LOCATION_CONFIGS).catch(() => null),
           offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS).catch(() => []),
           offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS).catch(() => []),
           offlineDB.getAll(offlineDB.STORES.INTER_STORE_LOCATIONS).catch(() => []),
@@ -141,6 +145,9 @@ export function useLayoutInit({
 
         let offlineManifestResult, offlineDels, offlinePats = [], offlineAppUsers, offlineStores, offlineCities,
             sqConfigs, sqCatalog, sqTx, offlineInterStoreLocations;
+        // True when the offline read itself failed/was too slow — NOT when the
+        // cache is genuinely empty (see the priority-fetch gate below).
+        let bootstrapReadFailed = false;
         try {
           [
             offlineManifestResult,
@@ -149,10 +156,23 @@ export function useLayoutInit({
           ] = await _withTimeout(_bootstrapPromise, 10000, 'bootstrap Promise.all');
         } catch (bootTimeoutErr) {
           console.error('❌ [Init] Bootstrap Promise.all timed out — continuing with empty IDB data:', bootTimeoutErr.message);
+          bootstrapReadFailed = true;
           offlineManifestResult = { _error: bootTimeoutErr };
           offlineDels = []; offlineAppUsers = []; offlineStores = [];
           offlineCities = []; sqConfigs = []; sqCatalog = []; sqTx = []; offlineInterStoreLocations = [];
         }
+
+        // The four critical stores are read strictly: null means the offline READ
+        // failed (timeout/stall) rather than an empty store, so the boot must not
+        // answer it with a server burst — the cache is intact underneath.
+        if (offlineAppUsers === null || offlineStores === null || offlineCities === null || sqConfigs === null) {
+          console.warn('⚠️ [Init] Offline read failed for a critical store — keeping the cache, skipping the boot priority fetch');
+          bootstrapReadFailed = true;
+        }
+        offlineAppUsers = offlineAppUsers || [];
+        offlineStores = offlineStores || [];
+        offlineCities = offlineCities || [];
+        sqConfigs = sqConfigs || [];
 
         // IDB-FIRST PATIENT SLICE: only the patients referenced by today's
         // delivery slice (~60 records), read from IDB; server fallback pulls
@@ -447,7 +467,14 @@ export function useLayoutInit({
         }
         const criticalDataMissing = !citiesData.length || !resolvedStores.length || !resolvedAppUsers.length;
         const squareConfigsMissing = !sqConfigs?.length;
-        if (criticalDataMissing || squareConfigsMissing || _forceReload) {
+        // IDB READ FAILED ≠ CACHE EMPTY (owner report Nov 15 2026): a slow or
+        // timed-out offline read looked exactly like an empty cache, so every
+        // refresh fired the full City/Store/AppUser/SquareLocationConfig priority
+        // fetch — the burst behind the RATE LIMIT tooltip. When the read itself
+        // failed the offline data is still intact, so the gated background sync
+        // catches up instead of re-pulling everything from the server now.
+        const needsPriorityFetch = _forceReload || (!bootstrapReadFailed && (criticalDataMissing || squareConfigsMissing));
+        if (needsPriorityFetch) {
           console.warn('⚠️ [Init] Critical bootstrap data missing from IndexedDB — fetching from server immediately...');
           try {
             // Wrap the priority fetch in a timeout — if any entity.list()/filter()
@@ -504,7 +531,7 @@ export function useLayoutInit({
         // 3 seconds later on top of the filterChangeSync delivery fetch.
         localStorage.setItem('rxdeliver_bootstrap_sync_ts', String(Date.now()));
 
-        if (resolvedAppUsers.length) setAppUsers(resolvedAppUsers);
+        if (resolvedAppUsers.length) setAppUsers(dedupeAppUsers(resolvedAppUsers));
         if (resolvedStores.length) setStores(resolvedStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
         if (citiesData.length) setCities(citiesData);
 

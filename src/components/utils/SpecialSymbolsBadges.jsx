@@ -1,11 +1,21 @@
-import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Bell, BellOff, Mailbox, StickyNote, PenLine, Thermometer } from "lucide-react";
+import { Phone, Bell, BellOff, Mailbox, StickyNote, PenLine } from "lucide-react";
 import HelpTooltip, { HELP_CONTENT } from "../common/HelpTooltip";
 import { isFirstDeliveryPatient } from '@/components/utils/patientHistoryUtils';
 
 const TEMP_MIN = 2;
 const TEMP_MAX = 8;
+
+/**
+ * Owner rule (Nov 13 2026): once a patient has ANY recorded history, no stop of
+ * theirs is ever "first" — a stale first_delivery flag on the delivery (or the
+ * words "first delivery" in its notes) must not resurrect the N badge.
+ */
+function patientHasRecordedHistory(patient) {
+  if (!patient) return false;
+  if (Array.isArray(patient.delivery_history) && patient.delivery_history.length > 0) return true;
+  return !!patient.last_delivery_date;
+}
 
 export function getCodSymbolColor(delivery) {
   const paymentTypes = Array.from(
@@ -90,17 +100,6 @@ export default function SpecialSymbolsBadges({
   };
 
   const config = sizeConfig[size] || sizeConfig.sm;
-
-/**
- * Owner rule (Nov 13 2026): once a patient has ANY recorded history, no stop of
- * theirs is ever "first" — a stale first_delivery flag on the delivery (or the
- * words "first delivery" in its notes) must not resurrect the N badge.
- */
-function patientHasRecordedHistory(patient) {
-  if (!patient) return false;
-  if (Array.isArray(patient.delivery_history) && patient.delivery_history.length > 0) return true;
-  return !!patient.last_delivery_date;
-}
 
   // Special flags
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;

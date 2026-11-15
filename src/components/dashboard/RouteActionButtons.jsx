@@ -15,6 +15,7 @@ import { offlineDB } from "@/components/utils/offlineDatabase";
 import { invalidate } from "@/components/utils/dataManager";
 import { cancelAllDeferredOptimizations } from '@/components/utils/optimizationDebouncer';
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
+import { getCyclingLocationsCached } from '@/components/utils/cyclingLocationCache';
 
 const FINISHED = new Set(['completed', 'failed', 'cancelled']);
 
@@ -124,9 +125,11 @@ export default function RouteActionButtons({
     };
   }, []);
 
-  // Pre-fetch CyclingLocations once so getStopName can show real marker names
+  // Pre-fetch CyclingLocations once so getStopName can show real marker names.
+  // Served from the shared TTL cache — this used to re-list the whole entity on
+  // every dashboard mount (the `CyclingLocation · GET` rate-limit entries).
   useEffect(() => {
-    base44.entities.CyclingLocation.list()
+    getCyclingLocationsCached()
       .then((locs) => setCyclingLocations(locs || []))
       .catch(() => {});
   }, []);

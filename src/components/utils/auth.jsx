@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { createMergedUser } from './driverUtils';
+import { pickCanonicalAppUser } from './appUserDedupe';
 import { offlineDB } from './offlineDatabase';
 
 const clearLegacyHereLocalStorageCache = () => {
@@ -165,7 +166,9 @@ const getOfflineAppUser = async (userId) => {
   if (Array.isArray(appUsers) && appUsers.length > 0 && matching.length === 0) {
     console.warn(`[auth.js] getOfflineAppUser: IDB returned ${appUsers.length} rows for user_id=${userId} but NONE match — suspected stale index; falling back to server`);
   }
-  return matching[0] || null;
+  // ONE canonical row (owner report Nov 15 2026): a duplicate leftover row made
+  // the display name flip between the AppUser name and the platform profile name.
+  return pickCanonicalAppUser(matching);
 };
 
 const getAppUserByUserId = async (userId) => {

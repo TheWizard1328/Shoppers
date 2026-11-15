@@ -85,6 +85,7 @@ import getAdminNavigationItems from './components/layout/getAdminNavigationItems
 import { getLayoutStyles } from './components/layout/layoutStyles';
 import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
 import { mergePatients } from './components/layout/layoutDataHelpers';
+import { dedupeAppUsers } from './components/utils/appUserDedupe';
 import { initializeAppLoadDataFlow, executeAppLoadDataSync } from './components/layout/AppLoadDataManager';
 import { initPushNotifications } from '@/components/utils/pushNotifications';
 import { isNativePushAvailable, checkNativePushPermission } from '@/components/utils/nativePushNotifications';
@@ -1011,6 +1012,10 @@ export default function Layout({ children, currentPageName }) {
     return arr;
   };
   const commitAppUsersCoalesced = useCallback((next) => {
+    // ONE canonical row per user_id (owner report Nov 15 2026): a duplicate
+    // leftover row in the offline store made driver labels flip between the
+    // AppUser name ("Robert") and the platform profile name ("Robert Tauber").
+    next = dedupeAppUsers(next);
     committedAppUsersRef.current = next;
     const prev = committedAppUsersSync();
     if (next === prev) return;
@@ -1304,9 +1309,10 @@ export default function Layout({ children, currentPageName }) {
         setUsers(initialUsers);
         setDrivers(activeDrivers);
         if (appUsers && appUsers.length > 0) {
-          committedAppUsersRef.current = appUsers;
-          if (typeof window !== 'undefined') window.__appUsers = appUsers;
-          setAppUsers(appUsers);
+          const canonicalAppUsers = dedupeAppUsers(appUsers);
+          committedAppUsersRef.current = canonicalAppUsers;
+          if (typeof window !== 'undefined') window.__appUsers = canonicalAppUsers;
+          setAppUsers(canonicalAppUsers);
         }
         // CRITICAL: Merge deliveries — never replace. A full replacement wipes other
         // drivers' data if the incoming set is date-scoped or city-filtered.

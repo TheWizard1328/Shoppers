@@ -46,6 +46,8 @@ export async function getServerMirrorVersion() {
 export async function bumpAppUserMirrorVersion() {
   const version = Date.now();
   const value = { version, requested_at: new Date().toISOString() };
+  // This device must see its own bump at once, not on the next 15-min check.
+  try { localStorage.removeItem(BOOT_CHECK_KEY); } catch { /* storage blocked */ }
   const rows = await base44.entities.AppSettings.filter({ setting_key: APP_USER_MIRROR_KEY }).catch(() => []);
   if (rows?.[0]?.id) {
     await base44.entities.AppSettings.update(rows[0].id, { setting_value: value });
@@ -103,8 +105,19 @@ export async function runAppUserMirror({ reason = 'boot' } = {}) {
   return { mirrored: clean.length, dropped: users.length - clean.length };
 }
 
+// The stamp check is itself an AppSettings read, so it ran on EVERY app open —
+// one of the `AppSettings · GET` entries in the RATE LIMIT tooltip (owner report
+// Nov 15 2026). A bumped stamp only has to be noticed once per 15 minutes.
+const BOOT_CHECK_KEY = 'rxdeliver_appuser_mirror_check_at';
+const BOOT_CHECK_MIN_GAP_MS = 15 * 60 * 1000;
+
 /** Boot path: mirror only when the owner has bumped the stamp since this device last synced. */
 export async function maybeRunAppUserMirror() {
+  try {
+    const last = Number(localStorage.getItem(BOOT_CHECK_KEY) || 0);
+    if (last > 0 && Date.now() - last < BOOT_CHECK_MIN_GAP_MS) return { skipped: 'checked-recently' };
+    localStorage.setItem(BOOT_CHECK_KEY, String(Date.now()));
+  } catch { /* storage unavailable — check the stamp */ }
   const serverVersion = await getServerMirrorVersion();
   if (!serverVersion) return { skipped: 'no-stamp' };
   if (serverVersion <= getLocalMirrorVersion()) return { skipped: 'up-to-date' };

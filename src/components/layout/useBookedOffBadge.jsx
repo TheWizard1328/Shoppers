@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { userHasRole } from '@/components/utils/userRoles';
-import { getBookedOffOverrides } from '@/components/utils/configCache';
+import {
+  fetchBookedOffOverridesCached,
+  onBookedOffOverridesRefreshed,
+  mirrorScheduleOverrideEvent,
+  mirrorScheduleOverrideDelete,
+} from '@/components/utils/scheduleOverrideCache';
 
 /**
  * Hook that resolves the "booked off" scheduling badge count — the number of
@@ -16,16 +21,28 @@ export function useBookedOffBadge(currentUser) {
 
   useEffect(() => {
     if (!userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver')) return;
-    getBookedOffOverrides().
-    then(setBookedOffOverrides).
-    catch(() => {});
+    // IDB FIRST (owner report Nov 15 2026): this badge read the overrides
+    // straight from the server on every mount, which is what put
+    // `DriverScheduleOverride · GET` in the RATE LIMIT tooltip on each refresh.
+    // The offline mirror renders instantly and one throttled background refresh
+    // per 10 minutes keeps it current (live changes still arrive over the
+    // entity WebSocket below).
+    let active = true;
+    fetchBookedOffOverridesCached()
+      .then((rows) => { if (active) setBookedOffOverrides(rows || []); })
+      .catch(() => {});
+    const offRefreshed = onBookedOffOverridesRefreshed((rows) => {
+      if (active) setBookedOffOverrides(rows || []);
+    });
 
     const unsubscribe = base44.entities.DriverScheduleOverride.subscribe((event) => {
       if (event.type === 'delete') {
+        mirrorScheduleOverrideDelete(event.id);
         setBookedOffOverrides((prev) => prev.filter((o) => o.id !== event.id));
       } else {
         const o = event.data;
         if (!o) return;
+        mirrorScheduleOverrideEvent(o);
         setBookedOffOverrides((prev) => {
           if (o.driver_id === '__booked_off__') {
             const idx = prev.findIndex((x) => x.id === o.id);
@@ -38,7 +55,11 @@ export function useBookedOffBadge(currentUser) {
         });
       }
     });
-    return unsubscribe;
+    return () => {
+      active = false;
+      offRefreshed();
+      unsubscribe();
+    };
   }, [currentUser?.id]);
 
   const eligibleRecords = useMemo(() => {
