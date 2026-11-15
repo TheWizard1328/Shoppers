@@ -12,7 +12,8 @@ import { Loader2, Save, ShieldAlert, Hand, Activity, Gauge, RefreshCw, Users, Se
 import {
   DEFAULT_EMERGENCY_SETTINGS,
   mergeEmergencySettings,
-  normalizeTestUsers
+  normalizeTestUsers,
+  buildPilotPeople
 } from '@/components/emergency/emergencyAccess';
 
 // ─────────────────────────────────────────────────────────────────────────────
