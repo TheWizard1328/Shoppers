@@ -184,11 +184,11 @@ export default function FABControls({
           map-cycle FAB, and a hidden button must not leave the torch burning. */}
       <TorchFAB
         key="torch-fab"
-        /* OWNER CLARIFICATION (Nov 12 2026): the gate is DRIVER ONLY + PRIMARY
-           DEVICE + dark (isDarkOutside inside TorchFAB, which adds a 20 min
-           sunset lead). A driver's secondary phone does NOT get it, and no
-           dispatcher/admin session does either - the APK bridge alone is not
-           enough. */
+        /* OWNER RULES (Nov 15 2026): 1) day part is after sunset (sun calc
+           inside TorchFAB, 20 min dusk lead), 2) driver AND primary device,
+           3) dark mode does NOT matter. A driver's secondary phone does not get
+           it, and no dispatcher/admin session does either - the APK bridge
+           alone is not enough. */
         enabled={isPrimaryDevice === true && isDriver === true}
         bottomPx={torchFabBottom}
         rightPx={immersiveHidden ? 12 : 16}

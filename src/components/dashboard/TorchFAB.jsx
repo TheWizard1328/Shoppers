@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flashlight, FlashlightOff } from 'lucide-react';
-import { isAppDarkTheme } from '@/lib/utils';
 import { computeSunTimes } from '@/components/utils/sunTimes';
 import {
   isTorchBridgeAvailable,
@@ -14,9 +13,12 @@ import {
  *
  * OWNER SPEC (Nov 10 2026):
  *  - Sits directly ABOVE the map-cycle FAB on the primary Android device.
- *  - Only shows when it is actually dark out: app dark theme, or past sunset
- *    (20 min of lead time) / before sunrise. Sun times come from the local
- *    solar calculation in sunTimes.jsx, never an API call.
+ *  - Only shows when it is actually dark out: past sunset (20 min of lead time)
+ *    or before sunrise. Sun times come from the local solar calculation in
+ *    sunTimes.jsx, never an API call.
+ *  - OWNER RULE (Nov 15 2026): the app THEME is not part of this gate. Dark
+ *    mode during the day used to make the button appear and vanish again in
+ *    step with the sun tick, so 'day part' now means after sunset, full stop.
  *  - Web/PWA never renders it: navigator has no torch, only the APK bridge does.
  *
  * Props:
@@ -44,8 +46,9 @@ const readCoords = (location) => {
   return FALLBACK_COORDS;
 };
 
-// App theme wins (a driver in light mode after dark still gets the button);
-// the sun calc only decides when the theme says nothing either way.
+// OWNER RULE (Nov 15 2026): day part is decided by the SUN ONLY. The app theme
+// (dark mode) must never add or remove this button — that is what made it
+// appear and disappear during daylight hours.
 const isDarkOutside = (location) => {
   const now = new Date();
   const { lat, lon } = readCoords(location);
@@ -65,7 +68,7 @@ export default function TorchFAB({
   hidden = false,
   enabled = false,
 }) {
-  const [isDark, setIsDark] = useState(() => isAppDarkTheme());
+  const [isDark, setIsDark] = useState(() => isDarkOutside(driverLocation));
   const [isOn, setIsOn] = useState(false);
   const [hint, setHint] = useState('');
   const bridgeReady = enabled && isTorchBridgeAvailable();
@@ -75,15 +78,6 @@ export default function TorchFAB({
     setHint(text);
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
     hintTimerRef.current = setTimeout(() => setHint(''), 2600);
-  }, []);
-
-  // Theme follows the app's own dark class (same contract as BatteryIndicator).
-  useEffect(() => {
-    const root = document.documentElement;
-    const sync = () => setIsDark(isAppDarkTheme());
-    const observer = new MutationObserver(sync);
-    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
   }, []);
 
   // Re-evaluate the sun gate every minute so the button appears at dusk without
