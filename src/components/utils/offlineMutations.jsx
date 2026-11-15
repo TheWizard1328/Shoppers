@@ -550,8 +550,13 @@ export const createDeliveryLocal = async (deliveryData) => {
  * @param {object} updates - The fields to update
  * @param {object} options - Options: { skipSmartRefresh: boolean }
  */
+const normalizePickupSlot = (value) => {
+  const slot = String(value || '').trim().toUpperCase();
+  return slot === 'AM' || slot === 'PM' ? slot : null;
+};
+
 export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => {
-  const { skipSmartRefresh = false, isBatchOperation = false } = options;
+  const { skipSmartRefresh = false, isBatchOperation = false, skipPickupSlotCascade = false } = options;
   // Flag ownership (owner direction Nov 12 2026): whoever sets isNextDelivery
   // owns the repair. Stamp it here, the one gateway every client write passes
   // through, so the claim travels with the flag to every other device.
@@ -597,7 +602,13 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     // slot agree with the pickup it belongs to. A record kept puid=AM while
     // ampm_deliveries said PM, and every save rewrote the stale PM, so the field
     // never changed, no WS event carried a change, and the staged panel stood still.
-    if (updates && typeof updates === 'object' && existingDelivery) {
+    // EXCEPTION (owner report Nov 14 2026): the reconcile is for PATIENT stops,
+    // which must follow their pickup. When the row being written IS the pickup,
+    // its own AM/PM edit is the source of truth — the lookup below matched the
+    // pickup against itself and silently rewrote the new slot back to the old
+    // one, so "Update Pickup" never changed anything.
+    const targetIsPickupRow = !!existingDelivery && !existingDelivery.patient_id;
+    if (!targetIsPickupRow && updates && typeof updates === 'object' && existingDelivery) {
       try {
         const pool = [ ...(Array.isArray(window.__appDeliveries) ? window.__appDeliveries : []), existingDelivery ];
         const storeId = updates.store_id || existingDelivery.store_id;
@@ -799,6 +810,29 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
             console.warn('[Sync] Background sync failed; durable mutation retained:', error.message);
           });
       }).catch(() => {});
+    }
+
+    // ── PICKUP AM/PM CASCADE (owner spec Nov 14 2026) ──────────────────────
+    // "This change should also affect all the stops that same date with the
+    // same PUID." The pickup owns the slot for its PUID family, so every stop
+    // hanging off it on that date follows the new AM/PM. Runs after the
+    // pickup's own write so the pickup is already correct, and is skipped for
+    // the cascade's own child writes (skipPickupSlotCascade) to stop recursion.
+    const pickupSlotChanged = targetIsPickupRow
+      && !!normalizePickupSlot(updatedDelivery?.ampm_deliveries)
+      && normalizePickupSlot(updatedDelivery?.ampm_deliveries) !== normalizePickupSlot(existingDelivery?.ampm_deliveries);
+    if (pickupSlotChanged && !skipPickupSlotCascade) {
+      try {
+        const { cascadePickupSlotChange } = await import('./pickupSlotCascade');
+        await cascadePickupSlotChange({
+          pickup: updatedDelivery,
+          previousSlot: existingDelivery?.ampm_deliveries || null,
+          newSlot: updatedDelivery.ampm_deliveries,
+          updateDeliveryLocal
+        });
+      } catch (error) {
+        console.warn('[OfflineMutations] Pickup slot cascade failed:', error?.message || error);
+      }
     }
 
     // CRITICAL: NO restart during batch operations - caller handles it once at the end

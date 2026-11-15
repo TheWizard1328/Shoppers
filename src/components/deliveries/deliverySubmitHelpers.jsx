@@ -1,6 +1,8 @@
 import { edmontonNowHHmm } from '../utils/albertaTime';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 
+export { shouldInheritSlotFromPickup } from './pickupSlotOwnership.jsx';
+
 export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus, completionTime, currentTravelMode = 'driving' }) => {
   const now = new Date();
   // Edmonton wall clock (the device tz engine can be an hour off in this fleet).

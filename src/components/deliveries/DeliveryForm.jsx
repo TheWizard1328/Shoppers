@@ -47,7 +47,7 @@ import { isCareProSearch } from '../utils/careProSearchHelper';
 import { buildUpdatedDeliveryPayload } from './deliveryCodSaveHelpers';
 import { resolveTransferPlacement } from '../utils/transferStopPlacement';
 import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
-import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
+import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags, shouldInheritSlotFromPickup } from './deliverySubmitHelpers';
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
 import { closeDeliveryFormAfterSave, flushPendingInterStoreOptimizations } from '../utils/deliveryFormActionHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
@@ -1147,11 +1147,15 @@ export default function DeliveryForm({
     if (selectedStaged?.id) {
       // Same invariant as handleSubmit: the attached pickup decides the slot, so a
       // record saved with puid=AM can never keep a stale PM field.
-      try {
-        const _picked = [...(stagedDeliveries || []), ...(allDeliveries || [])]
-          .find((d) => d && !d.patient_id && (d.stop_id || d.puid) && (d.stop_id || d.puid) === (formData.puid || selectedStaged.puid));
-        if (_picked?.ampm_deliveries && _picked.ampm_deliveries !== formData.ampm_deliveries) setFormData((prev) => ({ ...prev, ampm_deliveries: _picked.ampm_deliveries }));
-      } catch (_) { /* keep the form value */ }
+      // A staged PICKUP's own AM/PM edit wins (owner report Nov 14 2026) — the
+      // self-match below used to force the old slot straight back.
+      if (selectedStaged.patient_id) {
+        try {
+          const _picked = [...(stagedDeliveries || []), ...(allDeliveries || [])]
+            .find((d) => d && !d.patient_id && (d.stop_id || d.puid) && (d.stop_id || d.puid) === (formData.puid || selectedStaged.puid));
+          if (_picked?.ampm_deliveries && _picked.ampm_deliveries !== formData.ampm_deliveries) setFormData((prev) => ({ ...prev, ampm_deliveries: _picked.ampm_deliveries }));
+        } catch (_) { /* keep the form value */ }
+      }
       const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate.jsx');
       const { stagedDelivery, deliveryId } = await persistPendingDeliveryUpdate({ selectedStaged, formData, patient, store, editingStagedId, distanceFromStore });
       await runResequencePolicy({
@@ -1357,11 +1361,19 @@ export default function DeliveryForm({
       // AM stop while ampm_deliveries still said PM, and a save then wrote the stale PM
       // back (remote log: puid zsA + ampm PM in the same payload). The pickup attached
       // through puid is the source of truth, so resolve the slot from it at write time.
-      try {
-        const _slotPickup = [...(allDeliveries || []), ...(stagedDeliveries || [])]
-          .find((d) => d && !d.patient_id && (d.stop_id || d.puid) && (d.stop_id || d.puid) === (dataToSave.puid || formData.puid));
-        if (_slotPickup?.ampm_deliveries) dataToSave.ampm_deliveries = _slotPickup.ampm_deliveries;
-      } catch (_) { /* no pickup available: keep the form value */ }
+      // EXCEPTION (owner report Nov 14 2026): when the record being saved IS the
+      // pickup itself, its own AM/PM edit is authoritative. The lookup below
+      // matched the pickup against ITSELF (stop_id === puid), rewrote the new
+      // slot back to the old one, and the snapshot compare then decided nothing
+      // had changed — so "Update Pickup" closed the form without ever saving.
+      const inheritSlotFromPickup = shouldInheritSlotFromPickup({ delivery, formData, dataToSave });
+      if (inheritSlotFromPickup) {
+        try {
+          const _slotPickup = [...(allDeliveries || []), ...(stagedDeliveries || [])]
+            .find((d) => d && !d.patient_id && (d.stop_id || d.puid) && (d.stop_id || d.puid) === (dataToSave.puid || formData.puid));
+          if (_slotPickup?.ampm_deliveries) dataToSave.ampm_deliveries = _slotPickup.ampm_deliveries;
+        } catch (_) { /* no pickup available: keep the form value */ }
+      }
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) { import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); }); return true; }
       if (delivery?.id && delivery?.patient_id && formData.patient_id) { try { await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData)); } catch (error) { console.error('❌ [DeliveryForm] Failed to sync patient changes:', error); } }
       const { driverChanged, dateChanged, timeWindowChanged, travelModeChanged, statusChangedToInTransit, statusChangedToCompletion, actualDeliveryTimeChanged, codWasRemoved } = getDeliverySubmitFlags({ delivery, formData, dataToSave });
