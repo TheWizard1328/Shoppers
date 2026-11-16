@@ -23,13 +23,13 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
         paddingBottom: "calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))",
         paddingLeft: "calc(1rem + env(safe-area-inset-left, 0px))",
         paddingRight: "calc(1rem + env(safe-area-inset-right, 0px))"
-      }}
-    >
+      }}>
+      
       {/* m-auto (not the parent's justify-center) keeps the card centred when it
-          fits and still lets the top of the page scroll into view when it does
-          not — the old flex centring pushed the logo off-screen on short phones. */}
+           fits and still lets the top of the page scroll into view when it does
+           not — the old flex centring pushed the logo off-screen on short phones. */}
       <div className="w-full max-w-md m-auto">
-        <div className="text-center mb-8 sm:mb-10">
+        <div className="text-center sm:mb-10 mb-8">
           <div className="inline-flex items-center justify-center mb-4">
             <img src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/0aeae1e24_renametoicon-192.png" alt="RxDeliver" className="w-16 h-16 object-contain rounded-2xl" />
           </div>
