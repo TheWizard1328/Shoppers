@@ -60,7 +60,7 @@ export default function MobileHeader({
   // Neither menu branch renders for a user with no dispatcher/driver/admin role,
   // so the logo keeps its old messaging shortcut in that case instead of being
   // a dead tap.
-  const hasHeaderMenu = !!currentUser && !sidebarOpen && (
+  const hasHeaderMenu = !!currentUser && (
     (!userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') && userHasRole(currentUser, 'dispatcher'))
     || userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')
   );
@@ -228,7 +228,7 @@ export default function MobileHeader({
           </div>
 
           {/* Menu button for dispatchers — left-aligned next to logo */}
-          {currentUser && !sidebarOpen && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') &&
+          {currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') &&
           <DropdownMenu open={headerMenuOpen} onOpenChange={setHeaderMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu" data-update-menu-btn>
@@ -251,7 +251,7 @@ export default function MobileHeader({
         </div>
 
         {/* Centered Controls - drivers and admins only */}
-        {currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
+        {currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
         <div className="flex-none flex items-center justify-center gap-1.5">
             {/* Menu */}
             <DropdownMenu open={headerMenuOpen} onOpenChange={setHeaderMenuOpen}>
@@ -299,7 +299,7 @@ export default function MobileHeader({
         {currentUser &&
         <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
             {/* QR Code for dispatchers — far right next to battery */}
-            {!sidebarOpen && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') &&
+            {userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') &&
           <button
             type="button"
             onClick={onInviteQRClick}

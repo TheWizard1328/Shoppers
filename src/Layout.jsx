@@ -914,10 +914,14 @@ export default function Layout({ children, currentPageName }) {
         const hdr = document.querySelector('[data-mobile-header]');
         const navEl = bottomNavRef.current;
         const vh = window.innerHeight;
-        const top = hdr ? Math.max(0, Math.round(hdr.getBoundingClientRect().bottom)) : 0;
-        const bottom = navEl ? Math.max(0, Math.round(vh - navEl.getBoundingClientRect().top)) : 0;
-        document.documentElement.style.setProperty('--drawer-top', `${top}px`);
-        document.documentElement.style.setProperty('--drawer-bottom', `${bottom}px`);
+        // Never overwrite a good value with 0: a transient null (page switch, header
+        // hidden mid-render) would snap the drawer back to the screen edges.
+        if (hdr) {
+          document.documentElement.style.setProperty('--drawer-top', `${Math.max(0, Math.round(hdr.getBoundingClientRect().bottom))}px`);
+        }
+        if (navEl) {
+          document.documentElement.style.setProperty('--drawer-bottom', `${Math.max(0, Math.round(vh - navEl.getBoundingClientRect().top))}px`);
+        }
       } catch {}
       // --bottom-nav-height stays 0px: the nav is back in normal flow (Nov 15 2026
       // revert), so every consumer that assumes 0 keeps its original geometry and
@@ -942,11 +946,30 @@ export default function Layout({ children, currentPageName }) {
     // The mobile header drops rows while the drawer is open, and the nav re-lays
     // out at the same time, so settle the drawer bounds over a few frames.
     const settle = [0, 60, 180, 400].map((ms) => setTimeout(measureNav, ms));
+    // Owner report Nov 15 2026: "the gap was gone the first time, now it is back."
+    // The mobile header keeps changing height while the app runs (battery pill, unread
+    // badges, driver status toggle, a page switch remounting the header), so a finite
+    // set of settles can leave --drawer-top stale and the drawer drops below the header
+    // again. While the drawer is open the bounds are re-read continuously: every 150ms
+    // plus a requestAnimationFrame chase for the first 1.2s.
+    let drawerTimer = null;
+    let rafId = null;
+    if (sidebarOpen) {
+      drawerTimer = setInterval(measureNav, 150);
+      const chaseUntil = Date.now() + 1200;
+      const chase = () => {
+        measureNav();
+        if (Date.now() < chaseUntil) rafId = requestAnimationFrame(chase);
+      };
+      rafId = requestAnimationFrame(chase);
+    }
     return () => {
       window.removeEventListener('resize', measureNav);
       window.removeEventListener('orientationchange', measureNav);
       clearTimeout(t);
       settle.forEach(clearTimeout);
+      if (drawerTimer) clearInterval(drawerTimer);
+      if (rafId) cancelAnimationFrame(rafId);
       if (window.visualViewport) window.visualViewport.removeEventListener('resize', measureNav);
       if (ro) ro.disconnect();
     };
