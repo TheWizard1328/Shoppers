@@ -150,32 +150,6 @@ export default function DeliveryFormStaged({
     return null;
   };
 
-  // OWNER LAYOUT (Nov 16 2026) for the staged / pending cards: three rows -
-  //   Row 1 patient name + store badge + special symbol badges
-  //   Row 2 address + time window (or arrival / delivered times)
-  //   Row 3 phone + Last Delivered (+ COD required, matching the finished cards)
-  const _shortClock = (value) => {
-    if (!value) return '';
-    const raw = String(value);
-    const m = raw.match(/(\d{1,2}):(\d{2})/);
-    if (!m) return raw.length <= 5 ? raw : '';
-    let h = Number(m[1]);
-    const min = m[2];
-    const suffix = h >= 12 ? 'pm' : 'am';
-    h = h % 12; if (h === 0) h = 12;
-    return `${h}:${min}${suffix}`;
-  };
-  const _timesOf = (d) => {
-    const start = _shortClock(d.delivery_time_start);
-    const end = _shortClock(d.delivery_time_end);
-    if (start || end) return start && end ? `${start}-${end}` : (start || end);
-    const arrived = _shortClock(d.actual_delivery_time);
-    const done = _shortClock(d.delivery_completed_at || d.completed_at);
-    if (arrived && done && arrived !== done) return `${arrived} -> ${done}`;
-    if (arrived) return arrived;
-    return d.ampm_deliveries || '';
-  };
-
   const formatLastDelivered = (lastDeliveryDate, frequency) => {
     const diffDays = getDaysSinceLastDelivery(lastDeliveryDate);
     if (diffDays === null) return null;
@@ -333,7 +307,6 @@ export default function DeliveryFormStaged({
               onClick={() => handleStagedDeliveryClick(staged)}>
 
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                  {/* Row 1: patient name + store badge + special symbol badges */}
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium truncate flex-1 min-w-0">{staged.care_pros && staged.cp_name ? `CP ${staged.cp_name}` : staged.patient_name}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -341,21 +314,6 @@ export default function DeliveryFormStaged({
                     <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
                          {staged.store_abbreviation}
                        </Badge>
-                    }
-                      <SpecialSymbolsBadges
-                      delivery={staged}
-                      patient={null}
-                      isPickup={false}
-                      size="sm" />
-                    </div>
-                  </div>
-
-                  {/* Row 2: address + time window (or arrival / delivered times) */}
-                  <div className="flex items-center gap-1 min-h-0">
-                    <div className="truncate flex-1 min-w-0 text-slate-700 dark:text-slate-300 text-[10px] leading-none">{staged.delivery_address}</div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {_timesOf(staged) &&
-                    <span className="text-[10px] leading-none whitespace-nowrap text-slate-600 dark:text-slate-300">{_timesOf(staged)}</span>
                     }
                       {staged.distanceFromStore !== null && staged.distanceFromStore !== undefined && typeof staged.distanceFromStore === 'number' &&
                     <Badge
@@ -367,6 +325,17 @@ export default function DeliveryFormStaged({
                          {staged.distanceFromStore.toFixed(1)} km
                        </Badge>
                     }
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-0">
+                    <div className="truncate flex-1 min-w-0 text-slate-700 dark:text-slate-300 text-[10px] leading-none">{staged.delivery_address}</div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <SpecialSymbolsBadges
+                      delivery={staged}
+                      patient={null}
+                      isPickup={false}
+                      size="sm" />
+                    
                       {Array.isArray(staged.barcode_values) && staged.barcode_values.length > 0 &&
                     <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-100 text-emerald-700 flex items-center gap-1">
                           <svg className="h-3 w-4" viewBox="0 0 40 12" aria-hidden="true">
@@ -384,24 +353,15 @@ export default function DeliveryFormStaged({
                           x{staged.barcode_values.length}
                         </Badge>
                     }
+                      {staged.ampm_deliveries &&
+                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 rounded-full' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 rounded-lg'}`}>
+                          {staged.ampm_deliveries}
+                        </Badge>
+                    }
                     </div>
                   </div>
-
-                  {/* Row 3: phone + Last Delivered (+ COD required, like finished cards) */}
-                  <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 text-[10px] leading-none min-h-0">
-                    <span className="truncate min-w-0">{staged.patient_phone ? formatPhoneNumber(staged.patient_phone) : ''}</span>
-                    <span className="ml-auto flex items-center gap-1 flex-shrink-0">
-                      {Number(staged.cod_total_amount_required || 0) > 0 &&
-                    <span className="whitespace-nowrap font-semibold text-amber-700 dark:text-amber-300" title="COD required">
-                          COD ${Number(staged.cod_total_amount_required).toFixed(2)}
-                        </span>
-                    }
-                      {(() => {
-                      const ldSource = stagedPatient || (staged.patient_id ? (patients || []).find((p) => p && p.id === staged.patient_id) : null);
-                      const ldText = formatLastDelivered(getLastDeliveryDate(ldSource) || staged.last_delivery_date, staged.frequency || ldSource?.frequency);
-                      return ldText ? <span className="whitespace-nowrap">{ldText}</span> : null;
-                    })()}
-                    </span>
+                  <div className="text-slate-700 dark:text-slate-300 text-[10px] truncate pr-1 leading-none min-h-0">
+                    {staged.patient_phone ? formatPhoneNumber(staged.patient_phone) : ''}
                   </div>
                 </div>
 

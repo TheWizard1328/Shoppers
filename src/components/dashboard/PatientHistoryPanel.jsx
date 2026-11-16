@@ -7,6 +7,8 @@ import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { userHasRole } from "@/components/utils/userRoles";
+import SpecialSymbolsBadges from "@/components/utils/SpecialSymbolsBadges";
+import { formatPhoneNumber } from "@/components/utils/phoneFormatter";
 
 const dayAbbreviations = {
   'Monday': 'Mon', 'Tuesday': 'Tue', 'Wednesday': 'Wed',
@@ -62,6 +64,31 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
   }, [patient?.id]);
 
   const codCount = allDeliveries.filter((d) => Number(d.cod_total_amount_required || 0) > 0).length;
+
+  // OWNER SPEC (Nov 16 2026): the patient info sidebar rows carry the same three rows as
+  // the stop cards - name + store + symbol badges, address + times, phone + Last Delivered.
+  const _shortClock = (value) => {
+    if (!value) return '';
+    const raw = String(value);
+    const m = raw.match(/(\d{1,2}):(\d{2})/);
+    if (!m) return raw.length <= 5 ? raw : '';
+    let h = Number(m[1]);
+    const suffix = h >= 12 ? 'pm' : 'am';
+    h = h % 12; if (h === 0) h = 12;
+    return `${h}:${m[2]}${suffix}`;
+  };
+  const _timesOf = (d) => {
+    const start = _shortClock(d.delivery_time_start);
+    const end = _shortClock(d.delivery_time_end);
+    if (start || end) return start && end ? `${start}-${end}` : (start || end);
+    const arrived = _shortClock(d.actual_delivery_time);
+    const done = _shortClock(d.delivery_completed_at || d.completed_at);
+    if (arrived && done && arrived !== done) return `${arrived} -> ${done}`;
+    return arrived || d.ampm_deliveries || '';
+  };
+  const _lastCompletedKey = allDeliveries.
+  filter((d) => d.status === 'completed' && d.delivery_date).
+  reduce((max, d) => (d.delivery_date > max ? d.delivery_date : max), '');
 
   const filteredDeliveries = allDeliveries.
   filter((d) => !codOnly || Number(d.cod_total_amount_required || 0) > 0).
@@ -256,29 +283,67 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                           key={delivery.id}
                           className="p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           
-                            <div className="grid grid-cols-2 gap-3 mb-2">
-                              <div className="text-xs space-y-1">
-                                <div className="text-sm font-medium text-body">
-                                  {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
-                                </div>
-                                {delivery.tracking_number &&
-                              <div className="text-label">
-                                    <span className="font-medium">TR#:</span> {delivery.tracking_number}
-                                  </div>
+                            {/* Row 1: patient name + store badge + special symbol badges */}
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-sm font-medium truncate min-w-0 text-body">
+                                {delivery.care_pros && delivery.cp_name ? `CP ${delivery.cp_name}` : (delivery.patient_name || patient?.full_name || 'Patient')}
+                              </span>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {delivery.store_abbreviation &&
+                              <Badge className="text-[10px] px-1.5 py-0 h-4 text-white" style={{ backgroundColor: 'var(--accent-emerald, #059669)' }}>
+                                    {delivery.store_abbreviation}
+                                  </Badge>
                               }
-                                {delivery.actual_delivery_time &&
-                              <div className="text-label">
-                                    <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
-                                  </div>
-                              }
+                                <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={!delivery.patient_id} size="sm" />
                               </div>
-                              <div className="flex flex-col gap-1 items-end">
+                              <Badge className="text-[10px] font-semibold ml-auto flex-shrink-0" style={{ background: statusStyle.background, color: statusStyle.color, border: statusStyle.border }}>
+                                {delivery.status === 'in_transit' ? 'In Transit' :
+                              delivery.status === 'completed' ? 'Completed' :
+                              delivery.status === 'pending' ? 'Pending' :
+                              delivery.status === 'failed' ? 'Failed' : delivery.status}
+                              </Badge>
+                            </div>
+
+                            {/* Row 2: address + time window (or arrival / delivered times) */}
+                            <div className="flex items-center gap-2 mb-1 text-xs">
+                              <span className="truncate min-w-0 flex-1 text-label">{delivery.delivery_address || ''}</span>
+                              {_timesOf(delivery) &&
+                              <span className="whitespace-nowrap flex-shrink-0 text-label">{_timesOf(delivery)}</span>
+                              }
+                            </div>
+
+                            {/* Row 3: phone + Last Delivered (+ COD required) */}
+                            <div className="flex items-center gap-2 mb-2 text-xs">
+                              <span className="truncate min-w-0 text-label">
+                                {formatPhoneNumber(delivery.patient_phone || patient?.phone || '')}
+                              </span>
+                              <span className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                                {Number(delivery.cod_total_amount_required || 0) > 0 &&
+                              <span className="whitespace-nowrap font-semibold" style={{ color: '#b45309' }}>
+                                    COD ${Number(delivery.cod_total_amount_required).toFixed(2)}
+                                  </span>
+                              }
+                                {delivery.status === 'completed' && delivery.delivery_date ?
+                              <span className="whitespace-nowrap text-label">Delivered {format(new Date(delivery.delivery_date + 'T12:00:00'), 'MMM d')}</span> :
+                              _lastCompletedKey ?
+                              <span className="whitespace-nowrap text-label">LD: {format(new Date(_lastCompletedKey + 'T12:00:00'), 'MMM d')}</span> :
+                              null}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                 <Badge className="text-xs font-semibold" style={{ background: statusStyle.background, color: statusStyle.color, border: statusStyle.border }}>
                                   {delivery.status === 'in_transit' ? 'In Transit' :
                                 delivery.status === 'completed' ? 'Completed' :
                                 delivery.status === 'pending' ? 'Pending' :
                                 delivery.status === 'failed' ? 'Failed' : delivery.status}
                                 </Badge>
+                                {delivery.tracking_number &&
+                              <Badge variant="outline" className="text-xs text-body-2">
+                                    TR# {delivery.tracking_number}
+                                  </Badge>
+                              }
                                 {delivery.driver_name &&
                               <Badge variant="outline" className="text-xs text-body-2">
                                     {delivery.driver_name}
@@ -289,6 +354,9 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                                     {delivery.cod_payments[0].type}: ${delivery.cod_payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
                                   </Badge>
                               }
+                                <Badge variant="outline" className="text-xs text-body-2">
+                                  {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
+                                </Badge>
                               </div>
                             </div>
                             <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'var(--border-slate-300)' }}>
