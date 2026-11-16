@@ -110,7 +110,10 @@ async function broadcastToClients(msg) {
 
 self.addEventListener('install', (event) => {
   console.log(`[TileSW ${SW_VERSION}] Installing`);
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil((async () => {
+    await precacheShell();
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -125,7 +128,7 @@ self.addEventListener('activate', (event) => {
     try {
       const names = await caches.keys();
       await Promise.all(names
-        .filter((n) => n.startsWith(CACHE_PREFIX))
+        .filter((n) => n.startsWith(CACHE_PREFIX) && n !== SHELL_CACHE)
         .map((n) => {
           console.log(`[TileSW ${SW_VERSION}] Purging cache: ${n}`);
           return caches.delete(n);
@@ -137,13 +140,91 @@ self.addEventListener('activate', (event) => {
 
 // ─── Fetch interception ───────────────────────────────────────────────────────
 
+// ─── APP SHELL (offline cold start) ───────────────────────────
+// OWNER REPORT (Nov 16 2026): "if the app is being loaded while there is weak
+// to no signal it just refuses to load and only shows a blank white page."
+// The app had NO shell cache: only tiles and push lived in a service worker, so
+// index.html and the hashed JS chunks came from the browser HTTP cache. After a
+// deploy the new chunk names are not cached, the module script fetch fails, and
+// React never mounts - a white page with no error. The shell cache below makes
+// a cold start work with no network at all.
+const SHELL_CACHE = 'rxdeliver-shell-v1';
+const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/favicon-32.png'];
+const isShellAsset = (url) => {
+  try {
+    const u = new URL(url);
+    if (u.origin !== self.location.origin) return false;
+    return /\/(assets|src)\/.+\.(js|mjs|css|woff2?|ttf|svg|png|jpe?g|webp)$/i.test(u.pathname);
+  } catch (_) { return false; }
+};
+
+async function precacheShell() {
+  try {
+    const cache = await caches.open(SHELL_CACHE);
+    await Promise.all(SHELL_URLS.map(async (u) => {
+      try {
+        const res = await fetch(u, { cache: 'reload' });
+        if (res && res.ok) await cache.put(u, res.clone());
+      } catch (_) { /* one missing file must not fail the install */ }
+    }));
+    console.log(`[TileSW ${SW_VERSION}] shell precached`);
+  } catch (_) {}
+}
+
+async function handleShellRequest(event, request) {
+  const url = request.url;
+  // Navigations: try the network, fall back to the cached shell when offline.
+  if (request.mode === 'navigate') {
+    try {
+      const fresh = await fetch(request);
+      try {
+        const cache = await caches.open(SHELL_CACHE);
+        await cache.put('/index.html', fresh.clone());
+      } catch (_) {}
+      return fresh;
+    } catch (_) {
+      const cache = await caches.open(SHELL_CACHE);
+      const cached = (await cache.match('/index.html')) || (await cache.match('/'));
+      if (cached) return cached;
+      return new Response(
+        '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<body style="margin:0;font:16px/1.5 system-ui;background:#0b1220;color:#e5e7eb;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center">' +
+        '<div><h1 style="font-size:20px;margin:0 0 8px">RxDeliver</h1>' +
+        '<p style="margin:0;opacity:.8">No connection yet. Reopen the app once you have signal at least once.</p></div></body>',
+        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+      );
+    }
+  }
+  // Same-origin build assets: cache-first (hashed names never change content).
+  try {
+    const cache = await caches.open(SHELL_CACHE);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    const fresh = await fetch(request);
+    if (fresh && (fresh.ok || fresh.type === 'opaque')) {
+      try { await cache.put(request, fresh.clone()); } catch (_) {}
+    }
+    return fresh;
+  } catch (_) {
+    const cache = await caches.open(SHELL_CACHE);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw _;
+  }
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
   // Only intercept HERE tile requests
-  if (!isTileRequest(request.url)) return;
-
-  event.respondWith(handleTileRequest(event, request));
+  if (isTileRequest(request.url)) {
+    event.respondWith(handleTileRequest(event, request));
+    return;
+  }
+  // App shell: navigations + our own build assets (owner fix Nov 16 2026).
+  if (request.method === 'GET' && (request.mode === 'navigate' || isShellAsset(request.url))) {
+    event.respondWith(handleShellRequest(event, request));
+  }
 });
 
 async function handleTileRequest(event, request) {

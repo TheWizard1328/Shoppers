@@ -2573,39 +2573,81 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
   };
 
-  // Top-Up: ADD the typed amounts to each card's current starting balance.
-  // Unlike True-Up this does NOT reset the tracking window (trued_up_at) —
-  // it's money added to the cards, not a reconciliation.
+  // ── TOP-UP = SQUARE COLLECTION (owner spec Nov 16 2026) ───────────────────
+  // "the top up option acts like a square collection: if I top up one of the store
+  // cards with $100 it registers that 100 was topped up but it ducks the fees, the
+  // square loan and the folder fees from that $100 and deposits the rest as the top
+  // up to that card, and also adjusts the square loan and folder savings."
+  //
+  // So a top-up is split exactly like a card sale:
+  //   fee     = credit rate sheet on the gross (estimateCardFeeCents)
+  //   loan    = loan_rate x gross, rounded to the cent
+  //   folder  = folder_rate x gross, rounded DOWN to the cent (Square truncates)
+  //   net     = gross - fee - loan - folder  -> card_start
+  //   loan_start drops by the loan portion (the loan was repaid with this money)
+  //   folder_start rises by the folder portion (savings set aside)
+  // A NEGATIVE typed amount is still a plain manual deduction (no fee on money
+  // leaving the card), so corrections behave as before. The tracking window is
+  // NOT reset - this adds money, it is not a true-up.
   const saveTopUp = async () => {
     if (!config) return;
+    const folderRate = Number.isFinite(Number(config.folder_rate)) ? Number(config.folder_rate) : DEFAULT_FOLDER_RATE;
+    const totals = { grossC: 0, feeC: 0, loanC: 0, folderC: 0, netC: 0, deductedC: 0 };
     const locations = (config.locations || []).map((loc) => {
-      const amt = signedCentsValue(topUpDraft[loc.location_id]);
+      const typed = signedCentsValue(topUpDraft[loc.location_id]);
+      const amtC = Math.round((Number(typed) || 0) * 100);
+      if (!Number.isFinite(amtC) || amtC === 0) return loc;
+      if (amtC < 0) {
+        totals.deductedC += amtC;
+        return { ...loc, card_start: Number(loc.card_start || 0) + amtC / 100 };
+      }
+      const loanRate = Number(loc.loan_rate) || 0;
+      const feeC = estimateCardFeeCents(amtC, 'credit');
+      const loanC = Math.round(amtC * loanRate);
+      const folderC = folderCentsFor(amtC, folderRate);
+      const netC = Math.max(0, amtC - feeC - loanC - folderC);
+      totals.grossC += amtC;
+      totals.feeC += feeC;
+      totals.loanC += loanC;
+      totals.folderC += folderC;
+      totals.netC += netC;
+      const nextLoan = Math.max(0, Math.round(Number(loc.loan_start || 0) * 100) - loanC) / 100;
       return {
         ...loc,
-        card_start: Number.isFinite(amt) && amt !== 0 ? Number(loc.card_start || 0) + amt : loc.card_start
+        card_start: (Math.round(Number(loc.card_start || 0) * 100) + netC) / 100,
+        loan_start: nextLoan
       };
     });
+    const nextFolderStart = (Math.round(Number(config.folder_start || 0) * 100) + totals.folderC) / 100;
     setIsSaving(true);
     try {
-      const newConfig = { ...config, locations };
+      const newConfig = { ...config, folder_start: nextFolderStart, locations };
       if (configRecordId) {
         await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
       } else {
-        const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracker config' });
+        const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracking' });
         setConfigRecordId(created?.id || null);
       }
       setConfig(newConfig);
       setShowTopUp(false);
-      const totalTopUp = (config.locations || []).reduce((s, loc) => {
-        const amt = signedCentsValue(topUpDraft[loc.location_id]);
-        return Number.isFinite(amt) ? s + amt : s;
-      }, 0);
+      const hasCollection = totals.grossC > 0;
+      const hasDeduction = totals.deductedC < 0;
+      if (!hasCollection && !hasDeduction) {
+        toast.success('No amounts entered — nothing changed');
+        return;
+      }
+      const parts = [];
+      if (hasCollection) {
+        parts.push(`+${fmtMoney(totals.netC / 100)} to cards`);
+        parts.push(`fees ${fmtMoney(totals.feeC / 100)}`);
+        if (totals.loanC > 0) parts.push(`loan ${fmtMoney(totals.loanC / 100)}`);
+        parts.push(`folder ${fmtMoney(totals.folderC / 100)}`);
+      }
+      if (hasDeduction) parts.push(`${fmtMoney(totals.deductedC / 100)} deducted`);
       toast.success(
-        totalTopUp === 0 ?
-        'No amounts entered — nothing changed' :
-        totalTopUp > 0 ?
-        `Cards topped up (+${fmtMoney(totalTopUp)} split across cards)` :
-        `Deducted ${fmtMoney(Math.abs(totalTopUp))} from cards`
+        hasCollection ?
+          `Collected ${fmtMoney(totals.grossC / 100)}: ${parts.join(' · ')}` :
+          `Deducted ${fmtMoney(Math.abs(totals.deductedC) / 100)} from cards`
       );
     } catch (err) {
       console.error('top-up save failed:', err);
@@ -3517,8 +3559,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !isSaving && setShowTopUp(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Adjust Card Balances</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Enter an amount to ADD to (or DEDUCT from) each card's balance — negative values like -5.93 deduct. Blank fields are skipped. This does not reset the tracking window.</div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Top Up / Collect</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">A positive amount collects like a Square card sale: the fee, loan % and folder % come off the top and only the net lands on the card (loan and folder savings adjust too). Negative values like -5.93 deduct. Blank fields are skipped. This does not reset the tracking window.</div>
             </div>
             {(config?.locations || []).map((loc) =>
           <label key={loc.location_id} className="block space-y-1">
