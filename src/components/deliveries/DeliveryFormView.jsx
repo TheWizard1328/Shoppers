@@ -1520,7 +1520,7 @@ export default function DeliveryFormView({
                      CardContent scroller, bled to the card edges (-mx-3) so scrolling content passes
                      underneath a solid bg-surface band rather than through it. */
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full sticky top-0 z-30 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-surface' : 'flex gap-3 flex-row w-full'}`}>
-                    <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-[1.1fr_0.9fr_auto] gap-2 w-full items-stretch' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
+                    <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 w-full items-stretch' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
                       <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Delivery Date *</Label>
                         <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="px-3 py-1 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9 [&::-webkit-calendar-picker-indicator]:mr-1 [&::-webkit-calendar-picker-indicator]:scale-100" />
@@ -1549,7 +1549,10 @@ export default function DeliveryFormView({
                       </div>
 
                       {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
-                      <div className="px-1 py-1 rounded-lg w-fit border flex flex-col items-start justify-start gap-1 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                      /* OWNER SPEC (Nov 15 2026): all three panels (Date, Driver, Travel Mode) stretch
+                         to the full width of the form on mobile. The old w-fit block left dead space to
+                         the right of the travel buttons; the grid now gives each panel an equal share. */
+                      <div className={`px-1 py-1 rounded-lg border flex flex-col gap-1 border-surface ${useMobileLayout ? 'w-full min-w-0 items-center justify-center' : 'w-fit items-start justify-start'}`} style={{ background: 'var(--bg-slate-50)' }}>
                           {!useMobileLayout &&
                         <Label className="text-sm font-semibold text-body">Travel Mode</Label>
                         }
