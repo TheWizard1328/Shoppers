@@ -787,7 +787,33 @@ let _inheritedWindowCount = 0;
   //   2. The driver's home location (when no stop has been completed yet).
   // Using GPS as the origin makes the planned polyline "jump" with every GPS
   // ping and diverge from the canonical snapped route.
-  if (latestFinishedCoords) {
+  // ── CYCLING ANCHOR ORIGIN (owner report Nov 16 2026) ──────────────────────
+  // "after manual write optimization and the accept-all path the origin point for my
+  // Callingwood pickup should have been the cycling route start marker but it is
+  // putting it two stops down the line."
+  //
+  // An in_transit/en_route cycling START marker is NOT a finished stop, so it never
+  // reached completedDeliveries and the engine anchored the first leg on the newest
+  // FINISHED stop instead - a stop the driver already drove past, two positions
+  // earlier in the day. The driver is physically standing at that marker: it is the
+  // route's live anchor. Take it as the origin whenever it is chronologically newer
+  // than the latest finished stop.
+  const _markerTime = (d) => new Date(d?.actual_delivery_time || d?.updated_date || d?.created_date || 0).getTime();
+  const _liveAnchorMarker = [...driverDeliveries]
+    .filter((d) => d?.is_cycling_marker
+      && ACTIVE_STATUSES.includes(String(d.status || '').toLowerCase())
+      && /start/i.test(String(d.delivery_notes || '')))
+    .sort((a, b) => _markerTime(b) - _markerTime(a))[0] || null;
+  const _liveAnchorCoords = _liveAnchorMarker ? getDeliveryCoords(_liveAnchorMarker, patientMap, storeMap) : null;
+  const _anchorIsNewer = !!_liveAnchorCoords && (
+    !latestFinishedDelivery || _markerTime(_liveAnchorMarker) >= _markerTime(latestFinishedDelivery)
+  );
+
+  if (_anchorIsNewer) {
+    currentPosition = _liveAnchorCoords;
+    locationSource = 'cycling_start_marker';
+    console.log(`[clientRouteEngine] ${source} — ORIGIN=cycling start marker (${_liveAnchorCoords.lat},${_liveAnchorCoords.lng}) marker=${_liveAnchorMarker.id}`);
+  } else if (latestFinishedCoords) {
     currentPosition = latestFinishedCoords;
     locationSource = 'last_finished_stop';
   } else if (_driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null) {
