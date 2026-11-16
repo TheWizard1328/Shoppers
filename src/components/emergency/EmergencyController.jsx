@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { base44 } from '@/api/base44Client';
 import {
   DEFAULT_EMERGENCY_SETTINGS,
@@ -1005,7 +1006,11 @@ const EmergencyController = ({ currentUser }) => {
 
   if (!enabled) return null;
 
-  return (
+  // PORTAL (owner report Nov 16 2026): the red live banner and the green stand-down
+  // banner must sit ABOVE the mobile header. Rendered inline they were trapped inside
+  // the dashboard's stacking context, so z-index alone could not lift them over the
+  // header. Portalled to document.body with 70k-level z-index they always win.
+  const _overlayContent = (
     <>
       {/* ── Pulsing banner while an emergency is live ─────────────────────── */}
       {activeAlert && (
@@ -1020,7 +1025,7 @@ const EmergencyController = ({ currentUser }) => {
             left: 0,
             right: 0,
             width: '100%',
-            zIndex: 10070,
+            zIndex: 70000,
             border: 'none',
             cursor: 'pointer',
             font: 'inherit',
@@ -1109,7 +1114,7 @@ const EmergencyController = ({ currentUser }) => {
             left: 0,
             right: 0,
             width: '100%',
-            zIndex: 10065,
+            zIndex: 69990,
             border: 'none',
             cursor: 'pointer',
             font: 'inherit',
@@ -1150,7 +1155,7 @@ const EmergencyController = ({ currentUser }) => {
           style={{
             position: 'fixed',
             inset: 0,
-            zIndex: 10080,
+            zIndex: 70020,
             background: 'rgba(12, 10, 10, 0.92)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
@@ -1281,6 +1286,9 @@ const EmergencyController = ({ currentUser }) => {
       {/* ── Hold-to-arm progress (map long-press) ─────────────────────────── */}
     </>
   );
+
+  if (typeof document === 'undefined') return _overlayContent;
+  return createPortal(_overlayContent, document.body);
 };
 
 export default EmergencyController;

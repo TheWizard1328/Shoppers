@@ -14,6 +14,7 @@ import { generateDriverColor, getContrastColor } from '../utils/colorGenerator';
 import { useDeliveryDisplayInfo } from '../common/StopCardRedaction';
 import { getCyclingMarkerDisplayInfo } from '../utils/deliveryTypeUtils';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
+import { isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
 // Memoized row component to prevent re-renders
 const DeliveryRow = memo(({
@@ -33,7 +34,8 @@ const DeliveryRow = memo(({
   isDispatcher
 }) => {
   const { isMobile } = useDevice();
-  const isPickup = !delivery.patient_id;
+  // InterStore stops have no patient_id but are NOT pickups (owner report Nov 16 2026).
+  const isPickup = !delivery.patient_id && !isInterStoreDelivery(delivery.delivery_id);
   const isNextDelivery = delivery.isNextDelivery === true;
 
   const { finalDisplayName: rawDisplayName, finalDisplayAddress, shouldRedact } = useDeliveryDisplayInfo({

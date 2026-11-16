@@ -694,6 +694,58 @@ function DeliveryMap({
       const isStopInDispatcherStore = !!(isCurrentUserDispatcher && currentUser?.store_ids?.includes(delivery.store_id));
       const useDispatcherPlaceholder = isCurrentUserDispatcher && !isStopInDispatcherStore;
 
+      // ── INTERSTORE DROP-OFF IS A DELIVERY, NOT A STORE PICKUP ─────────────
+      // OWNER REPORT Nov 16 2026: "my interstore deliveries keep changing to store
+      // pickups instead of being left like a regular delivery marker and using the
+      // interstore locations database for their data." An ISD- stop has no patient_id,
+      // so it used to fall through to the pickup branch below and render as a store
+      // pickup at the destination store. It is a normal DELIVERY marker whose name,
+      // address and coordinates come from the InterStoreLocation entity.
+      // ISP- (interstore PICKUP at the source store) is genuinely a pickup and keeps
+      // the pickup branch.
+      const _isInterStoreId = isInterStoreDelivery(delivery.delivery_id);
+      const _isInterStorePickupStop = String(delivery.delivery_id || '').toUpperCase().startsWith('ISP-');
+      if (!delivery.patient_id && _isInterStoreId && !_isInterStorePickupStop) {
+        const _loc = getInterStoreLocationSync(delivery.delivery_id);
+        const _lat = Number(_loc?.store_latitude);
+        const _lng = Number(_loc?.store_longitude);
+        if (!Number.isFinite(_lat) || !Number.isFinite(_lng) || _lat === 0 || _lng === 0) {
+          console.warn('[DeliveryMap] InterStore drop-off missing location coords, skipped:', delivery.delivery_id);
+          return;
+        }
+        deliveriesOut.push({
+          ...delivery,
+          latitude: _lat,
+          longitude: _lng,
+          patient: null,
+          driver,
+          store: _loc ? {
+            ...(store || {}),
+            name: _loc.store_name || (store || {}).name,
+            store_name: _loc.store_name || (store || {}).store_name,
+            address: _loc.store_address || (store || {}).address,
+            store_address: _loc.store_address || (store || {}).store_address,
+            phone: _loc.store_phone || (store || {}).phone,
+            phone_number: _loc.store_phone || (store || {}).phone_number,
+            isInterStoreLocation: true
+          } : store,
+          pinColor: isAllDriversMode
+            ? getPolylineColorForDriver(delivery.driver_id, (driver || driverLookupMap.get(delivery.driver_id))?.sort_order)
+            : (store ? getStoreColor(store) : '#6B7280'),
+          number: delivery.display_stop_order || delivery.stop_order || 0,
+          isFirstTime: !!delivery.first_delivery,
+          isNextInLine: !!delivery.isNextDelivery,
+          isDriverOnDuty: driver?.driver_status === 'on_duty',
+          markerType: 'delivery',
+          isInterStoreDelivery: true,
+          isInterStoreDropoff: true,
+          useSimpleCircle: (showOtherDriverDeliveries && isOtherDriver) || useDispatcherPlaceholder,
+          isOtherDriver: isOtherDriver || useDispatcherPlaceholder,
+          isReturn: false
+        });
+        return;
+      }
+
       if (delivery.patient_id) {
         const patient = patientById.get(delivery.patient_id) || null;
         if (!patient?.latitude || !patient?.longitude) return;

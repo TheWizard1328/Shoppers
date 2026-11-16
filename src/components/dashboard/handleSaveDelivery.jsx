@@ -17,6 +17,7 @@ import { filterDeleted } from '@/components/utils/deletedDeliveryRegistry';
 import { requestDeferredOptimization, pauseDeferredOptimization } from '@/components/utils/optimizationDebouncer';
 import { recalculateAndUpdateStopOrders } from '@/components/utils/stopOrderManager';
 import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
+import { isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
 function addMinutes(time, mins) {
   return addMinutesToTime(time, mins);
@@ -81,7 +82,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     const driverId = deliveryData.driver_id;
     const originalDriverId = deliveryData._originalDriverId;
     const driverWasChanged = deliveryData._driverWasChanged;
-    const isPickup = !deliveryData.patient_id;
+    const isPickup = !deliveryData.patient_id && !isInterStoreDelivery(deliveryData.delivery_id);
 
     const driver = drivers.find((d) => d && d.id === driverId);
     if (!driver) throw new Error('Driver not found');

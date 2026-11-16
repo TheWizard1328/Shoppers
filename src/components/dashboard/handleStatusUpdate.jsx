@@ -18,6 +18,7 @@ import { roundCompletionTime } from '@/components/dashboard/DashboardHelpers';
 import { lockDeliveryFields } from '@/components/utils/completionLockout';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { buildHistoryEntry, appendToHistory } from '@/components/utils/patientHistoryUtils';
+import { isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
 const getEdmDate = () => {
   const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -85,7 +86,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     deliveryDate = targetDelivery.delivery_date;
 
     const currentDate = getEdmDate();
-    const isPickup = !targetDelivery.patient_id;
+    const isPickup = !targetDelivery.patient_id && !isInterStoreDelivery(targetDelivery.delivery_id);
     const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
 
     if (isRetry) {

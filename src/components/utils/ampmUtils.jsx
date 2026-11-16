@@ -10,6 +10,7 @@
 
 import { format } from 'date-fns';
 import { generateStopId } from './idGenerator';
+import { isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
 /**
  * Add minutes to a time string (HH:mm format)
@@ -160,7 +161,8 @@ export const determineDeliveryAMPM = (patientOrDelivery, allDeliveries = []) => 
     return determineAMPMFromTime(patientOrDelivery.time_window_start);
   }
   
-  const isPickup = !patientOrDelivery.patient_id || patientOrDelivery.patient_id === '';
+  const isPickup = (!patientOrDelivery.patient_id || patientOrDelivery.patient_id === '')
+    && !isInterStoreDelivery(patientOrDelivery.delivery_id);
   
   if (isPickup) {
     return determineAMPMFromTime(patientOrDelivery.delivery_time_start);

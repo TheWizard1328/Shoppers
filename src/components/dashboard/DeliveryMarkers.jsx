@@ -2,6 +2,7 @@ import React from 'react';
 import { Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { Clock, Home, MapPin, Truck } from 'lucide-react';
+import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interStoreDisplayName';
 import DeliveryPopup from './DeliveryPopup';
 import MarkerInfoBalloon from './MarkerInfoBalloon';
 import { createSimpleCircleIcon, createDeliveryIcon, createCyclingStartIcon, createCyclingEndIcon, createCyclingSplitIcon, createCodBadgeIcon, resolveDeliveryPinSize } from './MapIcons';
@@ -585,12 +586,35 @@ function DeliveryMarkers({
         {delivery.useSimpleCircle && !delivery.isOtherDriver && (
           <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
             <div className="min-w-[220px] max-w-[320px]">
+              {/* OWNER REPORT Nov 16 2026: InterStore stops kept turning into store PICKUPS.
+                  An ISD/ISP delivery has no patient_id, and this balloon decided "pickup" purely
+                  from the missing patient object. InterStore stops are their own kind: they are
+                  a regular delivery to/from a store, with their name, address and coordinates
+                  coming from the InterStoreLocation entity (getInterStoreLocationSync reads the
+                  cache the optimizer warms). */}
               <MarkerInfoBalloon
                 delivery={delivery}
-                store={delivery.store}
+                store={(() => {
+                  if (!isInterStoreDelivery(delivery?.delivery_id)) return delivery.store;
+                  const loc = getInterStoreLocationSync(delivery.delivery_id);
+                  if (!loc) return delivery.store;
+                  return {
+                    ...(delivery.store || {}),
+                    id: (delivery.store || {}).id,
+                    name: loc.store_name || (delivery.store || {}).name,
+                    store_name: loc.store_name || (delivery.store || {}).store_name,
+                    address: loc.store_address || (delivery.store || {}).address,
+                    store_address: loc.store_address || (delivery.store || {}).store_address,
+                    phone: loc.store_phone || (delivery.store || {}).phone,
+                    phone_number: loc.store_phone || (delivery.store || {}).phone_number,
+                    latitude: loc.store_latitude ?? (delivery.store || {}).latitude,
+                    longitude: loc.store_longitude ?? (delivery.store || {}).longitude,
+                    isInterStoreLocation: true,
+                  };
+                })()}
                 patient={delivery.patient}
                 driver={delivery.driver}
-                isPickup={!delivery.patient}
+                isPickup={!delivery.patient && !isInterStoreDelivery(delivery?.delivery_id)}
               />
             </div>
           </Popup>

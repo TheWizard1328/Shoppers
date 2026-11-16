@@ -22,6 +22,7 @@ import {
 } from './offlineGenericMutations';
 import { getLocalTimestamp } from './localTimeHelper';
 import { markDeleted } from './deletedDeliveryRegistry';
+import { isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
 const normalizeComparableValue = (value) => {
   if (Array.isArray(value)) return JSON.stringify(value);
@@ -746,7 +747,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     if (newStatus && newStatus !== oldStatus) {
       const FINISHED = new Set(['completed', 'failed', 'cancelled']);
       const ACTIVE   = new Set(['in_transit', 'en_route']);
-      const isPickup = !existingDelivery?.patient_id;
+      const isPickup = !existingDelivery?.patient_id && !isInterStoreDelivery(existingDelivery?.delivery_id);
       const isAfterHoursPickup = isPickup && existingDelivery?.after_hours_pickup === true;
       const isDelivery = !!existingDelivery?.patient_id;
 
