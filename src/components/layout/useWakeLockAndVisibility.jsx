@@ -21,6 +21,12 @@ export function useWakeLockAndVisibility({
   const wakeLockRef = useRef(null);
   const keepAwakeVideoRef = useRef(null);
   const keepAwakeDiagRef = useRef(false);
+  // iOS never reliably holds a screen wake lock, so it keeps the video barrier
+  // running alongside the lock instead of after it (see w29 note below).
+  const isIOSDeviceRef = useRef(
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (/macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+  );
   const appFocusLostAtRef = useRef(null);
   const SMART_REFRESH_CYCLE = 15000;
 
@@ -44,7 +50,10 @@ export function useWakeLockAndVisibility({
         v.autoplay = true;
         v.preload = 'auto';
         v.src = KEEP_AWAKE_VIDEO_SRC;
-        v.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1;';
+        // 2x2 inside the viewport (NOT offscreen and NOT z-index:-1): iOS
+        // suspends a video it considers hidden, so it must be laid out on screen
+        // while staying invisible to the user.
+        v.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:0;';
         document.body.appendChild(v);
         keepAwakeVideoRef.current = v;
         const play = () => { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); };
@@ -71,7 +80,12 @@ export function useWakeLockAndVisibility({
           if (battery.level * 100 < 25 && !battery.charging) return;
         }
         wakeLockRef.current = await navigator.wakeLock.request('screen');
-        stopKeepAwakeVideo();
+        // w29 (owner report Nov 15 2026: "the screen still keeps shutting off"):
+        // iOS GRANTS the lock (hasWakeLock true on the iPhone, OS 18.7) and then
+        // drops it silently without firing 'release'. Stopping the video here
+        // removed the only barrier that actually worked, so on iOS the video now
+        // stays up for as long as the app is visible, lock or no lock.
+        if (!isIOSDeviceRef.current) stopKeepAwakeVideo();
         // iOS KEEP-AWAKE FIX (owner report Nov 15 2026): iOS releases the screen
         // wake lock on its own - on backgrounding, on a lock/unlock, and after a
         // period of no interaction - and it never re-acquires itself. The old
@@ -87,6 +101,8 @@ export function useWakeLockAndVisibility({
       }
       if (!wakeLockRef.current && 'wakeLock' in navigator) startKeepAwakeVideo();
       if (!('wakeLock' in navigator)) startKeepAwakeVideo();
+      // iOS: arm the video barrier straight away, in parallel with the lock.
+      if (isIOSDeviceRef.current) startKeepAwakeVideo();
       if (!keepAwakeDiagRef.current) {
         keepAwakeDiagRef.current = true;
         try {
@@ -212,12 +228,39 @@ export function useWakeLockAndVisibility({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     if (document.visibilityState === 'visible') requestWakeLock();
 
-    // iOS silently drops the wake lock (no event, terminated sentinel). A slow
-    // heartbeat re-arms it while the app is visible, and the first touch also
-    // retries because some iOS builds only honour the request during a gesture.
+    // iOS silently drops the wake lock (no event, terminated sentinel) and also
+    // suspends a video it thinks is idle. The heartbeat therefore (a) revives the
+    // video, (b) re-requests the lock, and (c) forces a brand new lock every
+    // third tick, because a sentinel can read as live in JS while iOS has already
+    // stopped honouring it - that silent drop is what still let the screen sleep.
+    let wakeTick = 0;
     const wakeHeartbeat = setInterval(() => {
-      if (document.visibilityState === 'visible') ensureWakeLock().catch(() => {});
-    }, 45000);
+      if (document.visibilityState !== 'visible') return;
+      wakeTick += 1;
+      const v = keepAwakeVideoRef.current;
+      if (isIOSDeviceRef.current) {
+        if (!v) startKeepAwakeVideo();
+        else if (v.paused) { try { v.play().catch(() => {}); } catch {} }
+      }
+      if (isIOSDeviceRef.current && wakeTick % 3 === 0) {
+        releaseWakeLock();
+        setTimeout(() => { ensureWakeLock().catch(() => {}); }, 50);
+      } else {
+        ensureWakeLock().catch(() => {});
+      }
+      // Evidence for the hourly digest: every 5 minutes, say what is actually
+      // holding the screen so a sleeping device can be diagnosed from logs.
+      if (wakeTick % 15 === 0) {
+        try {
+          remoteLogger.warn('[KEEP_AWAKE] state', {
+            lock: wakeLockRef.current ? (wakeLockRef.current.released ? 'released' : 'held') : 'none',
+            video: keepAwakeVideoRef.current ? (keepAwakeVideoRef.current.paused ? 'paused' : 'playing') : 'absent',
+            ios: isIOSDeviceRef.current,
+            hidden: document.visibilityState !== 'visible'
+          });
+        } catch {}
+      }
+    }, 20000);
     const gestureRetry = () => { ensureWakeLock().catch(() => {}); };
     window.addEventListener('pointerdown', gestureRetry, { passive: true });
     window.addEventListener('touchstart', gestureRetry, { passive: true });
