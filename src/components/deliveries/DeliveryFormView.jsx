@@ -784,8 +784,14 @@ export default function DeliveryFormView({
   // read as dead space under the Cancel / Update row on iOS PWA. The footer now keeps only
   // a 6px gutter on a browser/PWA phone (native keeps its 14px floor, where Capacitor
   // reports a zero safe area and the buttons genuinely need lifting off the bezel).
+  // OWNER REPORT (Nov 15 2026, iPhone photo of Edit Pickup): a band sat below the After Hours
+  // row and the Cancel / Update buttons. That was this footer pad - max(env(safe-area-inset-
+  // bottom), 6px) resolves to the 34px home indicator on an iPhone, so the form grew a strip
+  // under its own last row. The overlay is already pinned to the visual viewport (w34), so the
+  // footer's bottom edge IS the bottom of the usable screen; a flat 6px gutter is enough and
+  // the buttons stay clear of the indicator bar. Native keeps its 14px floor.
   const mobileFooterSafeBottom = useMobileLayout && isMobileDevice
-    ? (isNativeShell ? 'max(env(safe-area-inset-bottom, 0px), 14px)' : 'max(env(safe-area-inset-bottom, 0px), 6px)')
+    ? (isNativeShell ? 'max(env(safe-area-inset-bottom, 0px), 14px)' : '6px')
     : undefined;
 
   // Auto-focus the barcode scanner manual input when a staged or pending item is selected (desktop only)
