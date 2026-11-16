@@ -6,6 +6,7 @@ import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
 import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -554,7 +555,7 @@ export default function DeliveryFormView({
   // after layout and re-measured on resize instead of read once during render.
   // header height is intentionally NOT used on phones any more: the form covers
   // the app header (owner spec Nov 7 2026). `area` drives the desktop fill.
-  const { header: mobileHeaderHeight, bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
+  const { bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
 
   // KEYBOARD-AWARE BOTTOM INSET (Android APK fix, take 3):
   // Take 1 compared window.innerHeight vs visualViewport.height — doesn't work because this
@@ -727,23 +728,12 @@ export default function DeliveryFormView({
       return /; wv\)/.test(navigator.userAgent || '') && !!window.androidBridge;
     } catch { return false; }
   })();
-  // OWNER REPORT (Nov 15 2026, iPhone screenshot): on iOS the app's mobile header
-  // stayed visible OVER the form's own title bar ("Edit Pickup" was cut off) and the
-  // footer sat behind the in-app bottom nav, so the form did not fit squarely between
-  // the two. The old phone rule reserved ONLY the raw safe-area insets and expected to
-  // cover the chrome - which the header/nav outrank on iOS, and whose heights no longer
-  // match the insets at all (nav is 45px with a 0px inset on iOS, 34px inset on Android).
-  // The form now reserves the MEASURED chrome instead, so it starts under the mobile
-  // header and ends exactly at the top edge of the bottom nav on every device, with the
-  // raw inset only as a fallback when a height cannot be measured.
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
     ? {
-        paddingTop: mobileHeaderHeight > 0
-          ? `${mobileHeaderHeight}px`
-          : (isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)'),
-        paddingBottom: mobileBottomNavHeight > 0
-          ? `${mobileBottomNavHeight}px`
-          : `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
+        paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
+        // OWNER SPEC (Nov 8 2026): on a phone the form covers the app's bottom nav, so
+        // only the real system gesture/safe-area inset is reserved, never the nav height.
+        paddingBottom: `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
       }
     : undefined;
 
@@ -918,7 +908,7 @@ export default function DeliveryFormView({
     }
   };
 
-  return (
+  const overlayContent = (
     <div
     // role="dialog" (without data-state) deliberately opts this wrapper OUT
     // of every native-APK ".fixed.inset-0" safe-area catch-all rule in
@@ -929,7 +919,12 @@ export default function DeliveryFormView({
     // mobileFormInsetStyle above, so letting the catch-all also add
     // padding-bottom here just double-counts the safe-area gap.
     role="dialog"
-    className={`fixed inset-0 z-[10020] overflow-hidden bg-black/60 flex items-center justify-center ${useMobileLayout && isMobileDevice ? 'p-0' : 'p-4'}`}
+    // OWNER REPORT (Nov 15 2026, iPhone screenshot): on iOS the app's mobile header and
+    // bottom nav painted OVER the form. Keep the phone form above both: the mobile
+    // header is z-50 and the bottom nav z-150, and this overlay is z-[60000] on a phone
+    // (above the sidebar's 50000 too) so the form's title and footer can never be
+    // covered. Desktop/tablet keep z-[10020].
+    className={`fixed inset-0 overflow-hidden bg-black/60 flex items-center justify-center ${useMobileLayout && isMobileDevice ? 'p-0 z-[60000]' : 'p-4 z-[10020]'}`}
     style={mobileFormInsetStyle || desktopFillStyle}>
       
       <motion.div
@@ -2456,5 +2451,15 @@ export default function DeliveryFormView({
         onConfirmDelete={handleConfirmDelete} />
       
     </div>);
+
+  // OWNER REPORT (Nov 15 2026, iPhone screenshot): on iOS the app's mobile header and
+  // bottom nav painted over this form. Raising the overlay's z-index alone is not enough
+  // - a page wrapper with transform/overflow-hidden can trap a fixed overlay in a lower
+  // stacking context - so on a phone the overlay is portalled to document.body, where
+  // z-[60000] genuinely sits above the mobile header (z-50) and the bottom nav (z-150).
+  // Desktop/tablet render in place exactly as before.
+  return (useMobileLayout && isMobileDevice && typeof document !== 'undefined')
+    ? createPortal(overlayContent, document.body)
+    : overlayContent;
 
 }
