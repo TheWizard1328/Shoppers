@@ -100,6 +100,16 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
 
           /* Overlay dims only the area between the header and the bottom nav (owner request
              Nov 15 2026) so the in-app chrome stays visible while the drawer is open. */
+          /* FORM STACKING (owner report Nov 16 2026)
+             Mobile chrome (header 51000, bottom nav 51000) is above the generic dialog layer,
+             so the add/edit delivery form was covered by it whenever the mobile layout flag was
+             not the one driving its inline z-[60000]. The chrome modes now force the form above
+             the chrome by class, not by JS flag.
+             The New Patient form opens ON TOP of that form (Add To Route > patient search >
+             change address), so it must outrank the form itself everywhere, not just on phones. */
+          .app-container.chrome-mobile [data-delivery-form-overlay="true"],
+          .app-container.tablet-portrait [data-delivery-form-overlay="true"] { z-index: 60000 !important; }
+          .patient-form-overlay { z-index: 65000 !important; }
           /* ADD TO ROUTE / EDIT FORM CENTERING (owner spec Nov 16 2026): the form overlay is
              fixed inset-0 centred, which centred it in the whole window and left it sitting
              right of centre over the map. When the sidebar is persistent (desktop chrome /

@@ -1172,7 +1172,7 @@ export default function PatientForm({
     // adding padding-bottom too would double-count the safe area.
     role="dialog"
     ref={patientFormContainerRef}
-    className={`fixed inset-0 bg-black/60 flex z-[10020] items-center justify-center ${isMobile ? 'p-0' : 'p-4 pt-20 lg:pt-4 lg:pl-64'}`}
+    className={`patient-form-overlay fixed inset-0 bg-black/60 flex z-[65000] items-center justify-center ${isMobile ? 'p-0' : 'p-4 pt-20 lg:pt-4 lg:pl-64'}`}
     style={mobileFormInsetStyle || desktopFillStyle}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
