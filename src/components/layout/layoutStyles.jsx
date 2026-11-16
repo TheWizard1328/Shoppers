@@ -154,11 +154,15 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           body.is-native-apk .fixed.inset-0[class*="z-50"][data-state="open"]:not([role="dialog"]):not([role="alertdialog"]) {
             padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
           }
-          /* OS gesture inset only — the sheet already sits on the viewport bottom, so the
-             bottom-nav height must never be added here (that was the APK dead band). */
+          /* Bottom sheets in the edge-to-edge APK (owner report Nov 15 2026: "the APK is
+             still adding a gap the height of the bottom nav bar"). --native-safe-bottom on
+             Android IS the system navigation bar height, so padding the sheet by it put a
+             full nav-bar-tall band under the last row - the same band the PWA lost in w37.
+             Sheets now sit flush; the web/PWA rule never applied to them either, so the two
+             paths finally match. Each sheet pads its own footer (MobileSelect uses pb-2). */
           body.is-native-apk [data-vaul-drawer-content],
           body.is-native-apk [role="dialog"][data-vaul-drawer] {
-            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: 0 !important;
           }
 
           /* Shadcn Sheet overlay */
@@ -196,8 +200,10 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
             top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
           }
 
-          /* Generic fixed elements pinned to bottom: 0 — push up by nav bar */
-          body.is-native-apk .fixed.bottom-0:not(.inset-0) {
+          /* Generic fixed elements pinned to bottom: 0 — push up by nav bar.
+             Bottom sheets are excluded: lifting a sheet off the bottom edge left a strip of
+             map showing under it, which read as a second gap below the panel. */
+          body.is-native-apk .fixed.bottom-0:not(.inset-0):not([data-vaul-drawer]) {
             bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
           }
 
