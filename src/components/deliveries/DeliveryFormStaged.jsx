@@ -216,21 +216,52 @@ export default function DeliveryFormStaged({
     if (y !== new Date().getFullYear()) opts.year = 'numeric';
     return dt.toLocaleDateString(undefined, opts);
   };
+  // OWNER REPORT (Nov 16 2026): "there are Future Pending items that are actually for
+  // today showing in the Future Pending section instead of the regular Pending section",
+  // and "if a user selects a future pending item the staged/pending list should still
+  // show the past pending items in the same way it shows future pending items".
+  //
+  // Two faults in the old bucketing:
+  //  1. Everything that did not match the FORM's selected date dropped into one bucket that
+  //     was labelled Future Pending - including stops booked for today whenever the form's
+  //     date was something else (e.g. yesterday's or tomorrow's stop being edited), and
+  //     including genuinely past stops.
+  //  2. Consequently selecting a future stop (which sets the form date to that stop's
+  //     date) pushed today's work out of the regular Pending list.
+  //
+  // Now: the regular Pending list holds the form's date AND today, always. Everything else
+  // is bucketed by date into a Past Pending group (older than today) or a Future Pending
+  // group (newer than today, plus anything undated), each with its own date headers.
   const pendingItems = sortedStagedDeliveries.filter((s) => s.id);
-  const sameDatePending = pendingItems.filter((s) => _dateKeyOf(s.delivery_date) === referenceDateKey);
+  const regularDateKeys = new Set([referenceDateKey, _todayKey].filter(Boolean));
+  const sameDatePending = pendingItems.filter((s) => {
+    const key = _dateKeyOf(s.delivery_date);
+    return key && regularDateKeys.has(key);
+  });
+  const _pastByDate = new Map();
   const _futureByDate = new Map();
   pendingItems.forEach((s) => {
     const key = _dateKeyOf(s.delivery_date);
-    if (key === referenceDateKey) return;
+    if (key && regularDateKeys.has(key)) return;
+    const bucket = !key || key > _todayKey ? _futureByDate : _pastByDate;
     const bucketKey = key || 'unknown';
-    if (!_futureByDate.has(bucketKey)) _futureByDate.set(bucketKey, []);
-    _futureByDate.get(bucketKey).push(s);
+    if (!bucket.has(bucketKey)) bucket.set(bucketKey, []);
+    bucket.get(bucketKey).push(s);
   });
-  const futurePending = Array.from(_futureByDate.values()).reduce((acc, list) => acc + list.length, 0);
+  const _countOf = (map) => Array.from(map.values()).reduce((acc, list) => acc + list.length, 0);
+  const pastPending = _countOf(_pastByDate);
+  const futurePending = _countOf(_futureByDate);
   const pendingSections = [
-    { key: `same::${referenceDateKey}`, header: null, items: sameDatePending },
+    { key: `same::${referenceDateKey}`, group: 'same', header: null, items: sameDatePending },
+    ...Array.from(_pastByDate.keys()).sort().map((key) => ({
+      key: `past::${key}`,
+      group: 'past',
+      header: `${_formatDateHeader(key)} (${_pastByDate.get(key).length})`,
+      items: _pastByDate.get(key),
+    })),
     ...Array.from(_futureByDate.keys()).sort().map((key) => ({
       key: `future::${key}`,
+      group: 'future',
       header: key === 'unknown' ? 'No date' : `${_formatDateHeader(key)} (${_futureByDate.get(key).length})`,
       items: _futureByDate.get(key),
     })),
@@ -362,13 +393,13 @@ export default function DeliveryFormStaged({
           <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-600">
             Pending ({sameDatePending.length})
           </div>
-          {futurePending > 0 &&
-            <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-700">
-              Future Pending ({futurePending})
+          {pendingSections.map((section, sectionIndex) => (
+          <React.Fragment key={section.key}>
+          {section.group !== 'same' && section.group !== pendingSections[sectionIndex - 1]?.group &&
+            <div className={`text-[10px] font-semibold uppercase tracking-wider px-1 py-1 ${section.group === 'past' ? 'text-slate-500 mt-1' : 'text-orange-700 mt-1'}`}>
+              {section.group === 'past' ? `Past Pending (${pastPending})` : `Future Pending (${futurePending})`}
             </div>
           }
-          {pendingSections.map((section) => (
-          <React.Fragment key={section.key}>
           {section.header &&
             <div className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-1 mt-1 mb-0.5 text-orange-700 bg-orange-50 dark:bg-orange-950/40 rounded">
               {section.header}
