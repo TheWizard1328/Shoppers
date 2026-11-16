@@ -917,7 +917,12 @@ export default function Layout({ children, currentPageName }) {
         // Never overwrite a good value with 0: a transient null (page switch, header
         // hidden mid-render) would snap the drawer back to the screen edges.
         if (hdr) {
-          document.documentElement.style.setProperty('--drawer-top', `${Math.max(0, Math.round(hdr.getBoundingClientRect().bottom))}px`);
+          // Clamp: the header can never legitimately be taller than ~a third of the
+          // screen. A bad read (mid-render, doubled safe area) used to be written
+          // straight through and showed up as a header-height band above the drawer.
+          const raw = Math.round(hdr.getBoundingClientRect().bottom);
+          const clamped = Math.min(Math.max(0, raw), Math.round(vh * 0.34));
+          document.documentElement.style.setProperty('--drawer-top', `${clamped}px`);
         }
         if (navEl) {
           document.documentElement.style.setProperty('--drawer-bottom', `${Math.max(0, Math.round(vh - navEl.getBoundingClientRect().top))}px`);
