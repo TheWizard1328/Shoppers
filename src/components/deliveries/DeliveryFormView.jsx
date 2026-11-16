@@ -763,6 +763,36 @@ export default function DeliveryFormView({
       window.visualViewport?.removeEventListener?.('resize', read);
     };
   }, [useMobileLayout, isMobileDevice]);
+  // OWNER SPEC (Nov 15 2026, all devices): every time an edit form or Add To Route opens, the
+  // inner scrolling section must start at the TOP. It was opening part way down (or at the
+  // bottom) whenever the container was reused, the browser restored a previous scroll
+  // position, or late layout work (fonts, keyboard handlers, patient/pickup hydration) grew
+  // the content after paint. The reset is applied on open and again on the next frame plus a
+  // short delayed pass so late layout cannot scroll it back off the top.
+  const formScrollRef = React.useRef(null);
+  const scrollFormToTop = React.useCallback(() => {
+    const el = formScrollRef.current;
+    if (!el) return;
+    try {
+      el.scrollTop = 0;
+      // Desktop/tablet layouts scroll a nested column instead of the card body, so reset
+      // every scroller inside the form, not just the outer one.
+      el.querySelectorAll('.overflow-y-auto, .overflow-auto').forEach((child) => { child.scrollTop = 0; });
+    } catch (_) {}
+  }, []);
+  const formOpenKey = `${delivery?.id || 'new'}|${editingStagedId || ''}|${openMode || ''}|${isPickupMode ? 'pu' : ''}|${isInterStoreMode ? 'is' : ''}|${isCyclingMarkerMode ? 'cy' : ''}|${formData?.patient_id || ''}`;
+  React.useLayoutEffect(() => {
+    scrollFormToTop();
+    const raf = requestAnimationFrame(scrollFormToTop);
+    const t1 = setTimeout(scrollFormToTop, 120);
+    const t2 = setTimeout(scrollFormToTop, 400);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [formOpenKey, scrollFormToTop]);
+
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
     ? {
         paddingTop: 0,
@@ -1138,7 +1168,7 @@ export default function DeliveryFormView({
             </div>
           }
 
-          <CardContent className={`p-3 relative ${useMobileLayout ? `flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col` : shouldUseCompactPickupEditHeight ? 'overflow-visible' : isInterStoreMode ? 'overflow-y-auto overflow-x-hidden' : isCyclingMarkerMode && !delivery ? 'overflow-y-auto overflow-x-hidden' : isPickupMode && !delivery ? 'overflow-y-auto overflow-x-hidden' : delivery ? 'overflow-y-auto overflow-x-hidden' : 'flex-1 overflow-hidden'}`}>
+          <CardContent ref={formScrollRef} className={`p-3 relative ${useMobileLayout ? `flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col` : shouldUseCompactPickupEditHeight ? 'overflow-visible' : isInterStoreMode ? 'overflow-y-auto overflow-x-hidden' : isCyclingMarkerMode && !delivery ? 'overflow-y-auto overflow-x-hidden' : isPickupMode && !delivery ? 'overflow-y-auto overflow-x-hidden' : delivery ? 'overflow-y-auto overflow-x-hidden' : 'flex-1 overflow-hidden'}`}>
 
             {/* ── InterStore tab body ───────────────────────────────────── */}
             {isInterStoreMode &&
