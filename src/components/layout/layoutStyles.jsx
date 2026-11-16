@@ -122,7 +122,12 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           button, [role="button"], nav, nav a, .select-none { -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none; -webkit-touch-callout:none; }
           p:not(.select-none), span:not(.select-none), textarea, input { -webkit-user-select:text; -moz-user-select:text; -ms-user-select:text; user-select:text; }
           .safe-bottom { padding-bottom:max(0.5rem, env(safe-area-inset-bottom, 0px)); }
-          .fixed[role="dialog"][data-state="open"], .fixed[role="alertdialog"][data-state="open"] { padding-bottom:calc(var(--bottom-nav-height,0px) + var(--native-safe-bottom,0px)) !important; }
+          /* Bottom sheets (vaul drawers: theme picker, city filter, bulk edit) are parked on the
+             viewport bottom, so the app's bottom nav is NOT on screen while they are open.
+             Reserving its height here left a large dead band under the sheet - and the APK
+             added --native-safe-bottom on top of it, which is why the gap was twice as tall
+             there. Each sheet pads its own footer for the OS safe area instead. */
+          .fixed[role="dialog"][data-state="open"]:not([data-vaul-drawer]), .fixed[role="alertdialog"][data-state="open"]:not([data-vaul-drawer]) { padding-bottom:calc(var(--bottom-nav-height,0px) + var(--native-safe-bottom,0px)) !important; }
           [data-sonner-toaster][data-y-position="bottom"] { bottom:calc(var(--bottom-nav-height) + 0.5rem) !important; }
 
           /* ════════════════════════════════════════════════════════════
@@ -149,6 +154,8 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           body.is-native-apk .fixed.inset-0[class*="z-50"][data-state="open"]:not([role="dialog"]):not([role="alertdialog"]) {
             padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
           }
+          /* OS gesture inset only — the sheet already sits on the viewport bottom, so the
+             bottom-nav height must never be added here (that was the APK dead band). */
           body.is-native-apk [data-vaul-drawer-content],
           body.is-native-apk [role="dialog"][data-vaul-drawer] {
             padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;

@@ -89,7 +89,7 @@ export function MobileSelect({
             })}
           </div>
         </div>
-        <DrawerFooter className="mt-0 p-3 pt-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+        <DrawerFooter className="mt-0 p-3 pt-0 pb-2">
           <DrawerClose asChild>
             <Button variant="outline">Cancel</Button>
           </DrawerClose>
