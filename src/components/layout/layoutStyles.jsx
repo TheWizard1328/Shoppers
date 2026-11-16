@@ -38,6 +38,8 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
             --safe-area-inset-left: env(safe-area-inset-left, 0px);
             --bottom-nav-height: 0px;
             --actual-bottom-nav-height: 0px;
+            --drawer-top: 0px;
+            --drawer-bottom: 0px;
           }
 
           /* iOS STANDALONE HEIGHT LOCK (owner report Nov 15 2026): on an iPhone
@@ -70,7 +72,7 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
                               landscape height >= 480px): persistent sidebar, no mobile chrome */
           .app-container.chrome-mobile .mobile-header { display:flex !important; position:sticky; top:0; z-index:50 !important; background:var(--bg-white); border-bottom:1px solid var(--border-slate-200); }
           .app-container.chrome-mobile main { overflow-y:auto !important; overflow-x:hidden !important; flex:1; }
-          .app-container.chrome-mobile .app-sidebar { position:fixed !important; left:0 !important; top:0 !important; bottom:0 !important; width:280px !important; max-width:80vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important; padding-top:env(safe-area-inset-top, 0px) !important; padding-bottom:env(safe-area-inset-bottom, 0px) !important; box-sizing:border-box !important; }
+          .app-container.chrome-mobile .app-sidebar { position:fixed !important; left:0 !important; top:var(--drawer-top, 0px) !important; bottom:var(--drawer-bottom, 0px) !important; width:280px !important; max-width:80vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important; padding-top:env(safe-area-inset-top, 0px) !important; padding-bottom:env(safe-area-inset-bottom, 0px) !important; box-sizing:border-box !important; }
           .app-container.chrome-mobile .app-sidebar.sidebar-open { transform:translateX(0) !important; box-shadow:4px 0 12px var(--shadow-color) !important; }
           .app-container.chrome-mobile .main-content-area { width:100vw !important; flex:1 !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
           .app-container.chrome-desktop .mobile-header { display:none !important; }
@@ -78,7 +80,7 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .app-container.chrome-desktop .main-content-area { flex:1 1 auto !important; width:calc(100vw - var(--sidebar-width) - 1px) !important; min-width:400px !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
           /* tablet-portrait (Mode 2): overrides chrome-mobile with a roomier 320px drawer */
           .app-container.tablet-portrait .mobile-header { display:flex !important; position:sticky; top:0; z-index:50 !important; background:var(--bg-white); border-bottom:1px solid var(--border-slate-200); }
-          .app-container.tablet-portrait .app-sidebar { position:fixed !important; left:0 !important; top:0 !important; bottom:0 !important; width:320px !important; max-width:85vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important; padding-top:env(safe-area-inset-top, 0px) !important; padding-bottom:env(safe-area-inset-bottom, 0px) !important; box-sizing:border-box !important; }
+          .app-container.tablet-portrait .app-sidebar { position:fixed !important; left:0 !important; top:var(--drawer-top, 0px) !important; bottom:var(--drawer-bottom, 0px) !important; width:320px !important; max-width:85vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important; padding-top:env(safe-area-inset-top, 0px) !important; padding-bottom:env(safe-area-inset-bottom, 0px) !important; box-sizing:border-box !important; }
           .app-container.tablet-portrait .app-sidebar.sidebar-open { transform:translateX(0) !important; box-shadow:4px 0 12px var(--shadow-color) !important; }
           .app-container.tablet-portrait .main-content-area { width:100vw !important; flex:1 !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
           .app-container.tablet-portrait main { overflow-y:auto !important; overflow-x:hidden !important; flex:1; }
@@ -92,7 +94,9 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .app-container.desktop-device .app-sidebar { position:relative !important; transform:none !important; box-shadow:none !important; width:var(--sidebar-width) !important; min-width:200px !important; max-width:400px !important; flex:0 0 var(--sidebar-width) !important; transition:none !important; }
           .app-container.desktop-device .main-content-area { flex:1 1 auto !important; width:calc(100vw - var(--sidebar-width) - 1px) !important; min-width:400px !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
 
-          .sidebar-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:49999; animation:fadeIn 0.2s ease-out; }
+          /* Overlay dims only the area between the header and the bottom nav (owner request
+             Nov 15 2026) so the in-app chrome stays visible while the drawer is open. */
+          .sidebar-overlay { position:fixed; left:0; right:0; top:var(--drawer-top, 0px); bottom:var(--drawer-bottom, 0px); background:rgba(0,0,0,0.5); z-index:49999; animation:fadeIn 0.2s ease-out; }
           @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
           .custom-scrollbar::-webkit-scrollbar { height:8px; width:8px; }
           .custom-scrollbar::-webkit-scrollbar-track { background:transparent; }

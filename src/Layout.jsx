@@ -906,11 +906,33 @@ export default function Layout({ children, currentPageName }) {
       const nav = bottomNavRef.current;
       const h = nav ? nav.offsetHeight : 0;
       document.documentElement.style.setProperty('--actual-bottom-nav-height', `${h}px`);
+      // Drawer bounds (owner request Nov 15 2026): the mobile sidebar must sit BETWEEN
+      // the in-app header and the in-app bottom nav, not cover the phone's status bar
+      // or swallow the nav. Measured, never assumed: header bottom edge -> top inset,
+      // viewport bottom minus nav top edge -> bottom inset.
+      try {
+        const hdr = document.querySelector('[data-mobile-header]');
+        const navEl = bottomNavRef.current;
+        const vh = window.innerHeight;
+        const top = hdr ? Math.max(0, Math.round(hdr.getBoundingClientRect().bottom)) : 0;
+        const bottom = navEl ? Math.max(0, Math.round(vh - navEl.getBoundingClientRect().top)) : 0;
+        document.documentElement.style.setProperty('--drawer-top', `${top}px`);
+        document.documentElement.style.setProperty('--drawer-bottom', `${bottom}px`);
+      } catch {}
       // --bottom-nav-height stays 0px: the nav is back in normal flow (Nov 15 2026
       // revert), so every consumer that assumes 0 keeps its original geometry and
       // the dashboard FAB stack / stop cards sit where they always did.
     };
     measureNav();
+    let ro = null;
+    try {
+      if (typeof ResizeObserver !== 'undefined') {
+        ro = new ResizeObserver(() => measureNav());
+        const hdr = document.querySelector('[data-mobile-header]');
+        if (hdr) ro.observe(hdr);
+        if (bottomNavRef.current) ro.observe(bottomNavRef.current);
+      }
+    } catch {}
     // Re-measure on resize and orientation change
     window.addEventListener('resize', measureNav);
     window.addEventListener('orientationchange', measureNav);
@@ -920,8 +942,9 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('resize', measureNav);
       window.removeEventListener('orientationchange', measureNav);
       clearTimeout(t);
+      if (ro) ro.disconnect();
     };
-  }, [isMobile, currentUser]);
+  }, [isMobile, currentUser, sidebarOpen]);
 
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
@@ -2066,7 +2089,7 @@ export default function Layout({ children, currentPageName }) {
 
                     {/* Mobile Bottom Nav - inside main-content-area so flex column shrinks main naturally */}
                     {/* Bottom nav shows only on mobile phones (portrait) and tablet-portrait — never in landscape */}
-                    {!sidebarOpen && currentUser && isMobile &&
+                    {currentUser && isMobile &&
               <MobileBottomNav ref={bottomNavRef} currentUser={effectiveCurrentUser} currentPageName={currentPageName} onSidebarToggle={() => setSidebarOpen(true)} hasApkUpdate={hasApkUpdate} />
               }
               </div>
