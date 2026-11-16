@@ -137,6 +137,13 @@ export function DeliveryStagedPanelMobile({
   show,
   onClose,
   sortedStagedDeliveries,
+  // CRASH FIX (owner report Nov 16 2026: "every single time I try to open the
+  // deliveries and pending stops tab on mobile from the Add To Route form it crashes").
+  // The panel body already passed this prop down to DeliveryFormStaged, but the mobile
+  // component never destructured it, so every mobile open threw a ReferenceError and
+  // hit the error boundary. The desktop panel destructured it, which is why only
+  // mobile crashed.
+  pendingSourceDeliveries,
   sortedProjectedDeliveries,
   stores,
   patients,
