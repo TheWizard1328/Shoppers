@@ -3,6 +3,7 @@ import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 import { connectionMonitor } from '@/components/utils/connectionMonitor';
 import { publishApiIssue } from '@/components/utils/apiIssueBus';
+import { installEntityReadCoalescer } from '@/components/utils/entityReadCoalescer';
 
 const { appId, serverUrl, token, functionsVersion } = appParams;
 
@@ -135,3 +136,12 @@ export const base44 = createClient({
     }
   }
 });
+
+// ── ENTITY READ COALESCER (owner request Nov 16 2026) ─────────────────────────
+// The hourly digest kept flagging entity_list 429s (210 calls / 60s). The cause
+// was duplicate READS, not bad data: several consumers (AppDataContext, smart
+// refresh, priority sync, badges, panels) list/filter the same entity within the
+// same second, and each preview tab repeats the set. Coalescing in-flight
+// duplicates plus a 4s TTL on settled reads removes the burst; every write
+// invalidates the cache so a read after a write is always fresh.
+installEntityReadCoalescer(base44);
