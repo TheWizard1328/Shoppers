@@ -54,7 +54,7 @@ import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './
 import { resolveInterStoreDriver } from './interStoreDriverResolver';
 import { loadStatHolidays, getStatHoliday } from '../utils/statHolidayResolver';
 import { shouldUseImmediateAddToRouteStage, buildImmediateAddToRouteStage } from './Add2RouteStatusHelper';
-import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { isInterStoreDelivery, getInterStoreKindOf, isInterStoreRecord } from '../utils/interStoreDisplayName';
 import { createPatientFromDraft, resolvePickupPuid, resolvePickupTimeWindow } from './deliveryAddHelpers';
 import { addPickupToRoute } from './pickupAddHelpers';
 import { getRoutePickupsForStore, choosePickupForNewDelivery, buildPickupSelectValue, buildPendingNewPickup, getStorePickupOptions } from './pickupSelectionHelpers';
@@ -602,9 +602,15 @@ export default function DeliveryForm({
         _interstore_distance_km: delivery.estimated_distance_km ?? null,
         _interstore_notes: '', // notes are baked into delivery_notes; leave blank on edit
         _interstore_resolving: !delivery._interstore_source_id && !delivery._interstore_dest_id, // flag while async lookup is running
-        _interstore_stop_type: String(delivery.delivery_id || '').toUpperCase().startsWith('ISD-') ? 'dropoff' : 'pickup',
+        _interstore_stop_type: getInterStoreKindOf(delivery) === 'ISP' ? 'pickup' : 'dropoff',
       });
-      setIsPickupMode(!delivery.patient_id && !isInterStoreDelivery(delivery.delivery_id));
+      // OWNER REPORT Nov 16 2026: "even when I try to edit the marker it's editing it as
+      // though it's a pickup and not an interstore." A recreated InterStore drop-off is
+      // saved with a plain DID- delivery_id, so the prefix-only test said "pickup". Use the
+      // record-level detector so any InterStore stop opens the InterStore editor.
+      const _interStoreKindOnOpen = getInterStoreKindOf(delivery);
+      setIsPickupMode(!delivery.patient_id && !_interStoreKindOnOpen);
+      if (_interStoreKindOnOpen) setIsInterStoreMode(true);
       if (patient) {
         setSelectedPatient(patient);
         const initialPid = patient?.patient_id || '';

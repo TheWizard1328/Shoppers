@@ -2,7 +2,7 @@ import React from 'react';
 import { Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { Clock, Home, MapPin, Truck } from 'lucide-react';
-import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interStoreDisplayName';
+import { isInterStoreRecord, getInterStoreLocationForRecordSync } from '../utils/interStoreDisplayName';
 import DeliveryPopup from './DeliveryPopup';
 import MarkerInfoBalloon from './MarkerInfoBalloon';
 import { createSimpleCircleIcon, createDeliveryIcon, createCyclingStartIcon, createCyclingEndIcon, createCyclingSplitIcon, createCodBadgeIcon, resolveDeliveryPinSize } from './MapIcons';
@@ -595,8 +595,8 @@ function DeliveryMarkers({
               <MarkerInfoBalloon
                 delivery={delivery}
                 store={(() => {
-                  if (!isInterStoreDelivery(delivery?.delivery_id)) return delivery.store;
-                  const loc = getInterStoreLocationSync(delivery.delivery_id);
+                  if (!isInterStoreRecord(delivery)) return delivery.store;
+                  const loc = getInterStoreLocationForRecordSync(delivery);
                   if (!loc) return delivery.store;
                   return {
                     ...(delivery.store || {}),
@@ -614,7 +614,7 @@ function DeliveryMarkers({
                 })()}
                 patient={delivery.patient}
                 driver={delivery.driver}
-                isPickup={!delivery.patient && !isInterStoreDelivery(delivery?.delivery_id)}
+                isPickup={!delivery.patient && !isInterStoreRecord(delivery)}
               />
             </div>
           </Popup>

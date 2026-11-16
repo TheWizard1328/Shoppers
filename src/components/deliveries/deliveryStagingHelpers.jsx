@@ -1,5 +1,31 @@
 import { isFirstDeliveryPatient } from '@/components/utils/patientHistoryUtils';
 import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
+
+/**
+ * OWNER REPORT Nov 16 2026: "that interstore drop off had its delivery ID prefix of
+ * DID instead of ISD... either it's not being set as ISD when I create the interstore
+ * drop off or something is changing it."
+ *
+ * ROOT CAUSE: the staging builders were the only creation path that hardcoded a
+ * `DID-` id. interStoreTransferHandler mints `ISP-/ISD-{ts}-{fromPhone}-{toPhone}`
+ * correctly, but a stop staged through Add To Route -> InterStore went through
+ * buildPatientStagedDelivery and came out as `DID-...`. Everything downstream that
+ * identifies an InterStore stop by its prefix then treated it as a plain pickup
+ * (pickup marker, "Edit Pickup"). Mint the correct prefix at the source.
+ */
+export const buildInterStoreDeliveryId = (formData) => {
+  const kind = (formData?._interstore_stop_type || 'pickup') === 'dropoff' ? 'ISD' : 'ISP';
+  const digits = (v) => String(v || '').replace(/\D/g, '');
+  const srcPhone = digits(formData?._interstore_source_number || formData?._interstore_source_phone);
+  const dstPhone = digits(formData?._interstore_dest_number || formData?._interstore_dest_phone);
+  const phonePart = [srcPhone, dstPhone].filter(Boolean).join('-');
+  return `${kind}-${Date.now()}${phonePart ? `-${phonePart}` : ''}`;
+};
+
+export const isInterStoreDraft = (formData) => !!(
+  formData && (formData._interstore_source_id || formData._interstore_dest_id)
+);
+
 export const resolveDistanceFromStore = ({ patient, store, calculateDistance }) => {
   let distanceFromStore = patient?.distance_from_store;
 
@@ -46,7 +72,7 @@ export const buildPickupStagedDelivery = ({ formData, codAmount, store, timeSlot
     unit_number: '',
     cod_total_amount_required: codAmount,
     delivery_date: formData.delivery_date,
-    delivery_id: `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+    delivery_id: isInterStoreDraft(formData) ? buildInterStoreDeliveryId(formData) : `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     company_id: resolveDeliveryCompanyId(),
     driver_id: formData.driver_id,
     driver_name: formData.driver_name,
@@ -103,7 +129,7 @@ export const buildPatientStagedDelivery = ({
   // staged path with NO delivery_id and NO company_id, so every stop staged
   // here reached the database with a blank company_id. Stamp both at the
   // source, exactly like the pickup builder above.
-  delivery_id: `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+  delivery_id: isInterStoreDraft(formData) ? buildInterStoreDeliveryId(formData) : `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
   company_id: resolveDeliveryCompanyId(),
   time_window_start: formData.time_window_start || patient?.time_window_start || '',
   time_window_end: formData.time_window_end || patient?.time_window_end || '',

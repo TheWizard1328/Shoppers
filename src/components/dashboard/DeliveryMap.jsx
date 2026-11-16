@@ -37,7 +37,7 @@ import InterStoreMarkers from "./InterStoreMarkers";
 import MapBreadcrumbs from "./MapBreadcrumbs";
 import { createLiveLocationDot, bucketZoom } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
-import { getInterStoreLocationSync, isInterStoreDelivery, parseInterStoreDeliveryId } from "../utils/interStoreDisplayName";
+import { getInterStoreLocationSync, getInterStoreLocationForRecordSync, getInterStoreKindOf, isInterStoreDelivery, parseInterStoreDeliveryId } from "../utils/interStoreDisplayName";
 import { countLegendStops } from "./legendStopCounter";
 import { getCurrentDevice } from "../utils/deviceManager";
 
@@ -277,6 +277,7 @@ function DeliveryMap({
   const [visibleBounds, setVisibleBounds] = useState(null);
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
   const zoomOverlayTimeoutRef = useRef(null);
+  const interStoreWarnedRef = useRef(new Set());
   const markerRefs = useRef({});
   // ── Stats-overlay unhide candidates (owner spec Oct 16 2026) ────────────────
   // Live/self driver dot, shared driver dots, and INCOMPLETE stop markers
@@ -703,14 +704,21 @@ function DeliveryMap({
       // address and coordinates come from the InterStoreLocation entity.
       // ISP- (interstore PICKUP at the source store) is genuinely a pickup and keeps
       // the pickup branch.
-      const _isInterStoreId = isInterStoreDelivery(delivery.delivery_id);
-      const _isInterStorePickupStop = String(delivery.delivery_id || '').toUpperCase().startsWith('ISP-');
+      const _interStoreKind = getInterStoreKindOf(delivery);
+      const _isInterStoreId = !!_interStoreKind;
+      const _isInterStorePickupStop = _interStoreKind === 'ISP';
       if (!delivery.patient_id && _isInterStoreId && !_isInterStorePickupStop) {
-        const _loc = getInterStoreLocationSync(delivery.delivery_id);
-        const _lat = Number(_loc?.store_latitude);
-        const _lng = Number(_loc?.store_longitude);
+        // OWNER REPORT Nov 16 2026: a recreated InterStore drop-off is saved with a plain
+        // DID- delivery_id, so phone-based lookup fails. Resolve by the entity id stored on
+        // the record (_interstore_dest_id), then fall back to the record's own coords.
+        const _loc = getInterStoreLocationForRecordSync(delivery);
+        let _lat = Number(_loc?.store_latitude ?? delivery.latitude);
+        let _lng = Number(_loc?.store_longitude ?? delivery.longitude);
         if (!Number.isFinite(_lat) || !Number.isFinite(_lng) || _lat === 0 || _lng === 0) {
-          console.warn('[DeliveryMap] InterStore drop-off missing location coords, skipped:', delivery.delivery_id);
+          if (!interStoreWarnedRef.current.has(delivery.id || delivery.delivery_id)) {
+            interStoreWarnedRef.current.add(delivery.id || delivery.delivery_id);
+            console.warn('[DeliveryMap] InterStore drop-off has no location coords yet:', delivery.delivery_id);
+          }
           return;
         }
         deliveriesOut.push({

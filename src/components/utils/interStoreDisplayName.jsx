@@ -16,6 +16,8 @@ const phoneCache = new Map();        // digits -> store_name
 const locationCache = new Map();     // digits -> full InterStoreLocation record
 let allLocationsPromise = null;
 
+const entityIdCache = new Map();   // InterStoreLocation record id -> record
+
 function indexLocations(locs) {
   (locs || []).forEach((loc) => {
     if (loc?.store_phone && loc?.store_name) {
@@ -25,6 +27,7 @@ function indexLocations(locs) {
         locationCache.set(digits, loc);
       }
     }
+    if (loc?.id) entityIdCache.set(loc.id, loc);
   });
 }
 
@@ -40,6 +43,7 @@ export function resetInterStoreLocationsCache() {
  * Exported so interStoreGeocode can update the in-memory cache after saving coords.
  */
 export function indexInterStoreLocation(loc) {
+  if (loc?.id) entityIdCache.set(loc.id, loc);
   if (!loc?.store_phone || !loc?.store_name) return;
   const digits = String(loc.store_phone).replace(/\D/g, '');
   if (digits) {
@@ -281,4 +285,67 @@ export function useInterStoreLocation(delivery_id) {
   }, []);
 
   return location;
+}
+
+/**
+ * INTERSTORE DETECTION THAT DOES NOT TRUST THE ID PREFIX.
+ * OWNER REPORT Nov 16 2026: an InterStore drop-off created from the Add To Route form
+ * on some paths is saved with a plain `DID-...` delivery_id (no ISD-/ISP- prefix) while
+ * its real identity sits in `_interstore_source_id` / `_interstore_dest_id` and in
+ * delivery_notes ("InterStore DropOff"). Every prefix-only test then treated that stop
+ * as a normal store pickup: it drew as a pickup marker and the edit form opened as
+ * "Edit Pickup". These helpers look at the record itself, so the classification
+ * survives a reload.
+ */
+export function getInterStoreKindOf(delivery) {
+  if (!delivery) return null;
+  const id = String(delivery.delivery_id || '').toUpperCase();
+  if (id.startsWith('ISD-')) return 'ISD';
+  if (id.startsWith('ISP-')) return 'ISP';
+  const notes = String(delivery.delivery_notes || '');
+  if (/interstore\s*drop\s*-?\s*off/i.test(notes)) return 'ISD';
+  if (/interstore\s*pick\s*-?\s*up/i.test(notes)) return 'ISP';
+  // Legacy rows with no notes and no prefix: any interstore pointer means it is one.
+  if (delivery._interstore_dest_id || delivery._interstore_source_id) {
+    return delivery._interstore_dest_id ? 'ISD' : 'ISP';
+  }
+  return null;
+}
+
+export function isInterStoreRecord(delivery) {
+  return !!getInterStoreKindOf(delivery);
+}
+
+/** Synchronous InterStoreLocation lookup by the entity id stored on the delivery. */
+export function getInterStoreLocationByEntityIdSync(entityId) {
+  if (!entityId) return null;
+  return entityIdCache.get(entityId) || null;
+}
+
+/**
+ * Resolve the InterStoreLocation for a record without relying on the id prefix.
+ * ISD uses the destination, ISP uses the source. Warms the shared cache first.
+ */
+export async function resolveInterStoreLocationForRecord(delivery) {
+  const kind = getInterStoreKindOf(delivery);
+  if (!kind) return null;
+  const entityId = kind === 'ISD' ? delivery._interstore_dest_id : delivery._interstore_source_id;
+  if (entityId) {
+    const cached = entityIdCache.get(entityId);
+    if (cached) return cached;
+    try {
+      const fromApi = await getInterStoreLocationByEntityId(entityId);
+      if (fromApi) { indexInterStoreLocation(fromApi); return fromApi; }
+    } catch (_) {}
+  }
+  return resolveInterStoreLocation(delivery.delivery_id);
+}
+
+/** Sync variant used while building map markers: entity-id cache first, phone cache second. */
+export function getInterStoreLocationForRecordSync(delivery) {
+  const kind = getInterStoreKindOf(delivery);
+  if (!kind) return null;
+  const entityId = kind === 'ISD' ? delivery._interstore_dest_id : delivery._interstore_source_id;
+  if (entityId && entityIdCache.get(entityId)) return entityIdCache.get(entityId);
+  return getInterStoreLocationSync(delivery.delivery_id);
 }
