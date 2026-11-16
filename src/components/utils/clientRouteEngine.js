@@ -1963,7 +1963,23 @@ let _inheritedWindowCount = 0;
         // A stop that has already started is history: its leg was generated from
         // the predecessor that existed when the driver left, and no later insert
         // may rewrite it. Verify and rebuild only legs that have NOT started.
+        // ── EXPECTED ORIGIN: the previous stop ONLY if it was actually visited ──
+        // OWNER RULE (Nov 16 2026, correcting the earlier chain rule):
+        // "the polyline should have gone from stop 29 to whichever stop was
+        // actually isNextDelivery."
+        // A leg may chain from its predecessor in stop order ONLY when that
+        // predecessor has really been reached (in_transit / started / finished).
+        // An en_route or pending stop that the driver has NOT visited is not a
+        // place he can drive from: chaining off it drew the current leg from the
+        // Beverly/Londonderry pickup (or from wherever that stop sits) instead of
+        // from stop 29, the stop he actually finished. When the predecessor is
+        // unvisited the expected origin is the route origin — the last finished
+        // stop — and the generator bends the leg through his live GPS via.
+        const _originFallback = polylineOrigin
+          ? { lat: Number(polylineOrigin.lat), lon: Number(polylineOrigin.lon ?? polylineOrigin.lng) }
+          : null;
         let _breakIdx = -1;
+        let _breakOrigin = null;
         for (let i = 0; i < _orderedLive.length; i += 1) {
           if (_startedLive(_orderedLive[i])) continue; // started: leg is fixed history
           const seg = segmentPolylineByDeliveryId.get(String(_orderedLive[i].delivery.id));
@@ -1971,18 +1987,23 @@ let _inheritedWindowCount = 0;
           const start = _startOf(seg);
           if (!start) continue;
           const prev = i > 0 ? _orderedLive[i - 1] : null;
-          if (!prev) continue; // first leg chains from the route origin; nothing to compare
-          const km = haversineKm(Number(start[0]), Number(start[1]), Number(prev.lat), Number(prev.lng));
-          if (km > _CHAIN_KM) { _breakIdx = i; break; }
+          const expect = (prev && _startedLive(prev))
+            ? { lat: Number(prev.lat), lon: Number(prev.lng) }
+            : _originFallback;
+          if (!expect || !Number.isFinite(expect.lat) || !Number.isFinite(expect.lon)) continue;
+          const km = haversineKm(Number(start[0]), Number(start[1]), expect.lat, expect.lon);
+          if (km > _CHAIN_KM) { _breakIdx = i; _breakOrigin = expect; break; }
         }
         if (_breakIdx > 0 && !cyclingSegmentOnly && !drivingSegmentOnly && polylineOrigin) {
           const prevStop = _orderedLive[_breakIdx - 1];
+          const _chainOrigin = _breakOrigin
+            || (prevStop ? { lat: Number(prevStop.lat), lon: Number(prevStop.lng) } : null);
           const tail = _orderedLive.slice(_breakIdx).filter((st) => !_startedLive(st));
           if (tail.length === 0) return;
           console.warn(`[clientRouteEngine] ${source} — LEG CHAIN BROKEN at ${tail[0]?.delivery?.stop_id || tail[0]?.delivery?.id}: rebuilding ${tail.length} leg(s) from ${prevStop?.delivery?.stop_id || 'previous stop'}`);
           const rebuilt = await generateRoutePolylines({
             stops: tail,
-            originPoint: { lat: Number(prevStop.lat), lon: Number(prevStop.lng) },
+            originPoint: _chainOrigin,
             cyclingSegmentOnly: false,
             hereApiKey,
             polylineProvider,
