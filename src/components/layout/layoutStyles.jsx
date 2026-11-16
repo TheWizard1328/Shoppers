@@ -226,16 +226,27 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .app-container.chrome-mobile nav[data-mobile-bottom-nav],
           .app-container.tablet-portrait nav[data-mobile-bottom-nav] {
             position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important;
-            /* iOS trims the home-indicator band (owner report Nov 15 2026: the nav bar
-               still showed a 34px strip of empty space under its icons, probe measured
-               navPadBottom 34px on an 848pt screen). 20px of that inset is reclaimed
-               and a 6px floor keeps the icons off the very edge, so the bar reads as
-               one flat tab bar like Android instead of a bar plus a gap. */
-            padding-bottom:max(6px, calc(env(safe-area-inset-bottom, 0px) - 20px)) !important;
+            /* Platform split (owner report Nov 15 2026):
+               - Android APK / WebView returns the real system-bar inset in
+                 env(safe-area-inset-bottom) (24-48px). It must be kept, because
+                 the bar is edge-to-edge and the in-app nav was overlapping the
+                 phone's own navigation buttons when this was trimmed.
+               - iPhone reports 34px for the home indicator, which is far more
+                 than the bar needs and showed as dead space, so iOS gets a flat
+                 4px and the bar sits just above the gesture control. */
+            padding-bottom:env(safe-area-inset-bottom, 0px) !important;
             background:var(--bg-white) !important; box-sizing:border-box !important;
             z-index:150 !important;
           }
           .app-container.chrome-mobile .main-content-area, .app-container.tablet-portrait .main-content-area { padding-bottom:0 !important; }
+          /* iPhone / iPad only: flatten the home-indicator reserve to 4px.
+             (-webkit-touch-callout is WebKit-on-iOS, so Android never matches.) */
+          @supports (-webkit-touch-callout: none) {
+            .app-container.chrome-mobile nav[data-mobile-bottom-nav],
+            .app-container.tablet-portrait nav[data-mobile-bottom-nav] {
+              padding-bottom:4px !important;
+            }
+          }
           .app-container.chrome-desktop { --bottom-nav-height: 0px; }
           html:not(.dark) .bg-slate-50 { background-color:#f8fafc !important; }
           .text-xs, .text-sm { color:inherit; }
