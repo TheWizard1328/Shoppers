@@ -3,6 +3,8 @@ import { format } from 'date-fns';
 import { globalFilters } from '../utils/globalFilters';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { locationTracker } from '../utils/locationTracker';
+import { remoteLogger } from '../utils/remoteLogger';
+import { KEEP_AWAKE_VIDEO_SRC } from './keepAwakeVideo';
 
 /**
  * Manages Wake Lock API and visibility change handling.
@@ -17,14 +19,49 @@ export function useWakeLockAndVisibility({
   stores
 }) {
   const wakeLockRef = useRef(null);
+  const keepAwakeVideoRef = useRef(null);
+  const keepAwakeDiagRef = useRef(false);
   const appFocusLostAtRef = useRef(null);
   const SMART_REFRESH_CYCLE = 15000;
 
   useEffect(() => {
     let batteryRef = null;
 
+    // ── iOS KEEP-AWAKE FALLBACK (Nov 15 2026) ───────────────────────────────
+    // A muted, inline, looping video is the only sleep barrier WebKit honours
+    // consistently in a PWA. Started whenever the Screen Wake Lock API is
+    // missing, refused, or released, and torn down as soon as the real lock is
+    // held again so it never competes with it.
+    const startKeepAwakeVideo = () => {
+      if (keepAwakeVideoRef.current || document.visibilityState !== 'visible') return;
+      try {
+        const v = document.createElement('video');
+        v.setAttribute('playsinline', '');
+        v.setAttribute('webkit-playsinline', '');
+        v.muted = true;
+        v.defaultMuted = true;
+        v.loop = true;
+        v.autoplay = true;
+        v.preload = 'auto';
+        v.src = KEEP_AWAKE_VIDEO_SRC;
+        v.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1;';
+        document.body.appendChild(v);
+        keepAwakeVideoRef.current = v;
+        const play = () => { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); };
+        play();
+        v.addEventListener('pause', play);
+      } catch { keepAwakeVideoRef.current = null; }
+    };
+
+    const stopKeepAwakeVideo = () => {
+      const v = keepAwakeVideoRef.current;
+      keepAwakeVideoRef.current = null;
+      if (v) { try { v.pause(); v.remove(); } catch {} }
+    };
+
     const requestWakeLock = async () => {
-      if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') return;
+      if (!('wakeLock' in navigator)) { startKeepAwakeVideo(); return; }
       try {
         // For on-duty drivers, keep the wake lock active regardless of battery level.
         // GPS tracking for active deliveries is mission-critical.
@@ -34,6 +71,7 @@ export function useWakeLockAndVisibility({
           if (battery.level * 100 < 25 && !battery.charging) return;
         }
         wakeLockRef.current = await navigator.wakeLock.request('screen');
+        stopKeepAwakeVideo();
         // iOS KEEP-AWAKE FIX (owner report Nov 15 2026): iOS releases the screen
         // wake lock on its own - on backgrounding, on a lock/unlock, and after a
         // period of no interaction - and it never re-acquires itself. The old
@@ -43,7 +81,24 @@ export function useWakeLockAndVisibility({
           wakeLockRef.current = null;
           if (document.visibilityState === 'visible') setTimeout(() => { ensureWakeLock(); }, 250);
         });
-      } catch {}
+      } catch {
+        // API missing, refused or threw: fall back to the looping video.
+        startKeepAwakeVideo();
+      }
+      if (!wakeLockRef.current && 'wakeLock' in navigator) startKeepAwakeVideo();
+      if (!('wakeLock' in navigator)) startKeepAwakeVideo();
+      if (!keepAwakeDiagRef.current) {
+        keepAwakeDiagRef.current = true;
+        try {
+          remoteLogger.warn('[KEEP_AWAKE] capability', {
+            hasWakeLock: 'wakeLock' in navigator,
+            hasGetBattery: 'getBattery' in navigator,
+            standalone: window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true,
+            videoFallback: !!keepAwakeVideoRef.current,
+            ua: navigator.userAgent
+          });
+        } catch {}
+      }
     };
 
     const releaseWakeLock = () => {
@@ -150,6 +205,7 @@ export function useWakeLockAndVisibility({
       } else {
         appFocusLostAtRef.current = Date.now();
         releaseWakeLock();
+        stopKeepAwakeVideo();
       }
     };
 
@@ -167,6 +223,7 @@ export function useWakeLockAndVisibility({
     window.addEventListener('touchstart', gestureRetry, { passive: true });
 
     return () => {
+      stopKeepAwakeVideo();
       clearInterval(wakeHeartbeat);
       window.removeEventListener('pointerdown', gestureRetry);
       window.removeEventListener('touchstart', gestureRetry);

@@ -6,6 +6,11 @@ import { isAppDarkTheme } from '@/lib/utils';
 export default function BatteryIndicator({ vertical = false }) {
   const [batteryLevel, setBatteryLevel] = useState(null);
   const [isCharging, setIsCharging] = useState(false);
+  // iOS KEEPS THE BADGE VISIBLE (owner request Nov 15 2026). WebKit exposes no
+  // Battery Status API at all, so iOS can never report a real level - but the
+  // indicator was rendering nothing on those devices, which read as "broken".
+  // On iOS we now draw the same outline in an explicit unknown state.
+  const [batteryUnsupported, setBatteryUnsupported] = useState(false);
   const { currentUser } = useUser();
 
   useEffect(() => {
@@ -47,11 +52,17 @@ export default function BatteryIndicator({ vertical = false }) {
             setIsCharging(battery.charging);
           });
         }).catch(() => {
-          // Battery API not available
+          // Battery API present but refused (some WebViews): same unknown state.
           setBatteryLevel(null);
+          setBatteryUnsupported(true);
         });
       } else {
         setBatteryLevel(null);
+        // iOS / iPadOS: no Battery Status API exists in WebKit. Flag it so the
+        // badge renders an explicit unknown state instead of disappearing.
+        const ua = navigator.userAgent;
+        const isIOS = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+        setBatteryUnsupported(isIOS);
       }
     };
 
@@ -74,7 +85,31 @@ export default function BatteryIndicator({ vertical = false }) {
     return () => observer.disconnect();
   }, []);
 
-  if (batteryLevel === null) return null;
+  if (batteryLevel === null) {
+    if (!batteryUnsupported) return null;
+    // iOS unknown-state badge: outline only, no level, honest tooltip.
+    const title = 'Battery level is not available to web apps on iOS (Apple does not expose it). Use the iOS status bar.';
+    if (vertical) {
+      return (
+        <div className="flex flex-col items-center gap-1" title={title}>
+          <div className="relative w-6 h-8 border-2 rounded opacity-60" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-[10px] font-bold" style={{ color: isDarkMode ? '#ffffff' : '#000000' }}>?</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center ml-2" title={title}>
+        <div className="relative w-16 h-5 border-2 rounded opacity-60" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[10px] font-bold" style={{ color: isDarkMode ? '#ffffff' : '#000000' }}>iOS</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const textColor = isDarkMode ? '#ffffff' : '#000000';
 
