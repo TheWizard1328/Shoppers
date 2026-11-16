@@ -1519,7 +1519,7 @@ export default function DeliveryFormView({
                      static at the top while the rest of the form scrolls. It is sticky inside the
                      CardContent scroller, bled to the card edges (-mx-3) so scrolling content passes
                      underneath a solid bg-surface band rather than through it. */
-                  <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full sticky top-0 z-30 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-surface' : 'flex gap-3 flex-row w-full'}`}>
+                  <div className={`${useMobileLayout ? 'flex flex-col gap-3 sticky top-0 z-30 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-surface' : 'flex gap-3 flex-row w-full'}`}>
                     <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'flex gap-3' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
                       <div className={`flex-1 space-y-1 rounded-lg border border-surface ${useMobileLayout ? 'p-3' : 'px-1 py-1'}`} style={{ background: 'var(--bg-slate-50)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Delivery Date *</Label>
