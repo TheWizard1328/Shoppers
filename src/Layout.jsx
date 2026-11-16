@@ -74,6 +74,8 @@ import { getCompanyBranding, applyBrandingStyles } from './components/utils/bran
 // OptimizationSpinner removed — replaced by the black KITT bar above stop cards in DashboardView
 import PatientViewOverlay from './components/patient-portal/PatientViewOverlay';
 import MobileBottomNav from './components/layout/MobileBottomNav';
+// TEMPORARY iOS/PWA layout diagnostics (owner request Nov 15 2026).
+import { installIosLayoutProbe, probeIosLayout } from './components/utils/iosLayoutProbe';
 import GuideAssistant from './components/guide/GuideAssistant';
 import AutoIdleDetector from './components/utils/autoIdleDetector';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
@@ -112,6 +114,7 @@ const DEFAULT_APP_VERSION = formatAppVersion(0); // v1.0.334 — GitHub unreacha
 import QuickStats from './components/layout/DashboardQuickStats';
 import { initTileCacheManager } from '@/components/utils/tileCacheManager';
 import { installGlobalFocusTrap } from '@/components/utils/focusTrapManager';
+
 
 const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, count, isActive }) => {
   return (
@@ -246,6 +249,22 @@ export default function Layout({ children, currentPageName }) {
   // (Radix/shadcn dialogs already trap their own focus). One listener for the
   // whole app — installed once here, never per-dialog.
   useEffect(() => installGlobalFocusTrap(), []);
+
+  // TEMPORARY iOS/PWA LAYOUT PROBE (owner request Nov 15 2026): logs real
+  // measurements per route so the iPhone bottom-gap and vanishing bottom nav
+  // are fixed from numbers, not guesses. Read-only; iOS/standalone only.
+  // Remove this block plus the import and src/components/utils/iosLayoutProbe.jsx.
+  useEffect(() => {
+    try { installIosLayoutProbe(() => currentPageName); } catch { /* probe must never break boot */ }
+  }, []);
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    const run = (reason) => { if (!cancelled) { try { probeIosLayout(currentPageName || 'unknown', reason); } catch { /* noop */ } } };
+    run('route');
+    const t = setTimeout(() => run('settled'), 1500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [currentPageName, currentUser?.id]);
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
   const [branding, setBranding] = useState({
     // Default to the actual App Logo served by the platform so freshly-installed /
