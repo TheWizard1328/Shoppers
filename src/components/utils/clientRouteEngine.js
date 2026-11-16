@@ -1304,12 +1304,49 @@ let _inheritedWindowCount = 0;
       gpsPosition: currentPosition ? { lat: Number(currentPosition.lat), lon: Number(currentPosition.lng) } : null,
       log: (m) => console.warn(`[clientRouteEngine] ${source} - polyline origin: ${m}`),
     });
-    const polylineOrigin = _originPick.origin
+    let polylineOrigin = _originPick.origin
       || (currentPosition
         ? { lat: Number(currentPosition.lat), lon: Number(currentPosition.lng) }
         : (latestFinishedCoords ? { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng } : null));
     const _polylineOriginSource = _originPick.source;
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
+
+    // ── ORIGIN MUST BE THE LAST FINISHED STOP, NEVER A STOP IN HAND ──────────
+    // OWNER REPORT (Nov 16 2026, Robert stops 29-33): after accepting a Beverly
+    // stop the whole route regenerated with its origin at stop 32 — the stop he
+    // was parked on — instead of stop 29, the last stop he finished. Every leg
+    // then chained off a unvisited stop: future work that still had to be driven
+    // was drawn as if it started from where he was sitting.
+    // The resolved origin can legitimately land ON a stop (live GPS parked on it,
+    // a finished stop at the same address, home == a store). That is fine only
+    // when that stop is FIRST in line. If unvisited stops are still ordered
+    // BEFORE it, the legs must start from the last finished stop instead.
+    try {
+      const _originActive = (activeRouteStops || []).filter((s) => s?.delivery
+        && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)));
+      if (polylineOrigin && _originActive.length > 1) {
+        const _onStop = _originActive.find((s) => haversineKm(
+          Number(polylineOrigin.lat), Number(polylineOrigin.lon), Number(s.lat), Number(s.lng)
+        ) <= 0.15);
+        if (_onStop) {
+          const _minOrder = Math.min(..._originActive.map((s) => Number(s.delivery?.stop_order) || 0));
+          const _onOrder = Number(_onStop.delivery?.stop_order) || 0;
+          if (_onOrder > _minOrder) {
+            const _lastFin = (completedDeliveries || [])
+              .map((d) => ({ d, c: getDeliveryCoords(d, patientMap, storeMap) }))
+              .filter((x) => x.c && Number.isFinite(Number(x.c.lat)) && Number.isFinite(Number(x.c.lon ?? x.c.lng)))
+              .sort((a, b) => (Number(b.d.stop_order) || 0) - (Number(a.d.stop_order) || 0))[0];
+            if (_lastFin && String(_lastFin.d.id) !== String(_onStop.delivery.id)) {
+              const _prevOrigin = polylineOrigin;
+              polylineOrigin = { lat: Number(_lastFin.c.lat), lon: Number(_lastFin.c.lon ?? _lastFin.c.lng) };
+              console.warn(`[clientRouteEngine] ${source} — ORIGIN RE-ANCHORED: resolved origin sat on stop ${_onStop.delivery.stop_id || _onStop.delivery.id} (order ${_onOrder}) but ${_minOrder} is still unvisited, so legs start from the last finished stop ${_lastFin.d.stop_id || _lastFin.d.id} (order ${Number(_lastFin.d.stop_order) || 0}) instead of (${Number(_prevOrigin.lat).toFixed(4)}, ${Number(_prevOrigin.lon).toFixed(4)})`);
+            }
+          }
+        }
+      }
+    } catch (_originReanchorErr) {
+      console.warn('[clientRouteEngine] origin re-anchor skipped (non-fatal):', _originReanchorErr?.message || _originReanchorErr);
+    }
 
     // ── Deviation waypoint transfer (Sep 17 2026) ──────────────────────────
     // Deviation points live on the stop the driver was heading to when the
