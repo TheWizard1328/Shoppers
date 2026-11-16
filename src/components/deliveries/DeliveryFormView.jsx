@@ -1520,13 +1520,13 @@ export default function DeliveryFormView({
                      CardContent scroller, bled to the card edges (-mx-3) so scrolling content passes
                      underneath a solid bg-surface band rather than through it. */
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full sticky top-0 z-30 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-surface' : 'flex gap-3 flex-row w-full'}`}>
-                    <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'flex flex-row gap-3 w-full items-stretch' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
-                      <div className={`rounded-lg min-w-0 flex-1 space-y-1 border border-surface ${useMobileLayout ? 'p-3' : 'px-1 py-1'}`} style={{ background: 'var(--bg-slate-50)' }}>
+                    <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'flex gap-3' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
+                      <div className={`flex-1 space-y-1 rounded-lg border border-surface ${useMobileLayout ? 'p-3' : 'px-1 py-1'}`} style={{ background: 'var(--bg-slate-50)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Delivery Date *</Label>
                         <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="px-3 py-1 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9 [&::-webkit-calendar-picker-indicator]:mr-1 [&::-webkit-calendar-picker-indicator]:scale-100" />
                       </div>
 
-                      <div className={`rounded-lg min-w-0 flex-1 space-y-1 border ${useMobileLayout ? 'p-3' : 'px-1 py-1'}`} style={requiresDriverSelection ? { background: 'var(--form-error-bg, #fef2f2)', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
+                      <div className={`flex-1 space-y-1 rounded-lg border ${useMobileLayout ? 'p-3' : 'px-1 py-1'}`} style={requiresDriverSelection ? { background: 'var(--form-error-bg, #fef2f2)', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'rgba(148, 163, 184, 0.85)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Driver {delivery ? '*' : ''}</Label>
                         <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1553,7 +1553,7 @@ export default function DeliveryFormView({
                          sits hard right; the Date and Driver panels share all the remaining space evenly
                          (minmax(0,1fr) each). justify-self-end keeps the buttons against the right edge of
                          the form while the other two panels stretch. */
-                      <div className={`px-1 py-1 rounded-lg w-fit border flex flex-col gap-1 border-surface 'items-start justify-start'`} style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className={`px-1 py-1 rounded-lg w-fit border flex flex-col items-start justify-start gap-1 border-surface`} style={{ background: 'var(--bg-slate-50)' }}>
                           {!useMobileLayout &&
                         <Label className="text-sm font-semibold text-body">Travel Mode</Label>
                         }
