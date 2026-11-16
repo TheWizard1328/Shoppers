@@ -15,6 +15,7 @@ import { formatPhoneNumber } from '../utils/phoneFormatter';
 
 export default function DeliveryFormStaged({
   sortedStagedDeliveries,
+  pendingSourceDeliveries,
   sortedProjectedDeliveries,
   stores,
   patients,
@@ -232,7 +233,12 @@ export default function DeliveryFormStaged({
   // Now: the regular Pending list holds the form's date AND today, always. Everything else
   // is bucketed by date into a Past Pending group (older than today) or a Future Pending
   // group (newer than today, plus anything undated), each with its own date headers.
-  const pendingItems = sortedStagedDeliveries.filter((s) => s.id);
+  // OWNER REPORT (Nov 16 2026): "if I select a pending stop for Wednesday and today is
+  // Monday, all the staged items for Monday disappear." Pending rows now come from the
+  // UNFILTERED list (pendingSourceDeliveries), so switching the form to another date or
+  // driver can never hide rows the user may want to select again. Unsaved staged rows keep
+  // using the driver-filtered list.
+  const pendingItems = (pendingSourceDeliveries || sortedStagedDeliveries).filter((s) => s.id);
   const regularDateKeys = new Set([referenceDateKey, _todayKey].filter(Boolean));
   const sameDatePending = pendingItems.filter((s) => {
     const key = _dateKeyOf(s.delivery_date);
@@ -251,8 +257,16 @@ export default function DeliveryFormStaged({
   const _countOf = (map) => Array.from(map.values()).reduce((acc, list) => acc + list.length, 0);
   const pastPending = _countOf(_pastByDate);
   const futurePending = _countOf(_futureByDate);
+  // When the form is on another date, today's rows stay at the TOP under a "Today" heading
+  // (owner request Nov 16 2026) so today's work is one tap away without changing the date.
+  const _todayOnly = sameDatePending.filter((s) => _dateKeyOf(s.delivery_date) === _todayKey);
+  const _referenceOnly = sameDatePending.filter((s) => _dateKeyOf(s.delivery_date) !== _todayKey);
+  const _needsSplit = referenceDateKey !== _todayKey && _todayOnly.length > 0 && _referenceOnly.length > 0;
   const pendingSections = [
-    { key: `same::${referenceDateKey}`, group: 'same', header: null, items: sameDatePending },
+    ...(_needsSplit
+      ? [{ key: `today::${_todayKey}`, group: 'same', header: `Today (${_todayOnly.length})`, items: _todayOnly },
+         { key: `same::${referenceDateKey}`, group: 'same', header: `${_formatDateHeader(referenceDateKey)} (${_referenceOnly.length})`, items: _referenceOnly }]
+      : [{ key: `same::${referenceDateKey}`, group: 'same', header: null, items: sameDatePending }]),
     ...Array.from(_pastByDate.keys()).sort().map((key) => ({
       key: `past::${key}`,
       group: 'past',

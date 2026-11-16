@@ -8,6 +8,7 @@ import DeliveryFormStaged from './DeliveryFormStaged';
 
 export function buildDeliveryStagedPanelProps({
   sortedStagedDeliveries,
+  pendingSourceDeliveries,
   sortedProjectedDeliveries,
   stores,
   patients,
@@ -31,6 +32,7 @@ export function buildDeliveryStagedPanelProps({
 }) {
   return {
     sortedStagedDeliveries,
+    pendingSourceDeliveries,
     sortedProjectedDeliveries,
     stores,
     patients,
@@ -57,6 +59,7 @@ export function buildDeliveryStagedPanelProps({
 // Desktop staged panel
 export function DeliveryStagedPanelDesktop({
   sortedStagedDeliveries,
+  pendingSourceDeliveries,
   sortedProjectedDeliveries,
   stores,
   patients,
@@ -86,6 +89,7 @@ export function DeliveryStagedPanelDesktop({
       <div className="flex-1 min-h-0 overflow-hidden">
         <DeliveryFormStaged
           sortedStagedDeliveries={sortedStagedDeliveries}
+          pendingSourceDeliveries={pendingSourceDeliveries}
           sortedProjectedDeliveries={sortedProjectedDeliveries}
           stores={stores}
           patients={patients}
@@ -181,6 +185,7 @@ export function DeliveryStagedPanelMobile({
             <div className="flex-1 overflow-y-auto p-3">
               <DeliveryFormStaged
               sortedStagedDeliveries={sortedStagedDeliveries}
+              pendingSourceDeliveries={pendingSourceDeliveries}
               sortedProjectedDeliveries={sortedProjectedDeliveries}
               stores={stores}
               patients={patients}

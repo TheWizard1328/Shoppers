@@ -1826,6 +1826,12 @@ export default function DeliveryForm({
   }, [formData, freshStores, stores, patients, drivers, allDeliveries, stagedDeliveries, handleStagedDeliveryClick]);
 
   const sortedStagedDeliveries = useMemo(() => sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverId: formData.driver_id }), [stagedDeliveries, stores, formData.driver_id]);
+  // OWNER REPORT (Nov 16 2026): selecting a pending stop for Wednesday made every Monday
+  // staged/pending row disappear. The list is filtered to the FORM's driver, and picking a
+  // future stop switches that driver, so the other driver's rows were filtered out of view.
+  // The staged panel gets an unfiltered copy for its PENDING rows (unsaved staged rows keep
+  // following the form's driver) so nothing a user might select again ever vanishes.
+  const sortedStagedDeliveriesAll = useMemo(() => sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverId: null }), [stagedDeliveries, stores]);
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
   const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, patients, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap, calculateDistance }), [projectedDeliveries, allDeliveries, stores, patients, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
   const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields, registerDeletedDeliveryId });
@@ -2032,7 +2038,7 @@ export default function DeliveryForm({
       getDriverDisplayName={getDriverDisplayName} getDriverNameForStorage={getDriverNameForStorage}
       editingStagedId={editingStagedId} setStagedDeliveries={setStagedDeliveries} setHasChanges={setHasChanges}
       completionTime={completionTime} setCompletionTime={setCompletionTime}
-      sortedStagedDeliveries={sortedStagedDeliveries} sortedProjectedDeliveries={sortedProjectedDeliveries} stagedDeliveries={stagedDeliveries}
+      sortedStagedDeliveries={sortedStagedDeliveries} pendingSourceDeliveries={sortedStagedDeliveriesAll} sortedProjectedDeliveries={sortedProjectedDeliveries} stagedDeliveries={stagedDeliveries}
       projectedDeliveries={projectedDeliveries} setProjectedDeliveries={setProjectedDeliveries} fullPredictionListRef={fullPredictionListRef}
       setEditingStagedId={setEditingStagedId} handleStagedDeliveryClick={handleStagedDeliveryClick} handleClearForm={handleClearForm}
       confirmAddProjectedToStaged={confirmAddProjectedToStaged} isLoadingPredictions={isLoadingPredictions}
