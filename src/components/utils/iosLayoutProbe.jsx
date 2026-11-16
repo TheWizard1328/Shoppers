@@ -82,6 +82,12 @@ const sample = () => {
     probeLvh: pxProbe('100lvh'),
     probeEnvBottom: pxProbe('env(safe-area-inset-bottom, 0px)'),
     probeEnvTop: pxProbe('env(safe-area-inset-top, 0px)'),
+    // ancestors (iOS reports odd heights on html/body/#root in standalone)
+    htmlH: Math.round(de.getBoundingClientRect().height),
+    bodyH: Math.round(document.body ? document.body.getBoundingClientRect().height : 0),
+    rootH: document.getElementById('root') ? Math.round(document.getElementById('root').getBoundingClientRect().height) : null,
+    containerComputedH: cs ? cs.height : null,
+    containerBox: cs ? cs.boxSizing : null,
     // container
     containerClass: container ? String(container.className) : null,
     containerPadTop: cs ? cs.paddingTop : null,

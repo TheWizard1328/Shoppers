@@ -40,7 +40,20 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
             --actual-bottom-nav-height: 0px;
           }
 
-          .app-container { display:flex; flex-direction:row; height:100%; min-height:100vh; min-height:100dvh; width:100%; overflow:hidden; background:var(--bg-slate-50); padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px); padding-left:env(safe-area-inset-left, 0px); padding-right:env(safe-area-inset-right, 0px); box-sizing:border-box; position:relative; }
+          /* iOS STANDALONE HEIGHT LOCK (owner report Nov 15 2026): on an iPhone
+             home-screen PWA the container intermittently resolved to 930px on an
+             848px screen (iPhone = 848 viewport, probe measured innerH 848, lvh 896,
+             env safe areas 48 top + 34 bottom). Whenever it did, main took the full
+             848px, the bottom nav was pushed to y=851..896 and VANISHED below the
+             fold, taking the bottom reserve with it - on every page, dashboard
+             included. Pinning the container to the dynamic viewport height (and
+             refusing to grow past it) makes the layout independent of whatever
+             html/body/#root report on iOS. */
+          .app-container { display:flex; flex-direction:row; height:100vh; height:100dvh; max-height:100vh; max-height:100dvh; min-height:0; width:100%; overflow:hidden; background:var(--bg-slate-50); padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px); padding-left:env(safe-area-inset-left, 0px); padding-right:env(safe-area-inset-right, 0px); box-sizing:border-box; position:relative; }
+          /* Flex children must be allowed to shrink, or page content pushes the
+             bottom nav out of the container instead of scrolling inside main. */
+          .app-container .main-content-area { min-height:0 !important; }
+          .app-container main { min-height:0 !important; }
           .app-container::before { content:''; position:absolute; top:0; left:0; right:0; height:env(safe-area-inset-top, 0px); background:var(--safe-area-bg); z-index:0; pointer-events:none; }
           .app-container::after { content:''; position:absolute; bottom:0; left:0; right:0; height:env(safe-area-inset-bottom, 0px); background:var(--safe-area-bg); z-index:0; pointer-events:none; }
           main { overscroll-behavior-y: contain !important; -webkit-overflow-scrolling: touch !important; max-height:100%; }
