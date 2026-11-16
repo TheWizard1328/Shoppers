@@ -1578,7 +1578,12 @@ let _inheritedWindowCount = 0;
         // ── PASS 1B — the driving legs. While a cycling loop is still open the
         // driver re-enters the car at the END marker, so every driving stop is
         // painted from there (not from the last finished stop inside the loop).
+        // The START marker is driven to from wherever the driver came from, and PASS 1A already
+        // builds exactly that leg. Leaving it in this pool painted it from the END marker's
+        // coordinates (the car re-entry point), which is both wrong geometry and, once the loop
+        // is open, a cycling-looking leg. Excluded here (owner report Nov 16 2026).
         const _driveTargets = _liveStops.filter((s) => !_cyclingStopIds.has(String(s.delivery.id))
+          && !(s.delivery.is_cycling_marker && String(s.delivery.delivery_notes || '').toLowerCase().includes('start'))
           && (!_endAny || s.delivery.id !== (_endAny.delivery?.id || _endAny.id)));
         if (_driveTargets.length > 0) {
           const _driveOrigin = (_endLiveM && Number.isFinite(_endCoords?.lat))
@@ -2126,7 +2131,15 @@ let _inheritedWindowCount = 0;
     const rawTransportMode = existingMode && ['driving', 'cycling', 'pedestrian'].includes(existingMode)
       ? existingMode
       : String(effectiveTravelMode).toLowerCase();
-    const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(rawTransportMode) ? rawTransportMode : 'driving';
+    let safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(rawTransportMode) ? rawTransportMode : 'driving';
+    // OWNER REPORT (Nov 16 2026): a freshly created cycling loop came back with the START
+    // marker drawn as a cycling leg - it is DRIVEN to, never cycled to. The start marker is
+    // identified by delivery_notes ('Cycling Route Start') and is pinned to driving here, so a
+    // plan stop that arrived without its transport_mode (or with a cycling fallback from
+    // effectiveTravelMode) can never flip its identity. The end marker is pinned to cycling.
+    const _markerNote = stop?.is_cycling_marker ? String(stop?.delivery_notes || '').toLowerCase() : '';
+    if (_markerNote.includes('start')) safeTransportMode = 'driving';
+    else if (_markerNote.includes('end')) safeTransportMode = 'cycling';
     const isNextStop = stop.id === nextStopId;
     const logicalDurationMinutes = (typeof seg?.estimatedDurationMinutes === 'number' ? seg.estimatedDurationMinutes : null);
     const logicalDistanceKm = (typeof seg?.estimatedDistanceKm === 'number' ? seg.estimatedDistanceKm : null);
@@ -2159,7 +2172,10 @@ let _inheritedWindowCount = 0;
     const _segWritable = _segIsUsable(seg, stop) && (!isPending || stop.is_cycling_marker === true);
     const _storedStamp = stop?.polyline_from_order == null ? null : Number(stop.polyline_from_order);
     const _stampMismatch = Number.isFinite(_storedStamp) && Number.isFinite(Number(newOrder)) && _storedStamp !== Number(newOrder);
-    const _invalidateStaleLeg = !_segWritable && _stampMismatch && !isPending;
+    // OWNER REPORT (Nov 16 2026): a manual optimize cleared the leg INTO the cycling start
+    // marker. Markers are never stripped of a leg they already have - they are the anchors the
+    // rest of the loop is drawn from, and an anchor without a leg reads as a broken route.
+    const _invalidateStaleLeg = !_segWritable && _stampMismatch && !isPending && stop.is_cycling_marker !== true;
 
     const updateData = {
       stop_order: newOrder,
@@ -2629,7 +2645,9 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     const seg = futurePolylineByDeliveryId.get(w.id);
     if (!seg) continue;
     if (seg.encodedPolyline != null) { w.data.encoded_polyline = seg.encodedPolyline; w.data.polyline_from_order = w.data.stop_order ?? null; }
-    if (seg.transportMode) w.data.transport_mode = seg.transportMode;
+    // Never let a segment's own mode re-label a cycling marker: the start marker is driven to,
+    // the end marker cycled to (owner report Nov 16 2026).
+    if (seg.transportMode && !w.data.is_cycling_marker) w.data.transport_mode = seg.transportMode;
     if (seg.estimatedDistanceKm != null) w.data.estimated_distance_km = seg.estimatedDistanceKm;
     if (seg.estimatedDurationMinutes != null) w.data.estimated_duration_minutes = seg.estimatedDurationMinutes;
   }
