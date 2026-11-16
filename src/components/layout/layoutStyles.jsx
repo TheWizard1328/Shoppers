@@ -154,15 +154,16 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           body.is-native-apk .fixed.inset-0[class*="z-50"][data-state="open"]:not([role="dialog"]):not([role="alertdialog"]) {
             padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
           }
-          /* Bottom sheets in the edge-to-edge APK (owner report Nov 15 2026: "the APK is
-             still adding a gap the height of the bottom nav bar"). --native-safe-bottom on
-             Android IS the system navigation bar height, so padding the sheet by it put a
-             full nav-bar-tall band under the last row - the same band the PWA lost in w37.
-             Sheets now sit flush; the web/PWA rule never applied to them either, so the two
-             paths finally match. Each sheet pads its own footer (MobileSelect uses pb-2). */
+          /* Bottom sheets in the edge-to-edge APK - owner spec Nov 15 2026: "increase the
+             theme selection panel by the height of the phone navigation bar". With the sheet
+             flush to the bottom edge (the w38 bottom-shift removal stays), the Cancel button
+             sat behind the Android system nav bar. The APK path therefore grants the sheet the
+             nav-bar height again, MINUS the 0.5rem (8px) the sheet footer already carries, so
+             the total under the last row is exactly the phone navigation bar height - no more,
+             no less. The web/PWA path is untouched and keeps the flush 8px footer. */
           body.is-native-apk [data-vaul-drawer-content],
           body.is-native-apk [role="dialog"][data-vaul-drawer] {
-            padding-bottom: 0 !important;
+            padding-bottom: max(0px, calc(var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) - 0.5rem)) !important;
           }
 
           /* Shadcn Sheet overlay */
