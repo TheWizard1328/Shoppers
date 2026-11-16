@@ -1,35 +1,40 @@
-const APP_LOGO_URL = 'https://placehold.co/200x200?text=Logo';
-
 /**
  * Shared shell for every public auth page (Login, Forgot Password, Reset
  * Password, OAuth consent).
  *
- * OWNER FIX (Nov 15 2026 — APK screenshot): the shell used a bare `min-h-screen`
- * with px-4 only, so inside the native APK the logo was clipped by the status
- * bar and the card ran under the Android navigation bar. It now reserves the
- * device safe areas exactly like the Patient Portal login does
- * (--native-safe-top / --native-safe-bottom, falling back to env()), sizes to
- * 100dvh so the WebView's shrinking viewport is respected, and scrolls instead
- * of clipping when the content is taller than the screen.
+ * OWNER FIX (Nov 15 2026 — APK screenshots, two rounds):
+ * 1. Top: the logo was clipped by the notification panel because the shell used
+ *    a bare min-h-screen with px-4 only.
+ * 2. Bottom: padding alone was not enough. Making the shell its own scroll
+ *    container (overflow-y-auto + m-auto) meant the card was cut at the bottom
+ *    edge until the user scrolled INSIDE it, so the reserve never looked applied.
+ *
+ * Now the shell does not scroll itself: it is a normal block whose content flows
+ * from the top with the device insets reserved as padding, and the DOCUMENT
+ * scrolls when the card is taller than the screen. The bottom reserve is
+ * `1.25rem + max(--native-safe-bottom, env(safe-area-inset-bottom))`, so it is
+ * always at least 20px even if the APK reports a zero navigation-bar inset.
+ *
+ * --native-safe-top/bottom are injected by MainActivity when the APK runs
+ * edge-to-edge (body.is-native-apk); env() is the web/PWA fallback.
  */
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
   return (
     <div
-      className="min-h-screen w-full bg-background px-4 flex overflow-y-auto overscroll-contain"
+      className="min-h-screen w-full bg-background px-4 flex flex-col"
       style={{
         // dvh where supported (APK / modern Chrome); the class above is the fallback.
         minHeight: "100dvh",
-        paddingTop: "calc(1rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))",
-        paddingBottom: "calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))",
+        paddingTop: "calc(1.25rem + max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px)))",
+        paddingBottom: "calc(1.25rem + max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px)))",
         paddingLeft: "calc(1rem + env(safe-area-inset-left, 0px))",
         paddingRight: "calc(1rem + env(safe-area-inset-right, 0px))"
-      }}>
-      
-      {/* m-auto (not the parent's justify-center) keeps the card centred when it
-           fits and still lets the top of the page scroll into view when it does
-           not — the old flex centring pushed the logo off-screen on short phones. */}
-      <div className="w-full max-w-md m-auto">
-        <div className="text-center sm:mb-10 mb-8">
+      }}
+    >
+      {/* Top-aligned on phones (thumb reach + no clipped logo), vertically
+          centred only once there is room for it. */}
+      <div className="w-full max-w-md mx-auto sm:my-auto">
+        <div className="text-center mb-8 sm:mb-10">
           <div className="inline-flex items-center justify-center mb-4">
             <img src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/0aeae1e24_renametoicon-192.png" alt="RxDeliver" className="w-16 h-16 object-contain rounded-2xl" />
           </div>
@@ -40,7 +45,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
           {children}
         </div>
         {footer &&
-        <p className="text-center text-sm text-muted-foreground mt-6">{footer}</p>
+        <p className="text-center text-sm text-muted-foreground mt-6 mb-1">{footer}</p>
         }
       </div>
     </div>);

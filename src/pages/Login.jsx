@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -128,19 +128,15 @@ export default function Login() {
   const handleFacebook = () => base44.auth.loginWithProvider("facebook", OAUTH_REDIRECT);
   const handleApple = () => base44.auth.loginWithProvider("apple", OAUTH_REDIRECT);
 
+  // OWNER DECISION (Nov 15 2026): the "Don't have an account? Create one"
+  // footer is gone. /register only works with an invite token, so that link
+  // dead-ended for everyone else, and first-time sign-ins already work through
+  // the OAuth buttons or email + password below.
   return (
     <AuthLayout
       icon={LogIn}
       title="Welcome back"
       subtitle="Log in to your RxDeliver account"
-      footer={
-        <>
-          Don't have an account?{" "}
-          <Link to="/register" className="text-primary font-medium hover:underline">
-            Create one
-          </Link>
-        </>
-      }
     >
       {/* Patient Portal entry — promoted to a full-width button ABOVE the
           OAuth options (owner request, Sep 28 2026). It used to be a small
