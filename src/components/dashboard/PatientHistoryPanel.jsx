@@ -120,7 +120,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[51999]"
+          className="patient-history-backdrop fixed inset-0 z-[51999]"
           style={{ background: 'rgba(0,0,0,0.3)' }}
           onClick={onClose} />
         
@@ -132,7 +132,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed top-0 right-0 h-full z-[52000] flex flex-col shadow-2xl bg-surface" style={{
+          className="patient-history-panel fixed top-0 right-0 z-[52000] flex flex-col shadow-2xl bg-surface" style={{
             width: 'min(400px, 100vw)',
             borderLeft: '1px solid var(--border-slate-200)',
             // OWNER REPORT Nov 4 2026 (APK): the slide-out had a wasted buffer at
@@ -141,16 +141,14 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
             // given to the bottom, so the last row clears the nav bar. max() keeps
             // whichever value is real on this device (the WebView sometimes reports
             // only one of them) and changes nothing on web/desktop where all are 0.
-            // OWNER REPORT Nov 16 2026 (APK): the panel's last rows sat behind the phone's
-            // navigation bar. The buffer now includes the IN-APP bottom nav height as well as
-            // the OS inset, so the content clears both. Top reserves the real status-bar inset
-            // only when the device reports one.
-            paddingTop: 'max(env(safe-area-inset-top, 0px), var(--native-safe-top, 0px))',
-            paddingBottom: 'calc(var(--actual-bottom-nav-height, 0px) + max(env(safe-area-inset-bottom, 0px), var(--native-safe-bottom, 0px)))',
+            // OWNER SPEC Nov 16 2026: no padding bands here. The top/bottom insets are handled
+            // by the .patient-history-panel rule in layoutStyles - phones fill the screen edge
+            // to edge, wider devices stop above the OS navigation bar instead of painting the
+            // panel's blank background behind it.
           }}>
           
             {/* Header */}
-            <div className="flex items-start justify-between gap-2 px-4 py-3 border-b flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+            <div className="flex items-start justify-between gap-2 px-4 pb-3 border-b flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)', paddingTop: 'calc(0.75rem + max(env(safe-area-inset-top, 0px), var(--native-safe-top, 0px)))' }}>
               <div className="min-w-0 flex-1">
                 {/* Row 1: patient name + store badge + special symbol badges */}
                 <div className="flex items-center gap-1.5 min-w-0">
@@ -210,7 +208,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
             </div>
 
             {/* Content */}
-            <div className="flex-1 flex flex-col overflow-hidden px-3 py-3 space-y-3">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-3 pt-3 pb-0 space-y-3">
 
               {isLoading &&
             <div className="flex items-center justify-center py-10 gap-2 text-soft">

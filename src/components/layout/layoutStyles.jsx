@@ -100,6 +100,22 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
 
           /* Overlay dims only the area between the header and the bottom nav (owner request
              Nov 15 2026) so the in-app chrome stays visible while the drawer is open. */
+          /* PATIENT INFO SLIDE-OUT (owner spec Nov 16 2026, revised)
+             Phones: the panel fills the screen edge to edge - top:0 / bottom:0, no white band
+             above the header and none under the last card (the screenshot bands).
+             Wider devices (tablet / desktop, incl. the APK): top padding removed, and the panel
+             stops ABOVE the OS navigation bar so its blank background no longer paints behind it.
+             Both modes pin top AND bottom explicitly - height:auto + inset is what keeps the box
+             from drifting off the real viewport edge when the APK reports 100vh larger than the
+             visible area. */
+          .patient-history-panel { position:fixed !important; right:0; top:0 !important; height:auto !important; margin:0 !important; padding-top:0 !important; padding-bottom:0 !important; box-sizing:border-box; }
+          @media (max-width: 767px) {
+            .patient-history-panel { bottom:0 !important; }
+          }
+          @media (min-width: 768px) {
+            .patient-history-panel { bottom:max(env(safe-area-inset-bottom, 0px), var(--native-safe-bottom, 0px)) !important; }
+          }
+          body.is-native-apk .fixed.inset-0[data-state="open"].patient-history-backdrop { padding:0 !important; }
           .sidebar-overlay { position:fixed; left:0; right:0; top:var(--drawer-top, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 64px)); bottom:0; background:rgba(0,0,0,0.5); z-index:49998; animation:fadeIn 0.2s ease-out; }
           @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
           .custom-scrollbar::-webkit-scrollbar { height:8px; width:8px; }
@@ -205,19 +221,22 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           }
 
           /* Generic fixed elements pinned to top: 0 — push down by status bar */
-          body.is-native-apk .fixed.top-0:not(.inset-0) {
+          body.is-native-apk .fixed.top-0:not(.inset-0):not(.patient-history-panel) {
             top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
           }
 
           /* Generic fixed elements pinned to bottom: 0 — push up by nav bar.
              Bottom sheets are excluded: lifting a sheet off the bottom edge left a strip of
              map showing under it, which read as a second gap below the panel. */
-          body.is-native-apk .fixed.bottom-0:not(.inset-0):not([data-vaul-drawer]) {
+          body.is-native-apk .fixed.bottom-0:not(.inset-0):not([data-vaul-drawer]):not(.patient-history-panel) {
             bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
           }
 
-          /* PatientHistoryPanel — slides in from right, needs top offset */
-          body.is-native-apk .fixed.top-0.right-0 {
+          /* PatientHistoryPanel — owner spec Nov 16 2026: NO top offset any more. This rule used
+             to push every .fixed.top-0.right-0 element down by the status-bar inset, which is
+             the white band above the panel header in the APK. The patient panel is excluded
+             and sits flush at the top (the panel header itself clears the status bar). */
+          body.is-native-apk .fixed.top-0.right-0:not(.patient-history-panel) {
             top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
           }
 
