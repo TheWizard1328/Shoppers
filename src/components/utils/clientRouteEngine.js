@@ -1800,6 +1800,103 @@ let _inheritedWindowCount = 0;
     } catch (_cyclingPassErr) {
       console.warn('[clientRouteEngine] cycling route polyline passes skipped (non-fatal):', _cyclingPassErr?.message || _cyclingPassErr);
     }
+
+      // ── SEGMENT OWNERSHIP BY POSITION (owner report Nov 16 2026) ───────────
+      // "after clicking the start button on Callingwood pickup it regenerated the
+      // polylines and now I see one that's going to a pending Callingwood delivery but
+      // not heading towards the Hamptons in transit delivery that is just around the
+      // corner." Every pass maps its returned sections to stops by INDEX, and a dropped
+      // or collapsed section shifts every later index by one - so a leg ends up filed
+      // against the wrong stop (and the real target gets nothing). Geometry is the
+      // ground truth: decode each produced leg's last point and, when it does not end at
+      // the stop it was filed under but clearly ends at another live stop, hand it to
+      // that stop. Same single provider call, no extra request.
+      try {
+        const _liveForMap = routeStops.filter((st) => st?.delivery
+          && !['completed', 'failed', 'cancelled'].includes(String(st.delivery.status || '').toLowerCase())
+          && Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lng)));
+        if (_liveForMap.length > 1 && segmentPolylineByDeliveryId.size > 0) {
+          const _endOf = (seg) => {
+            const enc = seg?.encodedPolyline;
+            if (typeof enc !== 'string' || enc.length <= 10) return null;
+            try {
+              const pts = decodeGooglePolyline(enc);
+              return Array.isArray(pts) && pts.length ? pts[pts.length - 1] : null;
+            } catch (_) { return null; }
+          };
+          const _REMAP_KM = 0.3;
+          const _moves = [];
+          segmentPolylineByDeliveryId.forEach((seg, id) => {
+            const end = _endOf(seg);
+            if (!end) return;
+            const endLat = Number(end[0]); const endLng = Number(end[1]);
+            if (!Number.isFinite(endLat) || !Number.isFinite(endLng)) return;
+            const owner = _liveForMap.find((st) => String(st.delivery.id) === String(id));
+            const ownerKm = owner ? haversineKm(endLat, endLng, Number(owner.lat), Number(owner.lng)) : Infinity;
+            if (ownerKm <= _REMAP_KM) return; // filed correctly
+            let best = null; let bestKm = Infinity;
+            _liveForMap.forEach((st) => {
+              if (String(st.delivery.id) === String(id)) return;
+              if (segmentPolylineByDeliveryId.has(String(st.delivery.id))) return; // already has its own leg
+              const km = haversineKm(endLat, endLng, Number(st.lat), Number(st.lng));
+              if (km < bestKm) { bestKm = km; best = st; }
+            });
+            if (best && bestKm <= _REMAP_KM && bestKm < ownerKm) {
+              _moves.push({ from: String(id), to: String(best.delivery.id), km: bestKm, seg });
+            }
+          });
+          _moves.forEach(({ from, to, km, seg }) => {
+            segmentPolylineByDeliveryId.delete(from);
+            segmentPolylineByDeliveryId.set(to, seg);
+            console.warn(`[clientRouteEngine] ${source} — leg re-filed by position: ${from} -> ${to} (ends ${km.toFixed(2)}km from that stop)`);
+          });
+          if (_moves.length) console.warn(`[clientRouteEngine] ${source} — re-filed ${_moves.length} polyline leg(s) that were assigned to the wrong stop`);
+        }
+      } catch (_remapErr) {
+        console.warn('[clientRouteEngine] segment ownership remap skipped (non-fatal):', _remapErr?.message || _remapErr);
+      }
+
+      // ── MISSING-LEG SELF-HEAL FOR AN ACTIVE STOP (owner report Nov 16 2026) ──
+      // The in-transit stop next door had NO inbound leg at all after the start. The
+      // existing heal only covers the FIRST active stop. Any en_route / in_transit stop
+      // that ended up with no usable segment in this run AND no usable stored leg gets one
+      // rebuilt from the same anchor the rest of the route uses. Capped at 2 stops so a
+      // broken run can never fan out into a request storm.
+      try {
+        const _healUsable = (seg) => !!(seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10);
+        const _activeNoLeg = routeStops.filter((st) => st?.delivery
+          && ['en_route', 'in_transit'].includes(String(st.delivery.status || '').toLowerCase())
+          && polylineOrigin
+          && Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lng))
+          && !_healUsable(segmentPolylineByDeliveryId.get(String(st.delivery.id)))
+          && !(typeof st.delivery.encoded_polyline === 'string' && st.delivery.encoded_polyline.length > 10))
+          .slice(0, 2);
+        for (const st of _activeNoLeg) {
+          const _map = await generateRoutePolylines({
+            orderUnchanged: false,
+            forceRegenerate: true,
+            stops: [{ delivery: st.delivery, lat: st.lat, lng: st.lng }],
+            originPoint: polylineOrigin,
+            cyclingSegmentOnly: false,
+            hereApiKey,
+            polylineProvider,
+            polylineApiKey,
+            driverId,
+            userName: _driverUserName,
+            source: `${source}:active_leg_heal`,
+            fallbackTravelMode: String(st.delivery.transport_mode || 'driving').toLowerCase() === 'cycling' ? 'cycling' : 'driving',
+            viaPointAfterOrigin,
+            originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
+          });
+          _map.forEach((seg, id) => {
+            if (_healUsable(seg)) segmentPolylineByDeliveryId.set(String(id), seg);
+          });
+          console.log(`[clientRouteEngine] ${source} — rebuilt the missing inbound leg for active stop ${st.delivery.id}`);
+        }
+      } catch (_activeHealErr) {
+        console.warn('[clientRouteEngine] active-stop leg heal skipped (non-fatal):', _activeHealErr?.message || _activeHealErr);
+      }
+
   }
 
   // ── ETA calculation ────────────────────────────────────────────────────────
