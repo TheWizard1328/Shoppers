@@ -1173,8 +1173,10 @@ export default function DeliveryFormView({
             {/* ── InterStore tab body ───────────────────────────────────── */}
             {isInterStoreMode &&
             <div className="flex flex-col gap-3">
-                {/* Date + Driver row (same as pickup mode) */}
-                <div className="flex gap-3">
+                {/* Date + Driver + Travel Mode row (same as pickup mode).
+                    Static at the top while the form scrolls, and (owner spec Nov 15 2026) the
+                    Travel Mode control now sits next to the driver on the InterStore path too. */}
+                <div className={`flex gap-3 ${useMobileLayout ? 'sticky top-0 z-30 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-surface' : ''}`}>
                   <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">Transfer Date *</Label>
                     <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
@@ -1194,6 +1196,20 @@ export default function DeliveryFormView({
                       </SelectContent>
                     </Select>
                   </div>
+                  {userHasRole(currentUser, 'driver') &&
+                  <div className="px-1 py-1 rounded-lg w-fit border flex flex-col items-start justify-start gap-1 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                      {!useMobileLayout &&
+                    <Label className="text-sm font-semibold text-body">Travel Mode</Label>
+                      }
+                      <TravelModeButtons
+                      value={formData.transport_mode || formData.finished_leg_transport_mode || delivery?.transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
+                      onChange={(mode) => setFormData((prev) => ({ ...prev, transport_mode: mode, finished_leg_transport_mode: mode }))}
+                      currentUser={currentUser}
+                      appUsers={appUsers}
+                      useMobileLayout={useMobileLayout}
+                      disabled={isSaving} />
+                    </div>
+                  }
                 </div>
                 {delivery && renderDeliveryIdentifiersSection({
                 delivery,
@@ -1218,8 +1234,8 @@ export default function DeliveryFormView({
             {/* ── Add Cycling Marker form body ──────────────────────────── */}
             {isCyclingMarkerMode && !delivery &&
             <div className="flex flex-col gap-3">
-                {/* Date + Driver row */}
-                <div className="flex gap-3">
+                {/* Date + Driver row (pinned on mobile, same as the other edit paths) */}
+                <div className={`flex gap-3 ${useMobileLayout ? 'sticky top-0 z-30 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-surface' : ''}`}>
                   <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">Date *</Label>
                     <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch {} }} className="h-9" />
@@ -1499,7 +1515,11 @@ export default function DeliveryFormView({
                     }
                   </div> :
 
-                  <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'flex gap-3 flex-row w-full'}`}>
+                  /* OWNER SPEC (Nov 15 2026): on mobile the Date / Driver / Travel Mode row stays
+                     static at the top while the rest of the form scrolls. It is sticky inside the
+                     CardContent scroller, bled to the card edges (-mx-3) so scrolling content passes
+                     underneath a solid bg-surface band rather than through it. */
+                  <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full sticky top-0 z-30 -mx-3 -mt-3 px-3 pt-3 pb-2 bg-surface' : 'flex gap-3 flex-row w-full'}`}>
                     <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-[1.1fr_0.9fr_auto] gap-2 w-full items-stretch' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
                       <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Delivery Date *</Label>
