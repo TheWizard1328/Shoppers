@@ -544,22 +544,53 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
 
   if (changedDeliveries.length === 0) return [];
 
+  // ── SNAPSHOT VERSION GATE (owner fix Nov 16 2026) ─────────────────────────
+  // A device holding an older delivery snapshot used to spend every refresh
+  // clearing a next-stop flag it had no business touching: the write gate
+  // refused it, the guard restored it, and the cycle repeated (~46 blocked
+  // clears an hour across 6 devices). Gate the clear on record version first, so
+  // a stale snapshot never attempts it at all.
+  let _changedToWrite = changedDeliveries;
+  const _staleClearedIds = new Set();
+  try {
+    const { filterStaleNextFlagClears } = await import('../utils/offlineDatabase');
+    const _clearing = changedDeliveries.filter((d) => d.isNextDelivery !== true);
+    if (_clearing.length > 0) {
+      const _skipped = await filterStaleNextFlagClears(_clearing);
+      _skipped.forEach((id) => _staleClearedIds.add(String(id)));
+      if (_staleClearedIds.size > 0) {
+        _changedToWrite = changedDeliveries.filter((d) => !_staleClearedIds.has(String(d.id)));
+      }
+    }
+  } catch (error) {
+    console.warn('[stopCardActionHelpers] next-stop version gate skipped:', error?.message || error);
+  }
+  if (_changedToWrite.length === 0 && _staleClearedIds.size > 0) return [];
+
   try {
     const { offlineDB } = await import('../utils/offlineDatabase');
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, _changedToWrite);
   } catch (error) {
     console.warn('[stopCardActionHelpers] Failed to sync next-delivery flags to offline DB:', error?.message || error);
   }
 
   if (updateDeliveriesLocally) {
-    updateDeliveriesLocally(updatedDeliveries, false);
+    // Stale-cleared stops keep the flag they already had, in the UI as well.
+    const _uiDeliveries = _staleClearedIds.size === 0
+      ? updatedDeliveries
+      : updatedDeliveries.map((d) => {
+          if (!_staleClearedIds.has(String(d.id))) return d;
+          const original = scopedDeliveries.find((o) => String(o.id) === String(d.id)) || {};
+          return { ...d, isNextDelivery: original.isNextDelivery === true };
+        });
+    updateDeliveriesLocally(_uiDeliveries, false);
   }
 
   if (persistToBackend) {
     // CRITICAL: Server sync is fire-and-forget — IDB write + UI update
     // already happened above. smartRefreshManager has registered all
     // affected delivery IDs, so WebSocket echoes arrive as no-ops.
-    Promise.all(changedDeliveries.map((item) =>
+    Promise.all(_changedToWrite.map((item) =>
       base44.entities.Delivery.update(item.id, {
         isNextDelivery: !!item.isNextDelivery,
         travel_dist: item.travel_dist
@@ -567,7 +598,7 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
     )).catch(() => {});
   }
 
-  return changedDeliveries;
+  return _changedToWrite;
 }
 
 export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy, actualDeliveryTime = null, etaPayload = null }) {

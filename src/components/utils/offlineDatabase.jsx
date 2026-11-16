@@ -637,6 +637,72 @@ const _restoreStompedNextFlags = async (records) => {
   return list.map((r) => (r?.id && restored.has(String(r.id)) ? { ...r, isNextDelivery: true } : r));
 };
 
+// ── SNAPSHOT VERSION GATE (owner fix Nov 16 2026) ───────────────────────────
+// The hourly digest kept reporting the same loop: ~46 "blocked stale next-stop
+// clear" events across 6 devices every hour. The write gate below was already
+// REFUSING those clears, but a device holding an out-of-date snapshot still
+// attempted them: it wrote, got refused, and tried again on the next refresh.
+// Blocking the symptom is not a fix, so every next-stop CLEAR is now gated by
+// record version BEFORE anything is written: if the incoming copy is older than
+// the copy already in IndexedDB, that stop keeps its flag and the clear is never
+// even attempted (no IDB write, no server call, no restore churn).
+export const DELIVERY_SNAPSHOT_TOLERANCE_MS = 1500;
+
+const _versionMs = (record) => {
+  const t = new Date(record?.updated_date || 0).getTime();
+  return Number.isFinite(t) && t > 0 ? t : 0;
+};
+
+export const isOlderDeliverySnapshot = (incoming, stored) => {
+  if (!incoming?.id || !stored?.id) return false;
+  const a = _versionMs(incoming);
+  const b = _versionMs(stored);
+  if (!a || !b) return false; // unknown version is never treated as stale
+  return a + DELIVERY_SNAPSHOT_TOLERANCE_MS < b;
+};
+
+/**
+ * Given records that are ABOUT to clear isNextDelivery, return the set of ids
+ * whose incoming copy is older than the stored copy. Those clears are skipped.
+ * Reads only the affected routes through the date_driver index (never a full
+ * deliveries scan).
+ */
+export const filterStaleNextFlagClears = async (records) => {
+  const skipped = new Set();
+  try {
+    const list = Array.isArray(records) ? records.filter((r) => r?.id) : [];
+    if (list.length === 0) return skipped;
+    const routeKeys = new Set();
+    for (const r of list) {
+      const dId = String(r?.driver_id || '');
+      const dDate = String(r?.delivery_date || '');
+      if (dId && dDate) routeKeys.add(`${dDate}|${dId}`);
+    }
+    if (routeKeys.size === 0) return skipped;
+    const storedById = new Map();
+    for (const rk of routeKeys) {
+      const [dDate, dId] = rk.split('|');
+      try {
+        const rows = await getByIndex(STORES.DELIVERIES, 'date_driver', [dDate, dId]);
+        for (const row of rows || []) if (row?.id) storedById.set(String(row.id), row);
+      } catch (_) { /* a bad route must not block the write */ }
+    }
+    for (const rec of list) {
+      const stored = storedById.get(String(rec.id));
+      if (!stored) continue;
+      if (stored.isNextDelivery !== true) continue; // nothing to protect
+      if (!_nextFlagActive(stored)) continue;       // finished stop — clearing is correct
+      if (isOlderDeliverySnapshot(rec, stored)) skipped.add(String(rec.id));
+    }
+    if (skipped.size > 0) {
+      console.warn(`[offlineDB] version gate skipped ${skipped.size} stale next-stop clear(s) — incoming snapshot is older than stored`);
+    }
+  } catch (err) {
+    console.warn('[offlineDB] filterStaleNextFlagClears failed (clears allowed):', err?.message || err);
+  }
+  return skipped;
+};
+
 const _guardDeliveryRecord = async (storeName, record) => {
   if (storeName !== STORES.DELIVERIES || !record?.id) return record;
   let out = _enforceTerminalNextFlag(record);
