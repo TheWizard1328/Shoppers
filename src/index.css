@@ -640,3 +640,40 @@ html.auto-theme.dark input[type="time"]::-webkit-calendar-picker-indicator {
   opacity: 0.9;
   cursor: pointer;
 }
+/* iOS date field containment (owner report Nov 15 2026, iPhone photo of Edit Delivery).
+   Safari renders <input type="date"> as a native control with an intrinsic min-width and
+   its own box (-webkit-appearance), so inside a narrow flex/grid panel it ignored width:100%
+   and ran under the neighbouring Driver box, while Android and Windows shrink it to fit.
+   `-webkit-touch-callout` exists only in iOS WebKit, so this block cannot touch Android or
+   desktop. The field is forced to shrink to its panel, the inner value text is centred and
+   allowed to clip instead of widening the control. */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    min-height: 2.25rem;
+    line-height: 1.25rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    text-align: center;
+  }
+  input[type="date"]::-webkit-date-and-time-value {
+    text-align: center;
+    min-width: 0;
+    margin: 0 auto;
+  }
+  input[type="date"]::-webkit-datetime-edit {
+    padding: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    margin: 0;
+    padding: 0;
+  }
+}
