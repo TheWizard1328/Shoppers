@@ -554,7 +554,7 @@ export default function DeliveryFormView({
   // after layout and re-measured on resize instead of read once during render.
   // header height is intentionally NOT used on phones any more: the form covers
   // the app header (owner spec Nov 7 2026). `area` drives the desktop fill.
-  const { bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
+  const { header: mobileHeaderHeight, bottomNav: mobileBottomNavHeight, area: contentArea } = useMobileChromeHeights(true);
 
   // KEYBOARD-AWARE BOTTOM INSET (Android APK fix, take 3):
   // Take 1 compared window.innerHeight vs visualViewport.height — doesn't work because this
@@ -727,12 +727,23 @@ export default function DeliveryFormView({
       return /; wv\)/.test(navigator.userAgent || '') && !!window.androidBridge;
     } catch { return false; }
   })();
+  // OWNER REPORT (Nov 15 2026, iPhone screenshot): on iOS the app's mobile header
+  // stayed visible OVER the form's own title bar ("Edit Pickup" was cut off) and the
+  // footer sat behind the in-app bottom nav, so the form did not fit squarely between
+  // the two. The old phone rule reserved ONLY the raw safe-area insets and expected to
+  // cover the chrome - which the header/nav outrank on iOS, and whose heights no longer
+  // match the insets at all (nav is 45px with a 0px inset on iOS, 34px inset on Android).
+  // The form now reserves the MEASURED chrome instead, so it starts under the mobile
+  // header and ends exactly at the top edge of the bottom nav on every device, with the
+  // raw inset only as a fallback when a height cannot be measured.
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
     ? {
-        paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
-        // OWNER SPEC (Nov 8 2026): on a phone the form covers the app's bottom nav, so
-        // only the real system gesture/safe-area inset is reserved, never the nav height.
-        paddingBottom: `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
+        paddingTop: mobileHeaderHeight > 0
+          ? `${mobileHeaderHeight}px`
+          : (isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)'),
+        paddingBottom: mobileBottomNavHeight > 0
+          ? `${mobileBottomNavHeight}px`
+          : `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
       }
     : undefined;
 
