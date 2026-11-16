@@ -208,6 +208,29 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              wrongly hid the nav on wide PORTRAIT screens (foldable inner display,
              tablets) even though the JS correctly renders it there. */
           .app-container.chrome-desktop nav[data-mobile-bottom-nav] { display: none !important; }
+          /* ── iPhone bottom band removal (owner report Nov 15 2026) ─────────────
+             On iOS the 34px home-indicator reserve was applied as container
+             padding, and the bottom nav sat IN FLOW above it - so the screen
+             showed the nav bar and then a second, empty 34px band under it.
+             Probe on the iOS Test Phone: nav 769..814, container padding-bottom
+             34px, screen 848. Two reserves, and the map lost 79px it did not
+             need to (grid: 48 status + 57 header + 45 nav + 34 band).
+             Now the nav owns the indicator zone and overlays the content:
+             container bottom padding drops to 0, the nav is fixed at the very
+             bottom and paints its own safe-area padding, so the map runs to the
+             screen edge behind it. --bottom-nav-height is populated with the
+             measured bar height (see Layout.jsx) so stop cards, the FAB stack
+             and scrolling pages reserve the right space above it. */
+          .app-container.chrome-mobile, .app-container.tablet-portrait { padding-bottom:0 !important; }
+          .app-container.chrome-desktop { padding-bottom:env(safe-area-inset-bottom, 0px); }
+          .app-container.chrome-mobile nav[data-mobile-bottom-nav],
+          .app-container.tablet-portrait nav[data-mobile-bottom-nav] {
+            position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important;
+            padding-bottom:env(safe-area-inset-bottom, 0px) !important;
+            background:var(--bg-white) !important; box-sizing:border-box !important;
+            z-index:150 !important;
+          }
+          .app-container.chrome-mobile .main-content-area, .app-container.tablet-portrait .main-content-area { padding-bottom:0 !important; }
           .app-container.chrome-desktop { --bottom-nav-height: 0px; }
           html:not(.dark) .bg-slate-50 { background-color:#f8fafc !important; }
           .text-xs, .text-sm { color:inherit; }

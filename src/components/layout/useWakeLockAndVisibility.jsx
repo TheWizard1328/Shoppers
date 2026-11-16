@@ -34,12 +34,30 @@ export function useWakeLockAndVisibility({
           if (battery.level * 100 < 25 && !battery.charging) return;
         }
         wakeLockRef.current = await navigator.wakeLock.request('screen');
-        wakeLockRef.current.addEventListener('release', () => {});
+        // iOS KEEP-AWAKE FIX (owner report Nov 15 2026): iOS releases the screen
+        // wake lock on its own - on backgrounding, on a lock/unlock, and after a
+        // period of no interaction - and it never re-acquires itself. The old
+        // no-op release listener meant the screen then slept until a reload, which
+        // is why keep-awake "does not work on iOS". Re-acquire straight away.
+        wakeLockRef.current.addEventListener('release', () => {
+          wakeLockRef.current = null;
+          if (document.visibilityState === 'visible') setTimeout(() => { ensureWakeLock(); }, 250);
+        });
       } catch {}
     };
 
     const releaseWakeLock = () => {
       if (wakeLockRef.current) { wakeLockRef.current.release(); wakeLockRef.current = null; }
+    };
+
+    // Re-requests the lock unless we already hold a live one. Used by the
+    // release handler, the heartbeat below and the first user gesture.
+    const ensureWakeLock = async () => {
+      if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+      const held = wakeLockRef.current;
+      if (held && !held.released) return;
+      wakeLockRef.current = null;
+      await requestWakeLock();
     };
 
     const setupBatteryMonitoring = async () => {
@@ -138,7 +156,20 @@ export function useWakeLockAndVisibility({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     if (document.visibilityState === 'visible') requestWakeLock();
 
+    // iOS silently drops the wake lock (no event, terminated sentinel). A slow
+    // heartbeat re-arms it while the app is visible, and the first touch also
+    // retries because some iOS builds only honour the request during a gesture.
+    const wakeHeartbeat = setInterval(() => {
+      if (document.visibilityState === 'visible') ensureWakeLock().catch(() => {});
+    }, 45000);
+    const gestureRetry = () => { ensureWakeLock().catch(() => {}); };
+    window.addEventListener('pointerdown', gestureRetry, { passive: true });
+    window.addEventListener('touchstart', gestureRetry, { passive: true });
+
     return () => {
+      clearInterval(wakeHeartbeat);
+      window.removeEventListener('pointerdown', gestureRetry);
+      window.removeEventListener('touchstart', gestureRetry);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releaseWakeLock();
     };
