@@ -108,12 +108,17 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              Both modes pin top AND bottom explicitly - height:auto + inset is what keeps the box
              from drifting off the real viewport edge when the APK reports 100vh larger than the
              visible area. */
-          .patient-history-panel { position:fixed !important; right:0; top:0 !important; height:auto !important; margin:0 !important; padding-top:0 !important; padding-bottom:0 !important; box-sizing:border-box; }
-          @media (max-width: 767px) {
-            .patient-history-panel { bottom:0 !important; }
+          /* OWNER FIX Nov 16 2026 (APK phone): bottom:0 let the panel's cards run under the phone's
+             navigation bar. The panel now stops ABOVE the OS navigation bar on every width - the
+             status-bar inset stays 0 at the top so there is still no white band there, and the
+             bottom reserve is a single inset (env or the APK-injected value), never both. */
+          .patient-history-panel {
+            position:fixed !important; right:0; top:0 !important; height:auto !important; margin:0 !important;
+            bottom:max(env(safe-area-inset-bottom, 0px), var(--native-safe-bottom, 0px)) !important;
+            padding-top:0 !important; padding-bottom:0 !important; box-sizing:border-box;
           }
-          @media (min-width: 768px) {
-            .patient-history-panel { bottom:max(env(safe-area-inset-bottom, 0px), var(--native-safe-bottom, 0px)) !important; }
+          body.is-native-apk .patient-history-panel {
+            bottom:var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
           }
           body.is-native-apk .fixed.inset-0[data-state="open"].patient-history-backdrop { padding:0 !important; }
           .sidebar-overlay { position:fixed; left:0; right:0; top:var(--drawer-top, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 64px)); bottom:0; background:rgba(0,0,0,0.5); z-index:49998; animation:fadeIn 0.2s ease-out; }

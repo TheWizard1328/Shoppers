@@ -208,7 +208,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-3 pt-3 pb-0 space-y-3">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-3 pt-3 pb-2 space-y-3">
 
               {isLoading &&
             <div className="flex items-center justify-center py-10 gap-2 text-soft">
