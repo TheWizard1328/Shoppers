@@ -1012,6 +1012,7 @@ export default function DeliveryFormView({
     // (above the sidebar's 50000 too) so the form's title and footer can never be
     // covered. Desktop/tablet keep z-[10020].
     className={`fixed inset-0 overflow-hidden bg-black/60 flex items-center justify-center ${useMobileLayout && isMobileDevice ? 'p-0 z-[60000]' : 'p-4 z-[10020]'}`}
+    data-delivery-form-overlay="true"
     style={mobileFormInsetStyle || desktopFillStyle}>
       
       <motion.div

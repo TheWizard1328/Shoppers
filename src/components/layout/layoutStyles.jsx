@@ -100,6 +100,15 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
 
           /* Overlay dims only the area between the header and the bottom nav (owner request
              Nov 15 2026) so the in-app chrome stays visible while the drawer is open. */
+          /* ADD TO ROUTE / EDIT FORM CENTERING (owner spec Nov 16 2026): the form overlay is
+             fixed inset-0 centred, which centred it in the whole window and left it sitting
+             right of centre over the map. When the sidebar is persistent (desktop chrome /
+             desktop device) the overlay reserves the sidebar width on the left, so the form is
+             centred in the MAP area only. Phones and tablet portrait keep full-width centring. */
+          .app-container.chrome-desktop [data-delivery-form-overlay="true"],
+          .app-container.desktop-device [data-delivery-form-overlay="true"] {
+            padding-left: calc(var(--sidebar-width, 260px) + 1rem) !important;
+          }
           /* PATIENT INFO SLIDE-OUT (owner spec Nov 16 2026, revised)
              Phones: the panel fills the screen edge to edge - top:0 / bottom:0, no white band
              above the header and none under the last card (the screenshot bands).
