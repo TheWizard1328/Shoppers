@@ -728,11 +728,19 @@ export default function DeliveryFormView({
       return /; wv\)/.test(navigator.userAgent || '') && !!window.androidBridge;
     } catch { return false; }
   })();
+  // OWNER SPEC (Nov 15 2026): "extend the edit stop forms height to full vertical view
+  // port". The phone overlay now fills the whole viewport edge to edge (no overlay
+  // padding at all) - it is portalled above the mobile header and bottom nav, so it can
+  // own the full height. The safe-area/gutter inset moved INSIDE the card instead, so the
+  // title bar clears the iPhone status bar and the buttons clear the home indicator while
+  // the form itself stays full-bleed. Native keeps its 30px/14px floors because Capacitor
+  // reports a zero safe area.
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
+    ? { paddingTop: 0, paddingBottom: 0 }
+    : undefined;
+  const mobileCardInsetStyle = useMobileLayout && isMobileDevice
     ? {
         paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
-        // OWNER SPEC (Nov 8 2026): on a phone the form covers the app's bottom nav, so
-        // only the real system gesture/safe-area inset is reserved, never the nav height.
         paddingBottom: `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
       }
     : undefined;
@@ -935,6 +943,7 @@ export default function DeliveryFormView({
         >
         <Card
           onKeyDown={handleGlobalKeyDown}
+          style={mobileCardInsetStyle}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl overflow-hidden'} text-body bg-surface border-surface`}>
           
           {/* PAST-DATE ADD WARNING (owner spec Oct 28 2026) */}
