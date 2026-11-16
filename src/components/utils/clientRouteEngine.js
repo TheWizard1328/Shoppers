@@ -1882,6 +1882,17 @@ let _inheritedWindowCount = 0;
         console.warn('[clientRouteEngine] segment ownership remap skipped (non-fatal):', _remapErr?.message || _remapErr);
       }
 
+      // ── STARTED-STOP DETECTOR (owner report, Nov 16 2026) ──────────────────
+      // A stop that has already begun (in_transit, or any start/arrival stamp)
+      // is history: its leg was generated from the stop the driver actually
+      // left and must never be rebuilt against a stop inserted later.
+      const _startedLive = (st) => {
+        const stt = String(st?.delivery?.status || '').toLowerCase();
+        if (stt === 'in_transit') return true;
+        if (st?.delivery?.actual_start_time) return true;
+        if (stt !== 'completed' && st?.delivery?.actual_delivery_time) return true;
+        return false;
+      };
       // ── LEG CHAIN BY STOP ORDER (owner rule, Nov 16 2026) ──────────────────
       // "each polyline leg should be anchored to that stop's own location as its
       // destination, and the previous stop in stop order as that leg's origin."
@@ -1905,8 +1916,19 @@ let _inheritedWindowCount = 0;
           } catch (_) { return null; }
         };
         const _CHAIN_KM = 0.3;
+        // ── ALREADY-STARTED STOPS ARE NEVER RE-CHAINED (owner report, Nov 16 2026)
+        // Robert drove stop 29 -> stop 32, then accepted a single Beverly stop.
+        // The re-optimization inserted that new pickup BEFORE stop 32 (which he
+        // was already on), so the chain rule decided leg 32 had the wrong origin
+        // and REBUILT it from the Beverley pickup. The map then drew his current
+        // leg from a store he never visited and every metre he had really driven
+        // was stamped as a deviation from Beverley.
+        // A stop that has already started is history: its leg was generated from
+        // the predecessor that existed when the driver left, and no later insert
+        // may rewrite it. Verify and rebuild only legs that have NOT started.
         let _breakIdx = -1;
         for (let i = 0; i < _orderedLive.length; i += 1) {
+          if (_startedLive(_orderedLive[i])) continue; // started: leg is fixed history
           const seg = segmentPolylineByDeliveryId.get(String(_orderedLive[i].delivery.id));
           if (!seg) continue;
           const start = _startOf(seg);
@@ -1918,7 +1940,8 @@ let _inheritedWindowCount = 0;
         }
         if (_breakIdx > 0 && !cyclingSegmentOnly && !drivingSegmentOnly && polylineOrigin) {
           const prevStop = _orderedLive[_breakIdx - 1];
-          const tail = _orderedLive.slice(_breakIdx);
+          const tail = _orderedLive.slice(_breakIdx).filter((st) => !_startedLive(st));
+          if (tail.length === 0) return;
           console.warn(`[clientRouteEngine] ${source} — LEG CHAIN BROKEN at ${tail[0]?.delivery?.stop_id || tail[0]?.delivery?.id}: rebuilding ${tail.length} leg(s) from ${prevStop?.delivery?.stop_id || 'previous stop'}`);
           const rebuilt = await generateRoutePolylines({
             stops: tail,
@@ -1943,6 +1966,71 @@ let _inheritedWindowCount = 0;
         }
       } catch (_chainErr) {
         console.warn('[clientRouteEngine] leg chain repair skipped (non-fatal):', _chainErr?.message || _chainErr);
+      }
+
+      // ── STARTED-LEG ORIGIN REPAIR (owner report Nov 16 2026) ─────────────
+      // Robert drove stop 29 -> stop 32 and the polylines were right. He then
+      // accepted one Beverly stop; the re-optimization inserted that pickup as
+      // the new stop 31, i.e. BEFORE a stop he had already arrived at, and the
+      // chain rule rebuilt leg 32 from Beverley. The map drew his live leg from
+      // a store he never visited and real driving was logged as a deviation
+      // from Beverley. The chain rule now skips started stops, but the WRONG
+      // leg is already stored, so repair it here: a started stop's leg must
+      // begin where the driver really came from — the previous STARTED stop if
+      // there is one, otherwise the last completed stop (the route origin).
+      // Capped at 2 rebuilds, one provider call each.
+      try {
+        const _repairUsable = (seg) => !!(seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10);
+        const _repairFirst = (seg) => {
+          try {
+            const pts = decodeGooglePolyline(seg.encodedPolyline);
+            return Array.isArray(pts) && pts.length ? pts[0] : null;
+          } catch (_) { return null; }
+        };
+        const _orderedStarted = routeStops.filter((st) => st?.delivery
+          && !['completed', 'failed', 'cancelled'].includes(String(st.delivery.status || '').toLowerCase())
+          && Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lng)));
+        let _repaired = 0;
+        for (let i = 0; i < _orderedStarted.length && _repaired < 2; i += 1) {
+          const st = _orderedStarted[i];
+          if (!_startedLive(st)) continue;
+          const seg = segmentPolylineByDeliveryId.get(String(st.delivery.id));
+          if (!_repairUsable(seg)) continue;
+          const first = _repairFirst(seg);
+          if (!first) continue;
+          const prevStarted = i > 0 && _startedLive(_orderedStarted[i - 1]) ? _orderedStarted[i - 1] : null;
+          const originPt = prevStarted
+            ? { lat: Number(prevStarted.lat), lon: Number(prevStarted.lng) }
+            : (polylineOrigin
+              ? { lat: Number(polylineOrigin.lat), lon: Number(polylineOrigin.lon ?? polylineOrigin.lng) }
+              : null);
+          if (!originPt || !Number.isFinite(originPt.lat) || !Number.isFinite(originPt.lon)) continue;
+          const offKm = haversineKm(Number(first[0]), Number(first[1]), originPt.lat, originPt.lon);
+          if (offKm <= 0.3) continue; // already starts where the driver really came from
+          const rebuiltStarted = await generateRoutePolylines({
+            orderUnchanged: false,
+            forceRegenerate: true,
+            stops: [{ delivery: st.delivery, lat: st.lat, lng: st.lng }],
+            originPoint: originPt,
+            cyclingSegmentOnly: false,
+            hereApiKey,
+            polylineProvider,
+            polylineApiKey,
+            driverId,
+            userName: _driverUserName,
+            source: `${source}:started_leg_origin_repair`,
+            fallbackTravelMode: String(st.delivery.transport_mode || 'driving').toLowerCase() === 'cycling' ? 'cycling' : 'driving',
+            viaPointAfterOrigin,
+            originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
+          });
+          rebuiltStarted.forEach((s2, id) => {
+            if (_repairUsable(s2)) segmentPolylineByDeliveryId.set(String(id), s2);
+          });
+          _repaired += 1;
+          console.warn(`[clientRouteEngine] ${source} — repaired the leg of STARTED stop ${st.delivery.stop_id || st.delivery.id}: it began ${offKm.toFixed(2)}km from the real origin, rebuilt from ${prevStarted ? 'the previous started stop' : 'the last completed stop'}`);
+        }
+      } catch (_startedLegErr) {
+        console.warn('[clientRouteEngine] started-leg origin repair skipped (non-fatal):', _startedLegErr?.message || _startedLegErr);
       }
 
       // ── MISSING-LEG SELF-HEAL FOR AN ACTIVE STOP (owner report Nov 16 2026) ──
