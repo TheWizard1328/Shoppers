@@ -226,7 +226,12 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .app-container.chrome-mobile nav[data-mobile-bottom-nav],
           .app-container.tablet-portrait nav[data-mobile-bottom-nav] {
             position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important;
-            padding-bottom:env(safe-area-inset-bottom, 0px) !important;
+            /* iOS trims the home-indicator band (owner report Nov 15 2026: the nav bar
+               still showed a 34px strip of empty space under its icons, probe measured
+               navPadBottom 34px on an 848pt screen). 20px of that inset is reclaimed
+               and a 6px floor keeps the icons off the very edge, so the bar reads as
+               one flat tab bar like Android instead of a bar plus a gap. */
+            padding-bottom:max(6px, calc(env(safe-area-inset-bottom, 0px) - 20px)) !important;
             background:var(--bg-white) !important; box-sizing:border-box !important;
             z-index:150 !important;
           }
