@@ -111,19 +111,22 @@ export default function ModeSelectionDialog({
     </>
   );
 
-  // Mobile: header ~56px, bottom nav ~60px — panel fits the gap between them
-  const MOBILE_TOP = 56;
-  const MOBILE_BOTTOM = 60;
+  // OWNER FIX Nov 16 2026: this panel used hardcoded chrome guesses (56 / 60) and z-index 9999,
+  // so on a phone it sat UNDER the app header and bottom nav - the Cancel / Continue row was
+  // behind the nav bar. It now uses the measured chrome bounds Layout publishes (--drawer-top is
+  // the header's bottom edge, --drawer-bottom is the nav height + OS inset) and stacks above the
+  // chrome (51000), below the New Patient form (65000).
+  const PANEL_Z = 62000;
 
   return createPortal(
     <div
       style={{
         position: 'fixed',
-        top: isMobile ? MOBILE_TOP : 0,
-        bottom: isMobile ? MOBILE_BOTTOM : 0,
+        top: isMobile ? 'var(--drawer-top, 64px)' : 0,
+        bottom: isMobile ? 'var(--drawer-bottom, 56px)' : 0,
         left: 0,
         right: 0,
-        zIndex: 9999,
+        zIndex: PANEL_Z,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
