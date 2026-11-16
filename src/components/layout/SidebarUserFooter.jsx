@@ -444,7 +444,7 @@ export default function SidebarUserFooter({
 
   if (!currentUser) {
     return (
-      <div className="border-t p-4 flex-shrink-0 bg-surface border-surface">
+      <div className="border-t px-3 py-2 flex-shrink-0 bg-surface border-surface">
         <div className="space-y-2">
           <div className="text-sm text-slate-500 dark:text-slate-400 mb-2">Not logged in</div>
           <Button

@@ -321,7 +321,7 @@ export default function AppSidebar({
       squeezed instead of the label: px-1.5 -> px-1, logo/text gap 4px -> 2px,
       column gap 4px -> 2px. "Pharmacy Logistics" is back to its full width with
       no ellipsis. */}
-  <div className="border-b px-1 py-2.5 flex-shrink-0 border-surface">
+  <div className="border-b px-1 py-1.5 flex-shrink-0 border-surface">
     <div className="flex items-center justify-between gap-0.5">
       {/* min-w-0 + flex-1 lets this column shrink; the controls on the right are
           shrink-0 so the text can never ride underneath the ⋮ menu button. */}

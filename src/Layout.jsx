@@ -936,12 +936,18 @@ export default function Layout({ children, currentPageName }) {
     // Re-measure on resize and orientation change
     window.addEventListener('resize', measureNav);
     window.addEventListener('orientationchange', measureNav);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', measureNav);
     // Also re-measure after a delay (fonts/layout may shift)
     const t = setTimeout(measureNav, 500);
+    // The mobile header drops rows while the drawer is open, and the nav re-lays
+    // out at the same time, so settle the drawer bounds over a few frames.
+    const settle = [0, 60, 180, 400].map((ms) => setTimeout(measureNav, ms));
     return () => {
       window.removeEventListener('resize', measureNav);
       window.removeEventListener('orientationchange', measureNav);
       clearTimeout(t);
+      settle.forEach(clearTimeout);
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', measureNav);
       if (ro) ro.disconnect();
     };
   }, [isMobile, currentUser, sidebarOpen]);
