@@ -1882,6 +1882,69 @@ let _inheritedWindowCount = 0;
         console.warn('[clientRouteEngine] segment ownership remap skipped (non-fatal):', _remapErr?.message || _remapErr);
       }
 
+      // ── LEG CHAIN BY STOP ORDER (owner rule, Nov 16 2026) ──────────────────
+      // "each polyline leg should be anchored to that stop's own location as its
+      // destination, and the previous stop in stop order as that leg's origin."
+      // Simple, deterministic, and it must hold for EVERY leg: leg N runs from
+      // stop N-1's location to stop N's location (the first stop chains from the
+      // route origin). Passes that sequence sub-pools (cycling loop, driving pool,
+      // heals) can hand back sections anchored on a different stop, which is how the
+      // Callingwood pickup drew from a stop two positions down the line. Verify each
+      // leg's FIRST point against the ordered predecessor and rebuild the broken ones
+      // in ONE provider call over the affected tail of the route.
+      try {
+        const _orderedLive = routeStops.filter((st) => st?.delivery
+          && !['completed', 'failed', 'cancelled'].includes(String(st.delivery.status || '').toLowerCase())
+          && Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lng)));
+        const _startOf = (seg) => {
+          const enc = seg?.encodedPolyline;
+          if (typeof enc !== 'string' || enc.length <= 10) return null;
+          try {
+            const pts = decodeGooglePolyline(enc);
+            return Array.isArray(pts) && pts.length ? pts[0] : null;
+          } catch (_) { return null; }
+        };
+        const _CHAIN_KM = 0.3;
+        let _breakIdx = -1;
+        for (let i = 0; i < _orderedLive.length; i += 1) {
+          const seg = segmentPolylineByDeliveryId.get(String(_orderedLive[i].delivery.id));
+          if (!seg) continue;
+          const start = _startOf(seg);
+          if (!start) continue;
+          const prev = i > 0 ? _orderedLive[i - 1] : null;
+          if (!prev) continue; // first leg chains from the route origin; nothing to compare
+          const km = haversineKm(Number(start[0]), Number(start[1]), Number(prev.lat), Number(prev.lng));
+          if (km > _CHAIN_KM) { _breakIdx = i; break; }
+        }
+        if (_breakIdx > 0 && !cyclingSegmentOnly && !drivingSegmentOnly && polylineOrigin) {
+          const prevStop = _orderedLive[_breakIdx - 1];
+          const tail = _orderedLive.slice(_breakIdx);
+          console.warn(`[clientRouteEngine] ${source} — LEG CHAIN BROKEN at ${tail[0]?.delivery?.stop_id || tail[0]?.delivery?.id}: rebuilding ${tail.length} leg(s) from ${prevStop?.delivery?.stop_id || 'previous stop'}`);
+          const rebuilt = await generateRoutePolylines({
+            stops: tail,
+            originPoint: { lat: Number(prevStop.lat), lon: Number(prevStop.lng) },
+            cyclingSegmentOnly: false,
+            hereApiKey,
+            polylineProvider,
+            polylineApiKey,
+            driverId,
+            userName: _driverUserName,
+            source: `${source}_chain_repair`,
+            fallbackTravelMode: effectiveTravelMode
+          });
+          if (rebuilt && rebuilt.size > 0) {
+            rebuilt.forEach((seg, id) => {
+              if (_segIsUsable(seg, tail.find((st) => String(st.delivery.id) === String(id)))) {
+                segmentPolylineByDeliveryId.set(String(id), seg);
+              }
+            });
+            console.warn(`[clientRouteEngine] ${source} — leg chain repaired for ${rebuilt.size} stop(s)`);
+          }
+        }
+      } catch (_chainErr) {
+        console.warn('[clientRouteEngine] leg chain repair skipped (non-fatal):', _chainErr?.message || _chainErr);
+      }
+
       // ── MISSING-LEG SELF-HEAL FOR AN ACTIVE STOP (owner report Nov 16 2026) ──
       // The in-transit stop next door had NO inbound leg at all after the start. The
       // existing heal only covers the FIRST active stop. Any en_route / in_transit stop
