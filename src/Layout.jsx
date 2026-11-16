@@ -906,11 +906,9 @@ export default function Layout({ children, currentPageName }) {
       const nav = bottomNavRef.current;
       const h = nav ? nav.offsetHeight : 0;
       document.documentElement.style.setProperty('--actual-bottom-nav-height', `${h}px`);
-      // Nov 15 2026: --bottom-nav-height is now populated with the REAL bar height.
-      // The nav is fixed at the bottom and overlays content (iOS bottom band fix), so
-      // the components that read this var (stop cards, FAB stack, scrolling pages) must
-      // reserve the real height instead of assuming 0.
-      document.documentElement.style.setProperty('--bottom-nav-height', `${h}px`);
+      // --bottom-nav-height stays 0px: the nav is back in normal flow (Nov 15 2026
+      // revert), so every consumer that assumes 0 keeps its original geometry and
+      // the dashboard FAB stack / stop cards sit where they always did.
     };
     measureNav();
     // Re-measure on resize and orientation change

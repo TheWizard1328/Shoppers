@@ -209,42 +209,31 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              tablets) even though the JS correctly renders it there. */
           .app-container.chrome-desktop nav[data-mobile-bottom-nav] { display: none !important; }
           /* ── iPhone bottom band removal (owner report Nov 15 2026) ─────────────
-             On iOS the 34px home-indicator reserve was applied as container
-             padding, and the bottom nav sat IN FLOW above it - so the screen
-             showed the nav bar and then a second, empty 34px band under it.
-             Probe on the iOS Test Phone: nav 769..814, container padding-bottom
-             34px, screen 848. Two reserves, and the map lost 79px it did not
-             need to (grid: 48 status + 57 header + 45 nav + 34 band).
-             Now the nav owns the indicator zone and overlays the content:
-             container bottom padding drops to 0, the nav is fixed at the very
-             bottom and paints its own safe-area padding, so the map runs to the
-             screen edge behind it. --bottom-nav-height is populated with the
-             measured bar height (see Layout.jsx) so stop cards, the FAB stack
-             and scrolling pages reserve the right space above it. */
+             The container used to reserve the home-indicator inset as padding
+             while the bottom nav sat above it, so the screen showed the bar and
+             then a second empty band under it (probe: nav 769..814, padding 34px,
+             screen 848).
+             The container now reserves nothing and the nav itself owns the inset,
+             so the bar is the last thing on the screen: flat to the edge on
+             iPhone (0px, owner call) and the full system inset on Android, which
+             is edge-to-edge and would otherwise have its buttons under the
+             phone's own navigation bar.
+             The nav stays IN FLOW. An earlier attempt made it position:fixed and
+             overlaid the map, which broke the dashboard FAB stack and stop-card
+             offsets, so flow layout is kept and --bottom-nav-height stays 0px. */
           .app-container.chrome-mobile, .app-container.tablet-portrait { padding-bottom:0 !important; }
           .app-container.chrome-desktop { padding-bottom:env(safe-area-inset-bottom, 0px); }
           .app-container.chrome-mobile nav[data-mobile-bottom-nav],
           .app-container.tablet-portrait nav[data-mobile-bottom-nav] {
-            position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important;
-            /* Platform split (owner report Nov 15 2026):
-               - Android APK / WebView returns the real system-bar inset in
-                 env(safe-area-inset-bottom) (24-48px). It must be kept, because
-                 the bar is edge-to-edge and the in-app nav was overlapping the
-                 phone's own navigation buttons when this was trimmed.
-               - iPhone reports 34px for the home indicator, which is far more
-                 than the bar needs and showed as dead space, so iOS gets a flat
-                 4px and the bar sits just above the gesture control. */
             padding-bottom:env(safe-area-inset-bottom, 0px) !important;
-            background:var(--bg-white) !important; box-sizing:border-box !important;
-            z-index:150 !important;
+            background:var(--bg-white) !important;
+            box-sizing:border-box !important;
           }
-          .app-container.chrome-mobile .main-content-area, .app-container.tablet-portrait .main-content-area { padding-bottom:0 !important; }
-          /* iPhone / iPad only: flatten the home-indicator reserve to 4px.
-             (-webkit-touch-callout is WebKit-on-iOS, so Android never matches.) */
+          /* iPhone / iPad only (WebKit-on-iOS): no reserved band at all. */
           @supports (-webkit-touch-callout: none) {
             .app-container.chrome-mobile nav[data-mobile-bottom-nav],
             .app-container.tablet-portrait nav[data-mobile-bottom-nav] {
-              padding-bottom:4px !important;
+              padding-bottom:0px !important;
             }
           }
           .app-container.chrome-desktop { --bottom-nav-height: 0px; }
