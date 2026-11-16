@@ -18,7 +18,10 @@
         "refund",
         "decline",
         "card_spend",
-        "card_topup"
+        "card_topup",
+        "store_topup",
+        "store_withdraw",
+        "card_transfer"
       ],
       "description": "Kind of ledger entry (owner revamp Oct 3 2026: sale->collected, payout->card_spend; decline/refund unchanged)"
     },
@@ -31,7 +34,9 @@
       "enum": [
         "cod_collection",
         "card_spend",
-        "other_sale"
+        "other_sale",
+        "top_up",
+        "card_sale"
       ],
       "description": "cod_collection is set at sync time (delivery link). card_spend/other_sale are derived at render time from card labels; stored value may be null"
     },

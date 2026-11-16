@@ -310,6 +310,20 @@ function ledgerNormalizeText(v: any): string {
 // Sale items have no Item/Reason labels"). Populates from the payment's own
 // Square order line items (distinct names with qty) so every ledger row
 // carries SOMETHING identifying what was sold.
+// TOP-UP DETECTION (owner spec Nov 16 2026): a card top-up rung on the POS is a
+// custom-amount line whose NOTE says "top up" (Square returns it as
+// line_items[].note, name is null). Matches "top up", "top-up", "topup".
+// Only orders with NO delivery/COD catalog link may be top-ups, so a real sale
+// can never be reclassified by a stray note.
+const TOPUP_RE = /\btop[\s_-]*up\b/i;
+function isTopUpOrder(order: any): boolean {
+  try {
+    const items = (order?.line_items || []).filter(Boolean);
+    if (!items.length) return false;
+    return items.some((li: any) => TOPUP_RE.test(String(li?.note || '')) || TOPUP_RE.test(String(li?.name || '')));
+  } catch { return false; }
+}
+
 function orderItemsLabel(order: any): string | null {
   try {
     const items = (order?.line_items || []).filter(Boolean);
@@ -909,6 +923,14 @@ Deno.serve(async (req) => {
     }
 
     const entries: Map<string, any> = new Map();
+    // payment ids whose order carried a "top up" note (owner spec Nov 16 2026)
+    const topUpPaymentIds = new Set<string>();
+    // Older top-up payments (outside this run's scan window) are known from the ledger.
+    const existingTopUpPaymentIds = new Set<string>();
+    try {
+      const prior: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.filter({ sale_class: 'top_up', entry_kind: 'collected' }, '-occurred_at', 200).catch(() => [])) as any[];
+      for (const r of prior || []) if (r?.square_id) existingTopUpPaymentIds.add(String(r.square_id));
+    } catch { /* best effort */ }
     const syncErrors: string[] = [];
 
     // EXISTING-ROW SCAN (moved ahead of the Square fetch loops Oct 7 2026):
@@ -1112,11 +1134,13 @@ Deno.serve(async (req) => {
           }
         }
 
+        const _isTopUp = !codLink && isTopUpOrder(order);
+        if (_isTopUp) topUpPaymentIds.add(String(payment.id));
         entries.set(payment.id, buildEntry({
           square_id: payment.id,
           entry_kind: 'collected',
           tender_type: 'CARD',
-          sale_class: codLink ? 'cod_collection' : 'other_sale',
+          sale_class: _isTopUp ? 'top_up' : (codLink ? 'cod_collection' : 'other_sale'),
           amount_cents: payment?.amount_money?.amount,
           fee_cents: sumProcessingFees(payment),
           ...cardSettlementCents(rates, locationId, payment?.amount_money?.amount, sumProcessingFees(payment)),
@@ -1264,12 +1288,23 @@ Deno.serve(async (req) => {
     };
     type SweepPayout = { id: string; locId: string; locName: string; abbr: string; amount: number; status: string; createdAt: string; type: string; entryTypes: string[]; chargePaymentId: string | null; isPersonalCard: boolean };
     const sweepPayouts: SweepPayout[] = [];
+    // Exact money split Square applied to the payout (owner spec Nov 16 2026):
+    // CHARGE gross + fee, SQUARE_CAPITAL_PAYMENT = loan, BALANCE_FOLDERS_TRANSFER = folder.
+    const payoutSplitById = new Map<string, { grossC: number; feeC: number; loanC: number; folderC: number }>();
     const fetchPayoutEntries = async (payoutId: string): Promise<{ types: string[]; chargePaymentId: string | null }> => {
       try {
         const entsJson: any = await squareFetch(`/v2/payouts/${payoutId}/payout-entries`, 'GET', accessToken);
         const ents = entsJson?.payout_entries || [];
         const types = (ents.map((x: any) => String(x?.type || '')).filter(Boolean)) as string[];
         const charge = ents.find((x: any) => x?.type_charge_details?.payment_id);
+        const amt = (m: any) => Math.round(Number(m?.amount || 0));
+        const sumType = (t: string) => ents.filter((x: any) => x?.type === t).reduce((a: number, x: any) => a + Math.abs(amt(x?.gross_amount_money)), 0);
+        payoutSplitById.set(payoutId, {
+          grossC: ents.filter((x: any) => x?.type === 'CHARGE').reduce((a: number, x: any) => a + amt(x?.gross_amount_money), 0),
+          feeC: ents.filter((x: any) => x?.type === 'CHARGE').reduce((a: number, x: any) => a + Math.abs(amt(x?.fee_amount_money)), 0),
+          loanC: sumType('SQUARE_CAPITAL_PAYMENT'),
+          folderC: sumType('BALANCE_FOLDERS_TRANSFER'),
+        });
         return { types, chargePaymentId: charge ? String(charge.type_charge_details.payment_id) : null };
       } catch { return { types: [], chargePaymentId: null }; }
     };
@@ -1362,7 +1397,13 @@ Deno.serve(async (req) => {
           entries.set(String(sp.id), buildEntry({
             square_id: String(sp.id),
             entry_kind: 'store_topup',
+            sale_class: (topUpPaymentIds.has(String(sp.chargePaymentId)) || existingTopUpPaymentIds.has(String(sp.chargePaymentId))) ? 'top_up' : 'card_sale',
             amount_cents: Math.abs(sp.amount),
+            fee_cents: payoutSplitById.get(String(sp.id))?.feeC ?? 0,
+            loan_cents: payoutSplitById.get(String(sp.id))?.loanC ?? null,
+            folder_cents: payoutSplitById.get(String(sp.id))?.folderC ?? null,
+            settled_cents: Math.abs(sp.amount),
+            order_id: null,
             status: sp.status,
             occurred_at: sp.createdAt,
             location_id: sp.locId,

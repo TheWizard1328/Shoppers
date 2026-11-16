@@ -1070,8 +1070,28 @@ export async function loadCardTopups(cfg, userId = null) {
     if ((list || []).length < 500) break;
     skip += 500;
   }
+  // Resolve each sweep's SOURCE PAYMENT (the CHARGE id is the last segment of
+  // reason) to its collected ledger row, which carries delivery/patient links and
+  // the sale class. One batched read per 25 ids; any failure just leaves the row
+  // unlabelled (owner spec Nov 16 2026: show the patient, not the card name).
+  const deduped = dedupeBySquareId(rows);
+  const srcIdOf = (r) => {
+    const parts = String(r?.reason || '').split('|').map((x) => x.trim()).filter(Boolean);
+    const last = parts[parts.length - 1] || '';
+    return /^[A-Za-z0-9]{20,}$/.test(last) && !/^STORE_CARD/.test(last) ? last : null;
+  };
+  const srcIds = [...new Set(deduped.map(srcIdOf).filter(Boolean))];
+  const srcById = new Map();
+  for (let i = 0; i < srcIds.length; i += 25) {
+    const chunk = srcIds.slice(i, i + 25);
+    const found = await Promise.all(chunk.map((sid) =>
+      base44.entities.SquareLedgerEntry.filter({ square_id: sid }).catch(() => [])));
+    found.forEach((list, idx) => { if (list && list[0]) srcById.set(chunk[idx], list[0]); });
+  }
   const out = [];
-  for (const r of dedupeBySquareId(rows)) {
+  for (const r of deduped) {
+    const sid = srcIdOf(r);
+    const src = sid ? srcById.get(sid) : null;
     out.push({
       id: r.id,
       square_id: r.square_id,
@@ -1081,6 +1101,17 @@ export async function loadCardTopups(cfg, userId = null) {
       occurred_at: r.occurred_at || null,
       attributed_location_id: r.attributed_location_id || null,
       reason: r.reason || null,
+      entry_kind: r.entry_kind || null,
+      // 'top_up' (blue) | 'card_sale' (green); older rows fall back to the source sale
+      sale_class: r.sale_class === 'top_up' || src?.sale_class === 'top_up' ? 'top_up' : (r.entry_kind === 'store_topup' ? 'card_sale' : null),
+      gross: src ? Number(src.amount_cents || 0) / 100 : null,
+      fee_cents: r.fee_cents != null ? Number(r.fee_cents) : null,
+      loan_cents: r.loan_cents != null ? Number(r.loan_cents) : null,
+      folder_cents: r.folder_cents != null ? Number(r.folder_cents) : null,
+      source_payment_id: sid,
+      delivery_id: src?.delivery_id || null,
+      patient_id: src?.patient_id || null,
+      cod_item_name: src?.cod_item_name || null,
     });
   }
   writeLedgerCache({ trued_up_at: cfg.trued_up_at, topups: out }, userId);

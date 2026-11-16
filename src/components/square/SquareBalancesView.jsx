@@ -537,6 +537,40 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [deliveryCredits, setDeliveryCredits] = useState(new Map());
   const [payouts, setPayouts] = useState([]); // BATCH bank sweeps since true-up
   const [topups, setTopups] = useState([]); // card_topup transfers onto the Square Cards since true-up
+  // Transfer-row labels (owner spec Nov 16 2026): patient name + coloured store
+  // badge instead of the card name. { [delivery_id|patient_id]: {name, abbrev, color} }
+  const autoApplyDetectedTopUpsRef = useRef(null);
+  const [transferLabels, setTransferLabels] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const needed = (topups || []).filter((t) => t.sale_class !== 'top_up' && (t.patient_id || t.delivery_id));
+      if (needed.length === 0) { if (!cancelled) setTransferLabels({}); return; }
+      try {
+        const [storesRaw, patientsRaw] = await Promise.all([
+          offlineDB.getAll(offlineDB.STORES.STORES).then((r) => r && r.length ? r : base44.entities.Store.list().catch(() => [])).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.PATIENTS).then((r) => r && r.length ? r : base44.entities.Patient.list().catch(() => [])).catch(() => [])
+        ]);
+        const resolve = buildPatientResolver(patientsRaw);
+        const byAbbrev = new Map((storesRaw || []).filter((x) => x?.abbreviation).map((x) => [String(x.abbreviation).toUpperCase(), x]));
+        const byId = new Map((storesRaw || []).filter((x) => x?.id).map((x) => [String(x.id), x]));
+        const next = {};
+        for (const t of needed) {
+          const pat = resolve(t.patient_id);
+          const parsed = parseCatalogItemName(t.cod_item_name);
+          const abbrev = pat?.store_id ? byId.get(String(pat.store_id))?.abbreviation : (parsed?.abbrev || null);
+          const st = abbrev ? byAbbrev.get(String(abbrev).toUpperCase()) : null;
+          next[t.square_id] = {
+            name: pat?.full_name || pat?.name || parsed?.patientName || null,
+            abbrev: st?.abbreviation || abbrev || null,
+            color: st?.color || null
+          };
+        }
+        if (!cancelled) setTransferLabels(next);
+      } catch (_) { /* labels are cosmetic */ }
+    })();
+    return () => { cancelled = true; };
+  }, [topups]);
   const [codOutstandingByLoc, setCodOutstandingByLoc] = useState({});
   const [localOutstanding, setLocalOutstanding] = useState(null); // client-side compute — freshest source
   // ADMIN NOTES on COD delivery items (owner request Nov 3 2026). Notes live in
@@ -1016,6 +1050,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     const payoutRows = await loadCardPayouts(cfg, currentUser?.id || null).catch(() => []);
     const topupRows = await loadCardTopups(cfg, currentUser?.id || null).catch(() => []);
     if (seq === loadSeq.current) {setDeliveryCredits(creditsMap);setPayouts(payoutRows);setTopups(topupRows);}
+    if (seq === loadSeq.current) void autoApplyDetectedTopUpsRef.current?.(topupRows);
   }, [currentUser?.id]);
 
   // Client-side COD outstanding — same rules as the backend pass, computed fresh
@@ -2573,6 +2608,66 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     }
   };
 
+  // Apply ONE detected Square top-up to the config exactly as the Top Up button
+  // would (owner spec Nov 16 2026). Square already gives the REAL fee, loan and
+  // folder amounts on the payout, so those win over the rate-sheet estimate.
+  // Idempotent: the source payment id is recorded in config.applied_topups, and
+  // the config is re-read from the server first so two devices cannot both apply.
+  const autoApplyingRef = useRef(false);
+  const autoApplyDetectedTopUps = useCallback(async (rows) => {
+    if (!ownerCanEdit || autoApplyingRef.current) return;
+    const candidates = (rows || []).filter((t) =>
+      t.sale_class === 'top_up' && t.source_payment_id && t.card_location_id && Number(t.amount) > 0);
+    if (candidates.length === 0) return;
+    autoApplyingRef.current = true;
+    try {
+      const recs = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY }).catch(() => []);
+      const rec = recs && recs[0];
+      if (!rec?.id || !rec.setting_value) return;
+      const cfg = rec.setting_value;
+      const applied = new Set((cfg.applied_topups || []).map((a) => String(a.payment_id)));
+      const trueUpMs = new Date(cfg.trued_up_at || 0).getTime();
+      const fresh = candidates.filter((t) =>
+        !applied.has(String(t.source_payment_id)) &&
+        new Date(t.occurred_at || 0).getTime() >= trueUpMs);
+      if (fresh.length === 0) return;
+      const folderRate = Number.isFinite(Number(cfg.folder_rate)) ? Number(cfg.folder_rate) : DEFAULT_FOLDER_RATE;
+      let folderAddC = 0;
+      const appliedNow = [];
+      const locations = (cfg.locations || []).map((loc) => ({ ...loc }));
+      for (const t of fresh) {
+        const loc = locations.find((l) => String(l.location_id) === String(t.card_location_id));
+        if (!loc) continue;
+        const grossC = Math.round(Number(t.gross || 0) * 100) || Math.round(Number(t.amount) * 100);
+        const feeC = t.fee_cents != null ? Math.round(t.fee_cents) : estimateCardFeeCents(grossC, 'credit');
+        const loanC = t.loan_cents != null ? Math.round(t.loan_cents) : Math.round(grossC * (Number(loc.loan_rate) || 0));
+        const folderC = t.folder_cents != null ? Math.round(t.folder_cents) : folderCentsFor(grossC, folderRate);
+        const netC = t.fee_cents != null || t.loan_cents != null || t.folder_cents != null ?
+          Math.round(Number(t.amount) * 100) : Math.max(0, grossC - feeC - loanC - folderC);
+        loc.card_start = (Math.round(Number(loc.card_start || 0) * 100) + netC) / 100;
+        loc.loan_start = Math.max(0, Math.round(Number(loc.loan_start || 0) * 100) - loanC) / 100;
+        folderAddC += folderC;
+        appliedNow.push({ payment_id: String(t.source_payment_id), square_id: t.square_id, location_id: loc.location_id, gross: grossC / 100, net: netC / 100, fee: feeC / 100, loan: loanC / 100, folder: folderC / 100, applied_at: new Date().toISOString(), source: 'auto-sync' });
+      }
+      if (appliedNow.length === 0) return;
+      const newConfig = {
+        ...cfg,
+        locations,
+        folder_start: (Math.round(Number(cfg.folder_start || 0) * 100) + folderAddC) / 100,
+        applied_topups: [...(cfg.applied_topups || []), ...appliedNow].slice(-200)
+      };
+      await base44.entities.AppSettings.update(rec.id, { setting_value: newConfig });
+      setConfig(newConfig);
+      const totalGross = appliedNow.reduce((a, x) => a + x.gross, 0);
+      toast.success(`Top-up detected in Square: ${fmtMoney(totalGross)} applied (${appliedNow.map((x) => `+${fmtMoney(x.net)}`).join(', ')} to card)`);
+    } catch (err) {
+      console.error('auto top-up apply failed:', err);
+    } finally {
+      autoApplyingRef.current = false;
+    }
+  }, [ownerCanEdit]);
+  autoApplyDetectedTopUpsRef.current = autoApplyDetectedTopUps;
+
   // ── TOP-UP = SQUARE COLLECTION (owner spec Nov 16 2026) ───────────────────
   // "the top up option acts like a square collection: if I top up one of the store
   // cards with $100 it registers that 100 was topped up but it ducks the fees, the
@@ -3470,15 +3565,30 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             {topups.slice().sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0)).map((t) => {
             const storeName = config?.locations?.find((l) => l.location_id === t.attributed_location_id)?.name || null;
             const isFolder = !storeName && !/CHARGE/.test(String(t.reason || ''));
+            const isTopUp = t.sale_class === 'top_up';
+            const isCardSale = t.sale_class === 'card_sale';
+            const lbl = transferLabels[t.square_id] || null;
+            const cardLabel = t.card_name || 'Square Card';
             return (
-              <div key={t.id || t.square_id} className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/40">
-                  <div className="min-w-0">
-                    <span className="font-medium text-slate-700 dark:text-slate-200">{t.card_name || 'Square Card'}</span>
-                    <span className="text-slate-400 dark:text-slate-500"> · {new Date(t.occurred_at || Date.now()).toLocaleString()}</span>
+              <div key={t.id || t.square_id} className="flex items-center justify-between gap-2 text-xs px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/40">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {isTopUp ?
+                      <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{cardLabel}</span> :
+                      <>
+                          {lbl?.abbrev && <StoreAbbrevBadge abbrev={lbl.abbrev} color={lbl.color} />}
+                          <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{lbl?.name || cardLabel}</span>
+                        </>
+                      }
+                    </div>
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500">{new Date(t.occurred_at || Date.now()).toLocaleString()}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300">
-                      {storeName ? `from ${storeName}` : isFolder ? 'folder / manual' : 'card transfer'}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={"px-1.5 py-0.5 rounded text-[10px] font-semibold " + (
+                  isTopUp ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" :
+                  isCardSale ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" :
+                  "bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300")}>
+                      {isTopUp ? 'Top Up' : isCardSale ? 'Card Sale' : storeName ? `from ${storeName}` : isFolder ? 'folder / manual' : 'card transfer'}
                     </span>
                     <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">+{fmtMoney(Number(t.amount) || 0)}</span>
                   </div>
