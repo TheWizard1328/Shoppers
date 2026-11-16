@@ -738,11 +738,18 @@ export default function DeliveryFormView({
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
     ? { paddingTop: 0, paddingBottom: 0 }
     : undefined;
-  const mobileCardInsetStyle = useMobileLayout && isMobileDevice
-    ? {
-        paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
-        paddingBottom: `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
-      }
+  // OWNER SPEC (Nov 15 2026, second pass): "we can extend the height even more, there is
+  // still extra space". Keeping the safe-area inset on the CARD still left a 48px band
+  // above the title bar and a 34px band below the footer on iOS, so the card itself now
+  // runs edge to edge too. The inset moved onto the two chrome rows instead: the title bar
+  // clears the status bar and the button footer clears the home indicator, while the form's
+  // top and bottom borders sit flush with the screen edges.
+  const mobileCardInsetStyle = undefined;
+  const mobileHeaderSafeTop = useMobileLayout && isMobileDevice
+    ? (isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)')
+    : undefined;
+  const mobileFooterSafeBottom = useMobileLayout && isMobileDevice
+    ? `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
     : undefined;
 
   // Auto-focus the barcode scanner manual input when a staged or pending item is selected (desktop only)
@@ -957,7 +964,7 @@ export default function DeliveryFormView({
           }
 
           {/* Header */}
-          <CardHeader className="px-4 py-1 flex flex-col space-y-1.5 border-b flex-shrink-0 border-surface">
+          <CardHeader className="px-4 py-1 flex flex-col space-y-1.5 border-b flex-shrink-0 border-surface" style={mobileHeaderSafeTop ? { paddingTop: mobileHeaderSafeTop } : undefined}>
             <div className="flex items-center justify-between gap-3">
               <div className={`flex ${useMobileLayout && isMobileDevice ? 'items-center gap-2 min-w-0' : 'items-center gap-3'}`}>
                 <Package className="w-5 h-5 text-emerald-600 flex-shrink-0" />
@@ -1972,7 +1979,7 @@ export default function DeliveryFormView({
           </CardContent>
 
           {/* Footer */}
-          <CardFooter className="px-3 py-1.5 flex items-center border-t flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+          <CardFooter className="px-3 py-1.5 flex items-center border-t flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)', ...(mobileFooterSafeBottom ? { paddingBottom: mobileFooterSafeBottom } : {}) }}>
             <div className="flex flex-wrap items-center w-full gap-2">
               <div className="flex flex-wrap items-center gap-3 min-w-0">
                 {!delivery && useMobileLayout && !isPickupMode &&
