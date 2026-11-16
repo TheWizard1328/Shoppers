@@ -735,8 +735,40 @@ export default function DeliveryFormView({
   // title bar clears the iPhone status bar and the buttons clear the home indicator while
   // the form itself stays full-bleed. Native keeps its 30px/14px floors because Capacitor
   // reports a zero safe area.
+  // OWNER REPORT (Nov 15 2026, w34 photo): a dead band remained under the Cancel / Update
+  // row on iOS PWA even with the footer pad cut to 6px. `fixed inset-0` resolves bottom:0
+  // against the layout viewport, which in iOS standalone is TALLER than what is visible
+  // (probe: 100lvh 896 vs innerHeight 848), so the card's bottom edge sat below the
+  // screen's drawn area while its flex column ended short. The phone overlay is now pinned
+  // to the real visual viewport: top:0 / left:0 / right:0 with an explicit pixel height of
+  // window.visualViewport.height (falling back to innerHeight), so the footer's bottom edge
+  // is the bottom edge of what the user can actually see.
+  const [phoneViewportH, setPhoneViewportH] = React.useState(() => {
+    if (typeof window === 'undefined') return 0;
+    return Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  });
+  React.useEffect(() => {
+    if (!(useMobileLayout && isMobileDevice) || typeof window === 'undefined') return undefined;
+    const read = () => {
+      const h = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+      setPhoneViewportH((prev) => (prev === h ? prev : h));
+    };
+    read();
+    window.addEventListener('resize', read);
+    window.addEventListener('orientationchange', read);
+    window.visualViewport?.addEventListener?.('resize', read);
+    return () => {
+      window.removeEventListener('resize', read);
+      window.removeEventListener('orientationchange', read);
+      window.visualViewport?.removeEventListener?.('resize', read);
+    };
+  }, [useMobileLayout, isMobileDevice]);
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
-    ? { paddingTop: 0, paddingBottom: 0 }
+    ? {
+        paddingTop: 0,
+        paddingBottom: 0,
+        ...(phoneViewportH > 0 ? { top: 0, left: 0, right: 0, bottom: 'auto', height: `${phoneViewportH}px` } : {})
+      }
     : undefined;
   // OWNER SPEC (Nov 15 2026, second pass): "we can extend the height even more, there is
   // still extra space". Keeping the safe-area inset on the CARD still left a 48px band
@@ -748,8 +780,12 @@ export default function DeliveryFormView({
   const mobileHeaderSafeTop = useMobileLayout && isMobileDevice
     ? (isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)')
     : undefined;
+  // OWNER SPEC (Nov 15 2026, third pass): the 34px home-indicator pad inside the footer
+  // read as dead space under the Cancel / Update row on iOS PWA. The footer now keeps only
+  // a 6px gutter on a browser/PWA phone (native keeps its 14px floor, where Capacitor
+  // reports a zero safe area and the buttons genuinely need lifting off the bezel).
   const mobileFooterSafeBottom = useMobileLayout && isMobileDevice
-    ? `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
+    ? (isNativeShell ? 'max(env(safe-area-inset-bottom, 0px), 14px)' : 'max(env(safe-area-inset-bottom, 0px), 6px)')
     : undefined;
 
   // Auto-focus the barcode scanner manual input when a staged or pending item is selected (desktop only)
