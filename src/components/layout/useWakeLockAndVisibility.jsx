@@ -38,8 +38,24 @@ export function useWakeLockAndVisibility({
     // consistently in a PWA. Started whenever the Screen Wake Lock API is
     // missing, refused, or released, and torn down as soon as the real lock is
     // held again so it never competes with it.
+    // iOS KEEP-AWAKE FIX #2 (owner report Nov 15 2026: "it only keeps the screen on
+    // once another form is open, never on the dashboard after a restart or refresh"):
+    // the old version early-returned whenever an element already existed, so a video
+    // that iOS had silently paused could never be revived - the dashboard sat there
+    // holding a dead element while opening a form (a real touch) re-armed everything.
+    // It now always nudges play() on the existing element, and rebuilds it if it was
+    // detached from the DOM.
     const startKeepAwakeVideo = () => {
-      if (keepAwakeVideoRef.current || document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') return;
+      const existing = keepAwakeVideoRef.current;
+      if (existing) {
+        if (existing.isConnected) {
+          if (existing.paused || existing.ended) { try { existing.play().catch(() => {}); } catch {} }
+          return;
+        }
+        try { existing.remove(); } catch {}
+        keepAwakeVideoRef.current = null;
+      }
       try {
         const v = document.createElement('video');
         v.setAttribute('playsinline', '');
@@ -53,7 +69,10 @@ export function useWakeLockAndVisibility({
         // 2x2 inside the viewport (NOT offscreen and NOT z-index:-1): iOS
         // suspends a video it considers hidden, so it must be laid out on screen
         // while staying invisible to the user.
-        v.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:0;';
+        // z-index above the stop cards (10000), the forms (60000) and every dialog:
+        // iOS pauses a video it decides is covered, and the dashboard is wall-to-wall
+        // overlays, which is exactly why the barrier died there and survived in a form.
+        v.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:2147483647;';
         document.body.appendChild(v);
         keepAwakeVideoRef.current = v;
         const play = () => { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); };
@@ -233,6 +252,33 @@ export function useWakeLockAndVisibility({
     // video, (b) re-requests the lock, and (c) forces a brand new lock every
     // third tick, because a sentinel can read as live in JS while iOS has already
     // stopped honouring it - that silent drop is what still let the screen sleep.
+    // iOS-only watchdog: every 5s confirm the barrier video is attached, playing and
+    // actually decoding. Two consecutive stalled ticks (iOS pause with no event, or a
+    // refresh where autoplay was refused before the first touch) rebuild it from scratch.
+    let videoStalls = 0;
+    const videoWatchdog = isIOSDeviceRef.current ? setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      const v = keepAwakeVideoRef.current;
+      if (!v || !v.isConnected) { videoStalls = 0; startKeepAwakeVideo(); return; }
+      if (v.paused || v.ended) { try { v.play().catch(() => {}); } catch {} }
+      if (v.readyState < 2) {
+        videoStalls += 1;
+        if (videoStalls >= 2) { videoStalls = 0; stopKeepAwakeVideo(); setTimeout(() => startKeepAwakeVideo(), 60); }
+      } else {
+        videoStalls = 0;
+      }
+    }, 5000) : null;
+
+    // A PWA refresh / bfcache restore fires pageshow after the effect has run; iOS has
+    // dropped everything by then, so re-arm both the lock and the barrier video.
+    const handlePageShow = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (isIOSDeviceRef.current) startKeepAwakeVideo();
+      ensureWakeLock().catch(() => {});
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('focus', handlePageShow);
+
     let wakeTick = 0;
     const wakeHeartbeat = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
@@ -261,13 +307,23 @@ export function useWakeLockAndVisibility({
         } catch {}
       }
     }, 20000);
-    const gestureRetry = () => { ensureWakeLock().catch(() => {}); };
+    const gestureRetry = () => {
+      // Owner report Nov 15 2026: keep-awake started working the moment a form was
+      // opened. That was this gap — the retry only called ensureWakeLock(), which
+      // returns early while the (silently ignored) iOS lock still looks held, so the
+      // paused video was never restarted. Touch now re-arms both paths unconditionally.
+      if (isIOSDeviceRef.current) startKeepAwakeVideo();
+      ensureWakeLock().catch(() => {});
+    };
     window.addEventListener('pointerdown', gestureRetry, { passive: true });
     window.addEventListener('touchstart', gestureRetry, { passive: true });
 
     return () => {
       stopKeepAwakeVideo();
       clearInterval(wakeHeartbeat);
+      if (videoWatchdog) clearInterval(videoWatchdog);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('focus', handlePageShow);
       window.removeEventListener('pointerdown', gestureRetry);
       window.removeEventListener('touchstart', gestureRetry);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
