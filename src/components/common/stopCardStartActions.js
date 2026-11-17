@@ -650,35 +650,16 @@ export function useStopCardStartActions({
         // via independently of deviation_waypoints, so nothing is lost
         // except the stale driven-path chaining (fresh clean leg).
 
-        // Optimistic UI: only update isNextDelivery + status on the started stop.
-        // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
-        const startedRouteDeliveries = routeDeliveries.map((d) => {
-          if (d?.id === delivery.id) {
-            // Stamp the start time to NOW: a stop carrying a later-today window
-            // otherwise keeps that future window as its sequencing/ETA anchor and
-            // gets sorted behind other stops even though the driver just started it.
-            // OWNER DIRECTIVE (Oct 27 2026 evening, refined): the STARTED stop
-            // becomes isNextDelivery — it KEEPS its deviation_waypoints (they
-            // are the live driven path of the current leg). Clearing applies
-            // to ACTIVE NON-NEXT stops only, just before polyline generation
-            // (clientRouteEngine pre-generation clear; _clearStaleVias below
-            // still sweeps the OTHER active stops of this route).
-            return { ...d, status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime };
-          }
-          if (d?.isNextDelivery) {
-            // START TRANSFERS DEVIATION POINTS (owner directive Nov 2 2026):
-            // the points on the previous next stop are the path the driver
-            // ACTUALLY drove, so they move onto the newly started stop below —
-            // the regenerated current leg keeps bending through them. The old
-            // holder is emptied here (a point lives on exactly one leg).
-            return { ...d, isNextDelivery: false, ...(Array.isArray(d.deviation_waypoints) && d.deviation_waypoints.length > 0 ? { deviation_waypoints: [] } : {}) };
-          }
-          return _clearStaleVias(d);
-        }).filter(Boolean);
-
-        // ── Deviation transfer (owner Nov 2 2026, supersedes Oct 27 clear) ────
-        // Previous next stop -> started stop, guarded + capped, merged with the
-        // started stop's own points.
+        // ── Deviation transfer FIRST (owner directive Nov 2 2026) ─────────────
+        // OWNER REPORT (Nov 16 2026): "clicking the start button before writing
+        // optimization is supposed to transfer deviation points from the
+        // previous isNext stop to the new isNext stop." It was NOT doing that:
+        // the optimistic map below emptied the previous next stop in the same
+        // breath, and the transfer then read that already-emptied copy, so it
+        // carried nothing and the driven path was destroyed instead of moved.
+        // The transfer is now computed from the UNTOUCHED route before anything
+        // is rewritten, and its result is applied to both stops below.
+        let transferChanges = new Map();
         try {
           const { computeDeviationTransferOnStart } = await import('../utils/deviationTransferOnStart');
           const prevNext = routeDeliveries.find((d) => d?.isNextDelivery && d?.id !== delivery.id) || null;
@@ -692,22 +673,60 @@ export function useStopCardStartActions({
             const _lat = Number(currentDriverAppUser?.current_latitude);
             const _lng = Number(currentDriverAppUser?.current_longitude);
             const originPoint = Number.isFinite(_lat) && Number.isFinite(_lng) ? { lat: _lat, lng: _lng } : null;
-            const changes = computeDeviationTransferOnStart({
-              deliveries: startedRouteDeliveries,
+            transferChanges = computeDeviationTransferOnStart({
+              deliveries: routeDeliveries,
               fromId: prevNext.id,
               toId: delivery.id,
               originPoint,
               toPoint,
             });
-            const startedNewPts = changes.get(delivery.id);
-            if (Array.isArray(startedNewPts) && startedNewPts.length > 0) {
-              const idx = startedRouteDeliveries.findIndex((d) => d?.id === delivery.id);
-              if (idx >= 0) startedRouteDeliveries[idx] = { ...startedRouteDeliveries[idx], deviation_waypoints: startedNewPts };
+            if (transferChanges.size > 0) {
+              console.log(`[Start] deviation points transferred ${prevNext.id} -> ${delivery.id}`);
             }
           }
         } catch (transferErr) {
           console.warn('[Start] deviation transfer failed (non-blocking):', transferErr?.message);
         }
+
+        // Optimistic UI: only update isNextDelivery + status on the started stop.
+        // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
+        const startedRouteDeliveries = routeDeliveries.map((d) => {
+          if (d?.id === delivery.id) {
+            // Stamp the start time to NOW: a stop carrying a later-today window
+            // otherwise keeps that future window as its sequencing/ETA anchor and
+            // gets sorted behind other stops even though the driver just started it.
+            // OWNER DIRECTIVE (Oct 27 2026 evening, refined): the STARTED stop
+            // becomes isNextDelivery — it KEEPS its deviation_waypoints (they
+            // are the live driven path of the current leg). Clearing applies
+            // to ACTIVE NON-NEXT stops only, just before polyline generation
+            // (clientRouteEngine pre-generation clear; _clearStaleVias below
+            // still sweeps the OTHER active stops of this route).
+            const _mergedVias = transferChanges.has(delivery.id) ? transferChanges.get(delivery.id) : null;
+            return {
+              ...d,
+              status: expectedStartStatus,
+              isNextDelivery: true,
+              delivery_time_start: currentLocalTime,
+              ...(Array.isArray(_mergedVias) ? { deviation_waypoints: _mergedVias } : {}),
+            };
+          }
+          if (d?.isNextDelivery) {
+            // START TRANSFERS DEVIATION POINTS (owner directive Nov 2 2026):
+            // the points on the previous next stop are the path the driver
+            // ACTUALLY drove, so they move onto the newly started stop below —
+            // the regenerated current leg keeps bending through them. The old
+            // holder is emptied here (a point lives on exactly one leg).
+            // The transfer result is already computed from the untouched route:
+            // []=carried away (emptied here), no entry=not carried, in which case
+            // the points the driver actually drove stay on this stop.
+            return {
+              ...d,
+              isNextDelivery: false,
+              ...(transferChanges.has(d.id) ? { deviation_waypoints: transferChanges.get(d.id) } : {}),
+            };
+          }
+          return _clearStaleVias(d);
+        }).filter(Boolean);
 
         const { offlineDB } = await import('../utils/offlineDatabase');
         const startedChangedDeliveries = startedRouteDeliveries.filter((item) => {
