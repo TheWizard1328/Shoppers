@@ -337,7 +337,10 @@ function SegmentDialog({ record, onSave, onClose }) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+      {/* OWNER SPEC (Nov 17 2026): the panel must hug its content — the stock
+          dialog padding plus the grid gap left a dead band the height of the
+          bottom nav under the buttons. Tight padding, tight gap. */}
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto gap-2 p-4 pb-2">
         <DialogHeader>
           <DialogTitle>{record?.id ? 'Edit Activity Segments' : 'Add Activity Record'}</DialogTitle>
         </DialogHeader>
@@ -363,7 +366,7 @@ function SegmentDialog({ record, onSave, onClose }) {
         </div>
         {/* OWNER SPEC (Nov 17 2026): Add Segment, Cancel and Save share ONE row,
             all the same size, with no empty footer space below them. */}
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex items-center gap-2 pt-1 pb-0">
           <Button variant="outline" onClick={addSegment} className="flex-1 min-w-0">
             <Plus className="w-3 h-3 mr-1 shrink-0" /> Add Segment
           </Button>
