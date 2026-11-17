@@ -44,6 +44,9 @@ import {
   hasPendingCyclingLoop,
   deviationViasForLeg as sharedDeviationViasForLeg,
   shouldInsertLiveVia as sharedShouldInsertLiveVia,
+  buildEtaChain as sharedBuildEtaChain,
+  legTravelMinutesFrom as sharedLegTravelMinutesFrom,
+  windowFloorMinutesOf as sharedWindowFloorMinutesOf,
 } from './routeRules.js';
 
 const TIME_ZONE = 'America/Edmonton';
@@ -572,6 +575,7 @@ Deno.serve(async (req) => {
 
     const {
       driverId, driverName = null, deliveryDate, currentMinutes,
+      winterPadFactor = null, // winter-mode ETA multiplier, sent by the client
       origin, home = null, startOrder = 0,
       stops = [],
       options = {},
@@ -1100,21 +1104,28 @@ Deno.serve(async (req) => {
           pts.push({ lat: st.lat, lon: st.lng });
         });
         if (pts.length >= 2) {
-          // CLIENT PARITY: Google Directions first (same source the client
-          // generator uses); HERE Router only when no Google key resolves.
+          // CLIENT PARITY (owner report Nov 16 2026): the client generator
+          // (routePolylineGenerator -> getMultiStopRouteHere) draws and times
+          // every leg with the HERE Router. The server used to prefer Google
+          // Directions here, so the two engines timed the same legs from two
+          // different traffic models and every ETA drifted. HERE first now;
+          // Google Directions only when HERE fails.
           let r = null;
-          if (googleKey) {
+          try {
+            r = await getMultiStopRouteSections(pts, apiKey, mode);
+            hereCalls++;
+          } catch (hErr) {
+            console.warn('[rxServerRouteOptimizer] HERE section path failed, trying Google Directions fallback:', hErr?.message || hErr);
+            r = null;
+          }
+          if (!r && googleKey) {
             try {
               r = await getMultiStopRouteSectionsGoogle(pts, mode, googleKey);
               googleCalls++;
             } catch (gErr) {
-              console.warn('[rxServerRouteOptimizer] Google polyline path failed, trying HERE Router fallback:', gErr?.message || gErr);
+              console.warn('[rxServerRouteOptimizer] Google polyline path failed too:', gErr?.message || gErr);
               r = null;
             }
-          }
-          if (!r) {
-            r = await getMultiStopRouteSections(pts, apiKey, mode);
-            hereCalls++;
           }
           usedFallbackPolyline = usedFallbackPolyline || r.usedFallbackPolyline;
           const secs = (r.sections || []);
@@ -1130,6 +1141,7 @@ Deno.serve(async (req) => {
             const renderSecs = secs.slice(renderStart, stopIdx).filter(Boolean);
             const metricSecs = secs.slice(metricsStart, stopIdx).filter(Boolean);
             let merged = _decodeChain(renderSecs.map((x) => x.encoded_polyline).filter(Boolean));
+            let stubbed = false;
             let metricDuration = metricSecs.reduce((sum, x) => sum + (Number(x.estimated_duration_minutes) || 0), 0);
             let metricDistance = metricSecs.reduce((sum, x) => sum + (Number(x.estimated_distance_km) || 0), 0);
             let encoded = merged.length > 1 ? encodeGooglePolyline(merged) : (renderSecs[renderSecs.length - 1]?.encoded_polyline || null);
@@ -1153,6 +1165,7 @@ Deno.serve(async (req) => {
                 encoded = encodeGooglePolyline([[Number(_anchorPt.lat), Number(_anchorPt.lon)], [_stopPt.lat, _stopPt.lon]]);
                 metricDuration = 2;
                 metricDistance = Number(_km.toFixed(3));
+                stubbed = true;
               } else if (encoded == null) {
                 // MISSING-SECTION FALLBACK (client Oct 23 2026 parity): a
                 // partial provider response must leave every stop with a
@@ -1164,8 +1177,19 @@ Deno.serve(async (req) => {
               }
             }
 
+            // ETA leg minutes: the render chain (origin -> driven path -> live
+            // GPS -> stop, or origin -> vias -> stop) is what the client's
+            // generator writes into the stop's segment, so it is also what the
+            // client ETA ladder reads. Same number here = same ETA ladder.
+            const _renderSum = renderSecs.reduce((sum, x) => sum + (Number(x?.estimated_duration_minutes) || 0), 0);
+            const _stubbed = stubbed || false;
+            const etaLegMinutes = _stubbed
+              ? metricDuration
+              : (_renderSum > 0 ? _renderSum : metricDuration);
+
             sectionByStopId.set(st.id, {
               encoded_polyline: encoded,
+              eta_leg_minutes: etaLegMinutes > 0 ? Math.ceil(etaLegMinutes) : null,
               estimated_duration_minutes: metricDuration > 0 ? Math.ceil(metricDuration) : null,
               estimated_distance_km: metricDistance > 0 ? Number(metricDistance.toFixed(3)) : null,
               transport_mode: mode,
@@ -1176,32 +1200,54 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 5. ETA ladder (owner rules: window floors, dwell, same-address cap) ─
-    const SAME_ADDRESS_TRAVEL_MINUTES = SHARED_SAME_ADDRESS_MINUTES;
-    let cumulativeTime = currentMinutes;
+    // ── 5. ETA chain — SHARED LADDER (routeRules.buildEtaChain) ─────────────
+    // OWNER REPORT (Nov 16 2026): back-to-back re-optimizations of the same
+    // route from the same stop produced completely different ETAs for every
+    // stop when the engine changed. Cause: this file had its own ladder
+    // (sections -> same-address -> stored estimate -> crow-flies at 35 km/h)
+    // while the client had another (segment -> fresh leg + winter pad ->
+    // stored -> flat 5). Both now call ONE implementation, so the two engines
+    // cannot drift: travel (fresh section -> same-address 2 -> fresh leg with
+    // winter pad -> crow-flies at the mode speed -> 5), the same window floor
+    // fields, the same pickup floor before the route starts, and the same
+    // dwell. A stored estimated_duration_minutes is never used again.
+    const _etaStops = orderedStops.map((stop) => ({
+      id: String(stop.id),
+      windowFloorMinutes: sharedWindowFloorMinutesOf({
+        windowStart: stop.windowStart,
+        deliveryTimeStart: stop.deliveryTimeStart,
+        timeWindowStart: stop.timeWindowStart,
+      }),
+      pickupFloorMinutes: (!routeInProgress && stop.isPickup) ? parseTimeToMinutes(stop.deliveryTimeStart) : null,
+      dwellMinutes: sharedDwellMinutes({ extraTime: stop.extraTime, isPickup: !!stop.isPickup }),
+    }));
+
     const stageEtaMap = new Map();
-    for (let i = 0; i < orderedStops.length; i++) {
-      const stop = orderedStops[i];
-      const seg = sectionByStopId.get(stop.id) || null;
-      const prev = i > 0 ? orderedStops[i - 1] : null;
-      const nearPreviousStop = prev && sharedIsSameAddress({ lat: prev.lat, lng: prev.lng }, { lat: stop.lat, lng: stop.lng });
-      let travelMinutes;
-      if (typeof seg?.estimated_duration_minutes === 'number' && seg.estimated_duration_minutes > 0) {
-        travelMinutes = Math.ceil(seg.estimated_duration_minutes);
-      } else if (nearPreviousStop) {
-        travelMinutes = SAME_ADDRESS_TRAVEL_MINUTES;
-      } else if (typeof stop.estimatedDurationMinutes === 'number' && stop.estimatedDurationMinutes > 0) {
-        travelMinutes = Math.ceil(stop.estimatedDurationMinutes);
-      } else {
-        const d = crowFliesKm(prev ? prev.lat : origin.lat, prev ? prev.lng : origin.lng, stop.lat, stop.lng);
-        travelMinutes = Math.max(2, Math.ceil((d / 35) * 60)); // 35 km/h convention
-      }
-      cumulativeTime += travelMinutes;
-      const ws = parseTimeToMinutes(stop.windowStart || stop.deliveryTimeStart || stop.windowStart);
-      if (Number.isFinite(ws) && ws > 0 && cumulativeTime < ws) cumulativeTime = ws;
-      stageEtaMap.set(stop.id, formatMinutesToTime(cumulativeTime));
-      cumulativeTime += sharedDwellMinutes({ extraTime: stop.extraTime, isPickup: stop.isPickup });
-    }
+    const _etaRows = sharedBuildEtaChain({
+      stops: _etaStops,
+      startMinutes: currentMinutes,
+      travelMinutesAt: (i, stopCfg) => {
+        const stop = orderedStops[i];
+        const prev = i > 0 ? orderedStops[i - 1] : null;
+        const seg = sectionByStopId.get(stop.id) || null;
+        const from = prev || origin || null;
+        const km = from && stop
+          ? codecCrowFliesKm(Number(from.lat), Number(from.lon ?? from.lng), Number(stop.lat), Number(stop.lng))
+          : null;
+        return sharedLegTravelMinutesFrom({
+          freshMinutes: seg?.eta_leg_minutes ?? seg?.estimated_duration_minutes ?? null,
+          freshLegSeconds: stop.estimatedDurationSeconds ?? null,
+          nearPreviousStop: !!prev && !!sharedIsSameAddress(
+            { lat: Number(prev.lat), lng: Number(prev.lon ?? prev.lng) },
+            { lat: Number(stop.lat), lng: Number(stop.lng) },
+          ),
+          mode: String(stop.transportMode || 'driving'),
+          winterPadFactor: winterPadFactor,
+          crowFliesKmValue: Number.isFinite(km) ? km : null,
+        });
+      },
+    });
+    _etaRows.forEach((row) => { if (row?.id) stageEtaMap.set(row.id, row.eta); });
 
     // ── 6. stop_order + isNextDelivery + writeBatch ─────────────────────────
     const originalOrderIds = routeStops
@@ -1263,7 +1309,7 @@ Deno.serve(async (req) => {
         travel_dist: isPending ? null : (logicalDistanceKm != null ? logicalDistanceKm : null),
         ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
         ...(!isPending && logicalDurationMinutes == null && sameCoordsAdjacentIds.has(stop.id)
-          ? { estimated_duration_minutes: SAME_ADDRESS_TRAVEL_MINUTES, estimated_distance_km: 0 } : {}),
+          ? { estimated_duration_minutes: SHARED_SAME_ADDRESS_MINUTES, estimated_distance_km: 0 } : {}),
         ...(!isPending && logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
         ...(!isPending && seg?.encoded_polyline ? { encoded_polyline: seg.encoded_polyline, polyline_from_order: newOrder } : {}),
         ...(isPending ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),

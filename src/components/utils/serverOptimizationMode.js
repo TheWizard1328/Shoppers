@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react';
 import { inheritPickupWindows as sharedInheritPickupWindows } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
 import { getAppSettingRows, refreshAppSetting } from './appSettingsCache';
+import { getWinterModeSettings } from './winterModeSettings';
 import { base44 } from '@/api/base44Client';
 import { isAppOwner } from './userRoles';
 import { getDeliveryCoords, getLatestFinishedDelivery } from './clientRouteEngine';
@@ -583,6 +584,12 @@ export const buildServerOptimizeRequest = async ({
     pickupWindowOf: (s) => s.deliveryTimeStart || s.windowStart || null,
   });
 
+  let winterPadFactor = null;
+  try {
+    const winter = await getWinterModeSettings();
+    if (winter?.enabled && Number(winter.eta_factor) > 0) winterPadFactor = Number(winter.eta_factor);
+  } catch (_) { winterPadFactor = null; }
+
   return {
     supported: true,
     request: {
@@ -590,6 +597,9 @@ export const buildServerOptimizeRequest = async ({
       driverName: driverAppUser?.user_name || null,
       deliveryDate,
       currentMinutes,
+      // Winter-mode ETA pad, same value the client ladder applies, so the two
+      // engines produce identical ETAs (owner report Nov 16 2026).
+      winterPadFactor: winterPadFactor ?? null,
       origin: { lat: origin.lat, lng: origin.lng },
       ...(polylineOrigin ? { polylineOrigin: { lat: polylineOrigin.lat, lng: polylineOrigin.lng } } : {}),
       home,

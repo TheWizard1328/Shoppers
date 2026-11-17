@@ -16,6 +16,9 @@ import {
   hasPendingCyclingLoop,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
   pickPolylineOrigin,
+  buildEtaChain as sharedBuildEtaChain,
+  windowFloorMinutesOf as sharedWindowFloorMinutesOf,
+  parseTimeToMinutes as sharedParseTimeToMinutes,
 } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { edmontonNowMinutes, edmontonNowHHmm, edmontonTodayKey, edmontonOffsetStringForWallDate } from './albertaTime';
 import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
@@ -1834,67 +1837,68 @@ let _inheritedWindowCount = 0;
 
   }
 
-  // ── ETA calculation ────────────────────────────────────────────────────────
-  // OWNER REQUEST (Oct 5 2026): with polyline generation skipped (unchanged
-  // order), ETAs must still refresh — derive travel minutes from the FRESH
-  // findsequence2 legs (same winter pad the generator applies), NOT the stale
-  // stored per-delivery durations. Stops that DID get a fresh segment (current
-  // leg regen) keep using it — seg always wins in getLegTravelMinutes.
-  const _etaPreferLeg = orderUnchangedForPolylines;
-  let _etaWinterPadFactor = null;
-  if (_etaPreferLeg) {
-    const _winter = await getWinterModeSettings().catch(() => null);
-    if (_winter?.enabled && Number(_winter.eta_factor) > 0) _etaWinterPadFactor = _winter.eta_factor;
-  }
+  // ── ETA calculation — SHARED LADDER (routeRules.buildEtaChain) ────────────
+  // OWNER REPORT (Nov 16 2026): back-to-back re-optimizations of the same route
+  // from the same stop gave completely different ETAs for every stop when the
+  // engine changed. The two engines had separate ladders. There is now ONE:
+  // base44/functions/rxServerRouteOptimizer/routeRules.js
+  //   travel  = fresh segment minutes -> same-address 2 -> fresh leg (+winter
+  //             pad) -> crow-flies at the mode speed -> 5
+  //   floors  = windowFloorMinutesOf (window start, delivery start, time window)
+  //             plus the pickup window floor on a route that has not started
+  //   dwell   = dwellMinutesForStop (15 pickup / 5 delivery / extra_time)
+  // A stored estimated_duration_minutes is never used again.
+  const _winterSettings = await getWinterModeSettings().catch(() => null);
+  const _winterPad = _winterSettings?.enabled && Number(_winterSettings.eta_factor) > 0
+    ? Number(_winterSettings.eta_factor)
+    : null;
   const stageEtaMap = new Map();
 
-  if (historicalRoute && routeStops.length > 0) {
-    const firstStop = routeStops[0];
-    let cumulativeTime = currentMinutes;
-    const firstStopWindowStart = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.delivery_time_start || firstStop.delivery.time_window_start);
-    if (Number.isFinite(firstStopWindowStart) && cumulativeTime < firstStopWindowStart) cumulativeTime = firstStopWindowStart;
-    stageEtaMap.set(firstStop.delivery.id, formatMinutesToTime(cumulativeTime));
-    cumulativeTime += firstStop.delivery.extra_time || (firstStop.isPickup ? 15 : 5);
-    for (let i = 1; i < routeStops.length; i++) {
-      const stop = routeStops[i];
-      const seg = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
-      const _prev = routeStops[i - 1];
-      const _nearPrev = Number.isFinite(_prev?.lat) && Number.isFinite(stop?.lat)
-        && calculateCrowFliesDistance(_prev.lat, _prev.lng, stop.lat, stop.lng) < 0.05;
-      cumulativeTime += getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg, nearPreviousStop: _nearPrev });
-      const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
-      if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
-      stageEtaMap.set(stop.delivery.id, formatMinutesToTime(cumulativeTime));
-      cumulativeTime += sharedDwellMinutes({ extraTime: stop.delivery.extra_time, isPickup: stop.isPickup }); // SHARED RULE
-    }
-  } else {
-    let cumulativeTime = currentMinutes;
-    if (isFutureRoute && routeStops.length > 0) {
-      const firstStop = routeStops[0];
-      const firstWindowStart = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.delivery_time_start);
-      if (Number.isFinite(firstWindowStart)) cumulativeTime = firstWindowStart;
-    }
-    for (let i = 0; i < routeStops.length; i++) {
-      const stop = routeStops[i];
-      const seg = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
-      // Cycling markers: only add travel time if we have a polyline segment, otherwise treat as zero-travel anchor
-      const _legMode = String(stop.delivery?.transport_mode || effectiveTravelMode || 'driving').toLowerCase();
-      const _prev = i > 0 ? routeStops[i - 1] : null;
-      const _nearPrev = _prev && Number.isFinite(_prev.lat) && Number.isFinite(stop.lat)
-        && calculateCrowFliesDistance(_prev.lat, _prev.lng, stop.lat, stop.lng) < 0.05;
-      const travelMinutes = stop.delivery.is_cycling_marker && !seg
-        ? 0
-        : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg, preferLeg: _etaPreferLeg, winterPadFactor: _etaWinterPadFactor, legMode: _legMode, nearPreviousStop: _nearPrev });
-      cumulativeTime += travelMinutes;
-      const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
-      if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
-      if (isFutureRoute && !routeOfficiallyStarted && stop.isPickup) {
-        const pickupStart = parseTimeToMinutes(stop.delivery.delivery_time_start);
-        if (Number.isFinite(pickupStart) && cumulativeTime < pickupStart) cumulativeTime = pickupStart;
-      }
-      stageEtaMap.set(stop.delivery.id, formatMinutesToTime(cumulativeTime));
-      cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-    }
+  if (routeStops.length > 0) {
+    const _etaStops = routeStops.map((stop) => {
+      const d = stop.delivery || {};
+      const pickupNotStarted = !!isFutureRoute && !routeOfficiallyStarted && !!stop.isPickup;
+      return {
+        id: d.id,
+        windowFloorMinutes: sharedWindowFloorMinutesOf({
+          windowStart: stop.windowStart,
+          deliveryTimeStart: d.delivery_time_start,
+          timeWindowStart: d.time_window_start,
+        }),
+        pickupFloorMinutes: pickupNotStarted ? sharedParseTimeToMinutes(d.delivery_time_start) : null,
+        dwellMinutes: sharedDwellMinutes({ extraTime: d.extra_time, isPickup: !!stop.isPickup }),
+      };
+    });
+
+    const _etaRows = sharedBuildEtaChain({
+      stops: _etaStops,
+      startMinutes: currentMinutes,
+      travelMinutesAt: (i) => {
+        const stop = routeStops[i];
+        const d = stop.delivery || {};
+        // The first stop of a historical/completed route has no inbound leg.
+        if (historicalRoute && i === 0) return 0;
+        const seg = segmentPolylineByDeliveryId.get(d.id) || null;
+        // Cycling markers without a generated segment are pure anchors.
+        if (d.is_cycling_marker && !seg) return 0;
+        const prev = i > 0 ? routeStops[i - 1] : null;
+        const hasPrev = prev && Number.isFinite(Number(prev.lat)) && Number.isFinite(Number(prev.lng)) && Number.isFinite(Number(stop.lat));
+        const km = hasPrev
+          ? calculateCrowFliesDistance(prev.lat, prev.lng, stop.lat, stop.lng)
+          : null;
+        return getLegTravelMinutes({
+          stop,
+          leg: directionsLegs[i],
+          segmentPolyline: seg,
+          nearPreviousStop: hasPrev && km < 0.05,
+          legMode: String(d.transport_mode || effectiveTravelMode || 'driving'),
+          winterPadFactor: _winterPad,
+          crowFliesKmValue: km,
+        });
+      },
+    });
+
+    _etaRows.forEach((row) => { if (row?.id) stageEtaMap.set(row.id, row.eta); });
   }
 
   // ── Build response + write batch ───────────────────────────────────────────

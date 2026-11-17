@@ -959,3 +959,106 @@ export function resolveTransferStart({ point, origin, skeleton, options }) {
 
   return tail();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RULE: ETA + travel-minute ladder (SHARED, both engines)
+// ═══════════════════════════════════════════════════════════════════════════
+// OWNER REPORT (Nov 16 2026): the owner re-optimized the same route from the
+// same stop twice, once with the server engine and once with the client engine,
+// and every single ETA came out different. Cause: the two engines each had
+// their OWN ladder — different duration providers (server preferred Google
+// Directions sections and discarded the driven pre-leg; the client preferred
+// the generator's HERE section and counted it), different window fields, and
+// different fallbacks (server crow-flies at 35 km/h min 2, client a flat 5).
+//
+// ONE RULE NOW. Order of preference for a leg's travel minutes:
+//   1. the fresh provider section duration for that stop (ceil),
+//   2. same-address predecessor (within SAME_ADDRESS_KM) -> 2 minutes,
+//   3. the fresh sequenced leg duration (ceil) with the winter pad applied,
+//   4. crow-flies at the mode speed (ceil, minimum 2 minutes),
+//   5. LEG_FALLBACK_MINUTES.
+// A stored estimated_duration_minutes is NEVER used: it describes the stop's
+// position on an OLD route and inflates ETAs (owner report Oct 15 2026, and
+// again Nov 16 2026 where a 12 km stop still carried a 2-minute leg).
+export const MODE_SPEED_KMH = Object.freeze({
+  driving: 35, car: 35, truck: 35, van: 35,
+  cycling: 15, bicycle: 15,
+  walking: 5, foot: 5, pedestrian: 5,
+});
+export const LEG_FALLBACK_MINUTES = 5;
+
+export function isCyclingTravelMode(mode) {
+  return /cycl|bicycle|bike|walk|foot|pedestr/i.test(String(mode || ''));
+}
+
+export function legSpeedKmh(mode) {
+  return MODE_SPEED_KMH[String(mode || 'driving').toLowerCase()] ?? MODE_SPEED_KMH.driving;
+}
+
+export function legTravelMinutesFrom({
+  freshMinutes = null,
+  freshLegSeconds = null,
+  nearPreviousStop = false,
+  mode = 'driving',
+  winterPadFactor = null,
+  crowFliesKmValue = null,
+} = {}) {
+  const fresh = Number(freshMinutes);
+  if (Number.isFinite(fresh) && fresh > 0) return Math.ceil(fresh);
+  if (nearPreviousStop) return SAME_ADDRESS_TRAVEL_MINUTES;
+  const secs = Number(freshLegSeconds);
+  if (Number.isFinite(secs) && secs > 0) {
+    let minutes = Math.ceil(secs / 60);
+    const pad = Number(winterPadFactor);
+    if (Number.isFinite(pad) && pad > 0 && !isCyclingTravelMode(mode)) minutes = Math.ceil(minutes * pad);
+    return minutes;
+  }
+  const km = Number(crowFliesKmValue);
+  if (Number.isFinite(km) && km >= 0) {
+    return Math.max(2, Math.ceil((km / legSpeedKmh(mode)) * 60));
+  }
+  return LEG_FALLBACK_MINUTES;
+}
+
+// The single set of window fields a floor may come from, in priority order.
+export function windowFloorMinutesOf({ windowStart = null, deliveryTimeStart = null, timeWindowStart = null } = {}) {
+  for (const raw of [windowStart, deliveryTimeStart, timeWindowStart]) {
+    const minutes = parseTimeToMinutes(raw);
+    if (Number.isFinite(minutes) && minutes > 0) return minutes;
+  }
+  return null;
+}
+
+// ── ETA chain (both engines call this) ──────────────────────────────────────
+// For each stop: add travel, floor to the stop's window (and the future-route
+// pickup window when supplied), record the ETA, then add the stop's dwell.
+// Callers build `stops` with: id, windowFloorMinutes, dwellMinutes and
+// optional pickupFloorMinutes. `travelMinutesAt(i, stop)` returns the leg
+// minutes for stop i.
+export function buildEtaChain({
+  stops = [],
+  startMinutes = 0,
+  travelMinutesAt = () => 0,
+  formatMinutes = formatMinutesToTime,
+} = {}) {
+  let clock = Number(startMinutes) || 0;
+  const rows = [];
+  for (let i = 0; i < stops.length; i++) {
+    const stop = stops[i] || {};
+    const travel = Number(travelMinutesAt(i, stop));
+    clock += Number.isFinite(travel) && travel > 0 ? travel : 0;
+    const floor = Number(stop.windowFloorMinutes);
+    if (Number.isFinite(floor) && floor > 0 && clock < floor) clock = floor;
+    const pickupFloor = Number(stop.pickupFloorMinutes);
+    if (Number.isFinite(pickupFloor) && pickupFloor > 0 && clock < pickupFloor) clock = pickupFloor;
+    rows.push({
+      id: stop.id,
+      minutes: Math.round(clock),
+      eta: formatMinutes(clock),
+      travelMinutes: Number.isFinite(travel) ? Math.max(0, travel) : 0,
+    });
+    const dwell = Number(stop.dwellMinutes);
+    if (Number.isFinite(dwell) && dwell > 0) clock += dwell;
+  }
+  return rows;
+}
