@@ -1474,9 +1474,18 @@ let _inheritedWindowCount = 0;
         // IS the current target by definition, so the one such stop keeps its vias.
         const _status = String(d?.status || '').toLowerCase();
         const _inHand = _status === 'in_transit' || _status === 'en_route';
-        if (_inHand && !_keptInHandVia) {
-          _keptInHandVia = String(d.id);
-          continue; // the stop being travelled keeps the road actually taken
+        if (_inHand) {
+          // OWNER REPORT (Nov 16 2026): "my stop 35's deviation points vanished
+          // after I edited the address / started a different stop." Starting a
+          // stop sets it to in_transit, so a route can hold SEVERAL in-hand
+          // stops at once (stops 34, 35 and 36 were all in_transit that
+          // evening). The old single-holder rule kept only the FIRST one and
+          // wiped the rest on every optimization, including the stop the driver
+          // had actually driven to. Vias are only ever consumed for the current
+          // leg and for finished stops, so an extra in-hand stop holding them
+          // cannot bend any other leg. Keep them all.
+          _keptInHandVia = _keptInHandVia ? `${_keptInHandVia},${d.id}` : String(d.id);
+          continue; // the stop(s) being travelled keep the road actually taken
         }
         if (!Array.isArray(d.deviation_waypoints) || d.deviation_waypoints.length === 0) continue;
         d.deviation_waypoints = [];

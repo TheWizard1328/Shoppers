@@ -81,7 +81,11 @@ export function computeDeviationTransferOnStart({ deliveries, fromId, toId, orig
   const merged = sortChrono([...toPts, ...movedPts]).slice(-DEVIATION_TRANSFER_CAP);
 
   if (fromPts.length === 0 && movedPts.length === 0) return changes; // nothing driven to carry
-  if (fromPts.length > 0) changes.set(fromId, []);
+  // OWNER REPORT (Nov 16 2026): only empty the source when the points were
+  // actually carried. If the behind-the-driver guard rejected every point, the
+  // driver still drove them on that leg — wiping them destroyed the record of
+  // where he went while the new target was started.
+  if (fromPts.length > 0 && movedPts.length > 0) changes.set(fromId, []);
   if (merged.length > 0 && JSON.stringify(merged) !== JSON.stringify(sortChrono(toPts))) {
     changes.set(toId, merged);
   }
