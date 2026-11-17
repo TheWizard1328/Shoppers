@@ -2275,22 +2275,42 @@ Deno.serve(async (req) => {
     try {
       const since3d = new Date(Date.now() - 3 * 86400000).toISOString();
       const healRows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.filter({ sale_class: 'cod_collection', occurred_at: { $gte: since3d } }).catch(() => [])) as any[] || [];
-      const byDeliverySwipe = new Map<string, string>();
+      const byDeliverySwipe = new Map<string, { iso: string; brand: string }>();
       for (const e of healRows || []) {
         if (!e?.delivery_id) continue;
         if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
         if (String(e?.tender_type || '').toUpperCase() === 'CASH') continue;
+        if (!String(e?.card_brand || '')) continue;
         const did = String(e.delivery_id);
         const iso = String(e?.occurred_at || '');
-        if (!byDeliverySwipe.has(did) || (iso && iso < String(byDeliverySwipe.get(did) || ''))) byDeliverySwipe.set(did, iso);
+        const prev = byDeliverySwipe.get(did);
+        if (!prev || (iso && iso < prev.iso)) byDeliverySwipe.set(did, { iso, brand: String(e.card_brand) });
       }
-      for (const [did, swipeIso] of byDeliverySwipe) {
+      for (const [did, info] of byDeliverySwipe) {
         if (spendStampsHealed >= 40) break;
         const del: any = await base44.asServiceRole.entities.Delivery.get(did).catch(() => null);
-        if (!del || del?.cod_card_spend_at) continue;
+        if (!del) continue;
         const cps = Array.isArray(del?.cod_payments) ? del.cod_payments : [];
-        if (!cps.some((p: any) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()))) continue; // cash never carries a card-spend stamp
-        const ok = await base44.asServiceRole.entities.Delivery.update(did, { cod_card_spend_at: swipeIso || new Date().toISOString() }).then(() => true).catch(() => false);
+        const hasCardTender = cps.some((p: any) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
+        // OWNER REPORT (Nov 17 2026, Londonderry / Angie Young): a COD recorded
+        // as Cash whose money a card swipe really collected kept the amber Cash
+        // badge and never reached Collected, because the split path had already
+        // run without the delivery confirm and this heal pass SKIPPED cash
+        // tenders. A COMPLETED ledger row with a card brand is the authority, so
+        // convert the tender (INTERAC = Debit, any credit = Credit), stamp the
+        // swipe moment and mark it collected instead of skipping it.
+        if (!hasCardTender) {
+          const codCents = Math.round(Number(del?.cod_total_amount_required || 0) * 100)
+            || Math.round(Number(cps?.[0]?.amount || 0) * 100);
+          if (!codCents) continue;
+          const codType = info.brand.toUpperCase().includes('INTERAC') ? 'debit' : 'credit';
+          const okConvert = await confirmCodDeliveryWithCard(base44, did, codType, codCents, info.iso)
+            .catch(() => false);
+          if (okConvert) { spendStampsHealed += 1; await sleep(30); }
+          continue;
+        }
+        if (del?.cod_card_spend_at) continue;
+        const ok = await base44.asServiceRole.entities.Delivery.update(did, { cod_card_spend_at: info.iso || new Date().toISOString() }).then(() => true).catch(() => false);
         if (ok) { spendStampsHealed += 1; await sleep(30); }
       }
     } catch { /* non-fatal */ }
