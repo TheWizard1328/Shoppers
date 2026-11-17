@@ -78,22 +78,51 @@ const polyDecodeCache = new Map();
 // A decoded leg that lands near null island while the stop itself has real
 // coordinates is unusable, so treat it as MISSING and let the caller draw its
 // straight fallback leg. The stored string is left untouched for repair.
-const isNullIslandLeg = (coords, stop) => {
+const isUnanchoredLeg = (coords, stop) => {
   if (!Array.isArray(coords) || coords.length < 2) return false;
   const stopLat = Number(stop?.latitude);
   const stopLon = Number(stop?.longitude);
-  if (Number.isFinite(stopLat) && Number.isFinite(stopLon) && Math.abs(stopLat) > 1) {
-    const nearZero = coords.every((c) => Math.abs(c[0]) < 1 && Math.abs(c[1]) < 1);
-    if (nearZero) return true;
-  }
-  return false;
+  if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon) || Math.abs(stopLat) < 1) return false;
+  const [fLat, fLon] = coords[0];
+  const [lLat, lLon] = coords[coords.length - 1];
+  const startsAtOrigin = Math.abs(fLat) < 1 && Math.abs(fLon) < 1; // anchor lost
+  const endsNearStop = Math.abs(lLat - stopLat) < 0.01 && Math.abs(lLon - stopLon) < 0.01;
+  return startsAtOrigin && !endsNearStop;
 };
+
+
+// A leg whose points all sit near (0,0) was stored WITHOUT its absolute anchor:
+// the shape is correct but the origin was lost (server-side optimizer output).
+// Every leg ENDS at its stop, so re-anchoring the shape on the stop's own
+// coordinates rebuilds the real geometry — far better than dropping the line.
+const reanchorLegToStop = (coords, stop) => {
+  if (!Array.isArray(coords) || coords.length < 2) return coords;
+  const stopLat = Number(stop?.latitude);
+  const stopLon = Number(stop?.longitude);
+  if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) return coords;
+  const last = coords[coords.length - 1];
+  // These payloads are also 100x over-scaled (1e7 stored, read as 1e5), which is
+  // why the magnitude guard never fires: everything is tiny AND huge at once.
+  // Normalise the shape to a plausible leg, then translate it onto the stop.
+  let pts = coords;
+  const span = Math.max(...coords.map(([a, b]) => Math.max(Math.abs(a - last[0]), Math.abs(b - last[1]))));
+  if (span > 1) pts = coords.map(([a, b]) => [a / 100, b / 100]);
+  const anchor = pts[pts.length - 1];
+  const dLat = stopLat - anchor[0];
+  const dLon = stopLon - anchor[1];
+  const out = pts.map(([a, b]) => [a + dLat, b + dLon]);
+  const spread = Math.max(...out.map(([a, b]) => Math.max(Math.abs(a - stopLat), Math.abs(b - stopLon))));
+  return spread > 2 ? null : out; // hopeless — let the straight fallback take over
+};
+
+
 
 const cachedDecodePolyline = (str, stop = null) => {
   if (!str || typeof str !== 'string') return null;
   if (polyDecodeCache.has(str)) {
     const hit = polyDecodeCache.get(str);
-    return isNullIslandLeg(hit, stop) ? null : hit;
+    if (!isUnanchoredLeg(hit, stop)) return hit;
+    return reanchorLegToStop(hit, stop);
   }
   const decoded = decodePolyline(str);
   if (polyDecodeCache.size >= POLY_DECODE_CACHE_LIMIT) {
@@ -105,7 +134,8 @@ const cachedDecodePolyline = (str, stop = null) => {
     }
   }
   polyDecodeCache.set(str, decoded);
-  return isNullIslandLeg(decoded, stop) ? null : decoded;
+  if (!isUnanchoredLeg(decoded, stop)) return decoded;
+  return reanchorLegToStop(decoded, stop);
 };
 
 const samePoint = (a, b) =>
