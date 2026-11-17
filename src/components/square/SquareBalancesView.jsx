@@ -1266,7 +1266,26 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // (covers completed flips AND the pending-item-in-a-combined-swipe
         // path in cashToCard, which creates card payments on uncollected
         // pending CODs).
-        const isCardPaid = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
+        // OWNER REPORT (Nov 17 2026): a COD recorded as Cash that a card swipe
+        // collected keeps the amber 'Cash' badge forever, because only the
+        // delivery's own cod_payments were consulted. A COMPLETED cod_collection
+        // ledger row with a card brand IS the card evidence, so ledger rows are
+        // collected below and cleared here.
+        const ledgerCardPaidIds = new Set();
+        try {
+          for (let i = 0; i < deliveryIdsForCashCheck.length; i += 200) {
+            const chunk = deliveryIdsForCashCheck.slice(i, i + 200);
+            const ledgerRows = await base44.entities.SquareLedgerEntry.filter(
+              { delivery_id: { $in: chunk }, sale_class: 'cod_collection' }, '-occurred_at', 500, 0
+            ).catch(() => null);
+            for (const e of ledgerRows || []) {
+              if (!e?.delivery_id || !String(e?.card_brand || '')) continue;
+              if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
+              ledgerCardPaidIds.add(String(e.delivery_id));
+            }
+          }
+        } catch {/* ledger read failed — badges stay as they are this pass */}
+        const isCardPaid = (d) => ledgerCardPaidIds.has(String(d?.id)) || (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
         for (let i = 0; i < deliveryIdsForCashCheck.length; i += 400) {
           const chunk = deliveryIdsForCashCheck.slice(i, i + 400);
           const rows = await base44.entities.Delivery.filter({ id: { $in: chunk } }, undefined, 400).catch(() => []);
@@ -1487,6 +1506,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         }
       } catch (e) {console.warn('[SquareBalances] cash-swiped ledger pass skipped:', e?.message || e);}
 
+      // OWNER REPORT (Nov 17 2026, Londonderry / Angie Young): one swipe paid off
+      // a Nov 12 COD and a Nov 16 COD. The older delivery is outside the
+      // today+yesterday delivery window and carries no cod_card_spend_at, so it
+      // never reached this list — its COD vanished instead of joining the
+      // combined card. Any delivery named by a card swipe collected TODAY is
+      // collected-today evidence, so pull those rows in explicitly.
+      if (swipedTodayByDelivery.size > 0) {
+        const missingSwipedIds = Array.from(swipedTodayByDelivery.keys())
+          .filter((id) => !seenDelIds.has(String(id)));
+        if (missingSwipedIds.length) {
+          const extraRows = await readDeliveries({ id: { $in: missingSwipedIds.slice(0, 200) } }, 'swiped-extra');
+          if (extraRows !== null) collect(extraRows);
+        }
+      }
       for (const d of deliveryList) {
         if (d?.status !== 'completed') continue;
         const doneAt = String(d.actual_delivery_time || '');
