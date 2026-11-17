@@ -21,7 +21,6 @@ import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMin
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { generateRoutePolylines, decodeGooglePolyline } from '@/components/utils/routePolylineGenerator';
-import { resolvePolylineOrigin } from './polylineOriginRules';
 import { filterDeleted } from './deletedDeliveryRegistry';
 import { getWinterModeSettings } from '@/components/utils/winterModeSettings';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
@@ -1278,75 +1277,33 @@ let _inheritedWindowCount = 0;
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
-    // Polyline origin: last finished stop → driver home → first active stop →
-    // current position (fallback). NEVER the driver's live GPS for a new route —
-    // the planned polyline must start at home so it doesn't jump with every ping.
-    // OWNER REPORT (Oct 28 2026 - stop 23 painted a 7.27km closed loop that
-    // started AND ended at the destination while the most recent completed stop
-    // sat 3.9km away): the origin resolution accepted ANY finished stop or home
-    // without checking WHERE it is. A finished stop sitting at the first active
-    // stop's location (a pickup completed at the very store we are returning
-    // to, or a coordinate lookup that fell back to the store record) collapses
-    // origin into destination, and every deviation via then draws destination
-    // -> vias -> destination. resolvePolylineOrigin walks finished stops newest
-    // first and skips any that sit at the destination.
-    const _firstActiveCoords = activeRouteStops[0]
-      ? { lat: Number(activeRouteStops[0].lat), lon: Number(activeRouteStops[0].lng) }
+    // ── POLYLINE ORIGIN — DETERMINISTIC (owner directive, Nov 16 2026) ───────
+    // Two inputs, nothing else:
+    //   1. the most recent FINISHED stop taken by STOP ORDER (highest finished
+    //      stop_order), because every leg downstream is drawn in stop order; or
+    //   2. the driver's home when no stop has been finished yet.
+    // No live GPS origin, no cycling-marker anchor, no parked-at-stop distance
+    // test, no re-anchoring pass.
+    const _lastFinishedByOrder = (completedDeliveries || [])
+      .filter((d) => ['completed', 'failed'].includes(String(d?.status || '').toLowerCase()))
+      .map((d) => ({ d, c: getDeliveryCoords(d, patientMap, storeMap) }))
+      .filter((x) => x.c && Number.isFinite(Number(x.c.lat)) && Number.isFinite(Number(x.c.lon ?? x.c.lng)))
+      .sort((a, b) => (Number(b.d.stop_order) || 0) - (Number(a.d.stop_order) || 0))[0];
+    const _homeCoords = resolvedHomePosition
+      ? { lat: Number(resolvedHomePosition.lat), lon: Number(resolvedHomePosition.lon ?? resolvedHomePosition.lng) }
       : null;
-    const _originPick = resolvePolylineOrigin({
-      finishedDeliveries: completedDeliveries,
-      // A cancelled stop was never visited — it must never anchor the current
-      // leg (that painted the deleted stop -> first stop line the owner saw).
-      finishedStatuses: ['completed', 'failed'],
-      resolveCoords: (d) => getDeliveryCoords(d, patientMap, storeMap),
-      homePosition: resolvedHomePosition ? { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lon } : null,
-      firstTargetCoords: _firstActiveCoords,
-      gpsPosition: currentPosition ? { lat: Number(currentPosition.lat), lon: Number(currentPosition.lng) } : null,
-      log: (m) => console.warn(`[clientRouteEngine] ${source} - polyline origin: ${m}`),
-    });
-    let polylineOrigin = _originPick.origin
-      || (currentPosition
-        ? { lat: Number(currentPosition.lat), lon: Number(currentPosition.lng) }
-        : (latestFinishedCoords ? { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng } : null));
-    const _polylineOriginSource = _originPick.source;
-    console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
-
-    // ── ORIGIN MUST BE THE LAST FINISHED STOP, NEVER A STOP IN HAND ──────────
-    // OWNER REPORT (Nov 16 2026, Robert stops 29-33): after accepting a Beverly
-    // stop the whole route regenerated with its origin at stop 32 — the stop he
-    // was parked on — instead of stop 29, the last stop he finished. Every leg
-    // then chained off a unvisited stop: future work that still had to be driven
-    // was drawn as if it started from where he was sitting.
-    // The resolved origin can legitimately land ON a stop (live GPS parked on it,
-    // a finished stop at the same address, home == a store). That is fine only
-    // when that stop is FIRST in line. If unvisited stops are still ordered
-    // BEFORE it, the legs must start from the last finished stop instead.
-    try {
-      const _originActive = (activeRouteStops || []).filter((s) => s?.delivery
-        && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)));
-      if (polylineOrigin && _originActive.length > 1) {
-        const _onStop = _originActive.find((s) => haversineKm(
-          Number(polylineOrigin.lat), Number(polylineOrigin.lon), Number(s.lat), Number(s.lng)
-        ) <= 0.15);
-        if (_onStop) {
-          const _minOrder = Math.min(..._originActive.map((s) => Number(s.delivery?.stop_order) || 0));
-          const _onOrder = Number(_onStop.delivery?.stop_order) || 0;
-          if (_onOrder > _minOrder) {
-            const _lastFin = (completedDeliveries || [])
-              .map((d) => ({ d, c: getDeliveryCoords(d, patientMap, storeMap) }))
-              .filter((x) => x.c && Number.isFinite(Number(x.c.lat)) && Number.isFinite(Number(x.c.lon ?? x.c.lng)))
-              .sort((a, b) => (Number(b.d.stop_order) || 0) - (Number(a.d.stop_order) || 0))[0];
-            if (_lastFin && String(_lastFin.d.id) !== String(_onStop.delivery.id)) {
-              const _prevOrigin = polylineOrigin;
-              polylineOrigin = { lat: Number(_lastFin.c.lat), lon: Number(_lastFin.c.lon ?? _lastFin.c.lng) };
-              console.warn(`[clientRouteEngine] ${source} — ORIGIN RE-ANCHORED: resolved origin sat on stop ${_onStop.delivery.stop_id || _onStop.delivery.id} (order ${_onOrder}) but ${_minOrder} is still unvisited, so legs start from the last finished stop ${_lastFin.d.stop_id || _lastFin.d.id} (order ${Number(_lastFin.d.stop_order) || 0}) instead of (${Number(_prevOrigin.lat).toFixed(4)}, ${Number(_prevOrigin.lon).toFixed(4)})`);
-            }
-          }
-        }
-      }
-    } catch (_originReanchorErr) {
-      console.warn('[clientRouteEngine] origin re-anchor skipped (non-fatal):', _originReanchorErr?.message || _originReanchorErr);
+    let polylineOrigin = _lastFinishedByOrder
+      ? { lat: Number(_lastFinishedByOrder.c.lat), lon: Number(_lastFinishedByOrder.c.lon ?? _lastFinishedByOrder.c.lng) }
+      : _homeCoords;
+    const _polylineOriginSource = _lastFinishedByOrder
+      ? `last_finished_stop#${Number(_lastFinishedByOrder.d.stop_order) || 0}`
+      : 'home';
+    if (polylineOrigin) {
+      console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
+    } else {
+      console.warn(`[clientRouteEngine] ${source} — no polyline origin (no finished stop and no home on file) — legs will not be generated`);
     }
+
 
     // ── Deviation waypoint transfer (Sep 17 2026) ──────────────────────────
     // Deviation points live on the stop the driver was heading to when the
@@ -1538,7 +1495,10 @@ let _inheritedWindowCount = 0;
       // OWNER SPEC (Oct 30 2026): one request covers origin -> vias -> GPS ->
       // every active stop -> the driver's HOME. Cycling passes close on their
       // own end marker instead.
-      destinationPoint: resolvedHomePosition ? { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng } : null,
+      // OWNER RULE (Nov 16 2026): the route ends at its FINAL STOP, not at home.
+      // Home is an optimizer input only; closing the polyline at home drew an
+      // extra tail beyond the last delivery.
+      destinationPoint: null,
       cyclingSegmentOnly,
       hereApiKey,
       polylineProvider,
@@ -1659,7 +1619,7 @@ let _inheritedWindowCount = 0;
               stops: _driveTargets.map((s) => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
               originPoint: _driveOrigin,
               // Cycling passes close on their own end marker instead of home.
-              destinationPoint: (!_endLiveM && resolvedHomePosition) ? { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng } : null,
+              destinationPoint: null, // ends at the final active stop (owner rule Nov 16 2026)
               cyclingSegmentOnly: false,
               hereApiKey,
               polylineProvider,
@@ -1864,273 +1824,6 @@ let _inheritedWindowCount = 0;
       console.warn('[clientRouteEngine] cycling route polyline passes skipped (non-fatal):', _cyclingPassErr?.message || _cyclingPassErr);
     }
 
-      // ── SEGMENT OWNERSHIP BY POSITION (owner report Nov 16 2026) ───────────
-      // "after clicking the start button on Callingwood pickup it regenerated the
-      // polylines and now I see one that's going to a pending Callingwood delivery but
-      // not heading towards the Hamptons in transit delivery that is just around the
-      // corner." Every pass maps its returned sections to stops by INDEX, and a dropped
-      // or collapsed section shifts every later index by one - so a leg ends up filed
-      // against the wrong stop (and the real target gets nothing). Geometry is the
-      // ground truth: decode each produced leg's last point and, when it does not end at
-      // the stop it was filed under but clearly ends at another live stop, hand it to
-      // that stop. Same single provider call, no extra request.
-      try {
-        const _liveForMap = routeStops.filter((st) => st?.delivery
-          && !['completed', 'failed', 'cancelled'].includes(String(st.delivery.status || '').toLowerCase())
-          && Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lng)));
-        if (_liveForMap.length > 1 && segmentPolylineByDeliveryId.size > 0) {
-          const _endOf = (seg) => {
-            const enc = seg?.encodedPolyline;
-            if (typeof enc !== 'string' || enc.length <= 10) return null;
-            try {
-              const pts = decodeGooglePolyline(enc);
-              return Array.isArray(pts) && pts.length ? pts[pts.length - 1] : null;
-            } catch (_) { return null; }
-          };
-          const _REMAP_KM = 0.3;
-          const _moves = [];
-          segmentPolylineByDeliveryId.forEach((seg, id) => {
-            const end = _endOf(seg);
-            if (!end) return;
-            const endLat = Number(end[0]); const endLng = Number(end[1]);
-            if (!Number.isFinite(endLat) || !Number.isFinite(endLng)) return;
-            const owner = _liveForMap.find((st) => String(st.delivery.id) === String(id));
-            const ownerKm = owner ? haversineKm(endLat, endLng, Number(owner.lat), Number(owner.lng)) : Infinity;
-            if (ownerKm <= _REMAP_KM) return; // filed correctly
-            let best = null; let bestKm = Infinity;
-            _liveForMap.forEach((st) => {
-              if (String(st.delivery.id) === String(id)) return;
-              if (segmentPolylineByDeliveryId.has(String(st.delivery.id))) return; // already has its own leg
-              const km = haversineKm(endLat, endLng, Number(st.lat), Number(st.lng));
-              if (km < bestKm) { bestKm = km; best = st; }
-            });
-            if (best && bestKm <= _REMAP_KM && bestKm < ownerKm) {
-              _moves.push({ from: String(id), to: String(best.delivery.id), km: bestKm, seg });
-            }
-          });
-          _moves.forEach(({ from, to, km, seg }) => {
-            segmentPolylineByDeliveryId.delete(from);
-            segmentPolylineByDeliveryId.set(to, seg);
-            console.warn(`[clientRouteEngine] ${source} — leg re-filed by position: ${from} -> ${to} (ends ${km.toFixed(2)}km from that stop)`);
-          });
-          if (_moves.length) console.warn(`[clientRouteEngine] ${source} — re-filed ${_moves.length} polyline leg(s) that were assigned to the wrong stop`);
-        }
-      } catch (_remapErr) {
-        console.warn('[clientRouteEngine] segment ownership remap skipped (non-fatal):', _remapErr?.message || _remapErr);
-      }
-
-      // ── STARTED-STOP DETECTOR (owner report, Nov 16 2026) ──────────────────
-      // A stop that has already begun (in_transit, or any start/arrival stamp)
-      // is history: its leg was generated from the stop the driver actually
-      // left and must never be rebuilt against a stop inserted later.
-      const _startedLive = (st) => {
-        const stt = String(st?.delivery?.status || '').toLowerCase();
-        if (stt === 'in_transit') return true;
-        if (st?.delivery?.actual_start_time) return true;
-        if (stt !== 'completed' && st?.delivery?.actual_delivery_time) return true;
-        return false;
-      };
-      // ── LEG CHAIN BY STOP ORDER (owner rule, Nov 16 2026) ──────────────────
-      // "each polyline leg should be anchored to that stop's own location as its
-      // destination, and the previous stop in stop order as that leg's origin."
-      // Simple, deterministic, and it must hold for EVERY leg: leg N runs from
-      // stop N-1's location to stop N's location (the first stop chains from the
-      // route origin). Passes that sequence sub-pools (cycling loop, driving pool,
-      // heals) can hand back sections anchored on a different stop, which is how the
-      // Callingwood pickup drew from a stop two positions down the line. Verify each
-      // leg's FIRST point against the ordered predecessor and rebuild the broken ones
-      // in ONE provider call over the affected tail of the route.
-      try {
-        const _orderedLive = routeStops.filter((st) => st?.delivery
-          && !['completed', 'failed', 'cancelled'].includes(String(st.delivery.status || '').toLowerCase())
-          && Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lng)));
-        const _startOf = (seg) => {
-          const enc = seg?.encodedPolyline;
-          if (typeof enc !== 'string' || enc.length <= 10) return null;
-          try {
-            const pts = decodeGooglePolyline(enc);
-            return Array.isArray(pts) && pts.length ? pts[0] : null;
-          } catch (_) { return null; }
-        };
-        const _CHAIN_KM = 0.3;
-        // ── ALREADY-STARTED STOPS ARE NEVER RE-CHAINED (owner report, Nov 16 2026)
-        // Robert drove stop 29 -> stop 32, then accepted a single Beverly stop.
-        // The re-optimization inserted that new pickup BEFORE stop 32 (which he
-        // was already on), so the chain rule decided leg 32 had the wrong origin
-        // and REBUILT it from the Beverley pickup. The map then drew his current
-        // leg from a store he never visited and every metre he had really driven
-        // was stamped as a deviation from Beverley.
-        // A stop that has already started is history: its leg was generated from
-        // the predecessor that existed when the driver left, and no later insert
-        // may rewrite it. Verify and rebuild only legs that have NOT started.
-        // ── EXPECTED ORIGIN: the previous stop ONLY if it was actually visited ──
-        // OWNER RULE (Nov 16 2026, correcting the earlier chain rule):
-        // "the polyline should have gone from stop 29 to whichever stop was
-        // actually isNextDelivery."
-        // A leg may chain from its predecessor in stop order ONLY when that
-        // predecessor has really been reached (in_transit / started / finished).
-        // An en_route or pending stop that the driver has NOT visited is not a
-        // place he can drive from: chaining off it drew the current leg from the
-        // Beverly/Londonderry pickup (or from wherever that stop sits) instead of
-        // from stop 29, the stop he actually finished. When the predecessor is
-        // unvisited the expected origin is the route origin — the last finished
-        // stop — and the generator bends the leg through his live GPS via.
-        const _originFallback = polylineOrigin
-          ? { lat: Number(polylineOrigin.lat), lon: Number(polylineOrigin.lon ?? polylineOrigin.lng) }
-          : null;
-        let _breakIdx = -1;
-        let _breakOrigin = null;
-        for (let i = 0; i < _orderedLive.length; i += 1) {
-          if (_startedLive(_orderedLive[i])) continue; // started: leg is fixed history
-          const seg = segmentPolylineByDeliveryId.get(String(_orderedLive[i].delivery.id));
-          if (!seg) continue;
-          const start = _startOf(seg);
-          if (!start) continue;
-          const prev = i > 0 ? _orderedLive[i - 1] : null;
-          const expect = (prev && _startedLive(prev))
-            ? { lat: Number(prev.lat), lon: Number(prev.lng) }
-            : _originFallback;
-          if (!expect || !Number.isFinite(expect.lat) || !Number.isFinite(expect.lon)) continue;
-          const km = haversineKm(Number(start[0]), Number(start[1]), expect.lat, expect.lon);
-          if (km > _CHAIN_KM) { _breakIdx = i; _breakOrigin = expect; break; }
-        }
-        if (_breakIdx > 0 && !cyclingSegmentOnly && !drivingSegmentOnly && polylineOrigin) {
-          const prevStop = _orderedLive[_breakIdx - 1];
-          const _chainOrigin = _breakOrigin
-            || (prevStop ? { lat: Number(prevStop.lat), lon: Number(prevStop.lng) } : null);
-          const tail = _orderedLive.slice(_breakIdx).filter((st) => !_startedLive(st));
-          if (tail.length === 0) return;
-          console.warn(`[clientRouteEngine] ${source} — LEG CHAIN BROKEN at ${tail[0]?.delivery?.stop_id || tail[0]?.delivery?.id}: rebuilding ${tail.length} leg(s) from ${prevStop?.delivery?.stop_id || 'previous stop'}`);
-          const rebuilt = await generateRoutePolylines({
-            stops: tail,
-            originPoint: _chainOrigin,
-            cyclingSegmentOnly: false,
-            hereApiKey,
-            polylineProvider,
-            polylineApiKey,
-            driverId,
-            userName: _driverUserName,
-            source: `${source}_chain_repair`,
-            fallbackTravelMode: effectiveTravelMode
-          });
-          if (rebuilt && rebuilt.size > 0) {
-            rebuilt.forEach((seg, id) => {
-              if (_segIsUsable(seg, tail.find((st) => String(st.delivery.id) === String(id)))) {
-                segmentPolylineByDeliveryId.set(String(id), seg);
-              }
-            });
-            console.warn(`[clientRouteEngine] ${source} — leg chain repaired for ${rebuilt.size} stop(s)`);
-          }
-        }
-      } catch (_chainErr) {
-        console.warn('[clientRouteEngine] leg chain repair skipped (non-fatal):', _chainErr?.message || _chainErr);
-      }
-
-      // ── STARTED-LEG ORIGIN REPAIR (owner report Nov 16 2026) ─────────────
-      // Robert drove stop 29 -> stop 32 and the polylines were right. He then
-      // accepted one Beverly stop; the re-optimization inserted that pickup as
-      // the new stop 31, i.e. BEFORE a stop he had already arrived at, and the
-      // chain rule rebuilt leg 32 from Beverley. The map drew his live leg from
-      // a store he never visited and real driving was logged as a deviation
-      // from Beverley. The chain rule now skips started stops, but the WRONG
-      // leg is already stored, so repair it here: a started stop's leg must
-      // begin where the driver really came from — the previous STARTED stop if
-      // there is one, otherwise the last completed stop (the route origin).
-      // Capped at 2 rebuilds, one provider call each.
-      try {
-        const _repairUsable = (seg) => !!(seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10);
-        const _repairFirst = (seg) => {
-          try {
-            const pts = decodeGooglePolyline(seg.encodedPolyline);
-            return Array.isArray(pts) && pts.length ? pts[0] : null;
-          } catch (_) { return null; }
-        };
-        const _orderedStarted = routeStops.filter((st) => st?.delivery
-          && !['completed', 'failed', 'cancelled'].includes(String(st.delivery.status || '').toLowerCase())
-          && Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lng)));
-        let _repaired = 0;
-        for (let i = 0; i < _orderedStarted.length && _repaired < 2; i += 1) {
-          const st = _orderedStarted[i];
-          if (!_startedLive(st)) continue;
-          const seg = segmentPolylineByDeliveryId.get(String(st.delivery.id));
-          if (!_repairUsable(seg)) continue;
-          const first = _repairFirst(seg);
-          if (!first) continue;
-          const prevStarted = i > 0 && _startedLive(_orderedStarted[i - 1]) ? _orderedStarted[i - 1] : null;
-          const originPt = prevStarted
-            ? { lat: Number(prevStarted.lat), lon: Number(prevStarted.lng) }
-            : (polylineOrigin
-              ? { lat: Number(polylineOrigin.lat), lon: Number(polylineOrigin.lon ?? polylineOrigin.lng) }
-              : null);
-          if (!originPt || !Number.isFinite(originPt.lat) || !Number.isFinite(originPt.lon)) continue;
-          const offKm = haversineKm(Number(first[0]), Number(first[1]), originPt.lat, originPt.lon);
-          if (offKm <= 0.3) continue; // already starts where the driver really came from
-          const rebuiltStarted = await generateRoutePolylines({
-            orderUnchanged: false,
-            forceRegenerate: true,
-            stops: [{ delivery: st.delivery, lat: st.lat, lng: st.lng }],
-            originPoint: originPt,
-            cyclingSegmentOnly: false,
-            hereApiKey,
-            polylineProvider,
-            polylineApiKey,
-            driverId,
-            userName: _driverUserName,
-            source: `${source}:started_leg_origin_repair`,
-            fallbackTravelMode: String(st.delivery.transport_mode || 'driving').toLowerCase() === 'cycling' ? 'cycling' : 'driving',
-            viaPointAfterOrigin,
-            originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
-          });
-          rebuiltStarted.forEach((s2, id) => {
-            if (_repairUsable(s2)) segmentPolylineByDeliveryId.set(String(id), s2);
-          });
-          _repaired += 1;
-          console.warn(`[clientRouteEngine] ${source} — repaired the leg of STARTED stop ${st.delivery.stop_id || st.delivery.id}: it began ${offKm.toFixed(2)}km from the real origin, rebuilt from ${prevStarted ? 'the previous started stop' : 'the last completed stop'}`);
-        }
-      } catch (_startedLegErr) {
-        console.warn('[clientRouteEngine] started-leg origin repair skipped (non-fatal):', _startedLegErr?.message || _startedLegErr);
-      }
-
-      // ── MISSING-LEG SELF-HEAL FOR AN ACTIVE STOP (owner report Nov 16 2026) ──
-      // The in-transit stop next door had NO inbound leg at all after the start. The
-      // existing heal only covers the FIRST active stop. Any en_route / in_transit stop
-      // that ended up with no usable segment in this run AND no usable stored leg gets one
-      // rebuilt from the same anchor the rest of the route uses. Capped at 2 stops so a
-      // broken run can never fan out into a request storm.
-      try {
-        const _healUsable = (seg) => !!(seg && typeof seg.encodedPolyline === 'string' && seg.encodedPolyline.length > 10);
-        const _activeNoLeg = routeStops.filter((st) => st?.delivery
-          && ['en_route', 'in_transit'].includes(String(st.delivery.status || '').toLowerCase())
-          && polylineOrigin
-          && Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lng))
-          && !_healUsable(segmentPolylineByDeliveryId.get(String(st.delivery.id)))
-          && !(typeof st.delivery.encoded_polyline === 'string' && st.delivery.encoded_polyline.length > 10))
-          .slice(0, 2);
-        for (const st of _activeNoLeg) {
-          const _map = await generateRoutePolylines({
-            orderUnchanged: false,
-            forceRegenerate: true,
-            stops: [{ delivery: st.delivery, lat: st.lat, lng: st.lng }],
-            originPoint: polylineOrigin,
-            cyclingSegmentOnly: false,
-            hereApiKey,
-            polylineProvider,
-            polylineApiKey,
-            driverId,
-            userName: _driverUserName,
-            source: `${source}:active_leg_heal`,
-            fallbackTravelMode: String(st.delivery.transport_mode || 'driving').toLowerCase() === 'cycling' ? 'cycling' : 'driving',
-            viaPointAfterOrigin,
-            originCompletedAt: latestFinishedDelivery?.actual_delivery_time || null,
-          });
-          _map.forEach((seg, id) => {
-            if (_healUsable(seg)) segmentPolylineByDeliveryId.set(String(id), seg);
-          });
-          console.log(`[clientRouteEngine] ${source} — rebuilt the missing inbound leg for active stop ${st.delivery.id}`);
-        }
-      } catch (_activeHealErr) {
-        console.warn('[clientRouteEngine] active-stop leg heal skipped (non-fatal):', _activeHealErr?.message || _activeHealErr);
-      }
 
   }
 
