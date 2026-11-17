@@ -71,9 +71,30 @@ const decodePolyline = (str) => {
 // Leaflet avoids redrawing identical geometry.
 const POLY_DECODE_CACHE_LIMIT = 500;
 const polyDecodeCache = new Map();
-const cachedDecodePolyline = (str) => {
+// OWNER REPORT (Nov 17 2026): after accepting 4 stops every leg but the current
+// one vanished. The accepted stops' stored polylines decode to coordinates next
+// to (0,0) — an unanchored delta payload — so they were drawn in the Gulf of
+// Guinea instead of Edmonton, which looks exactly like "the lines disappeared".
+// A decoded leg that lands near null island while the stop itself has real
+// coordinates is unusable, so treat it as MISSING and let the caller draw its
+// straight fallback leg. The stored string is left untouched for repair.
+const isNullIslandLeg = (coords, stop) => {
+  if (!Array.isArray(coords) || coords.length < 2) return false;
+  const stopLat = Number(stop?.latitude);
+  const stopLon = Number(stop?.longitude);
+  if (Number.isFinite(stopLat) && Number.isFinite(stopLon) && Math.abs(stopLat) > 1) {
+    const nearZero = coords.every((c) => Math.abs(c[0]) < 1 && Math.abs(c[1]) < 1);
+    if (nearZero) return true;
+  }
+  return false;
+};
+
+const cachedDecodePolyline = (str, stop = null) => {
   if (!str || typeof str !== 'string') return null;
-  if (polyDecodeCache.has(str)) return polyDecodeCache.get(str);
+  if (polyDecodeCache.has(str)) {
+    const hit = polyDecodeCache.get(str);
+    return isNullIslandLeg(hit, stop) ? null : hit;
+  }
   const decoded = decodePolyline(str);
   if (polyDecodeCache.size >= POLY_DECODE_CACHE_LIMIT) {
     // Evict oldest ~125 entries (Map preserves insertion order).
@@ -84,7 +105,7 @@ const cachedDecodePolyline = (str) => {
     }
   }
   polyDecodeCache.set(str, decoded);
-  return decoded;
+  return isNullIslandLeg(decoded, stop) ? null : decoded;
 };
 
 const samePoint = (a, b) =>
@@ -327,7 +348,7 @@ function UnifiedRoutePolylines({
         const isPM = stop.ampm_deliveries === "PM";
         const style = getTravelModeLineStyle(mode, color, isPM);
 
-        let coords = cachedDecodePolyline(stop.encoded_polyline);
+        let coords = cachedDecodePolyline(stop.encoded_polyline, stop);
         let isFallback = false;
         if (!coords && i > 0) {
           const prev = allOrdered[i - 1];
@@ -403,7 +424,7 @@ function UnifiedRoutePolylines({
           }
         }
 
-        let coords = cachedDecodePolyline(currentStop.encoded_polyline);
+        let coords = cachedDecodePolyline(currentStop.encoded_polyline, currentStop);
         let isFallback = false;
         if (!coords && originFallback) {
           // currentStop coords are already corrected via the driverStops useMemo above,
@@ -469,7 +490,7 @@ function UnifiedRoutePolylines({
 
       // ── Planned (pending) leg ────────────────────────────────────────────
       if (stops.pending.some((p) => p.id === stop.id)) {
-        const plannedCoords = cachedDecodePolyline(stop.encoded_polyline);
+        const plannedCoords = cachedDecodePolyline(stop.encoded_polyline, stop);
         if (!plannedCoords) continue; // not FAB-optimized yet — no fallback legs for pending
         const plannedMode = getStopMode(stop, driverId, orderedIncomplete);
         const isCyclingP = plannedMode === "cycling";
@@ -509,7 +530,7 @@ function UnifiedRoutePolylines({
       const isPM = stop.ampm_deliveries === "PM";
       const style = getTravelModeLineStyle(mode, color, isPM);
 
-      let coords = cachedDecodePolyline(stop.encoded_polyline);
+      let coords = cachedDecodePolyline(stop.encoded_polyline, stop);
       let isFallback = false;
       if (!coords) {
         coords = makeFallback(prev, stop);
