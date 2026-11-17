@@ -292,8 +292,8 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
   }, [currentUser?.id]);
 
   return (
-    <Card className="w-full max-w-2xl">
-      <CardHeader className="border-b border-slate-200 dark:border-slate-700">
+    <Card className="w-full h-full max-w-none flex flex-col overflow-hidden">
+      <CardHeader className="border-b border-slate-200 dark:border-slate-700 shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-emerald-600" />
@@ -320,7 +320,11 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
         </div>
       </CardHeader>
 
-      <CardContent className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+      {/* OWNER REPORT (Nov 16 2026): the panel stopped short of the bottom nav
+          because this content box was capped at 70vh inside a 90vh dialog - the
+          leftover strip read as a black gap. It now takes the panel's flex space
+          and scrolls, so the panel fills whatever height it is given. */}
+      <CardContent className="p-6 space-y-6 flex-1 min-h-0 overflow-y-auto">
         {/* ── Route & traffic preferences (owner request Oct 29 2026) ──────────
             Applied by the polyline generator on the next generation:
             traffic awareness feeds live traffic into drive times, and exactly

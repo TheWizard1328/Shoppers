@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
 import PatientForm from "@/components/patients/PatientForm";
 import RouteOptimizationSettings from "@/components/dashboard/RouteOptimizationSettings";
+import useMobileChromeHeights from "@/components/utils/useMobileChromeHeights";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import DispatcherPickupNotification from '@/components/dashboard/DispatcherPickupNotification';
@@ -50,6 +51,12 @@ export default function DashboardDialogs({
   // Mode dialog (cycling)
   setPreferredTravelMode,
 }) {
+  // Live chrome measurements: on a phone the panel fills the space between the
+  // in-app header and the bottom nav, never under them (owner report Nov 16 2026).
+  const _chrome = useMobileChromeHeights();
+  const chromeHeader = _chrome?.header || 0;
+  const chromeBottomNav = _chrome?.bottomNav || 0;
+
   const [historyPatient, setHistoryPatient] = useState(null);
   // ── End-of-Day "Best Day" history (owner report Oct 28 2026) ──────────────
   // The panel used to receive only TODAY's deliveries, so today always won. Load
@@ -128,7 +135,19 @@ export default function DashboardDialogs({
       </AnimatePresence>
 
       <Dialog open={showOptimizationSettings} onOpenChange={setShowOptimizationSettings}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0 z-[10000]">
+        <DialogContent
+          className="max-w-2xl p-0 z-[62000] flex flex-col overflow-hidden"
+          style={{
+            display: 'flex', flexDirection: 'column',
+            ...(chromeBottomNav > 0
+            // PHONE / PORTRAIT TABLET: fill the area BETWEEN the in-app header and
+            // the bottom nav (owner report Nov 16 2026 - 90vh left a black strip the
+            // height of the nav at the bottom). z-62000 clears both bars.
+            ? { top: `${chromeHeader}px`, bottom: `${chromeBottomNav}px`, height: 'auto', maxHeight: 'none', transform: 'translateX(-50%)' }
+            // TABLET LANDSCAPE / PC: size to content, capped at 90vh, no inner cap.
+            : { maxHeight: '90vh' }),
+          }}>
+
           <RouteOptimizationSettings onClose={() => setShowOptimizationSettings(false)} currentUser={currentUser} />
         </DialogContent>
       </Dialog>
