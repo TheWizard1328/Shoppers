@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useDevice } from '@/components/utils/DeviceContext';
 import { invalidateDriverDailyActivityCache } from '@/components/utils/driverDailyActivityCache';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -301,7 +300,6 @@ function TableView({ records, driverNames, onEdit, onDelete }) {
 
 // ─── Edit / Add Dialog ────────────────────────────────────────────────────────
 function SegmentDialog({ record, onSave, onClose }) {
-  const { isMobile } = useDevice();
   const [segments, setSegments] = useState(
     (record?.activity_segments || []).map((s) => ({
       start_time: s.start_time ? edmontonDateTimeInput(s.start_time) : '',
@@ -342,17 +340,11 @@ function SegmentDialog({ record, onSave, onClose }) {
       {/* OWNER SPEC (Nov 17 2026): the panel must hug its content — the stock
           dialog padding plus the grid gap left a dead band the height of the
           bottom nav under the buttons. Tight padding, tight gap. */}
-      <DialogContent
-        className={[
-          'gap-2 p-4 pb-2 max-h-[80vh] overflow-y-auto',
-          isMobile
-            // OWNER SPEC (Nov 17 2026): on a phone this panel is a bottom sheet
-            // that sits directly on the bottom nav. A centred dialog always left
-            // a dim strip between its buttons and the nav, which read as dead
-            // padding. Full width, square bottom, butted to the nav height.
-            ? 'left-0 right-0 w-full max-w-none translate-x-0 translate-y-0 top-auto bottom-[var(--bottom-nav-height,0px)] rounded-b-none'
-            : 'max-w-lg',
-        ].join(' ')}>
+      {/* OWNER (Nov 17 2026): centred is correct — the bottom-sheet variant sat
+          under the nav and stole its taps. Keep the stock centred dialog and
+          simply give the panel no bottom padding, so Add Segment / Cancel / Save
+          finish exactly at the panel's bottom edge. */}
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto gap-2 p-4 pb-0">
         <DialogHeader>
           <DialogTitle>{record?.id ? 'Edit Activity Segments' : 'Add Activity Record'}</DialogTitle>
         </DialogHeader>
