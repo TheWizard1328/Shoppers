@@ -36,6 +36,20 @@ import { isAppDarkTheme } from '@/lib/utils';
 const MAX_WAYPOINTS = 3; // schema: max 3 chronological via points per leg
 
 // Google-encoded polyline decoder (1e5 precision — the app's route standard).
+// ── Cross-precision polyline rescue (owner decision Nov 16 2026) ────────────
+// A stored polyline may be 1e5 (HERE/legacy route) or 1e7 (breadcrumb grade,
+// which saved-to-route delivery polylines now use). Decoding 1e7 data with a
+// 1e5 divisor yields latitudes in the millions, so rescale by 100 instead of
+// drawing the route in the wrong place. Harmless for genuine 1e5 data.
+const rescuePolylinePrecision = (pts) => {
+  if (!Array.isArray(pts) || pts.length === 0) return pts;
+  const first = pts[0];
+  const lat = Array.isArray(first) ? first[0] : first?.lat;
+  if (!Number.isFinite(lat) || Math.abs(lat) <= 90) return pts;
+  return pts.map((p) => (Array.isArray(p)
+    ? [p[0] / 100, p[1] / 100]
+    : { ...p, lat: p.lat / 100, lng: p.lng / 100 }));
+};
 const decodePolyline = (encoded) => {
   if (!encoded || typeof encoded !== 'string') return [];
   const points = [];
@@ -49,26 +63,26 @@ const decodePolyline = (encoded) => {
       let byte;
       do {
         byte = encoded.charCodeAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
+        result += (byte & 0x1f) * Math.pow(2, shift);
         shift += 5;
       } while (byte >= 0x20);
-      const dlat = result & 1 ? ~(result >> 1) : result >> 1;
+      const dlat = ((result % 2) !== 0 ? -((result + 1) / 2) : (result / 2));
       lat += dlat;
       result = 0;
       shift = 0;
       do {
         byte = encoded.charCodeAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
+        result += (byte & 0x1f) * Math.pow(2, shift);
         shift += 5;
       } while (byte >= 0x20);
-      const dlng = result & 1 ? ~(result >> 1) : result >> 1;
+      const dlng = ((result % 2) !== 0 ? -((result + 1) / 2) : (result / 2));
       lng += dlng;
       points.push([lat / 1e5, lng / 1e5]);
     }
   } catch (_) {
     return [];
   }
-  return points.filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b));
+  return rescuePolylinePrecision(points.filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b)));
 };
 
 const readWaypoints = (delivery) =>

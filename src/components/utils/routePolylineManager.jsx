@@ -325,6 +325,20 @@ export const getCurrentToNextStopPolyline = async ({
  * @param {string} encoded - Encoded polyline string from Google
  * @returns {Array<{lat: number, lng: number}>} Array of coordinates
  */
+// ── Cross-precision polyline rescue (owner decision Nov 16 2026) ────────────
+// A stored polyline may be 1e5 (HERE/legacy route) or 1e7 (breadcrumb grade,
+// which saved-to-route delivery polylines now use). Decoding 1e7 data with a
+// 1e5 divisor yields latitudes in the millions, so rescale by 100 instead of
+// drawing the route in the wrong place. Harmless for genuine 1e5 data.
+const rescuePolylinePrecision = (pts) => {
+  if (!Array.isArray(pts) || pts.length === 0) return pts;
+  const first = pts[0];
+  const lat = Array.isArray(first) ? first[0] : first?.lat;
+  if (!Number.isFinite(lat) || Math.abs(lat) <= 90) return pts;
+  return pts.map((p) => (Array.isArray(p)
+    ? [p[0] / 100, p[1] / 100]
+    : { ...p, lat: p.lat / 100, lng: p.lng / 100 }));
+};
 export const decodePolyline = (encoded) => {
   if (!encoded) return [];
 
@@ -341,11 +355,11 @@ export const decodePolyline = (encoded) => {
 
     do {
       b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
+      result += (b & 0x1f) * Math.pow(2, shift);
       shift += 5;
     } while (b >= 0x20);
 
-    const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+    const dlat = ((result % 2) !== 0 ? -((result + 1) / 2) : result / 2);
     lat += dlat;
 
     shift = 0;
@@ -353,17 +367,17 @@ export const decodePolyline = (encoded) => {
 
     do {
       b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
+      result += (b & 0x1f) * Math.pow(2, shift);
       shift += 5;
     } while (b >= 0x20);
 
-    const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+    const dlng = ((result % 2) !== 0 ? -((result + 1) / 2) : result / 2);
     lng += dlng;
 
     poly.push({ lat: lat / 1e5, lng: lng / 1e5 });
   }
 
-  return poly;
+  return rescuePolylinePrecision(poly);
 };
 
 // In-memory cache for polyline queries to prevent rate limits

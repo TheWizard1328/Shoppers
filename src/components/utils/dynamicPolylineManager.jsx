@@ -30,20 +30,34 @@ const getStopCoords = (stop, patients = [], stores = []) => {
   return null;
 };
 
+// ── Cross-precision polyline rescue (owner decision Nov 16 2026) ────────────
+// A stored polyline may be 1e5 (HERE/legacy route) or 1e7 (breadcrumb grade,
+// which saved-to-route delivery polylines now use). Decoding 1e7 data with a
+// 1e5 divisor yields latitudes in the millions, so rescale by 100 instead of
+// drawing the route in the wrong place. Harmless for genuine 1e5 data.
+const rescuePolylinePrecision = (pts) => {
+  if (!Array.isArray(pts) || pts.length === 0) return pts;
+  const first = pts[0];
+  const lat = Array.isArray(first) ? first[0] : first?.lat;
+  if (!Number.isFinite(lat) || Math.abs(lat) <= 90) return pts;
+  return pts.map((p) => (Array.isArray(p)
+    ? [p[0] / 100, p[1] / 100]
+    : { ...p, lat: p.lat / 100, lng: p.lng / 100 }));
+};
 export const decodeGooglePolyline = (encoded) => {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
   const coordinates = [];
   while (index < encoded.length) {
     let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    do { b = encoded.charCodeAt(index++) - 63; result += (b & 0x1f) * Math.pow(2, shift); shift += 5; } while (b >= 0x20);
+    lat += ((result % 2) !== 0 ? -((result + 1) / 2) : (result / 2));
     shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    do { b = encoded.charCodeAt(index++) - 63; result += (b & 0x1f) * Math.pow(2, shift); shift += 5; } while (b >= 0x20);
+    lng += ((result % 2) !== 0 ? -((result + 1) / 2) : (result / 2));
     coordinates.push([lat / 1e5, lng / 1e5]);
   }
-  return coordinates;
+  return rescuePolylinePrecision(coordinates);
 };
 
 import { base44 } from '@/api/base44Client';

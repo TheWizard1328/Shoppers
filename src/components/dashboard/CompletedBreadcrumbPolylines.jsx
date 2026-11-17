@@ -115,6 +115,20 @@ const getCachedPolyline = (key, cache) => {
   }
 };
 
+// ── Cross-precision polyline rescue (owner decision Nov 16 2026) ────────────
+// A stored polyline may be 1e5 (HERE/legacy route) or 1e7 (breadcrumb grade,
+// which saved-to-route delivery polylines now use). Decoding 1e7 data with a
+// 1e5 divisor yields latitudes in the millions, so rescale by 100 instead of
+// drawing the route in the wrong place. Harmless for genuine 1e5 data.
+const rescuePolylinePrecision = (pts) => {
+  if (!Array.isArray(pts) || pts.length === 0) return pts;
+  const first = pts[0];
+  const lat = Array.isArray(first) ? first[0] : first?.lat;
+  if (!Number.isFinite(lat) || Math.abs(lat) <= 90) return pts;
+  return pts.map((p) => (Array.isArray(p)
+    ? [p[0] / 100, p[1] / 100]
+    : { ...p, lat: p.lat / 100, lng: p.lng / 100 }));
+};
 const decodePolyline = (encoded) => {
   if (!encoded || typeof encoded !== 'string') return null;
   let index = 0;
@@ -129,26 +143,26 @@ const decodePolyline = (encoded) => {
 
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
+      result += (byte & 0x1f) * Math.pow(2, shift);
       shift += 5;
     } while (byte >= 0x20);
 
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    lat += ((result % 2) !== 0 ? -((result + 1) / 2) : (result / 2));
 
     shift = 0;
     result = 0;
 
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
+      result += (byte & 0x1f) * Math.pow(2, shift);
       shift += 5;
     } while (byte >= 0x20);
 
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += ((result % 2) !== 0 ? -((result + 1) / 2) : (result / 2));
     coordinates.push([lat / 1e5, lng / 1e5]);
   }
 
-  return coordinates.length > 1 ? coordinates : null;
+  return rescuePolylinePrecision(coordinates.length > 1 ? coordinates : null);
 };
 
 const parseBreadcrumbPoints = (breadcrumbsValue) => {

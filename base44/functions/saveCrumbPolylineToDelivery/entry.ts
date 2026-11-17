@@ -20,6 +20,14 @@ function decodePolylineAt(encoded, precision) {
   return poly;
 }
 
+// Precision auto-detect: 1e7 breadcrumb data decoded at 1e5 lands far outside
+// valid latitude, which is how a 1e5 payload is told apart from 1e7.
+function detectPrecision(encoded) {
+  const probe = decodePolylineAt(encoded, 1e5);
+  const lat = probe && probe[0] ? probe[0][0] : NaN;
+  return Number.isFinite(lat) && Math.abs(lat) > 90 ? 1e7 : 1e5;
+}
+
 function encodePolylineAt(points, precision) {
   const encodeValue = (val) => {
     let v = Math.round(val * precision);
@@ -77,16 +85,19 @@ Deno.serve(async (req) => {
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     };
-    const points = decodePolylineAt(cleanedEncodedPolyline, BREADCRUMB_PRECISION);
+    const points = decodePolylineAt(cleanedEncodedPolyline, detectPrecision(cleanedEncodedPolyline));
     let travelDistKm = 0;
     for (let i = 1; i < points.length; i++) {
       travelDistKm += haversineKm(points[i-1][0], points[i-1][1], points[i][0], points[i][1]);
     }
     const travelDist = Math.round(travelDistKm * 100) / 100;
 
-    // 3. Re-encode at delivery precision (1e5) for the Delivery entity.
-    //    Delivery polylines are consumed by route rendering code that expects 1e5 (HERE API standard).
-    const deliveryEncodedPolyline = encodePolylineAt(points, DELIVERY_PRECISION);
+    // 3. OWNER DECISION (Nov 16 2026): copy the crumb polyline to the Delivery
+    //    VERBATIM. The old decode-at-1e7 / re-encode-at-1e5 round trip threw away
+    //    two decimal places on every save, so the saved route never matched the
+    //    edited breadcrumb exactly. Every client decoder now auto-detects 1e5 vs
+    //    1e7 (rescuePolylinePrecision), so the higher-precision string is safe.
+    const deliveryEncodedPolyline = cleanedEncodedPolyline;
 
     // Update Delivery with re-encoded polyline + travel distance + timestamp in ONE write.
     // (Skipped when the delivery was deleted — breadcrumb-only save.)
