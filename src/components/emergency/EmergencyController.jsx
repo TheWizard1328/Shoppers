@@ -295,6 +295,25 @@ const EmergencyController = ({ currentUser }) => {
       if (stored) applySettings(typeof stored === 'string' ? (() => { try { return JSON.parse(stored); } catch { return null; } })() : stored);
     };
     window.addEventListener('emergencySettingsUpdated', onUpdated);
+    // OWNER REPORT (Nov 17 2026): adding a tester took effect only after an app
+    // restart, while removing one felt instant. Deactivation looked instant only
+    // because the removed account stops passing the gate; a NEWLY added account
+    // never re-read the row until the 5-minute poll or a reload. Follow the
+    // AppSettings row live over the entity websocket so a save on any device
+    // re-scopes every device immediately, both ways.
+    let unsubSettings = null;
+    try {
+      unsubSettings = base44.entities.AppSettings.subscribe((event) => {
+        const rec = event?.data;
+        if (!rec) return;
+        if (rec.setting_key && rec.setting_key !== 'refresh_intervals') return;
+        let raw = rec.setting_value;
+        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return; } }
+        let stored = raw?.emergency_settings;
+        if (typeof stored === 'string') { try { stored = JSON.parse(stored); } catch { return; } }
+        if (stored) applySettings(stored);
+      });
+    } catch { /* realtime unavailable — the poll below still covers us */ }
     // A device that stays open for hours must pick up a scope change without a
     // reload (owner request: pick testers at any time). One small cached read
     // every 5 minutes also DISARMS an account that was removed from the list.
@@ -303,6 +322,7 @@ const EmergencyController = ({ currentUser }) => {
       alive = false;
       clearInterval(poll);
       window.removeEventListener('emergencySettingsUpdated', onUpdated);
+      if (typeof unsubSettings === 'function') unsubSettings();
     };
   }, []);
 
