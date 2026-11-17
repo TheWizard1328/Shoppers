@@ -1024,14 +1024,13 @@ Deno.serve(async (req) => {
         : null;
       let _suppressLiveVia = false;
       const _liveViaValid = viaPoint && Number.isFinite(Number(viaPoint.lat)) && Number.isFinite(Number(viaPoint.lng));
-      if (_polyOrigin && _liveViaValid && eligibleStops.length > 0) {
-        const _okm = codecCrowFliesKm(_polyOrigin.lat, _polyOrigin.lon, Number(eligibleStops[0].lat), Number(eligibleStops[0].lng));
-        if (Number.isFinite(_okm) && _okm < 0.15) {
-          console.warn(`[rxServerRouteOptimizer] polyline origin ≈ first stop (${_okm.toFixed(3)}km) — re-anchored current leg at the live-GPS via (owner Oct 27)`);
-          _polyOrigin = { lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) };
-          _suppressLiveVia = true;
-        }
-      }
+      // REMOVED (owner directive Nov 16 2026): the old "origin ≈ first stop →
+      // re-anchor the leg at the live GPS via" guard. When the finished pickup
+      // and the next stop sit within 150m (a store pickup next to its first
+      // delivery), that guard silently replaced the real origin (the last
+      // finished stop) with the driver's live position, so the leg started
+      // wherever the driver happened to be instead of the stop just finished.
+      // Origin is strictly the last finished stop now; the client sends it.
       // OWNER DIRECTIVE (Oct 27 2026): the driver's LIVE GPS is NEVER a
       // polyline origin — anchoring there drew a parking-lot->stop stub and
       // deleted the home->stop leg when the home failed to resolve. A missing

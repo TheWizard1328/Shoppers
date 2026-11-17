@@ -351,22 +351,32 @@ export const buildServerOptimizeRequest = async ({
   }
   if (!origin) return { supported: false, reason: 'no_origin' };
 
-  // ── POLYLINE ORIGIN (client polylineOrigin parity): the leg chain anchors
-  // at the last completed stop -> home -> first active — NOT the sequencing
-  // origin. Passed for every run; entry.ts falls back to `origin` if absent.
-  const latestFinishedForOrigin = getLatestFinishedDelivery(completed);
+  // ── POLYLINE ORIGIN — DETERMINISTIC (owner directive, Nov 16 2026) ────────
+  // Same single rule as the client engine: the origin is the finished stop with
+  // the HIGHEST stop_order (everything downstream is drawn in stop order), or
+  // the driver's home when nothing has been finished yet. The old
+  // getLatestFinishedDelivery() pick sorted by timestamps and could disagree
+  // with the stop order the route is actually drawn in; it is gone from here.
+  const _finishedForOrigin = completed
+    .map((d) => ({ d, c: getDeliveryCoords(d, patientMap, storeMap) }))
+    .filter((x) => x.c && Number.isFinite(Number(x.c.lat)) && Number.isFinite(Number(x.c.lon ?? x.c.lng)))
+    .sort((a, b) => (Number(b.d.stop_order) || 0) - (Number(a.d.stop_order) || 0));
   const polylineOrigin = (() => {
-    if (latestFinishedForOrigin) {
-      const c = getDeliveryCoords(latestFinishedForOrigin, patientMap, storeMap);
-      if (c) return c;
+    if (_finishedForOrigin.length) {
+      const c = _finishedForOrigin[0].c;
+      return { lat: Number(c.lat), lng: Number(c.lon ?? c.lng) };
     }
     if (home) return home;
-    // OWNER DIRECTIVE (Oct 27 2026): NEVER fall back to the FIRST ACTIVE stop —
-    // origin==destination made the server draw firstStop→GPS→firstStop. Null
-    // is safe now: entry.ts anchors the current leg at the live-GPS via (or
-    // synthesizes a degenerate 2-point first leg) when the anchor is missing.
+    // Nothing finished and no home: send nothing. The server must NOT anchor at
+    // the first active stop - origin == destination drew firstStop -> GPS ->
+    // firstStop (owner report).
     return null;
   })();
+  // Kept for the per-stop via helper below (it needs the finished stop record).
+  const latestFinishedForOrigin = _finishedForOrigin.length ? _finishedForOrigin[0].d : null;
+  const _polyOriginSource = _finishedForOrigin.length
+    ? `last_finished_stop#${Number(_finishedForOrigin[0].d.stop_order) || 0}`
+    : (home ? 'home' : 'none');
 
   // ── Live-GPS via (client viaPointAfterOrigin parity)
   // Gates mirror clientRouteEngine: driver on duty + an in-flight stop exists
@@ -385,6 +395,14 @@ export const buildServerOptimizeRequest = async ({
     }
   }
 
+  // One compact line per run so the drawn legs can be traced from the log:
+  // which point the chain was anchored at, and what the first active stop was.
+  try {
+    console.warn(`[ServerPolyOrigin] src=server origin=${_polyOriginSource}`
+      + (polylineOrigin ? ` (${Number(polylineOrigin.lat).toFixed(5)},${Number(polylineOrigin.lng).toFixed(5)})` : ' none')
+      + ` via=${viaPoint ? `(${Number(viaPoint.lat).toFixed(5)},${Number(viaPoint.lng).toFixed(5)})` : 'none'}`
+      + ` firstActive=${active.length ? `#${active[0].stop_order ?? '?'} (${Number(active[0].lat).toFixed(5)},${Number(active[0].lng).toFixed(5)})` : 'none'}`);
+  } catch (_) {}
   const isToday = deliveryDate === edmontonTodayStr();
   const currentMinutes = isToday ? edmontonNowMinutesLocal() : 8 * 60; // future routes anchor at 08:00
   const routeInProgress = completed.length > 0;
