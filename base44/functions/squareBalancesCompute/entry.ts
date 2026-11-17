@@ -377,6 +377,52 @@ async function computeSummary(b44, userId) {
   };
   const failedKeepIds = new Set();
   const retryCoveredIds = new Set();
+  // OWNER SPEC (Nov 17 2026, failed COD with a scheduled future return): a
+  // failed COD whose notes name the patient plus a return dated inside a 3-day
+  // window after the failure must STAY on the uncollected card (so it can be
+  // marked refunded before it clears), even when a retry or a later completed
+  // same-amount delivery would otherwise hide it. A hard 7-day backstop stops
+  // anything older from surfacing; today and every future date are included.
+  const edmDayKey = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+  const failedWeekFloor = edmDayKey(Date.now() - 7 * 86400000);
+  const normName = (v) => String(v || '').toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const returnDatesInText = (text, base) => {
+    const out = [];
+    const baseYear = base.slice(0, 4);
+    const years = Array.from(new Set([baseYear, String(new Date().getUTCFullYear())]));
+    for (const m of text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)) out.push(`${m[1]}-${m[2]}-${m[3]}`);
+    for (const m of text.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g)) {
+      const yr = m[3] ? (m[3].length === 2 ? `20${m[3]}` : m[3]) : baseYear;
+      out.push(`${yr}-${String(m[1]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`);
+    }
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    for (const m of text.matchAll(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/gi)) {
+      const idx = months.indexOf(m[1].toLowerCase().slice(0, 3));
+      if (idx < 0) continue;
+      for (const yr of years) out.push(`${yr}-${String(idx + 1).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`);
+    }
+    return out;
+  };
+  const hasFutureReturnWithin3d = (d) => {
+    const text = [d?.delivery_notes, d?.delivery_instructions].filter(Boolean).join(' ');
+    if (!text) return false;
+    const base = String(d?.delivery_date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(base)) return false;
+    const baseMs = Date.parse(base + 'T12:00:00Z');
+    if (!Number.isFinite(baseMs)) return false;
+    const inWindow = returnDatesInText(text, base).some((ds) => {
+      const ms = Date.parse(ds + 'T12:00:00Z');
+      return Number.isFinite(ms) && ms > baseMs && ms <= baseMs + 3 * 86400000;
+    });
+    if (!inWindow) return false;
+    const flat = normName(text);
+    const name = normName(d?.patient_name);
+    if (name && flat.includes(name)) return true;
+    const parts = name.split(' ').filter((w) => w.length > 2);
+    if (parts.length && parts.every((w) => flat.includes(w))) return true;
+    return /return|redeliver|re-deliver|retry/i.test(text);
+  };
+
   const coversByFailed = new Map();
   const failedHiddenByCompleted = new Set(); // completed same-amount retry collected it
   // RETRY-PAIR REGISTRY (owner report Oct 27 2026 evening, Carmen $64.38
@@ -391,6 +437,12 @@ async function computeSummary(b44, userId) {
   const failedRowsAsc = allDeliveries
     .filter((x) => x?.status === 'failed')
     .sort((a, b) => (new Date(a?.created_date || 0).getTime() - new Date(b?.created_date || 0).getTime()));
+  const futureReturnIds = new Set();
+  for (const d of failedRowsAsc) {
+    if (!d?.id) continue;
+    if (String(d?.delivery_date || '').slice(0, 10) < failedWeekFloor) continue;
+    if (hasFutureReturnWithin3d(d)) futureReturnIds.add(String(d.id));
+  }
   for (const d of failedRowsAsc) {
     const required = Number(d?.cod_total_amount_required || 0);
     if (required <= 0 || !isCountedDate(d) || d?.cod_confirmed_collected || !d?.id) continue;
@@ -405,11 +457,11 @@ async function computeSummary(b44, userId) {
     const _pk = String(d?.patient_id || '');
     for (const e of (retryIdx.get(_pk) || [])) { if (e.amt === amtC && e.createdT > _createdT) _setPair(e.id); }
     for (const e of (completedRetryIdx.get(_pk) || [])) { if (e.amt === amtC && e.createdT > _createdT) _setPair(e.id); }
-    if (retryCoveredIds.has(String(d.id))) continue; // covered by an OLDER kept failed — chain collapses
+    if (retryCoveredIds.has(String(d.id)) && !futureReturnIds.has(String(d.id))) continue; // covered by an OLDER kept failed — chain collapses
     // OWNER SPEC (Oct 27 2026 evening): hide the failed original ONLY when a
     // successfully COMPLETED delivery exists later (same day or another date)
     // for the same amount — it collected the money.
-    if (hasCompletedRetry(d, amtC)) { failedHiddenByCompleted.add(String(d.id)); continue; }
+    if (hasCompletedRetry(d, amtC) && !futureReturnIds.has(String(d.id))) { failedHiddenByCompleted.add(String(d.id)); continue; }
     const createdT = d?.created_date ? new Date(d.created_date).getTime() : 0;
     const covers = [];
     for (const e of retryIdx.get(String(d?.patient_id || '')) || []) {
@@ -427,18 +479,21 @@ async function computeSummary(b44, userId) {
     for (const d of rows || []) {
       const required = Number(d?.cod_total_amount_required || 0);
       if (required <= 0 || !isCountedDate(d) || d?.cod_confirmed_collected) continue;
+      // OWNER SPEC (Nov 17 2026): failed CODs only surface inside the hard
+      // 7-day lookback; nothing older than a week is listed.
+      if (status === 'failed' && String(d?.delivery_date || '').slice(0, 10) < failedWeekFloor) continue;
       const locId = storeToLoc.get(String(d?.store_id || ''));
       if (!locId) continue;
       const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
       const nonCash = payments.filter((p) => String(p?.type || '').toLowerCase() !== 'cash').reduce((s, p) => s + centsOf(p?.amount), 0);
       const outstanding = Math.max(0, centsOf(required) - nonCash);
       if (outstanding <= 0) continue;
-      if (retryCoveredIds.has(String(d.id))) continue; // covered by an older kept failed (active OR failed retry)
+      if (retryCoveredIds.has(String(d.id)) && !(status === 'failed' && futureReturnIds.has(String(d.id)))) continue; // covered by an older kept failed (active OR failed retry)
       // FAILED + COMPLETED retry (owner spec Oct 27 2026 evening): a
       // successfully completed delivery later for the same amount collected
       // the money — the failed original must NOT show or deduct. A stamp or
       // an active/pending retry alone no longer hides a failed row.
-      if (status === 'failed' && failedHiddenByCompleted.has(String(d.id))) continue;
+      if (status === 'failed' && failedHiddenByCompleted.has(String(d.id)) && !futureReturnIds.has(String(d.id))) continue;
       const item = { delivery_id: d.id, status, amount: outstanding / 100, reason: status === 'failed' ? 'failed_uncollected' : 'pending_or_in_transit', date: String(d.delivery_date || '').slice(0, 10), created_date: d.created_date || null, spend_at: d?.cod_card_spend_at || null, patient: patientNameOf(d.patient_id), store_id: d.store_id, driver_id: d.driver_id || null, delivery_notes: d.delivery_notes || null, ...storeBadgeOf(d.store_id) };
       if (status === 'failed' && failedKeepIds.has(String(d.id))) item.covers_retry_ids = coversByFailed.get(String(d.id)) || [];
       if (status === 'failed') {

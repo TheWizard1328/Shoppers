@@ -1520,6 +1520,18 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           if (extraRows !== null) collect(extraRows);
         }
       }
+      // OWNER SPEC (Nov 17 2026): a COD marked NOT TAPPED must stay on the card
+      // until it is switched back to Card Spend, even once its collection day
+      // has passed. Look back a hard 7 days for marked rows and never further.
+      const weekAgoEdm = edmontonBusinessDayKey(new Date(Date.now() - 7 * 86400000));
+      const notTappedIds = Object.entries(manualSpendMarksRef.current || {})
+        .filter(([, v]) => v?.notTapped === true)
+        .map(([k]) => String(k))
+        .filter((id) => !seenDelIds.has(id));
+      if (notTappedIds.length) {
+        const ntRows = await readDeliveries({ id: { $in: notTappedIds.slice(0, 200) } }, 'not-tapped');
+        if (ntRows !== null) collect(ntRows || []);
+      }
       for (const d of deliveryList) {
         if (d?.status !== 'completed') continue;
         const doneAt = String(d.actual_delivery_time || '');
@@ -1542,7 +1554,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const spendDay = spendAt ? edmontonBusinessDayKey(parseAnyTimestamp(spendAt)) : null;
         const doneDay = doneAt ? edmontonBusinessDayKey(parseAnyTimestamp(doneAt)) : null;
         const spentToday = spendDay === today;
-        if (!spentToday && doneDay !== today) continue;
+        const markedNotTapped = manualSpendMarksRef.current?.[String(d.id)]?.notTapped === true;
+        const inKeepWindow = String(d.delivery_date || '') >= weekAgoEdm
+          || (spendDay && spendDay >= weekAgoEdm)
+          || (doneDay && doneDay >= weekAgoEdm);
+        if (!spentToday && doneDay !== today && !(markedNotTapped && inKeepWindow)) continue;
         const collectionMoment = spentToday ? spendAt : doneAt;
         const required = centsOf(d?.cod_total_amount_required);
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
@@ -1594,7 +1610,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
           amount: gross,
-          sub: collectionMoment.slice(11, 16),
+          // OWNER REPORT (Nov 17 2026): collection times read in UTC. Always
+          // format the moment in Edmonton local time.
+          sub: (() => {
+            const ms = parseAnyTimestamp(collectionMoment);
+            if (!ms) return String(collectionMoment || '').slice(11, 16);
+            try {
+              return new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/Edmonton', hour: 'numeric', minute: '2-digit' });
+            } catch { return String(collectionMoment || '').slice(11, 16); }
+          })(),
           collected: true,
           refunded: !!refundedAt,
           // Debit/Credit payments ARE card money by definition in the
