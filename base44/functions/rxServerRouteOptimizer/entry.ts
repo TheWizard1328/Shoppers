@@ -1187,8 +1187,26 @@ Deno.serve(async (req) => {
               ? metricDuration
               : (_renderSum > 0 ? _renderSum : metricDuration);
 
+            // PARITY GUARD (owner rule Nov 17 2026: client and server must run
+            // the identical process). A leg whose decode does not end at its own
+            // stop is unusable however it was produced, so store the straight
+            // two-point leg instead of a payload the map cannot place. The client
+            // renderer carries the same check as a backstop.
+            let _safeEncoded = encoded;
+            try {
+              const _chk = _safeEncoded ? decodeGooglePolyline(_safeEncoded) : [];
+              const _end = _chk[_chk.length - 1];
+              const _nearStop = _end && Math.abs(_end[0] - Number(st.lat)) < 0.02 && Math.abs(_end[1] - Number(st.lng)) < 0.02;
+              if (!_nearStop) {
+                const _prevPt = pts[stopIdx - 1] || _anchorPt;
+                _safeEncoded = _prevPt && Number.isFinite(Number(_prevPt.lat))
+                  ? encodeGooglePolyline([[Number(_prevPt.lat), Number(_prevPt.lon)], [Number(st.lat), Number(st.lng)]])
+                  : null;
+              }
+            } catch { /* keep the computed leg */ }
+
             sectionByStopId.set(st.id, {
-              encoded_polyline: encoded,
+              encoded_polyline: _safeEncoded,
               eta_leg_minutes: etaLegMinutes > 0 ? Math.ceil(etaLegMinutes) : null,
               estimated_duration_minutes: metricDuration > 0 ? Math.ceil(metricDuration) : null,
               estimated_distance_km: metricDistance > 0 ? Number(metricDistance.toFixed(3)) : null,

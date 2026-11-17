@@ -504,8 +504,18 @@ function UnifiedRoutePolylines({
     // manual FAB optimizer generates them. Pending legs are drawn DASHED in the
     // driver color, and only when a REAL encoded_polyline exists — pending stops
     // never get fallback straight-line legs.
-    const orderedIncomplete = [...stops.incomplete, ...stops.pending]
+    // OWNER RULE (Nov 17 2026): while a route is RUNNING, a stop that has not
+    // been accepted yet must be BYPASSED, not woven into the chain. Merging a
+    // pending cycling stop into the active cycling loop broke the loop into
+    // start → active → PENDING → active → end with a visible gap. Pending legs
+    // are only chained on a not-yet-started route (every stop pending), which is
+    // the future-date case this merge was added for.
+    const _orderedAll = [...stops.incomplete, ...stops.pending]
       .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+    const _pendingIds = new Set(stops.pending.map((p) => p.id));
+    const orderedIncomplete = stops.incomplete.length > 0
+      ? _orderedAll.filter((s2) => !_pendingIds.has(s2.id))
+      : _orderedAll;
     const currentIdx = orderedIncomplete.findIndex(
       (s) => s?.isNextDelivery === true && stops.incomplete.some((x) => x.id === s.id)
     );
