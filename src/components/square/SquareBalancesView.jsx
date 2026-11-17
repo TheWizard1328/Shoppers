@@ -1703,7 +1703,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           seenEntryId.add(e.id);
           if (String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
           if (!e?.square_id || !e?.delivery_id) continue;
-          if (edmontonBusinessDayKey(new Date(e.occurred_at)) !== today) continue;
+          // OWNER REPORT (Nov 17 2026): a five-COD ring swiped on Nov 16 showed
+          // as five separate cards. The rows were split correctly (one child per
+          // delivery, same transaction prefix), but this pass only combined
+          // entries dated TODAY, so yesterday's ring could never merge. The read
+          // window is already limited to the last 2 days and a transaction is a
+          // single instant, so grouping per transaction is safe on any day.
+          if (edmontonBusinessDayKey(new Date(e.occurred_at)) < edmontonBusinessDayKey(new Date(Date.now() - 2 * 86400000))) continue;
           const sq = txKeyOf(e.square_id);
           if (!entriesBySquare.has(sq)) entriesBySquare.set(sq, []);
           entriesBySquare.get(sq).push(e);
