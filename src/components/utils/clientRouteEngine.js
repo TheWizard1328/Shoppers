@@ -15,6 +15,7 @@ import {
   resolveSequenceSearch,
   hasPendingCyclingLoop,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
+  pickPolylineOrigin,
 } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { edmontonNowMinutes, edmontonNowHHmm, edmontonTodayKey, edmontonOffsetStringForWallDate } from './albertaTime';
 import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
@@ -1284,20 +1285,26 @@ let _inheritedWindowCount = 0;
     //   2. the driver's home when no stop has been finished yet.
     // No live GPS origin, no cycling-marker anchor, no parked-at-stop distance
     // test, no re-anchoring pass.
-    const _lastFinishedByOrder = (completedDeliveries || [])
-      .filter((d) => ['completed', 'failed'].includes(String(d?.status || '').toLowerCase()))
-      .map((d) => ({ d, c: getDeliveryCoords(d, patientMap, storeMap) }))
-      .filter((x) => x.c && Number.isFinite(Number(x.c.lat)) && Number.isFinite(Number(x.c.lon ?? x.c.lng)))
-      .sort((a, b) => (Number(b.d.stop_order) || 0) - (Number(a.d.stop_order) || 0))[0];
+    // SHARED RULE (routeRules.js pickPolylineOrigin): highest finished stop_order,
+    // then home, never the live GPS and never the first active stop. The server
+    // engine calls the SAME function, so the two can never disagree.
+    const _sharedOriginPick = pickPolylineOrigin({
+      finishedWithCoords: (completedDeliveries || [])
+        .map((d) => {
+          const c = getDeliveryCoords(d, patientMap, storeMap);
+          return c ? { lat: Number(c.lat), lng: Number(c.lon ?? c.lng), stop_order: d.stop_order, record: d } : null;
+        })
+        .filter(Boolean),
+      home: resolvedHomePosition,
+    });
+    const _lastFinishedByOrder = _sharedOriginPick?.record ? { d: _sharedOriginPick.record } : null;
     const _homeCoords = resolvedHomePosition
       ? { lat: Number(resolvedHomePosition.lat), lon: Number(resolvedHomePosition.lon ?? resolvedHomePosition.lng) }
       : null;
-    let polylineOrigin = _lastFinishedByOrder
-      ? { lat: Number(_lastFinishedByOrder.c.lat), lon: Number(_lastFinishedByOrder.c.lon ?? _lastFinishedByOrder.c.lng) }
-      : _homeCoords;
-    const _polylineOriginSource = _lastFinishedByOrder
-      ? `last_finished_stop#${Number(_lastFinishedByOrder.d.stop_order) || 0}`
-      : 'home';
+    let polylineOrigin = _sharedOriginPick
+      ? { lat: Number(_sharedOriginPick.lat), lon: Number(_sharedOriginPick.lng) }
+      : null;
+    const _polylineOriginSource = _sharedOriginPick?.source || 'none';
     if (polylineOrigin) {
       console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
     } else {

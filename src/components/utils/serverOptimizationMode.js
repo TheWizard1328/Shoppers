@@ -19,8 +19,10 @@ import { useEffect, useState } from 'react';
 import { inheritPickupWindows as sharedInheritPickupWindows } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
 import { getAppSettingRows, refreshAppSetting } from './appSettingsCache';
+import { base44 } from '@/api/base44Client';
 import { isAppOwner } from './userRoles';
 import { getDeliveryCoords, getLatestFinishedDelivery } from './clientRouteEngine';
+import { pickPolylineOrigin } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 
 const MODE_CACHE_TTL_MS = 60 * 1000;
 let _cachedMode = { mode: 'client', at: 0, checked: false };
@@ -68,6 +70,41 @@ export const getActiveOptimizationEngine = async (currentUser = null) => {
 };
 
 /** Invalidate the cached mode (called after the settings panel saves). */
+/**
+ * Flip the owner's engine without opening the settings panel - used by the
+ * 3-second press-and-hold on the manual re-optimize FAB (owner request,
+ * Nov 16 2026). Writes the SAME two places the panel writes (the
+ * 'route_optimization' AppSettings row and the device cache), then clears the
+ * mode cache so the blue/green S/C badges flip immediately.
+ */
+export const toggleActiveOptimizationEngine = async (currentUser = null) => {
+  const user = currentUser || (await resolveAuthUser());
+  if (!user || !isAppOwner(user)) return null;
+  try {
+    const rows = await refreshAppSetting('route_optimization');
+    const row = rows?.[0];
+    if (!row?.id) return null;
+    const value = { ...(row.setting_value || {}) };
+    const nextArmed = value.serverSideOptimization !== true;
+    value.serverSideOptimization = nextArmed;
+    await base44.entities.AppSettings.update(row.id, { setting_value: value });
+    // Keep the device cache in step so the settings panel shows the new state.
+    try {
+      const raw = localStorage.getItem('rxdeliver_route_optimization_settings');
+      const cached = raw ? (JSON.parse(raw) || {}) : {};
+      cached.serverSideOptimization = nextArmed;
+      localStorage.setItem('rxdeliver_route_optimization_settings', JSON.stringify(cached));
+    } catch (_) {}
+    invalidateOptimizationModeCache();
+    const mode = await forceResolveOptimizationMode(user);
+    try { window.dispatchEvent(new CustomEvent('optimizationEngineChanged', { detail: { mode } })); } catch (_) {}
+    return mode;
+  } catch (err) {
+    console.warn('[serverOptimizationMode] toggleActiveOptimizationEngine failed:', err?.message || err);
+    return null;
+  }
+};
+
 export const invalidateOptimizationModeCache = () => {
   _cachedMode = { mode: 'client', at: 0, checked: false };
 };
@@ -357,26 +394,18 @@ export const buildServerOptimizeRequest = async ({
   // the driver's home when nothing has been finished yet. The old
   // getLatestFinishedDelivery() pick sorted by timestamps and could disagree
   // with the stop order the route is actually drawn in; it is gone from here.
-  const _finishedForOrigin = completed
-    .map((d) => ({ d, c: getDeliveryCoords(d, patientMap, storeMap) }))
-    .filter((x) => x.c && Number.isFinite(Number(x.c.lat)) && Number.isFinite(Number(x.c.lon ?? x.c.lng)))
-    .sort((a, b) => (Number(b.d.stop_order) || 0) - (Number(a.d.stop_order) || 0));
-  const polylineOrigin = (() => {
-    if (_finishedForOrigin.length) {
-      const c = _finishedForOrigin[0].c;
-      return { lat: Number(c.lat), lng: Number(c.lon ?? c.lng) };
-    }
-    if (home) return home;
-    // Nothing finished and no home: send nothing. The server must NOT anchor at
-    // the first active stop - origin == destination drew firstStop -> GPS ->
-    // firstStop (owner report).
-    return null;
-  })();
-  // Kept for the per-stop via helper below (it needs the finished stop record).
-  const latestFinishedForOrigin = _finishedForOrigin.length ? _finishedForOrigin[0].d : null;
-  const _polyOriginSource = _finishedForOrigin.length
-    ? `last_finished_stop#${Number(_finishedForOrigin[0].d.stop_order) || 0}`
-    : (home ? 'home' : 'none');
+  const _sharedOrigin = pickPolylineOrigin({
+    finishedWithCoords: completed
+      .map((d) => {
+        const c = getDeliveryCoords(d, patientMap, storeMap);
+        return c ? { lat: Number(c.lat), lng: Number(c.lon ?? c.lng), stop_order: d.stop_order, record: d } : null;
+      })
+      .filter(Boolean),
+    home,
+  });
+  const polylineOrigin = _sharedOrigin ? { lat: _sharedOrigin.lat, lng: _sharedOrigin.lng } : null;
+  const latestFinishedForOrigin = _sharedOrigin?.record || null;
+  const _polyOriginSource = _sharedOrigin?.source || 'none';
 
   // ── Live-GPS via (client viaPointAfterOrigin parity)
   // Gates mirror clientRouteEngine: driver on duty + an in-flight stop exists

@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
+import { useOptimizationEngineMode, toggleActiveOptimizationEngine } from '@/components/utils/serverOptimizationMode';
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Navigation } from "lucide-react";
+import { toast } from 'sonner';
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from "@/components/utils/userRoles";
@@ -85,6 +86,39 @@ export default function RouteActionButtons({
   hideForExpandedCard = false,
 }) {
   const optimizationEngineMode = useOptimizationEngineMode(currentUser);
+
+  // ── 3-SECOND PRESS-AND-HOLD = FLIP ENGINE (owner request, Nov 16 2026) ─────
+  // The owner can compare the two engines in the field: press and hold the manual
+  // re-optimize FAB for ~3s and it toggles between the server engine
+  // (rxServerRouteOptimizer) and the client engine. A normal tap still runs the
+  // optimization, so the hold must swallow the click that follows it.
+  const pressHoldTimerRef = useRef(null);
+  const pressHoldFiredRef = useRef(false);
+  const [engineFlipping, setEngineFlipping] = useState(false);
+  const beginEngineHold = () => {
+    if (!isAppOwner(currentUser)) return;
+    pressHoldFiredRef.current = false;
+    clearTimeout(pressHoldTimerRef.current);
+    pressHoldTimerRef.current = setTimeout(async () => {
+      pressHoldFiredRef.current = true;
+      setEngineFlipping(true);
+      try { navigator.vibrate?.([60, 40, 60]); } catch (_) {}
+      const mode = await toggleActiveOptimizationEngine(currentUser);
+      setEngineFlipping(false);
+      if (mode) {
+        toast.success(mode === 'server' ? 'Server optimizer ON (blue, S)' : 'Client optimizer ON (green, C)', {
+          description: mode === 'server'
+            ? 'Route optimization + polylines now run in rxServerRouteOptimizer.'
+            : 'Route optimization + polylines now run on this device.',
+          duration: 3500,
+        });
+      } else {
+        toast.error('Could not switch optimizer engine');
+      }
+    }, 3000);
+  };
+  const endEngineHold = () => { clearTimeout(pressHoldTimerRef.current); };
+  useEffect(() => () => clearTimeout(pressHoldTimerRef.current), []);
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareRows, setCompareRows] = useState([]);
   const [cyclingLocations, setCyclingLocations] = useState([]);
@@ -327,7 +361,14 @@ export default function RouteActionButtons({
       >
         <Button
           ref={reoptimizeBtnRef}
+          onPointerDown={beginEngineHold}
+          onPointerUp={endEngineHold}
+          onPointerLeave={endEngineHold}
+          onPointerCancel={endEngineHold}
+          onContextMenu={(e) => { if (isAppOwner(currentUser)) e.preventDefault(); }}
           onClick={async () => {
+            // A completed 3s hold just flipped the engine - do not also optimize.
+            if (pressHoldFiredRef.current) { pressHoldFiredRef.current = false; return; }
             if (isReoptimizing) return;
             cancelAllDeferredOptimizations();
             setIsReoptimizing(true);
@@ -508,14 +549,14 @@ export default function RouteActionButtons({
               (d) => d && (d.status === 'in_transit' || d.status === 'en_route')
             )
           }
-          title="Re-optimize entire route"
+          title={isAppOwner(currentUser) ? "Re-optimize entire route (press and hold 3s to switch engine)" : "Re-optimize entire route"}
           className={`relative inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 ${
             isReoptimizing
               ? 'bg-amber-500 hover:bg-amber-600'
               : optimizationEngineMode === 'server'
                 ? 'bg-blue-600 hover:bg-blue-700'
                 : 'bg-emerald-600 hover:bg-emerald-700'
-          }`}
+          } ${engineFlipping ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900 animate-pulse' : ''}`}
           style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
         >
           {isReoptimizing ? (

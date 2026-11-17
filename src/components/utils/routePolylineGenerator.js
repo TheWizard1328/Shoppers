@@ -15,7 +15,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { guardLegGeometry } from './polylineOriginRules';
-import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
@@ -625,7 +625,8 @@ export async function generateRoutePolylines({
       // The old stale-timestamp filter and the 3x/5km detour budget are gone:
       // the owner wants the driven path drawn as recorded.
       let vias = [];
-      if (groupIdx === 0 && stopLocalIdx === 0 && !_suppressFirstLegVias) {
+      // Shared rule (routeRules.js) - the same predicate the server engine uses.
+      if (sharedLegContributesVias(groupIdx, stopLocalIdx) && !_suppressFirstLegVias) {
         vias = getDeviationWaypoints(stop.delivery);
       }
       vias.forEach((v) => points.push(v));

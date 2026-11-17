@@ -42,6 +42,8 @@ import {
   SAME_ADDRESS_TRAVEL_MINUTES as SHARED_SAME_ADDRESS_MINUTES,
   resolveSequenceSearch,
   hasPendingCyclingLoop,
+  deviationViasForLeg as sharedDeviationViasForLeg,
+  shouldInsertLiveVia as sharedShouldInsertLiveVia,
 } from './routeRules.js';
 
 const TIME_ZONE = 'America/Edmonton';
@@ -1067,26 +1069,21 @@ Deno.serve(async (req) => {
         const viaCounts = [];
         let liveOnFirst = false;
         eligibleStops.slice(gi, gj).forEach((st, li) => {
-          let dev = Array.isArray(st.deviationWaypoints) ? st.deviationWaypoints : [];
-          // OWNER REPORT (Oct 27 2026): stale pre-leg deviation points outside
-          // any sane detour drew a round-trip loop on a short current leg
-          // (client-parity detour budget: max(3x direct, direct + 5km)).
-          if (gi === 0 && li === 0 && dev.length > 0) {
-            const _budgetKm = Math.max(
-              codecCrowFliesKm(anchor.lat, anchor.lon, st.lat, st.lng) * 3,
-              codecCrowFliesKm(anchor.lat, anchor.lon, st.lat, st.lng) + 5
-            );
-            const _kept = dev.filter((v) =>
-              (codecCrowFliesKm(anchor.lat, anchor.lon, Number(v.lat), Number(v.lng))
-                + codecCrowFliesKm(Number(v.lat), Number(v.lng), st.lat, st.lng)) <= _budgetKm);
-            if (_kept.length !== dev.length) {
-              console.warn(`[rxServerRouteOptimizer] dropped ${dev.length - _kept.length} stale deviation via(s) outside the ${_budgetKm.toFixed(1)}km detour budget (owner Oct 27)`);
-            }
-            dev = _kept;
-          }
+          // CLIENT PARITY (owner directive Nov 16 2026): which leg may bend is
+          // decided by the SHARED rule, not here. Only the leg being driven now
+          // (group 0, stop 0) contributes deviation points; the origin is a
+          // finished stop whose points are never used, and no later stop adds
+          // any. The old 3x / +5km detour budget is gone - the driven path is
+          // drawn exactly as recorded.
+          let dev = sharedDeviationViasForLeg({
+            groupIndex: gi,
+            localIndex: li,
+            deviations: st.deviationWaypoints,
+          });
           dev.forEach((v) => pts.push({ lat: Number(v.lat), lon: Number(v.lng) }));
           viaCounts.push(dev.length);
-          if (li === 0 && gi === 0 && _liveVia && !_suppressLiveVia) {
+          // Shared 50m rule: no GPS via when the driver is already on the stop.
+          if (li === 0 && gi === 0 && !_suppressLiveVia && sharedShouldInsertLiveVia(_liveVia, st)) {
             pts.push({ lat: _liveVia.lat, lon: _liveVia.lon });
             liveOnFirst = true;
           }

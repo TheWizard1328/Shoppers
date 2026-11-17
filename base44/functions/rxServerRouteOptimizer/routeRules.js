@@ -640,6 +640,62 @@ export function normalizeAddressKey(address) {
 }
 
 // Numeric-aware: 210 < 222 < 312 < 336; unnumbered after numbered; letters A/B/C.
+// ─────────────────────────────────────────────────────────────────────────────
+// POLYLINE CHAIN RULES - SINGLE SOURCE OF TRUTH
+// OWNER DIRECTIVE (Nov 16 2026): the client generator and rxServerRouteOptimizer
+// must never drift apart. Every origin / deviation-via / live-GPS decision lives
+// HERE and both engines import it. Change it once, both sides inherit it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The chain origin: the finished stop with the HIGHEST stop_order (that is the
+// order everything downstream is drawn in), then the driver's home when nothing
+// has been finished. NEVER the live GPS and NEVER the first active stop - an
+// origin equal to the destination draws a closed loop.
+export const pickPolylineOrigin = ({ finishedWithCoords = [], home = null } = {}) => {
+  const _ok = (p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng ?? p.lon));
+  const _sorted = (finishedWithCoords || [])
+    .filter(_ok)
+    .sort((a, b) => (Number(b.stop_order) || 0) - (Number(a.stop_order) || 0));
+  if (_sorted.length) {
+    const w = _sorted[0];
+    return {
+      lat: Number(w.lat),
+      lng: Number(w.lng ?? w.lon),
+      source: `last_finished_stop#${Number(w.stop_order) || 0}`,
+      record: w.record || null,
+    };
+  }
+  if (_ok(home)) return { lat: Number(home.lat), lng: Number(home.lng ?? home.lon), source: 'home', record: null };
+  return null;
+};
+
+// The live GPS fix is skipped when the driver is standing on the target stop:
+// passing through a point you are already at adds no shape and HERE collapses
+// the section into a single point.
+export const LIVE_VIA_MIN_KM = 0.05;
+
+// Only the leg the driver is driving NOW may bend through deviation points. The
+// origin is a finished stop (its own points are never used) and no later stop
+// contributes any.
+export const legContributesVias = (groupIndex, localIndex) =>
+  Number(groupIndex) === 0 && Number(localIndex) === 0;
+
+export const deviationViasForLeg = ({ groupIndex = 0, localIndex = 0, deviations = null, suppress = false } = {}) => {
+  if (suppress || !legContributesVias(groupIndex, localIndex)) return [];
+  return Array.isArray(deviations) ? deviations : [];
+};
+
+export const shouldInsertLiveVia = (liveVia, stop) => {
+  if (!liveVia) return false;
+  const lat = Number(liveVia.lat);
+  const lng = Number(liveVia.lng ?? liveVia.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  if (!stop) return true;
+  const sLat = Number(stop.lat), sLng = Number(stop.lng ?? stop.lon);
+  if (!Number.isFinite(sLat) || !Number.isFinite(sLng)) return true;
+  return kmBetween({ lat, lng }, { lat: sLat, lng: sLng }) > LIVE_VIA_MIN_KM;
+};
+
 export function compareUnitNumbers(a, b) {
   const sa = String(a ?? '').trim();
   const sb = String(b ?? '').trim();
