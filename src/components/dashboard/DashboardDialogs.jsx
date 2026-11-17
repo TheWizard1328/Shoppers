@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
 import PatientForm from "@/components/patients/PatientForm";
 import RouteOptimizationSettings from "@/components/dashboard/RouteOptimizationSettings";
-import useMobileChromeHeights from "@/components/utils/useMobileChromeHeights";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import DispatcherPickupNotification from '@/components/dashboard/DispatcherPickupNotification';
@@ -51,11 +50,43 @@ export default function DashboardDialogs({
   // Mode dialog (cycling)
   setPreferredTravelMode,
 }) {
-  // Live chrome measurements: on a phone the panel fills the space between the
-  // in-app header and the bottom nav, never under them (owner report Nov 16 2026).
-  const _chrome = useMobileChromeHeights();
-  const chromeHeader = _chrome?.header || 0;
-  const chromeBottomNav = _chrome?.bottomNav || 0;
+  // ── ROUTE OPTIMIZATION PANEL BOX (owner report Nov 16 2026, take 2) ────────
+  // Height measurements alone were not enough: subtracting the nav's HEIGHT from
+  // the viewport leaves a strip, because the nav element sits above the phone's
+  // safe-area padding and its own wrapper adds a band. So the panel box is
+  // measured as two EDGES instead - the bottom edge of the in-app header and the
+  // TOP edge of the bottom nav - and the panel is given that exact pixel height,
+  // like the edit forms do with window.visualViewport.height. Measured only while
+  // the panel is open, re-measured on resize / orientation / visualViewport and by
+  // a slow poll so late chrome layout cannot leave a gap.
+  const [_panelBox, setPanelBox] = useState(null);
+  const [_panelHasNav, setPanelHasNav] = useState(false);
+  useEffect(() => {
+    if (!showOptimizationSettings || typeof window === 'undefined') { setPanelBox(null); return undefined; }
+    const read = () => {
+      const vv = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+      if (!vv) return;
+      const hd = document.querySelector('[data-mobile-header]')?.getBoundingClientRect();
+      const nv = document.querySelector('[data-mobile-bottom-nav]')?.getBoundingClientRect();
+      const hasNav = !!nv && nv.top > vv * 0.35;
+      const top = hd && hd.bottom > 0 && hd.bottom < vv * 0.45 ? Math.round(hd.bottom) : 0;
+      const bottomEdge = hasNav ? Math.round(nv.top) : vv;
+      const height = Math.max(240, bottomEdge - top);
+      setPanelHasNav(hasNav);
+      setPanelBox((prev) => (prev && prev.top === top && prev.height === height ? prev : { top, height }));
+    };
+    read();
+    window.addEventListener('resize', read);
+    window.addEventListener('orientationchange', read);
+    window.visualViewport?.addEventListener?.('resize', read);
+    const poll = setInterval(read, 800);
+    return () => {
+      window.removeEventListener('resize', read);
+      window.removeEventListener('orientationchange', read);
+      window.visualViewport?.removeEventListener?.('resize', read);
+      clearInterval(poll);
+    };
+  }, [showOptimizationSettings]);
 
   const [historyPatient, setHistoryPatient] = useState(null);
   // ── End-of-Day "Best Day" history (owner report Oct 28 2026) ──────────────
@@ -138,17 +169,18 @@ export default function DashboardDialogs({
         <DialogContent
           className="max-w-2xl p-0 z-[62000] flex flex-col overflow-hidden"
           style={{
-            display: 'flex', flexDirection: 'column',
-            ...(chromeBottomNav > 0
-            // PHONE / PORTRAIT TABLET: fill the area BETWEEN the in-app header and
-            // the bottom nav (owner report Nov 16 2026 - 90vh left a black strip the
-            // height of the nav at the bottom). z-62000 clears both bars.
-            ? { top: `${chromeHeader}px`, bottom: `${chromeBottomNav}px`, height: 'auto', maxHeight: 'none', transform: 'translateX(-50%)' }
-            // TABLET LANDSCAPE / PC: size to content, capped at 90vh, no inner cap.
-            : { maxHeight: '90vh' }),
+            display: 'flex', flexDirection: 'column', minHeight: 0,
+            ...(_panelHasNav && _panelBox
+              // PHONE / TABLET WITH A BOTTOM NAV: full-bleed, exact pixel height
+              // between the header's bottom edge and the nav's top edge.
+              ? { top: `${_panelBox.top}px`, left: 0, right: 0, bottom: 'auto', width: '100%',
+                  maxWidth: 'none', height: `${_panelBox.height}px`, maxHeight: 'none',
+                  transform: 'none', borderRadius: 0 }
+              // TABLET LANDSCAPE / PC: centred card sized to content, capped at 90vh.
+              : { maxHeight: '90vh' }),
           }}>
 
-          <RouteOptimizationSettings onClose={() => setShowOptimizationSettings(false)} currentUser={currentUser} />
+          <RouteOptimizationSettings onClose={() => setShowOptimizationSettings(false)} currentUser={currentUser} fullBleed={_panelHasNav && !!_panelBox} />
         </DialogContent>
       </Dialog>
 

@@ -111,7 +111,7 @@ export const getRouteOptimizationSettings = () => {
   return getStoredSettings();
 };
 
-export default function RouteOptimizationSettings({ onClose, currentUser }) {
+export default function RouteOptimizationSettings({ onClose, currentUser , fullBleed = false }) {
   const isOwner = currentUser?.role === 'admin';
   const [settings, setSettings] = useState(getStoredSettings());
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -292,7 +292,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
   }, [currentUser?.id]);
 
   return (
-    <Card className="w-full h-full max-w-none flex flex-col overflow-hidden">
+    <Card className={`w-full max-w-none flex flex-col overflow-hidden flex-1 min-h-0${fullBleed ? ' rounded-none border-0 shadow-none' : ''}`}>
       <CardHeader className="border-b border-slate-200 dark:border-slate-700 shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
