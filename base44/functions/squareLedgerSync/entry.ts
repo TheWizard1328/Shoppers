@@ -2074,15 +2074,32 @@ Deno.serve(async (req) => {
             .sort((a: any, b: any) => (dayNumByDelivery.get(b.id) ?? 0) - (dayNumByDelivery.get(a.id) ?? 0));
           if (!near.length) continue;
           const capped = near.slice(0, 30);
-          let combo: any[] | null = null;
-          outer2: for (let i = 0; i < capped.length && !combo; i++) {
-            for (let j = i + 1; j < capped.length; j++) {
-              if (capped[i].cents + capped[j].cents === c.cents) { combo = [capped[i], capped[j]]; break outer2; }
-              for (let k = j + 1; k < capped.length; k++) {
-                if (capped[i].cents + capped[j].cents + capped[k].cents === c.cents) { combo = [capped[i], capped[j], capped[k]]; break outer2; }
+          // OWNER REPORT (Nov 17 2026, Bonnie Doon card swipe covering 2 Kingsway
+          // + 3 Bonnie Doon CODs): this only ever tried 2- and 3-delivery combos,
+          // so a five-delivery swipe could never be reconciled — the sale stayed
+          // an unlabelled "Item" orphan and all five CODs stayed uncollected.
+          // Generic reachable-sum walk: any subset up to MAX_COMBO deliveries.
+          const MAX_COMBO = 8;
+          const comboForSum = (pool: any[], target: number): any[] | null => {
+            if (!(target > 0) || !pool.length) return null;
+            const pickOf = new Map<number, any[]>();
+            pickOf.set(0, []);
+            for (const d of pool) {
+              const c = Number(d.cents) || 0;
+              if (c <= 0) continue;
+              const snapshot = [...pickOf.entries()];
+              for (const [sum, picks] of snapshot) {
+                if (picks.length >= MAX_COMBO) continue;
+                const next = sum + c;
+                if (next > target || pickOf.has(next)) continue;
+                pickOf.set(next, [...picks, d]);
               }
+              if (pickOf.has(target)) break;
             }
-          }
+            const found = pickOf.get(target);
+            return found && found.length > 1 ? found : null;
+          };
+          const combo: any[] | null = comboForSum(capped, c.cents);
           if (!combo) continue;
           const parts = combo.map((d: any) => ({
             deliveryId: d.id,
