@@ -92,22 +92,25 @@ export default async function(req: Request): Promise<Response> {
     if (action === 'get_active') {
       const { dispatcher_id } = body;
       const did = dispatcher_id || user.id;
-      const active = await base44.asServiceRole.entities.DriverAvailabilityRequest.filter({
-        dispatcher_id: did,
-        status: 'waiting'
-      });
-      const escalated = await base44.asServiceRole.entities.DriverAvailabilityRequest.filter({
-        dispatcher_id: did,
-        status: 'escalated'
-      });
+      // PERF (Nov 17 2026): this ran three sequential entity reads, which cold
+      // starts pushed past the gateway budget and returned a bare 503 to the
+      // dispatcher (Meadows Printer Station, 12:04 PM). One parallel batch with
+      // a small limit keeps the call well inside the window, and a failed read
+      // can no longer take the whole response down.
+      const _safeFilter = async (status) => {
+        try {
+          return await base44.asServiceRole.entities.DriverAvailabilityRequest.filter(
+            { dispatcher_id: did, status },
+            '-created_date', 5, 0
+          ) || [];
+        } catch { return []; }
+      };
+      const [active, escalated] = await Promise.all([_safeFilter('waiting'), _safeFilter('escalated')]);
       // Also surface a request that JUST completed (driver said yes) — without
       // this, a page reload/re-mount during the response window (e.g. dispatcher
       // switching tabs right as a driver responds) would show nothing at all,
       // since 'completed' wasn't checked here before.
-      const completed = await base44.asServiceRole.entities.DriverAvailabilityRequest.filter({
-        dispatcher_id: did,
-        status: 'completed'
-      });
+      const completed = await _safeFilter('completed');
       const recentCompleted = (completed || []).filter(r => {
         const respondedAt = r.assigned_driver_responses?.length
           ? r.assigned_driver_responses[r.assigned_driver_responses.length - 1]?.timestamp

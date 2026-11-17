@@ -348,32 +348,34 @@ function SegmentDialog({ record, onSave, onClose }) {
                 <span className="text-xs font-semibold text-label">Segment {i + 1}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => removeSegment(i)}><Trash2 className="w-3 h-3" /></Button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 items-end">
                 <div>
-                  <Label className="text-xs">Start Time</Label>
+                  <Label className="text-xs block h-4 leading-4">Start Time</Label>
                   <Input type="datetime-local" value={seg.start_time} onChange={(e) => updateSegment(i, 'start_time', e.target.value)} className="text-xs h-8" />
                 </div>
                 <div>
-                  <Label className="text-xs">End Time (blank = still active)</Label>
+                  <Label className="text-xs block h-4 leading-4">End Time</Label>
                   <Input type="datetime-local" value={seg.end_time} onChange={(e) => updateSegment(i, 'end_time', e.target.value)} className="text-xs h-8" />
                 </div>
               </div>
             </div>
           )}
-          <Button variant="outline" size="sm" onClick={addSegment} className="w-full">
-            <Plus className="w-3 h-3 mr-1" /> Add Segment
-          </Button>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+        {/* OWNER SPEC (Nov 17 2026): Add Segment, Cancel and Save share ONE row,
+            all the same size, with no empty footer space below them. */}
+        <div className="flex items-center gap-2 pt-1">
+          <Button variant="outline" onClick={addSegment} className="flex-1 min-w-0">
+            <Plus className="w-3 h-3 mr-1 shrink-0" /> Add Segment
+          </Button>
+          <Button variant="outline" onClick={onClose} className="flex-1 min-w-0">Cancel</Button>
           {/* OWNER (Nov 5 2026): this rendered as a solid WHITE button in dark
               mode — the default variant inherits --primary, which inverts to
               white in the dark theme. Explicit brand colours both ways. */}
-          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500 shadow-sm">
+          <Button onClick={handleSave} disabled={saving} className="flex-1 min-w-0 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500 shadow-sm">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
             Save
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>);
 
@@ -745,13 +747,13 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label className="text-xs">Start Time</Label>
+                        <Label className="text-xs block h-4 leading-4">Start Time</Label>
                         <Input type="datetime-local" value={seg.start_time}
                     onChange={(e) => setNewSegments((prev) => prev.map((s, idx) => idx === i ? { ...s, start_time: e.target.value } : s))}
                     className="text-xs h-8" />
                       </div>
                       <div>
-                        <Label className="text-xs">End Time (blank = active)</Label>
+                        <Label className="text-xs block h-4 leading-4">End Time</Label>
                         <Input type="datetime-local" value={seg.end_time}
                     onChange={(e) => setNewSegments((prev) => prev.map((s, idx) => idx === i ? { ...s, end_time: e.target.value } : s))}
                     className="text-xs h-8" />
