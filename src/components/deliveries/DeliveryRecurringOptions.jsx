@@ -66,7 +66,11 @@ export default function DeliveryRecurringOptions({
       {/* Owner spec Nov 12 2026: the six frequency rows spread evenly over the
           panel height, exactly like the six preference checkboxes opposite,
           instead of stacking tight at the top. */}
-      <RadioGroup value={currentFrequency} onValueChange={handleFrequencyChange} disabled={!formData.recurring || isSaving} className="flex-1 min-h-0 flex flex-col justify-between gap-2">
+      {/* OWNER SPEC Nov 16 2026: the six bullets must be evenly spaced and must
+          never render outside the panel. justify-between kept a fixed row height
+          and pushed the last rows past the border when the panel was short, so
+          the rows are now six equal grid tracks that shrink to fit instead. */}
+      <RadioGroup value={currentFrequency} onValueChange={handleFrequencyChange} disabled={!formData.recurring || isSaving} className="flex-1 min-h-0 grid grid-rows-6 gap-0 overflow-hidden">
         {[
         { value: 'daily', label: 'Daily' },
         { value: 'weekly', label: weeklyLabel },
@@ -75,7 +79,7 @@ export default function DeliveryRecurringOptions({
         { value: 'monthly', label: 'Monthly' },
         { value: 'bi-monthly', label: 'Bi-Monthly' }].
         map(({ value, label }) =>
-        <div key={value} className="flex items-center space-x-2">
+        <div key={value} className="flex items-center space-x-2 min-h-0 overflow-hidden">
             <RadioGroupItem value={value} id={value} disabled={!formData.recurring || isSaving} className="h-4 w-4 min-h-4 min-w-4 rounded-full" />
             <Label htmlFor={value} className="text-sm font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{label}</Label>
           </div>

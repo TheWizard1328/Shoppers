@@ -1623,18 +1623,24 @@ export default function DeliveryFormView({
                         </div>
 
                         {/* Delivery Options & COD */}
-                        <div className="px-3 rounded-lg space-y-2 border py-2.5 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.9fr)] gap-3 items-start">
-                            <div className="space-y-2 min-w-0">
-                              <Label className="text-sm font-semibold text-body">Delivery Options</Label>
-                              <div className="space-y-3">
+                        {/* OWNER SPEC Nov 16 2026: this panel must be EXACTLY the same
+                            height whether Care Pro's is checked or not, so the form
+                            never jumps, and the four Delivery Options checkboxes
+                            spread out to fill that height. min-h-[9.5rem] is taller
+                            than the Care Pro Name + Envelope Count column, so the
+                            floor holds in both states. */}
+                        <div className="px-3 rounded-lg space-y-2 border py-2.5 border-surface flex flex-col min-h-[9.5rem]" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.9fr)] gap-3 items-stretch flex-1 min-h-0">
+                            <div className="min-w-0 flex flex-col">
+                              <Label className="text-sm font-semibold text-body shrink-0">Delivery Options</Label>
+                              <div className="flex flex-col justify-between gap-2 flex-1 min-h-0 pt-2">
                                 <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={(c) => setFormData((p) => ({ ...p, fridge_item: c }))} disabled={isSaving} tooltip="For items that need refrigeration while in transit." />
                                 <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={(c) => setFormData((p) => ({ ...p, oversized: c }))} disabled={isSaving} tooltip="For items that are 4 or more boost boxes in size." />
                                 <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={(c) => setFormData((p) => ({ ...p, signature_needed: c }))} disabled={isSaving} tooltip="For the yearly patient signature sheets attached to Rx bags." />
                                 <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={(c) => setFormData((p) => ({ ...p, no_charge: c }))} disabled={isSaving} tooltip="For when 2 or more deliveries are being delivered to the same exact address, excluding multiple deliveries to the same apartment building at different unit numbers. ie: Multiple family members at the same address." />
                               </div>
                             </div>
-                            <div className="space-y-2 min-w-0">
+                            <div className="min-w-0 flex flex-col justify-start">
                               {formData.care_pros ?
                               <>
                                   
