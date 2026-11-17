@@ -403,7 +403,18 @@ export const buildServerOptimizeRequest = async ({
       .filter(Boolean),
     home,
   });
-  const polylineOrigin = _sharedOrigin ? { lat: _sharedOrigin.lat, lng: _sharedOrigin.lng } : null;
+  let polylineOrigin = _sharedOrigin ? { lat: _sharedOrigin.lat, lng: _sharedOrigin.lng } : null;
+  // HARD GUARD (owner report Nov 16 2026): an origin that IS the first active stop
+  // can only draw a closed loop (stop -> vias -> GPS -> same stop). If the pick
+  // lands on or beside the first active stop, send no origin at all; the server
+  // then draws no inbound leg instead of a loop.
+  if (polylineOrigin && active.length) {
+    const _kmToFirst = crowFliesKmLocal(polylineOrigin.lat, polylineOrigin.lng, Number(active[0].lat), Number(active[0].lng));
+    if (Number.isFinite(_kmToFirst) && _kmToFirst < 0.05) {
+      console.warn(`[ServerPolyOrigin] origin rejected: it is the first active stop (${_kmToFirst.toFixed(3)}km) - sending none`);
+      polylineOrigin = null;
+    }
+  }
   const latestFinishedForOrigin = _sharedOrigin?.record || null;
   const _polyOriginSource = _sharedOrigin?.source || 'none';
 

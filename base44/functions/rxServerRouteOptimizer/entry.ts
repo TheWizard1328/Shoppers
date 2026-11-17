@@ -1039,12 +1039,17 @@ Deno.serve(async (req) => {
       // anchor now falls to the degenerate first-stop anchor (no inbound leg
       // is drawn at all) while the client builder's DB fallback ensures home
       // resolves in the first place.
-      if (!_polyOrigin && eligibleStops.length > 0) {
-        console.warn('[rxServerRouteOptimizer] no polyline origin and no live via — degenerate first-leg anchor at the first stop (no loop, owner Oct 27)');
-        _polyOrigin = { lat: Number(eligibleStops[0].lat), lon: Number(eligibleStops[0].lng) };
+      // OWNER REPORT (Nov 16 2026): the current leg looped from the isNext stop
+      // through the deviation points and the live GPS back to the SAME stop. Both
+      // of the old safety anchors below could do that - the degenerate "anchor at
+      // the first stop" and the "fall back to the sequencing origin" (which is the
+      // locked next stop). Both are gone: with no valid finished stop and no home
+      // the current leg simply has no inbound geometry, which is correct, because
+      // an origin equal to the destination can only draw a closed loop.
+      if (!_polyOrigin) {
+        console.warn('[rxServerRouteOptimizer] no polyline origin (no finished stop, no home) — the current leg gets no inbound geometry (owner rule Nov 16)');
         _suppressLiveVia = true;
       }
-      if (!_polyOrigin) { _polyOrigin = { lat: origin.lat, lon: origin.lng }; }
       const _liveVia = viaPoint && Number.isFinite(Number(viaPoint.lat)) && Number.isFinite(Number(viaPoint.lng))
         ? { lat: Number(viaPoint.lat), lon: Number(viaPoint.lng) } : null;
       const _decodeChain = (encList) => {
@@ -1064,7 +1069,10 @@ Deno.serve(async (req) => {
         const anchor = gi === 0
           ? _polyOrigin
           : { lat: eligibleStops[gi - 1].lat, lon: eligibleStops[gi - 1].lng };
-        const pts = [{ lat: anchor.lat, lon: anchor.lon }];
+        // No anchor on the first group = no inbound leg. Start the point list at
+        // the stop itself and do not bend it through vias (a via with no origin
+        // to leave from is exactly the doubling the owner reported).
+        const pts = anchor ? [{ lat: anchor.lat, lon: anchor.lon }] : [];
         const stopIdxs = [];
         const viaCounts = [];
         let liveOnFirst = false;
@@ -1079,6 +1087,7 @@ Deno.serve(async (req) => {
             groupIndex: gi,
             localIndex: li,
             deviations: st.deviationWaypoints,
+            suppress: gi === 0 && !anchor,
           });
           dev.forEach((v) => pts.push({ lat: Number(v.lat), lon: Number(v.lng) }));
           viaCounts.push(dev.length);
