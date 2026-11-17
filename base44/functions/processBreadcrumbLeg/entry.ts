@@ -106,9 +106,10 @@ Deno.serve(async (req) => {
     }
 
     // ── Step 3: Copy sliced polyline to the Delivery record ──────────────────
-    // Breadcrumb is 1e7; Delivery.encoded_polyline expects 1e5 (HERE/Google standard).
-    const bcCoords = decodeBreadcrumbPolyline(breadcrumb.encoded_polyline);
-    const deliveryPolyline = encodePolylineAt(bcCoords, 1e5);
+    // OWNER DECISION (Nov 16 2026, w94): copy the sliced crumb string VERBATIM
+    // instead of re-encoding it at 1e5 (which lost 1.13 m of accuracy per save).
+    // Every client decoder auto-detects 1e5 vs 1e7, so 1e7 is safe here.
+    const deliveryPolyline = breadcrumb.encoded_polyline;
     await base44.asServiceRole.entities.Delivery.update(delivery_id, {
       encoded_polyline: deliveryPolyline,
     });
