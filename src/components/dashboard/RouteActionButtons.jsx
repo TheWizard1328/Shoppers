@@ -87,38 +87,70 @@ export default function RouteActionButtons({
 }) {
   const optimizationEngineMode = useOptimizationEngineMode(currentUser);
 
-  // ── 3-SECOND PRESS-AND-HOLD = FLIP ENGINE (owner request, Nov 16 2026) ─────
-  // The owner can compare the two engines in the field: press and hold the manual
-  // re-optimize FAB for ~3s and it toggles between the server engine
-  // (rxServerRouteOptimizer) and the client engine. A normal tap still runs the
-  // optimization, so the hold must swallow the click that follows it.
+  // ── PRESS-AND-HOLD 2s = FLIP ENGINE (owner request Nov 16 2026) ────────────
+  // Hold the manual re-optimize FAB for 2 seconds to toggle between the server
+  // engine (rxServerRouteOptimizer) and the client engine; a normal tap still
+  // optimizes, so the click that follows a completed hold is swallowed.
+  // OWNER FEEDBACK (Nov 16 2026, second pass): the finger covers the whole
+  // button, so the balloon above it now states what is happening ("Hold 2s…",
+  // "Switching…", "Server engine on") with a fill bar, instead of relying on a
+  // vibration after the fact.
+  const HOLD_MS = 2000;
   const pressHoldTimerRef = useRef(null);
+  const holdBalloonTimerRef = useRef(null);
   const pressHoldFiredRef = useRef(false);
   const [engineFlipping, setEngineFlipping] = useState(false);
+  const [holdBalloon, setHoldBalloon] = useState(null); // { text, tone: 'hold'|'work'|'done' }
+  const [holdBarOn, setHoldBarOn] = useState(false);
+  const showHoldBalloon = (text, tone, autoHideMs) => {
+    clearTimeout(holdBalloonTimerRef.current);
+    setHoldBalloon({ text, tone });
+    if (autoHideMs) {
+      holdBalloonTimerRef.current = setTimeout(() => setHoldBalloon(null), autoHideMs);
+    }
+  };
   const beginEngineHold = () => {
     if (!isAppOwner(currentUser)) return;
     pressHoldFiredRef.current = false;
     clearTimeout(pressHoldTimerRef.current);
+    showHoldBalloon(`Hold ${HOLD_MS / 1000}s to switch engine`, 'hold');
+    setHoldBarOn(false);
+    requestAnimationFrame(() => setHoldBarOn(true));
     pressHoldTimerRef.current = setTimeout(async () => {
       pressHoldFiredRef.current = true;
       setEngineFlipping(true);
-      try { navigator.vibrate?.([60, 40, 60]); } catch (_) {}
+      setHoldBarOn(false);
+      showHoldBalloon('Switching engine…', 'work');
+      try { navigator.vibrate?.(70); } catch (_) {}
       const mode = await toggleActiveOptimizationEngine(currentUser);
       setEngineFlipping(false);
       if (mode) {
+        showHoldBalloon(mode === 'server' ? 'Server engine ON' : 'Client engine ON', 'done', 2400);
         toast.success(mode === 'server' ? 'Server optimizer ON (blue, S)' : 'Client optimizer ON (green, C)', {
           description: mode === 'server'
             ? 'Route optimization + polylines now run in rxServerRouteOptimizer.'
             : 'Route optimization + polylines now run on this device.',
-          duration: 3500,
+          duration: 3000,
         });
       } else {
+        showHoldBalloon('Switch failed', 'done', 2600);
         toast.error('Could not switch optimizer engine');
       }
-    }, 3000);
+    }, HOLD_MS);
   };
-  const endEngineHold = () => { clearTimeout(pressHoldTimerRef.current); };
-  useEffect(() => () => clearTimeout(pressHoldTimerRef.current), []);
+  const endEngineHold = () => {
+    clearTimeout(pressHoldTimerRef.current);
+    // Released before the hold completed: drop the balloon, no engine change.
+    if (!pressHoldFiredRef.current) {
+      setHoldBarOn(false);
+      clearTimeout(holdBalloonTimerRef.current);
+      setHoldBalloon(null);
+    }
+  };
+  useEffect(() => () => {
+    clearTimeout(pressHoldTimerRef.current);
+    clearTimeout(holdBalloonTimerRef.current);
+  }, []);
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareRows, setCompareRows] = useState([]);
   const [cyclingLocations, setCyclingLocations] = useState([]);
@@ -557,7 +589,7 @@ export default function RouteActionButtons({
                 ? 'bg-blue-600 hover:bg-blue-700'
                 : 'bg-emerald-600 hover:bg-emerald-700'
           } ${engineFlipping ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900 animate-pulse' : ''}`}
-          style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
+          style={{ pointerEvents: 'auto', touchAction: 'manipulation', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
         >
           {isReoptimizing ? (
             <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
@@ -568,6 +600,28 @@ export default function RouteActionButtons({
           <span className="absolute top-1 left-1 font-bold text-[10px] text-white pointer-events-none">
             {optimizationEngineMode === 'server' ? 'S' : 'C'}
           </span>
+          {/* Hold balloon — sits ABOVE the button so the finger cannot hide it */}
+          {holdBalloon && (
+            <span
+              className={`pointer-events-none absolute bottom-[calc(100%+10px)] right-0 z-[120] w-max max-w-[220px] rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-semibold shadow-xl ${
+                holdBalloon.tone === 'done'
+                  ? (optimizationEngineMode === 'server' ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800')
+                  : holdBalloon.tone === 'work'
+                    ? 'border-amber-300 bg-amber-50 text-amber-800'
+                    : 'border-slate-300 bg-white text-slate-800'
+              }`}
+            >
+              <span className="block whitespace-nowrap">{holdBalloon.text}</span>
+              {holdBalloon.tone === 'hold' && (
+                <span className="mt-1 block h-[3px] w-full overflow-hidden rounded-full bg-slate-200">
+                  <span
+                    className="block h-full rounded-full bg-slate-700"
+                    style={{ width: holdBarOn ? '100%' : '0%', transition: `width ${HOLD_MS}ms linear` }}
+                  />
+                </span>
+              )}
+            </span>
+          )}
         </Button>
       </motion.div>
     </>
