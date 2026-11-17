@@ -363,6 +363,16 @@ export function buildRetryDelivery(delivery, nextTrackingNumber, deliveryDate = 
     isNextDelivery: false,
     signature_image_url: null,
     proof_photo_urls: [],
+    // OWNER REPORT (Nov 17 2026): retrying a failed delivery from YESTERDAY
+    // created today's stop carrying yesterday's encoded leg — the map drew the
+    // old route again and the optimizer had nothing to rebuild. buildRetryDelivery
+    // spreads ...delivery, so every geometry field came along. A retry is a NEW
+    // leg, so strip the whole geometry set and let the optimizer draw it fresh.
+    encoded_polyline: null,
+    deviation_waypoints: [],
+    polyline_from_order: null,
+    polyline_saved_at: null,
+    PolylineUpdated: false,
     finished_leg_encoded_polyline: null
   };
 

@@ -1896,6 +1896,17 @@ Deno.serve(async (req) => {
         const nowMs = Date.now();
         const matchableSums = new Set<number>();
         for (const d of splitPool) matchableSums.add(d.cents);
+        // OWNER REPORT (Nov 17 2026, Bonnie Doon $140.06 swipe: 4 BD + 1 KW on
+        // Nov 16): a five-COD ring never reached the split pass at all — the
+        // candidate gate below only listed single/pair/triple sums, so the
+        // sale was filtered out before the combo search could run. The gate is
+        // now a cheap RANGE test (between the smallest COD and the sum of the
+        // eight largest), and the exact match is left to comboForSum.
+        const _reachCents = splitPool.map((d: any) => Number(d.cents) || 0)
+          .filter((c: number) => c > 0).sort((a: number, b: number) => b - a);
+        const _reachMin = _reachCents.length ? _reachCents[_reachCents.length - 1] : 0;
+        const _reachMax = _reachCents.slice(0, 8).reduce((s: number, c: number) => s + c, 0);
+        const inReach = (c: number) => c > 0 && c >= _reachMin && c <= _reachMax;
         const sumCap = splitPool.length <= 60 ? 3 : 2;
         if (sumCap >= 2) {
           for (let i = 0; i < splitPool.length; i++) {
@@ -1912,7 +1923,7 @@ Deno.serve(async (req) => {
         const candSales = salePool.filter((x) =>
           !usedSaleKeys.has(x.key) && x.orderId && x.cents > 0 &&
           (nowMs - x.at) < 30 * 86400000 &&
-          matchableSums.has(x.cents)
+          (matchableSums.has(x.cents) || inReach(x.cents))
         ).sort((a, b) => b.at - a.at).slice(0, 24);
 
         // Shared split mechanics: supersede the combined parent (delete its
@@ -2053,7 +2064,7 @@ Deno.serve(async (req) => {
         const orderlessCands = salePool.filter((x) =>
           !usedSaleKeys.has(x.key) && !x.orderId && x.cents > 0 &&
           (nowMs - x.at) < 30 * 86400000 &&
-          matchableSums.has(x.cents)
+          (matchableSums.has(x.cents) || inReach(x.cents))
         ).sort((a, b) => b.at - a.at).slice(0, 12);
         unresolved.push(...orderlessCands);
 
