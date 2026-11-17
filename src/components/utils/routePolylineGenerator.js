@@ -599,21 +599,6 @@ export async function generateRoutePolylines({
       .map((p) => ({ lat: Number(p.lat), lon: Number(p.lng), timestamp: p.timestamp || null }))
       .slice(-DEVIATION_WAYPOINT_CAP);
   };
-  // Oct 22 2026 fix: drop deviation points recorded BEFORE the current leg's
-  // origin was completed — they belong to older legs and route the leg backward.
-  const originCompletedMs = originCompletedAt ? new Date(originCompletedAt).getTime() : null;
-  const dropStaleVias = (vias) => {
-    if (!Number.isFinite(originCompletedMs)) return vias;
-    const kept = vias.filter((v) => {
-      const vt = v.timestamp ? new Date(v.timestamp).getTime() : NaN;
-      return !Number.isFinite(vt) || vt >= originCompletedMs;
-    });
-    if (kept.length !== vias.length) {
-      console.warn(`[routePolylineGenerator] ${source} — dropped ${vias.length - kept.length} stale deviation via(s) recorded before the leg origin completed (${originCompletedAt})`);
-    }
-    return kept;
-  };
-
   const groupResults = await Promise.all(modeGroups.map(async (group, groupIdx) => {
     const useVia = groupIdx === 0 && viaValid;
     // Build the group's point list with per-stop deviation via chains:
@@ -632,32 +617,16 @@ export async function generateRoutePolylines({
       // its origin is the last finished stop, whose completion time bounds the
       // valid via window. Later legs' origins are previous stops; their vias
       // were re-guarded by the engine's transfer cleanup before writeBatch.
-      let vias = getDeviationWaypoints(stop.delivery);
-      if (groupIdx === 0 && stopLocalIdx === 0 && _suppressFirstLegVias) {
-        vias = [];
-      } else if (groupIdx === 0 && stopLocalIdx === 0) {
-        vias = dropStaleVias(vias);
-        // OWNER REPORT (Oct 27 2026, 1.3km home->first-stop leg drew a 24km
-        // loop): stale pre-leg deviation points (recorded before this leg
-        // began — transferred from the previous next stop, or left over from
-        // earlier driving) sit FAR outside any sane detour. DETOUR BUDGET: a
-        // via is kept only when routing through it stays within
-        // max(3x direct distance, direct + 5km). Real mid-route deviations
-        // fit; pre-leg wanderings never do.
-        const _viaKm = (aLat, aLon, bLat, bLon) => {
-          const _dLat = (bLat - aLat) * 111.32;
-          const _dLon = (bLon - aLon) * 111.32 * Math.max(Math.cos(((aLat + bLat) / 2) * Math.PI / 180), 0.01);
-          return Math.hypot(_dLat, _dLon);
-        };
-        const _directKm = _viaKm(group.fromPoint.lat, group.fromPoint.lon, stop.lat, stop.lng);
-        const _budgetKm = Math.max(_directKm * 3, _directKm + 5);
-        const _keptVias = vias.filter((v) =>
-          (_viaKm(group.fromPoint.lat, group.fromPoint.lon, v.lat, v.lon)
-            + _viaKm(v.lat, v.lon, stop.lat, stop.lng)) <= _budgetKm);
-        if (_keptVias.length !== vias.length) {
-          console.warn(`[routePolylineGenerator] ${source} — dropped ${vias.length - _keptVias.length} stale deviation via(s) outside the ${_budgetKm.toFixed(1)}km detour budget (direct leg ${_directKm.toFixed(1)}km) — pre-leg points drew a round-trip loop (owner Oct 27)`);
-          vias = _keptVias;
-        }
+      // OWNER RULE (Nov 16 2026): ONLY the stop the driver is heading to now may
+      // contribute deviation points. Not the origin (a finished stop), not any
+      // stop further down the route. The points recorded on the current stop are
+      // the ones that describe the road actually driven since the origin, so they
+      // go first, then the live GPS fix, then the active stops in stop order.
+      // The old stale-timestamp filter and the 3x/5km detour budget are gone:
+      // the owner wants the driven path drawn as recorded.
+      let vias = [];
+      if (groupIdx === 0 && stopLocalIdx === 0 && !_suppressFirstLegVias) {
+        vias = getDeviationWaypoints(stop.delivery);
       }
       vias.forEach((v) => points.push(v));
       stopViaCounts.push(vias.length);
@@ -932,7 +901,9 @@ export async function generateRoutePolylines({
     if (_chainedOk) {
       console.log(`[routePolylineGenerator] ${source} — current leg came from the single chained call (no extra request)`);
     } else if (Number.isFinite(_directKm) && _directKm > 0.05) {
-      let _curVias = _suppressFirstLegVias ? [] : dropStaleVias(getDeviationWaypoints(_curStop.delivery));
+      // OWNER RULE (Nov 16 2026): the current stop's deviation points only, as
+      // recorded — no stale-timestamp filter, no detour budget.
+      let _curVias = _suppressFirstLegVias ? [] : getDeviationWaypoints(_curStop.delivery);
       const _curPoints = [
         { lat: Number(effectiveOrigin.lat), lon: Number(effectiveOrigin.lon) },
         ..._curVias.map((v) => ({ lat: Number(v.lat), lon: Number(v.lon) })),
