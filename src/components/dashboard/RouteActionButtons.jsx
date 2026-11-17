@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useOptimizationEngineMode, toggleActiveOptimizationEngine } from '@/components/utils/serverOptimizationMode';
+import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -122,7 +122,21 @@ export default function RouteActionButtons({
       setHoldBarOn(false);
       showHoldBalloon('Switching engine…', 'work');
       try { navigator.vibrate?.(70); } catch (_) {}
-      const mode = await toggleActiveOptimizationEngine(currentUser);
+      // Loaded on demand (Nov 16 2026): the static named import of this function
+      // crashed the whole Dashboard with "does not provide an export named
+      // toggleActiveOptimizationEngine" whenever a device still held a cached
+      // pre-toggle copy of serverOptimizationMode.js (bundle/PWA staleness).
+      // A dynamic import always reads the current module and simply reports
+      // "unavailable" when the export is missing.
+      let mode = null;
+      try {
+        const mod = await import('@/components/utils/serverOptimizationMode');
+        if (typeof mod.toggleActiveOptimizationEngine === 'function') {
+          mode = await mod.toggleActiveOptimizationEngine(currentUser);
+        }
+      } catch (err) {
+        console.warn('[RouteActionButtons] Engine toggle unavailable:', err?.message || err);
+      }
       setEngineFlipping(false);
       if (mode) {
         showHoldBalloon(mode === 'server' ? 'Server engine ON' : 'Client engine ON', 'done', 2400);
