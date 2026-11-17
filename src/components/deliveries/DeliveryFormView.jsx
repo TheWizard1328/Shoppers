@@ -265,6 +265,14 @@ export default function DeliveryFormView({
   formData.delivery_date, formData.ampm_deliveries, allDeliveries, selectedPatient]);
 
   // InterStore: tracks whether both From + To are selected (gates the Add/Done button)
+  // OWNER REPORT (Nov 17 2026): the distance refresh badge updated the patient
+  // record but the Distance From Store badge on this form kept the old number
+  // until the form was reopened. AddressActionBadges reports the new value here,
+  // so both the Edit Delivery and Add To Route forms repaint immediately.
+  const [refreshedPatientKm, setRefreshedPatientKm] = React.useState(null);
+  const effectivePatientDistanceKm = refreshedPatientKm ?? selectedPatient?.distance_from_store;
+  React.useEffect(() => { setRefreshedPatientKm(null); }, [selectedPatient?.id]);
+
   const [interStoreReady, setInterStoreReady] = React.useState(false);
   // InterStore: force-open the driver dropdown when both stores selected but no driver
   const [forceOpenInterStoreDriverSelect, setForceOpenInterStoreDriverSelect] = React.useState(false);
@@ -1281,7 +1289,7 @@ export default function DeliveryFormView({
                   isCompletionStatus={isCompletionStatus}
                   completionTime={completionTime} setCompletionTime={setCompletionTime}
                   availableStores={availableStores} allDeliveries={allDeliveries}
-                  patientDistanceKm={selectedPatient?.distance_from_store}
+                  patientDistanceKm={effectivePatientDistanceKm}
                   currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                   isCyclingMarker={true} />
                 </div>
@@ -1687,7 +1695,7 @@ export default function DeliveryFormView({
                               isCompletionStatus={isCompletionStatus}
                               completionTime={completionTime} setCompletionTime={setCompletionTime}
                               availableStores={availableStores} allDeliveries={allDeliveries}
-                              patientDistanceKm={selectedPatient?.distance_from_store}
+                              patientDistanceKm={effectivePatientDistanceKm}
                               currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                               isCyclingMarker={!!delivery?.is_cycling_marker} />
                           
@@ -1710,6 +1718,7 @@ export default function DeliveryFormView({
                                       } : null}
                                       currentUser={currentUser}
                                       disabled={isSaving}
+                                      onDistanceUpdated={setRefreshedPatientKm}
                                       onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))} />
                                     
                                       {delivery && selectedPatient && handleNewAddressPatient && (() => {
@@ -1916,7 +1925,7 @@ export default function DeliveryFormView({
                             isCompletionStatus={isCompletionStatus}
                             completionTime={completionTime} setCompletionTime={setCompletionTime}
                             availableStores={availableStores} allDeliveries={allDeliveries}
-                            patientDistanceKm={selectedPatient?.distance_from_store}
+                            patientDistanceKm={effectivePatientDistanceKm}
                             currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                             isCyclingMarker={!!delivery?.is_cycling_marker} />
                         
@@ -1966,6 +1975,7 @@ export default function DeliveryFormView({
                                       } : null}
                                     currentUser={currentUser}
                                     disabled={isSaving}
+                                    onDistanceUpdated={setRefreshedPatientKm}
                                     onPaidKmOverrideCleared={() => setFormData((prev) => ({ ...prev, paid_km_override: null }))} />
                                   
                                     {delivery && selectedPatient && handleNewAddressPatient && (() => {
@@ -2049,7 +2059,7 @@ export default function DeliveryFormView({
                         isCompletionStatus={isCompletionStatus}
                         completionTime={completionTime} setCompletionTime={setCompletionTime}
                         availableStores={availableStores} allDeliveries={allDeliveries}
-                        patientDistanceKm={selectedPatient?.distance_from_store}
+                        patientDistanceKm={effectivePatientDistanceKm}
                         currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption}
                         isCyclingMarker={!!delivery?.is_cycling_marker} />
                     
