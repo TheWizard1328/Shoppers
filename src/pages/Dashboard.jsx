@@ -564,7 +564,19 @@ function Dashboard() {
       });
 
       // ── Display-order lock: hold the pre-action card order until the optimizer lands ──
-      const _lock = _routeOrderLockRef.current;
+      let _lock = _routeOrderLockRef.current;
+      // OWNER REPORT (Nov 17 2026): starting an InterStore stop rewrote its
+      // stop_order (17 -> 16) but the cards stayed frozen at 15, 17, 16, 18
+      // because this lock kept holding the pre-action order: the Start path
+      // never emitted routeOptimizationComplete, so only the 95s TTL released it.
+      // If any locked card's stop_order has changed, the order on screen is
+      // stale — drop the lock immediately and let the fresh order through.
+      if (_lock && _lock.orders && _lock.driverId === dId
+          && stops.some((d) => d && _lock.orders.has(d.id)
+            && _lock.orders.get(d.id) !== (Number(d.stop_order) || 0))) {
+        _routeOrderLockRef.current = null;
+        _lock = null;
+      }
       if (_lock && _lock.until > Date.now() && _lock.driverId === dId
           && stops.some((d) => d?.delivery_date === _lock.deliveryDate)) {
         const _lockedIdx = (a, b) => ((_lock.idx.get(a?.id) ?? 1e9) - (_lock.idx.get(b?.id) ?? 1e9));
@@ -608,7 +620,14 @@ function Dashboard() {
       if (!ids.length) return;
       const idx = new Map();
       ids.forEach((id, i) => idx.set(id, i));
-      _routeOrderLockRef.current = { driverId, deliveryDate, idx, until: Date.now() + 95000 };
+      // Snapshot the stop_order each card had when the lock was taken. The lock
+      // exists to hide the 2-3 intermediate re-sorts while an action runs; the
+      // moment the REAL stop_order values change it is stale and must release.
+      const orders = new Map();
+      (deliveriesWithStopOrderRef.current || []).forEach((d) => {
+        if (d?.id) orders.set(d.id, Number(d.stop_order) || 0);
+      });
+      _routeOrderLockRef.current = { driverId, deliveryDate, idx, orders, until: Date.now() + 95000 };
       // TTL guard: if routeOptimizationComplete never fires (optimizer crash),
       // release the lock when it expires and force a fresh re-sort.
       setTimeout(() => {

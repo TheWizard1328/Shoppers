@@ -39,6 +39,21 @@ export function getDeliveryType(delivery) {
   const upper = String(delivery.delivery_id || '').toUpperCase();
   if (upper.startsWith('ISP-')) return 'ISP';
   if (upper.startsWith('ISD-')) return 'ISD';
+
+  // OWNER REPORT (Nov 17 2026): an interstore DROP-OFF at stop 16 was rendering
+  // as "Hamptons Pickup". Its delivery_id had been replaced with a plain
+  // 'DID-...' value by the transfer flow, so every prefix-only test fell through
+  // to STORE_PICKUP (no patient_id + no ISP/ISD prefix). The record still knows
+  // what it is: delivery_notes carry the InterStore label and the source/dest
+  // keys survive. Detect those before calling it a store pickup, so the card,
+  // balloon, list and map agree with the edit form.
+  const notes = String(delivery.delivery_notes || '').toLowerCase();
+  if (notes.includes('interstore')) {
+    if (notes.includes('dropoff') || notes.includes('drop off') || notes.includes('drop-off')) return 'ISD';
+    if (notes.includes('pickup') || notes.includes('pick up') || notes.includes('pick-up')) return 'ISP';
+  }
+  if (delivery.interstore_dest_id || delivery._interstore_dest_id) return 'ISD';
+  if (delivery.interstore_source_id || delivery._interstore_source_id) return 'ISP';
   return 'STORE_PICKUP';
 }
 
