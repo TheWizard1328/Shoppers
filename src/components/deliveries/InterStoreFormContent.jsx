@@ -92,9 +92,26 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
   // finishes loading (selectedId may be set from a marker prefill before the
   // list items are rendered, so we must retry once they appear).
   useEffect(() => {
-    if (!selectedId || loading || !listRef.current) return;
-    const el = listRef.current.querySelector(`[data-loc-id="${selectedId}"]`);
-    if (el) el.scrollIntoView({ block: 'center' });
+    if (!selectedId || loading) return;
+    const scrollSelected = () => {
+      const list = listRef.current;
+      if (!list) return;
+      const el = list.querySelector(`[data-loc-id="${selectedId}"]`);
+      if (!el) return;
+      // OWNER SPEC Nov 17 2026: the selected store must ALWAYS be visible in the
+      // From / To lists. scrollIntoView also scrolls the dialog itself and is a
+      // no-op while the panel is still animating in, so scroll the list box
+      // directly and repeat once the layout has settled.
+      const listRect = list.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      if (elRect.top >= listRect.top && elRect.bottom <= listRect.bottom) return;
+      list.scrollTop += (elRect.top - listRect.top) - (listRect.height - elRect.height) / 2;
+    };
+    scrollSelected();
+    const raf = requestAnimationFrame(scrollSelected);
+    const t1 = setTimeout(scrollSelected, 60);
+    const t2 = setTimeout(scrollSelected, 250);
+    return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); };
   }, [selectedId, loading, locations]);
 
   const isFrom = color === 'emerald';
@@ -188,11 +205,16 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
 
 // Consolidated into geoUtils — identical math, single source of truth.
 import { haversineKm } from '@/components/utils/geoUtils';
+import AddressActionBadges from '../common/AddressActionBadges';
+import { useDevice } from '@/components/utils/DeviceContext';
 function crowFliesKm(lat1, lng1, lat2, lng2) {
   return haversineKm(lat1, lng1, lat2, lng2);
 }
 
 export default function InterStoreFormContent({ formData, setFormData, isSaving, currentUser, stores, onReady, delivery, isAddToRouteMode }) {
+  // OWNER SPEC Nov 17 2026: no-mobile rows for the time fields, and the GPS
+  // badge needs the interstore endpoint (To wins, else From) to draw its map.
+  const { isMobile: interStoreIsMobile } = useDevice();
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [drivingDistance, setDrivingDistance] = useState(null);
@@ -265,6 +287,15 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
   const sourceLocation = locations.find((l) => l.id === sourceId);
   const destLocation = locations.find((l) => l.id === destId);
   const bothSelected = !!(sourceId && destId);
+  // The GPS badge maps the interstore endpoint: To store when picked, else From.
+  const interStoreBadgeStore = destLocation || sourceLocation
+    ? {
+        id: (destLocation || sourceLocation).id,
+        store_name: (destLocation || sourceLocation).store_name,
+        latitude: Number((destLocation || sourceLocation).store_latitude),
+        longitude: Number((destLocation || sourceLocation).store_longitude),
+      }
+    : null;
 
   // Notify parent when both stores are selected
   useEffect(() => {
@@ -485,6 +516,19 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
       <div className="grid grid-cols-2 gap-3">
         {/* Left: Status + Time fields */}
         <div className="flex flex-col gap-2 px-3 py-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+          {/* OWNER SPEC Nov 17 2026: GPS badge (breadcrumb / polyline map) sits
+              ABOVE the Status filter so the interstore crumb map is editable
+              from here, matching the Edit Delivery address row. */}
+          <div className="flex items-center justify-end gap-1" style={{ height: '1.5rem' }}>
+            <AddressActionBadges
+              patient={null}
+              store={interStoreBadgeStore}
+              polylineDelivery={delivery || null}
+              delivery={delivery ? { id: delivery.id, delivery_date: formData?.delivery_date || delivery.delivery_date, paid_km_override: formData?.paid_km_override } : null}
+              currentUser={currentUser}
+              disabled={isSaving}
+              mapOnly />
+          </div>
           <div className="flex flex-col gap-1 min-w-0">
             <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Status</Label>
             <Select value={formData.status || ''} onValueChange={(s) => setFormData((prev) => ({ ...prev, status: s }))} disabled={isSaving || statusLockedToInTransit}>
@@ -518,7 +562,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
 
           {/* Arrival & Completed times (Completed) */}
           {formData.status === 'completed' &&
-          <>
+          <div className={interStoreIsMobile ? 'flex flex-col gap-2' : 'flex gap-2'}>
               <TimePickerField
               label="Arrival Time"
               value={(() => {
@@ -540,7 +584,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
               onChange={(v) => setFormData((prev) => ({ ...prev, actual_delivery_time: v ? `${prev.delivery_date}T${v}:00` : '' }))}
               disabled={isSaving} />
             
-            </>
+            </div>
           }
         </div>
 

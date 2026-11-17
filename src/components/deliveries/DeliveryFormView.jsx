@@ -1683,6 +1683,7 @@ export default function DeliveryFormView({
                               <DeliveryStatusAndTiming
                               formData={formData} setFormData={setFormData}
                               delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
+                              showStoreBadge={isPickupMode}
                               isCompletionStatus={isCompletionStatus}
                               completionTime={completionTime} setCompletionTime={setCompletionTime}
                               availableStores={availableStores} allDeliveries={allDeliveries}

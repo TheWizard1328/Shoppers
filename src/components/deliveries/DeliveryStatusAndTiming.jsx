@@ -8,6 +8,7 @@ import { X } from "lucide-react";
 import { isAppOwner } from '../utils/userRoles';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { clearDeliveryActionLock } from '../utils/deliveryActionLock';
+import AddressActionBadges from '../common/AddressActionBadges';
 
 const TimeField = React.forwardRef(function TimeField({ value, onChange, onClear, isSaving }, ref) {
   return (
@@ -41,6 +42,7 @@ export default function DeliveryStatusAndTiming({
   setFormData,
   delivery,
   isPickupMode,
+  showStoreBadge = false, // Edit Pickup: GPS badge above the Pickup Store filter
   isSaving,
   isCompletionStatus,
   completionTime,
@@ -193,8 +195,27 @@ export default function DeliveryStatusAndTiming({
     </div>;
 
 
+  const badgeStoreForPickup = showStoreBadge
+    ? ((availableStores || []).find((st) => String(st?.id) === String(formData?.store_id)) || null)
+    : null;
+
   const storeSelect =
   <div className="flex-1 space-y-1">
+      {/* OWNER SPEC Nov 17 2026: the GPS badge (breadcrumb / polyline map) sits
+          ABOVE the Pickup Store filter, exactly like the Edit Delivery form's
+          address row, so a pickup's crumb map can be opened and edited here. */}
+      {showStoreBadge &&
+      <div className="flex items-center justify-end gap-1" style={{ height: '1.5rem' }}>
+          <AddressActionBadges
+          patient={null}
+          store={badgeStoreForPickup}
+          polylineDelivery={delivery || null}
+          delivery={delivery ? { id: delivery.id, delivery_date: formData?.delivery_date || delivery.delivery_date, paid_km_override: formData?.paid_km_override } : null}
+          currentUser={currentUser}
+          disabled={isSaving}
+          mapOnly />
+        </div>
+      }
       {/* Store + the selected patient's distance from that store, right-justified
           on the same row (owner spec Nov 6 2026). */}
       <div className="flex items-center justify-between gap-2">

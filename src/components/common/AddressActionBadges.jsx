@@ -54,6 +54,7 @@ export default function AddressActionBadges({
   onPaidKmOverrideCleared,
   onError,
   polylineDelivery = null, // full Delivery record from the Edit Delivery form (owner map routing)
+  mapOnly = false, // Edit Pickup / InterStore: GPS badge only, no distance refresh
   className = '',
 }) {
   const [busy, setBusy] = useState(false);
@@ -272,6 +273,7 @@ export default function AddressActionBadges({
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>
+      {!mapOnly && (
       <button
         type="button"
         onClick={handleRefresh}
@@ -288,6 +290,7 @@ export default function AddressActionBadges({
           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
           : <RefreshCw className="w-3.5 h-3.5" />}
       </button>
+      )}
 
       <button
         type="button"
