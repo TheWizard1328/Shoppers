@@ -201,26 +201,25 @@ export default function DeliveryStatusAndTiming({
 
   const storeSelect =
   <div className="flex-1 space-y-1">
-      {/* OWNER SPEC Nov 17 2026: the GPS badge (breadcrumb / polyline map) sits
-          ABOVE the Pickup Store filter, exactly like the Edit Delivery form's
-          address row, so a pickup's crumb map can be opened and edited here. */}
-      {showStoreBadge &&
-      <div className="flex items-center justify-end gap-1" style={{ height: '1.5rem' }}>
-          <AddressActionBadges
-          patient={null}
-          store={badgeStoreForPickup}
-          polylineDelivery={delivery || null}
-          delivery={delivery ? { id: delivery.id, delivery_date: formData?.delivery_date || delivery.delivery_date, paid_km_override: formData?.paid_km_override } : null}
-          currentUser={currentUser}
-          disabled={isSaving}
-          mapOnly />
-        </div>
-      }
       {/* Store + the selected patient's distance from that store, right-justified
-          on the same row (owner spec Nov 6 2026). */}
+          on the same row (owner spec Nov 6 2026). OWNER SPEC Nov 17 2026: the
+          GPS badge (breadcrumb / polyline map) sits INLINE on this row too, next
+          to the Pickup Store label, so a pickup's crumb map opens and edits here. */}
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-semibold text-body">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
-        <DistanceFromStoreBadge distanceKm={patientDistanceKm} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {showStoreBadge &&
+          <AddressActionBadges
+            patient={null}
+            store={badgeStoreForPickup}
+            polylineDelivery={delivery || null}
+            delivery={delivery ? { id: delivery.id, delivery_date: formData?.delivery_date || delivery.delivery_date, paid_km_override: formData?.paid_km_override } : null}
+            currentUser={currentUser}
+            disabled={isSaving}
+            mapOnly />
+          }
+          <DistanceFromStoreBadge distanceKm={patientDistanceKm} />
+        </div>
       </div>
       <Select value={storeSelectValue} onValueChange={handleStoreChange} disabled={isSaving || isPickupMode && !!delivery}>
         <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
