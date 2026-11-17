@@ -1004,6 +1004,20 @@ class LocationTracker {
       // after the DB write — that path leads to shared marker updates on all devices.
 
     } catch (error) {
+      // OWNER REPORT (Nov 17 2026): My-Phone logged 'timeout of 15000ms exceeded'
+      // several times a day. The SDK gives every AppUser.update 15s, and on a slow
+      // cellular link the write often lands server-side AFTER the client gives up
+      // (nativeLocationUpdate throttles to 15s anyway), so the fix is to stop
+      // treating a timeout as a hard failure: warn instead of error, do not count
+      // it toward maxFailedUpdates (which can stop tracking), and retry on the
+      // next tick with a short backoff.
+      const _isTimeout = /timeout of \d+ms exceeded/i.test(String(error?.message || ''))
+        || error?.code === 'ECONNABORTED';
+      if (_isTimeout) {
+        this._logLocationRemote('warn', 'UPLOAD-TIMEOUT', { latitude, longitude, accuracy, error: error?.message });
+        this.backoffTime = 5000;
+        return;
+      }
       this.failedUpdateCount++;
       this._logLocationRemote('error', 'UPLOAD-FAILED', { latitude, longitude, accuracy, error: error?.message });
 

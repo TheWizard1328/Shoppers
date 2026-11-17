@@ -33,7 +33,11 @@ export const TURN_PREVIEW_DEFAULTS = {
 
   // Distance ahead of the turn where the zoom-in begins (plus the driver dot is
   // always included, so both stay on screen).
-  approachMeters: 150,
+  // OWNER REQUEST (Nov 17 2026): zoom in "just slightly earlier" — the AutoZone
+  // opens at 220 m instead of 150 m, so the corner is already framed while the
+  // driver is still a city block away. Entry zoom (15) and preview max zoom (16)
+  // are unchanged; only the trigger distance moved.
+  approachMeters: 220,
 
   // How far ahead the leg is scanned for the next significant heading change.
   lookAheadMeters: 400,
