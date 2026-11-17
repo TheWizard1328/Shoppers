@@ -516,21 +516,20 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
       <div className="grid grid-cols-2 gap-3">
         {/* Left: Status + Time fields */}
         <div className="flex flex-col gap-2 px-3 py-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
-          {/* OWNER SPEC Nov 17 2026: GPS badge (breadcrumb / polyline map) sits
-              ABOVE the Status filter so the interstore crumb map is editable
-              from here, matching the Edit Delivery address row. */}
-          <div className="flex items-center justify-end gap-1" style={{ height: '1.5rem' }}>
-            <AddressActionBadges
-              patient={null}
-              store={interStoreBadgeStore}
-              polylineDelivery={delivery || null}
-              delivery={delivery ? { id: delivery.id, delivery_date: formData?.delivery_date || delivery.delivery_date, paid_km_override: formData?.paid_km_override } : null}
-              currentUser={currentUser}
-              disabled={isSaving}
-              mapOnly />
-          </div>
           <div className="flex flex-col gap-1 min-w-0">
-            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Status</Label>
+            {/* OWNER SPEC Nov 17 2026: the GPS badge (breadcrumb / polyline map)
+                sits INLINE with the Status label, on that same row. */}
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Status</Label>
+              <AddressActionBadges
+                patient={null}
+                store={interStoreBadgeStore}
+                polylineDelivery={delivery || null}
+                delivery={delivery ? { id: delivery.id, delivery_date: formData?.delivery_date || delivery.delivery_date, paid_km_override: formData?.paid_km_override } : null}
+                currentUser={currentUser}
+                disabled={isSaving}
+                mapOnly />
+            </div>
             <Select value={formData.status || ''} onValueChange={(s) => setFormData((prev) => ({ ...prev, status: s }))} disabled={isSaving || statusLockedToInTransit}>
               <SelectTrigger className="h-9 text-sm w-full bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                 <SelectValue placeholder="Select..." />
