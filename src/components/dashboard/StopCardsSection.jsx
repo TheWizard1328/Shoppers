@@ -1,3 +1,4 @@
+import RouteLockBanner from '@/components/dashboard/RouteLockBanner';
 import { useEffect, useState, useMemo, memo } from "react";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
@@ -219,6 +220,9 @@ function StopCardsSection({
         visibility: immersiveHidden ? 'hidden' : 'visible'
       }}
       onClick={() => {if (retractClustersRef.current) retractClustersRef.current();}}>
+
+      {/* Route lock notice — sits just above the stop cards (owner spec Nov 18 2026). */}
+      <RouteLockBanner deliveries={deliveries} isAdmin={isAdmin} isDispatcher={isDispatcher} />
 
       <div
         className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
