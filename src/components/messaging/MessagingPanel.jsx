@@ -61,12 +61,25 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   // the chrome rows: the title bar clears the status bar / APK top gap, the composer
   // clears the bottom nav / home indicator. Putting the pads on the card left dead
   // bands above the title and under the composer.
-  const mobileCardStyle = undefined;
-  const mobileHeaderSafeTop = useMobileFullscreen
-    ? (isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)')
+  // OWNER SPEC (Nov 18 2026, APK): kill the dead band above the title bar and put
+  // the gap where it is actually needed — under the composer / conversation list,
+  // clear of the phone's navigation bar. The APK runs edge-to-edge (targetSdk 35)
+  // and injects the real OS insets as --native-safe-top/bottom from MainActivity,
+  // because env(safe-area-inset-*) reads 0 inside the Capacitor WebView. The old
+  // 30px top floor was pure dead space; the old 14px bottom floor was smaller than
+  // the navigation bar, so the last row of the panel sat behind it.
+  const nativeSafeTop = 'max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px))';
+  const nativeSafeBottom = 'max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 14px)';
+  const mobileCardStyle = useMobileFullscreen
+    ? { paddingBottom: isNativeShell ? nativeSafeBottom : 'env(safe-area-inset-bottom, 0px)' }
     : undefined;
+  const mobileHeaderSafeTop = useMobileFullscreen
+    ? (isNativeShell ? nativeSafeTop : 'env(safe-area-inset-top, 0px)')
+    : undefined;
+  // The card already reserves the bottom inset on native, so the composer must not
+  // add it a second time.
   const mobileComposerSafeBottom = useMobileFullscreen
-    ? (isNativeShell ? 'max(env(safe-area-inset-bottom, 0px), 14px)' : '6px')
+    ? (isNativeShell ? null : '6px')
     : undefined;
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
   // Patient portal threads (owner build Nov 2 2026) live beside staff chat.
@@ -157,7 +170,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
             light-only surfaces. */}
         <div
           className="px-4 pb-4 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700"
-          style={mobileHeaderSafeTop ? { paddingTop: `calc(${mobileHeaderSafeTop} + 1rem)` } : { paddingTop: '1rem' }}>
+          style={mobileHeaderSafeTop ? { paddingTop: mobileHeaderSafeTop } : { paddingTop: '1rem' }}>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Messages</h2>
           <div className="flex items-center gap-2">
             <button
