@@ -6,10 +6,54 @@ import PatientThreadsPanel from './PatientThreadsPanel';
 import { loadPatientThreadMessages, isPatientSender } from './patientThreads';
 import { X, Search, Users } from 'lucide-react';
 import { isAppOwner } from '@/components/utils/userRoles';
+import { useDevice } from '@/components/utils/DeviceContext';
 import { hideSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
 
 function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange, pendingBlinkConversationId, onClearBlink }) {
+  // OWNER SPEC (Nov 17 2026): "make the in-app messaging panel on mobile full screen
+  // like the edit route form, adhering to the APK header and footer gap that's required
+  // for the APK but ignoring it when not in the APK." Same rules as DeliveryFormView:
+  // a phone gets a true full-bleed overlay with no dialog padding, pinned to the real
+  // visual viewport (iOS standalone's layout viewport is taller than what is drawn).
+  // The chrome inset is applied inside the card - the APK (Capacitor) reports a zero
+  // safe area, so native keeps a 30px/14px floor; a browser/PWA phone uses the real
+  // env() values only, so nothing is wasted when the gap is not needed.
+  const { isMobile, isTabletPortrait } = useDevice();
+  const useMobileFullscreen = !!isMobile && !isTabletPortrait;
+  const isNativeShell = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (window.Capacitor?.isNativePlatform?.()) return true;
+      return /; wv\)/.test(navigator.userAgent || '') && !!window.androidBridge;
+    } catch { return false; }
+  })();
+  const [phoneViewportH, setPhoneViewportH] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    return Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  });
+  useEffect(() => {
+    if (!useMobileFullscreen || typeof window === 'undefined') return undefined;
+    const read = () => setPhoneViewportH(Math.round(window.visualViewport?.height || window.innerHeight || 0));
+    read();
+    window.addEventListener('resize', read);
+    window.addEventListener('orientationchange', read);
+    window.visualViewport?.addEventListener?.('resize', read);
+    return () => {
+      window.removeEventListener('resize', read);
+      window.removeEventListener('orientationchange', read);
+      window.visualViewport?.removeEventListener?.('resize', read);
+    };
+  }, [useMobileFullscreen]);
+  const mobileOverlayStyle = useMobileFullscreen
+    ? { padding: 0, ...(phoneViewportH > 0 ? { top: 0, left: 0, right: 0, bottom: 'auto', height: `${phoneViewportH}px` } : {}) }
+    : undefined;
+  const mobileCardStyle = useMobileFullscreen
+    ? {
+        paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
+        paddingBottom: isNativeShell ? 'max(env(safe-area-inset-bottom, 0px), 14px)' : '6px',
+      }
+    : undefined;
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
   // Patient portal threads (owner build Nov 2 2026) live beside staff chat.
   // A push notification or balloon for a patient/driver thread arrives as a
@@ -84,8 +128,16 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   // tablets, so the old 50000 left them painted over the panel. 60000 matches the
   // edit forms.
   return (
-    <div className="fixed inset-0 z-[60000] bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
-      <div className="rounded-xl shadow-2xl dark:shadow-black/50 w-full max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+    <div
+      className={`fixed inset-0 z-[60000] bg-black/50 dark:bg-black/70 flex items-center justify-center overflow-y-auto overflow-x-hidden ${useMobileFullscreen ? 'p-0' : 'p-4'}`}
+      style={mobileOverlayStyle}>
+      <div
+        style={mobileCardStyle}
+        className={`flex flex-col overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full ${
+          useMobileFullscreen
+            ? 'rounded-none h-full max-h-none max-w-none shadow-none border-0'
+            : 'rounded-xl shadow-2xl dark:shadow-black/50 max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)]'
+        }`}>
         {/* Header — dark mode mirrors the patient portal panel (owner request
             Nov 3 2026): slate card, slate-100/800 icon buttons, no washed-out
             light-only surfaces. */}
