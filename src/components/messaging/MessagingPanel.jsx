@@ -68,13 +68,15 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   // because env(safe-area-inset-*) reads 0 inside the Capacitor WebView. The old
   // 30px top floor was pure dead space; the old 14px bottom floor was smaller than
   // the navigation bar, so the last row of the panel sat behind it.
-  const nativeSafeTop = 'max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px))';
-  const nativeSafeBottom = 'max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px), 14px)';
+  // OWNER SPEC (Nov 18 2026, second pass): the APK WebView is ALREADY inset by the
+  // system bars, so --native-safe-top/bottom here only added a second gap at the
+  // top AND the bottom. On native both pads are zero; the panel runs edge to edge.
+  // The PWA/browser keeps the real env() insets.
   const mobileCardStyle = useMobileFullscreen
-    ? { paddingBottom: isNativeShell ? nativeSafeBottom : 'env(safe-area-inset-bottom, 0px)' }
+    ? { paddingBottom: isNativeShell ? '0px' : 'env(safe-area-inset-bottom, 0px)' }
     : undefined;
   const mobileHeaderSafeTop = useMobileFullscreen
-    ? (isNativeShell ? nativeSafeTop : 'env(safe-area-inset-top, 0px)')
+    ? (isNativeShell ? '0px' : 'env(safe-area-inset-top, 0px)')
     : undefined;
   // The card already reserves the bottom inset on native, so the composer must not
   // add it a second time.
