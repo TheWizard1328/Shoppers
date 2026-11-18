@@ -192,9 +192,11 @@ Deno.serve(async (req) => {
     // refund lives on the payment), so the name+amount pass kept confirming it and
     // deleting the recreated catalog item. A refunded ring never confirms anything.
     const refundedSignatureSet = new Set();
+    const refundedDeliveryIds = new Set();
     for (const t of (transactions || [])) {
       const st = String(t?.status || '').toLowerCase();
       if (st !== 'refunded' && st !== 'refund' && st !== 'voided') continue;
+      if (t?.delivery_id) refundedDeliveryIds.add(String(t.delivery_id));
       const rsig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
       if (rsig && rsig !== '::0') refundedSignatureSet.add(rsig);
     }
@@ -299,7 +301,7 @@ Deno.serve(async (req) => {
         // (the aggressive match the reconcile deliberately removed).
         const did = descDeliveryIds.get(item.id);
         const d = did ? deliveryRows.get(did) : null;
-        if (d && isCompletedCashCod(d) && !d.cod_confirmed_collected) {
+        if (d && isCompletedCashCod(d) && !d.cod_confirmed_collected && !refundedDeliveryIds.has(String(d.id))) {
           const sig = buildItemSignature(name, amountCents);
           if (sig && sig !== '::0' && refundedSignatureSet.has(sig)) continue;
           const sigRings = (sig && sig !== '::0') ? (completedSigTimes.get(sig) || []) : [];

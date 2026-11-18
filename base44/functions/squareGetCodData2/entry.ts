@@ -691,6 +691,15 @@ async function handleGetCodData(base44, payload={}) {
   // any lingering catalog item is stale, so archived completions drain like card ones.
   const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card', 'Archived', 'archived']);
   const deliveryHasRecordedCodPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => Number(p?.amount || 0) > 0 && COLLECTED_PAYMENT_TYPES.has(String(p?.type || '')));
+  // REFUNDED COD = NOT COLLECTED (owner report Nov 17 2026). When a payment for a
+  // COD is refunded in Square, our own SquareTransaction row flips to 'refunded'.
+  // That delivery must never be treated as collected again: no stamp, and its
+  // catalog item must be allowed to exist (the store still has to ring it).
+  const refundedDeliveryIds = new Set(
+    (existingTransactions || [])
+      .filter((t) => ['refunded', 'refund', 'voided'].includes(String(t?.status || '').toLowerCase()) && t?.delivery_id)
+      .map((t) => String(t.delivery_id))
+  );
   const collectedDeliveryIds = new Set(
     (deliveriesWithAmounts || [])
       .filter((d) => d?.status === 'completed' && deliveryHasRecordedCodPayment(d))
@@ -703,7 +712,7 @@ async function handleGetCodData(base44, payload={}) {
   // deleted. A completed transaction means the payment was collected. Either way,
   // the catalog item should not persist in the active catalog.
   for (const tx of transactionRecords) {
-    if (tx?.delivery_id) {
+    if (tx?.delivery_id && !refundedDeliveryIds.has(String(tx.delivery_id))) {
       collectedDeliveryIds.add(tx.delivery_id);
     }
   }
@@ -716,6 +725,7 @@ async function handleGetCodData(base44, payload={}) {
   const confirmedCollectedDeliveryIds = new Set(
     (transactionRecords || [])
       .filter((t) => t?.delivery_id && String(t?.status || '').toLowerCase() === 'completed' &&
+        !refundedDeliveryIds.has(String(t.delivery_id)) &&
         isSameDayOrFuture(txMomentMs(t), deliveryDayDateById.get(String(t.delivery_id))))
       .map((t) => t.delivery_id)
   );
@@ -730,6 +740,7 @@ async function handleGetCodData(base44, payload={}) {
   // squareCodReconcile create path already uses (retained rows = proof).
   for (const t of (existingTransactions || [])) {
     if (t?.delivery_id && String(t?.status || '').toLowerCase() === 'completed' &&
+        !refundedDeliveryIds.has(String(t.delivery_id)) &&
         normalizeText(t?.square_transaction_id) !== '' &&
         isSameDayOrFuture(txMomentMs(t), deliveryDayDateById.get(String(t.delivery_id)))) {
       confirmedCollectedDeliveryIds.add(t.delivery_id);
@@ -771,7 +782,7 @@ async function handleGetCodData(base44, payload={}) {
     };
     const wideCandidates = (activeDeliveriesWithAmounts || []).filter((d) =>
       d?.id && isCashCod(d) && !d?.cod_confirmed_collected &&
-      !collectedDeliveryIds.has(d.id) && !confirmedCollectedDeliveryIds.has(d.id) &&
+      !collectedDeliveryIds.has(d.id) && !confirmedCollectedDeliveryIds.has(d.id) && !refundedDeliveryIds.has(String(d.id)) &&
       !scanIsFresh(d) && d?.delivery_date);
     if (wideCandidates.length > 0) {
       const oldest = wideCandidates.map((d) => String(d.delivery_date)).sort()[0];
@@ -1014,6 +1025,7 @@ async function handleGetCodData(base44, payload={}) {
       const descDeliveryId = extractDeliveryIdFromCatalog(item);
       const row = descDeliveryId ? outOfWindowDeliveryRows.get(descDeliveryId) || null : null;
       if (descDeliveryId && row?.cod_confirmed_collected) continue; // handled by the pass above
+      if (descDeliveryId && refundedDeliveryIds.has(String(descDeliveryId))) continue; // refunded COD: item must stay
       const dateMs = row?.delivery_date ? clampDate(row.delivery_date) : nameDateMs(item?.item_data?.name);
       if (!dateMs) continue;
       // OWNER RULE (Nov 12 2026): the ±10 day proximity check matched sales rung
