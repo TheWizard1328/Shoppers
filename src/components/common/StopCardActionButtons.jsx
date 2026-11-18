@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect, useState } from "react";
+import React, { useMemo, useCallback, useEffect, useRef, useState } from "react";
 import { isMobileDevice } from '../utils/deviceUtils';
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
@@ -85,6 +85,8 @@ export default function StopCardActionButtons(props) {
     showCODCollection,
     onCODUpdate,
     setIsCompleting,
+    setPendingFailureStatus,
+    setShowFailureReasonDialog,
     FINISHED_STATUSES,
     onSelectionChange,
     onClick,
@@ -92,6 +94,58 @@ export default function StopCardActionButtons(props) {
   } = props;
 
   const [showRestartDialog, setShowRestartDialog] = useState(false);
+
+  // ── Hold-to-fail on the Complete button ─────────────────────────────────
+  // OWNER REQUEST (Nov 18 2026): tap and hold Complete for 2 seconds and the
+  // Mark as Failed path opens — the same FailureReasonDialog the footer menu
+  // uses. A normal tap still completes exactly as before.
+  // The complete action used to fire on POINTERDOWN; it now fires on POINTERUP
+  // unless the 2s hold won the race, so a hold can never also complete the stop.
+  const COMPLETE_HOLD_FAIL_MS = 2000;
+  const completeHoldTimerRef = useRef(null);
+  const completeHoldFiredRef = useRef(false);
+  const [isHoldingComplete, setIsHoldingComplete] = useState(false);
+
+  const clearCompleteHold = useCallback(() => {
+    if (completeHoldTimerRef.current) {
+      clearTimeout(completeHoldTimerRef.current);
+      completeHoldTimerRef.current = null;
+    }
+    setIsHoldingComplete(false);
+  }, []);
+
+  const handleCompletePointerDown = useCallback((e) => {
+    blockCardToggle?.(e);
+    e.stopPropagation();
+    completeHoldFiredRef.current = false;
+    setIsHoldingComplete(true);
+    try { navigator.vibrate?.(10); } catch { /* noop */ }
+    completeHoldTimerRef.current = setTimeout(() => {
+      completeHoldTimerRef.current = null;
+      completeHoldFiredRef.current = true;
+      setIsHoldingComplete(false);
+      try { navigator.vibrate?.([40, 60, 40]); } catch { /* noop */ }
+      setPendingFailureStatus?.(isPickup ? 'cancelled' : 'failed');
+      setShowFailureReasonDialog?.(true);
+    }, COMPLETE_HOLD_FAIL_MS);
+  }, [blockCardToggle, isPickup, setPendingFailureStatus, setShowFailureReasonDialog]);
+
+  const handleCompletePointerUp = useCallback((e) => {
+    e.stopPropagation();
+    const holdFired = completeHoldFiredRef.current;
+    clearCompleteHold();
+    if (holdFired) { completeHoldFiredRef.current = false; return; }
+    handleCompleteAction?.(e);
+  }, [clearCompleteHold, handleCompleteAction]);
+
+  // Only a MOUSE dragging off the button cancels the hold. A finger that drifts
+  // a few pixels during a long press must not silently cancel it.
+  const handleCompletePointerAbort = useCallback((e) => {
+    if (e?.pointerType && e.pointerType !== 'mouse') return;
+    clearCompleteHold();
+  }, [clearCompleteHold]);
+
+  useEffect(() => () => clearCompleteHold(), [clearCompleteHold]);
 
   // ── Retro timing indicator ──────────────────────────────────────────────
   // When the time crosses 21:00 (9 PM) for a TODAY delivery, the app switches
@@ -516,7 +570,21 @@ export default function StopCardActionButtons(props) {
           if (!isCompleteEligible) return null;
 
           return (
-            <Button data-stopcard-action="complete" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={missingArrivalTime || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className={`${isRetroTiming ? 'bg-sky-300 hover:bg-sky-400 border-sky-200' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'} px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500`} title={missingArrivalTime ? "Arrival time not recorded yet — unlocks once arrival is captured (menu Complete still works)" : "Complete this delivery"}>
+            <Button data-stopcard-action="complete" type="button"
+              onPointerDownCapture={handleCompletePointerDown}
+              onPointerUpCapture={handleCompletePointerUp}
+              onPointerCancelCapture={clearCompleteHold}
+              onPointerLeave={handleCompletePointerAbort}
+              onContextMenu={(e) => { if (isHoldingComplete) e.preventDefault(); }}
+              onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={missingArrivalTime || isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className={`${isRetroTiming ? 'bg-sky-300 hover:bg-sky-400 border-sky-200' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'} relative overflow-hidden select-none px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500`} title={missingArrivalTime ? "Arrival time not recorded yet — unlocks once arrival is captured (menu Complete still works)" : "Complete this delivery (hold 2s to mark it failed)"}>
+              {isHoldingComplete && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-white/80 origin-left"
+                  style={{ animation: 'rxCompleteHoldFill 2000ms linear forwards' }}
+                />
+              )}
+              <style>{'@keyframes rxCompleteHoldFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}'}</style>
               {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
               <span className="text-white">Complete</span>
             </Button>
