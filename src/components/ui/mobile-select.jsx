@@ -10,6 +10,7 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
+  DrawerPortal,
 } from '@/components/ui/drawer';
 
 
@@ -61,7 +62,12 @@ export function MobileSelect({
           list each added their own max(1rem, env(safe-area-inset-bottom)) on top of the
           DrawerFooter's own bottom pad. The paddings now live in one place: a tight header,
           a 0.5rem list tail, and the footer owning the single safe-area bottom pad. */}
-      <DrawerContent className={`z-[10030] pb-0 ${className || ''}`}>
+      {/* OWNER REPORT (Nov 18 2026): on PWA/web/mobile-editor the Theme sheet sat
+          BEHIND the bottom nav. The content was rendered inline, so its z-[10030]
+          was trapped inside the header's z-50 stacking context and lost to the nav
+          (z-[150]). Portaling to <body> puts it in the root stacking context. */}
+      <DrawerPortal>
+      <DrawerContent className={`z-[10050] pb-0 ${className || ''}`}>
         <DrawerHeader className="text-left px-4 pt-1 pb-2">
           <DrawerTitle>Select an option</DrawerTitle>
         </DrawerHeader>
@@ -95,6 +101,7 @@ export function MobileSelect({
           </DrawerClose>
         </DrawerFooter>
       </DrawerContent>
+      </DrawerPortal>
     </Drawer>
   );
 }
