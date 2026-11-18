@@ -1313,6 +1313,9 @@ Deno.serve(async (req) => {
       // engine rule — markers are full route stops, never 'unaccepted').
       const isPending = stop.status === 'pending' && !stop.isCyclingMarker;
       const isPickupStop = stop.isPickup && !stop.isInterStore;
+      // Co-located with the stop immediately before it in the route (multi-suite
+      // building / duplicate address): shares that stop's line, draws none of its own.
+      const isCoLocated = sameCoordsAdjacentIds.has(stop.id);
       const correctedStatus = isPickupStop && stop.status === 'in_transit' ? 'en_route' : undefined;
       const statusToWrite = correctedStatus || (stop.status === 'in_transit' ? 'in_transit' : undefined);
       const logicalDurationMinutes = typeof seg?.estimated_duration_minutes === 'number' ? seg.estimated_duration_minutes : null;
@@ -1329,8 +1332,15 @@ Deno.serve(async (req) => {
         ...(!isPending && logicalDurationMinutes == null && sameCoordsAdjacentIds.has(stop.id)
           ? { estimated_duration_minutes: SHARED_SAME_ADDRESS_MINUTES, estimated_distance_km: 0 } : {}),
         ...(!isPending && logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
-        ...(!isPending && seg?.encoded_polyline ? { encoded_polyline: seg.encoded_polyline, polyline_from_order: newOrder } : {}),
+        // OWNER REQUEST (Nov 18 2026): co-located stops share ONE line into the
+        // location (SHARED RULE routeRules.isCoLocatedStop / sameCoordsAdjacentIds
+        // here). Only the FIRST stop of a cluster carries a polyline; a later stop
+        // at the same point is CLEARED instead of keeping a degenerate stub, so two
+        // markers at one door no longer draw two lines. The CURRENT leg keeps its
+        // geometry (client parity: the first stop of a chain is never cleared).
+        ...(!isPending && !isCoLocated && seg?.encoded_polyline ? { encoded_polyline: seg.encoded_polyline, polyline_from_order: newOrder } : {}),
         ...(isPending ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),
+        ...(isCoLocated && !isNextStop ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),
       };
       // OWNER DIRECTIVE (Oct 27 2026 evening): clear deviation_waypoints on
       // every ACTIVE non-next stop at polyline generation/commit time —

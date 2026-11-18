@@ -2689,6 +2689,18 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   for (const w of writeBatch) {
     const seg = futurePolylineByDeliveryId.get(w.id);
     if (!seg) continue;
+    // OWNER REQUEST (Nov 18 2026): a stop CO-LOCATED with the stop before it
+    // shares that stop's line — it gets NO polyline of its own. The generator
+    // marks these (routeRules.isCoLocatedStop); the stored leg must be NULLED
+    // here, not skipped, or the old stub survives on the record and the map
+    // keeps drawing a second line into the same door.
+    if (seg.coLocatedWithPrevious) {
+      w.data.encoded_polyline = null;
+      w.data.polyline_from_order = null;
+      w.data.estimated_distance_km = null;
+      w.data.estimated_duration_minutes = null;
+      continue;
+    }
     if (seg.encodedPolyline != null) { w.data.encoded_polyline = seg.encodedPolyline; w.data.polyline_from_order = w.data.stop_order ?? null; }
     // Never let a segment's own mode re-label a cycling marker: the start marker is driven to,
     // the end marker cycled to (owner report Nov 16 2026).

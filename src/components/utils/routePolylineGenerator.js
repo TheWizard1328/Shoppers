@@ -15,7 +15,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { guardLegGeometry } from './polylineOriginRules';
-import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias, isCoLocatedStop } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
@@ -817,6 +817,30 @@ export async function generateRoutePolylines({
       // chain with a 2-point GPS→stop stub, which every reoptimization then
       // "deleted" the current leg visually (owner report: reopts kept wiping
       // the home→stop#1 line). The current leg keeps its full rendered chain.
+      // ── CO-LOCATED STOPS SHARE ONE LINE (owner request Nov 18 2026) ──────
+      // Stops 23 and 24 sat at the same door and EACH drew a polyline into it.
+      // A stop at the same coordinates as the stop before it in the route is
+      // part of the same cluster: only the FIRST member of the cluster keeps a
+      // line into the location, every later member is cleared (SHARED RULE:
+      // routeRules.isCoLocatedStop). Emitted as coLocatedWithPrevious so the
+      // writeBatch nulls the stored leg instead of keeping a stale one.
+      const _prevGroupStop = groupLocalIndex > 0 ? group.stops[groupLocalIndex - 1] : null;
+      const _coLocated = _prevGroupStop ? isCoLocatedStop(_prevGroupStop, stop) : false;
+      if (_coLocated) {
+        polylineByDeliveryId.set(stop.delivery.id, {
+          encodedPolyline: null,
+          estimatedDistanceKm: 0,
+          estimatedDurationMinutes: 0,
+          transportMode: group.mode,
+          coLocatedWithPrevious: true,
+        });
+        if (directionsLegs && routeStops) {
+          const _coIdx = routeStops.findIndex((rs) => rs.delivery.id === stop.delivery.id);
+          if (_coIdx !== -1) directionsLegs[_coIdx] = { ...directionsLegs[_coIdx], duration: 0, distance: 0 };
+        }
+        return;
+      }
+
       const _sameLeg = liveViaOnThisLeg ? null : sameAnchorLeg(points[stopIdx - 1], points[stopIdx]);
       if (_sameLeg) {
         encoded = _sameLeg.encoded;

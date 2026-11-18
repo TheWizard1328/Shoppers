@@ -593,6 +593,21 @@ export function isPolylineEligibleStop({ status, isCyclingMarker, transportMode 
   return false;
 }
 
+// ── RULE: co-located stops share ONE inbound line (owner request Nov 18 2026) ─
+// Two stops at the same address (multi-suite building, duplicate address) are
+// ONE place on the map. Only the FIRST stop of that cluster may carry a
+// polyline into the location; every later stop at the same point must have its
+// leg CLEARED. Before this rule each co-located stop kept its own degenerate
+// stub, so markers 23 and 24 both drew a line to the same door (owner report).
+// 50m matches the existing duplicate-address / same-anchor tolerance.
+export const CO_LOCATED_MAX_KM = 0.05;
+export function isCoLocatedStop(prevStop, stop, maxKm = CO_LOCATED_MAX_KM) {
+  const a = { lat: Number(prevStop?.lat ?? prevStop?.latitude), lon: Number(prevStop?.lon ?? prevStop?.lng ?? prevStop?.longitude) };
+  const b = { lat: Number(stop?.lat ?? stop?.latitude), lon: Number(stop?.lon ?? stop?.lng ?? stop?.longitude) };
+  if (![a.lat, a.lon, b.lat, b.lon].every(Number.isFinite)) return false;
+  return crowFliesKm(a, b) <= maxKm;
+}
+
 // ── RULE: dwell minutes per stop type ────────────────────────────────────────
 // extra_time override, else pickups 15 / deliveries 5 (ETA ladder dwell).
 export function dwellMinutesForStop({ extraTime, isPickup }) {
