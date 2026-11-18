@@ -112,7 +112,7 @@ export default function NewGroupDialog({ currentUser, appUsers = [], onCreated, 
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[50010] bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden bg-surface max-h-[90vh]">
         {/* Header */}
         <div className="p-4 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>

@@ -77,7 +77,7 @@ export default function GroupMembersSheet({ group, currentUser, appUsers = [], o
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-end p-0">
+    <div className="fixed inset-0 z-[50010] bg-black/50 flex items-center justify-end p-0">
       <div className="h-full w-full max-w-sm flex flex-col bg-surface shadow-2xl">
         {/* Header */}
         <div className="p-4 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
