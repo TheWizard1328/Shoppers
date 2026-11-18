@@ -2076,6 +2076,11 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     // matched by delivery_id with zero date/amount checks. OPEN-order matches
     // (store ringing now) DO carry a square_transaction_id, so they still count.
     const isRealSquareTx = (tx) => !!(tx?.square_transaction_id && String(tx.square_transaction_id).trim());
+    // OWNER RULE (Nov 18 2026): only a COMPLETED Square payment means a COD is
+    // collected. Cash the driver took (no Square record yet) is uncollected, and a
+    // collection that was later REFUNDED goes back to uncollected — it must never
+    // count as collected just because a refunded row still exists.
+    const isCollectedTx = (tx) => !!tx && String(tx?.status || '').toLowerCase() === 'completed' && isRealSquareTx(tx);
     const txByDeliveryId = new Map();
     const txByCatalogObjId = new Map();
     const txByKey = new Map();
@@ -2090,13 +2095,13 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       if (tx.delivery_id && realTx) txByDeliveryId.set(tx.delivery_id, tx);
       if (tx.square_catalog_object_id && realTx) {
         txByCatalogObjId.set(tx.square_catalog_object_id, tx);
-        if (['completed', 'refunded'].includes(tx.status)) {
+        if (String(tx.status || '').toLowerCase() === 'completed') {
           settledTxCatalogIds.add(tx.square_catalog_object_id);
         }
       }
       const orderKey = `${tx?.square_transaction_id || ''}::${tx?.raw_square_data?.line_item_uid || ''}`;
       if (orderKey !== '::') txByKey.set(orderKey, tx);
-      if (['completed', 'refunded'].includes(tx.status) && tx.delivery_id) {
+      if (String(tx.status || '').toLowerCase() === 'completed' && tx.delivery_id) {
         settledTxDeliveryIds.add(tx.delivery_id);
       }
       // Amount+name signature for fallback matching
@@ -2135,6 +2140,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     return {
       patientById, patientByPid, resolvePatient,
       storeById,
+      isCollectedTx,
       txByDeliveryId, txByCatalogObjId, txByKey, txByAmountName,
       settledTxCatalogIds, settledTxDeliveryIds,
       catalogByDeliveryId, catalogByObjId,
@@ -2322,6 +2328,8 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
 
       // O(1) lookup: try direct match by delivery_id first
       let matchingTx = lookupIndexes.txByDeliveryId.get(delivery.id) || null;
+      if (matchingTx && !lookupIndexes.isCollectedTx(matchingTx)) matchingTx = null;
+      if (matchingTx && !lookupIndexes.isCollectedTx(matchingTx)) matchingTx = null;
 
       // Fallback: scan transactions only if no direct match (much smaller scope)
       if (!matchingTx) {
@@ -2330,7 +2338,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         const deliveryStoreAbbr = String(store?.abbreviation || '').trim().toLowerCase();
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx || tx.type !== 'collection') return false;
-          if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
+          if (String(tx?.status || '').toLowerCase() !== 'completed') return false;
           if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
           // Retained tx history is 6 months deep: an old same-patient/same-amount
@@ -2592,6 +2600,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       // O(1) lookup: try direct match by delivery_id or catalog_object_id first
       let matchingTx = null;
       if (linkedDelivery?.id) matchingTx = lookupIndexes.txByDeliveryId.get(linkedDelivery.id);
+      if (matchingTx && !lookupIndexes.isCollectedTx(matchingTx)) matchingTx = null;
       if (!matchingTx && catalogObjectId) matchingTx = lookupIndexes.txByCatalogObjId.get(catalogObjectId) || lookupIndexes.txByCatalogObjId.get(item.id);
 
       // Fallback: scan only if no direct match
@@ -2752,7 +2761,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         const deliveryStoreAbbr = String(store?.abbreviation || '').trim().toLowerCase();
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx || tx.type !== 'collection') return false;
-          if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
+          if (String(tx?.status || '').toLowerCase() !== 'completed') return false;
           if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
           if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
           // Retained tx history is 6 months deep: an old same-patient/same-amount
