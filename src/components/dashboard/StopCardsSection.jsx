@@ -222,7 +222,7 @@ function StopCardsSection({
       onClick={() => {if (retractClustersRef.current) retractClustersRef.current();}}>
 
       {/* Route lock notice — sits just above the stop cards (owner spec Nov 18 2026). */}
-      <RouteLockBanner deliveries={deliveries} isAdmin={isAdmin} isDispatcher={isDispatcher} />
+      <RouteLockBanner deliveries={deliveries} currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} />
 
       <div
         className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"

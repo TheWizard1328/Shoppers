@@ -11,7 +11,7 @@ const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const pad = (n) => String(n).padStart(2, '0');
 const localDateString = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-export default function RouteLockBanner({ deliveries, isAdmin, isDispatcher }) {
+export default function RouteLockBanner({ deliveries, currentUser, isDriver, isAdmin, isDispatcher }) {
   const [now, setNow] = useState(() => new Date());
 
   // Re-render every 30s so the countdown and the 9:00 PM flip stay live without a reload.
@@ -21,7 +21,12 @@ export default function RouteLockBanner({ deliveries, isAdmin, isDispatcher }) {
   }, []);
 
   const state = useMemo(() => {
-    const rows = Array.isArray(deliveries) ? deliveries.filter(Boolean) : [];
+    // DRIVER-ONLY NOTICE (owner spec Nov 18 2026): admins and dispatchers never see
+    // this. A driver only ever sees it for their OWN route, never a viewed driver's.
+    if (!isDriver || isAdmin || isDispatcher) return null;
+    const selfIds = new Set([currentUser?.id, currentUser?.user_id].filter(Boolean).map(String));
+    const rows = (Array.isArray(deliveries) ? deliveries.filter(Boolean) : [])
+      .filter((d) => !d?.driver_id || selfIds.size === 0 || selfIds.has(String(d.driver_id)));
     if (rows.length === 0) return null;
     // Only the route the driver is actually on: same day as the latest stop.
     const latestDate = rows.map((d) => String(d.delivery_date || '')).sort().pop();
@@ -36,7 +41,7 @@ export default function RouteLockBanner({ deliveries, isAdmin, isDispatcher }) {
     const locked = isPastDate || now.getTime() >= lockAt.getTime();
     const minutesLeft = Math.max(0, Math.round((lockAt.getTime() - now.getTime()) / 60000));
     return { locked, minutesLeft, lockAt };
-  }, [deliveries, now]);
+  }, [deliveries, now, isDriver, isAdmin, isDispatcher, currentUser?.id, currentUser?.user_id]);
 
   if (!state) return null;
 
@@ -52,9 +57,6 @@ export default function RouteLockBanner({ deliveries, isAdmin, isDispatcher }) {
       </div>
     );
   }
-
-  // Admins/dispatchers never need the countdown — the lock does not apply to them.
-  if (isAdmin || isDispatcher) return null;
 
   return (
     <div className="pointer-events-none mb-1 flex w-full justify-center px-2">
