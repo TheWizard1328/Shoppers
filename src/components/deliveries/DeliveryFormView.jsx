@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns";
 import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle, Car, Bike, Sparkles, MapPin } from "lucide-react";
 import StopPolylineDeviationMap from '../admin/StopPolylineDeviationMap';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from "@/components/ui/badge";
 import { locationTracker } from "@/components/utils/locationTracker";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1858,16 +1859,19 @@ export default function DeliveryFormView({
                             <div className="flex items-center justify-between gap-2">
                               <Label className="text-sm font-semibold text-body">Cycling Point</Label>
                               {isAppOwner(currentUser) &&
+                              /* Same round green map badge as the Edit Delivery / Pickup /
+                                 InterStore forms (AddressActionBadges): 24px chip, emerald
+                                 tint, pin icon. Inline style neutralises the global 44px
+                                 touch-target rule so it stays a chip. */
                               <button
                                 type="button"
-                                onClick={() => setShowCyclingDeviationMap((v) => !v)}
+                                onClick={() => setShowCyclingDeviationMap(true)}
                                 disabled={isSaving}
-                                title={showCyclingDeviationMap ? 'Hide deviation points' : 'Edit deviation points'}
-                                aria-label={showCyclingDeviationMap ? 'Hide deviation points' : 'Edit deviation points'}
-                                aria-pressed={showCyclingDeviationMap}
-                                className={`shrink-0 inline-flex items-center gap-1 h-7 px-2 rounded-lg border text-[11px] font-medium transition-colors ${showCyclingDeviationMap ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
+                                title="Polyline & Deviation Points"
+                                aria-label="Show map"
+                                style={{ minHeight: 0, minWidth: 0, padding: 0, height: 24, width: 24, flex: '0 0 auto' }}
+                                className="inline-flex items-center justify-center shrink-0 rounded-full border transition-colors select-none bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/70">
                                 <MapPin className="w-3.5 h-3.5" />
-                                <span>Points</span>
                               </button>
                               }
                             </div>
@@ -1891,11 +1895,20 @@ export default function DeliveryFormView({
                             })}
                             </div>
                           </div>
-                          {showCyclingDeviationMap && isAppOwner(currentUser) && delivery?.id &&
-                          <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-slate-300)' }}>
-                              <StopPolylineDeviationMap delivery={delivery} mapHeight={220} />
-                            </div>
-                          }
+                          {/* Polyline & Deviation Points — same dialog the map badge opens on
+                              the Edit Delivery / Pickup / InterStore forms. */}
+                          <Dialog open={showCyclingDeviationMap && isAppOwner(currentUser)} onOpenChange={(o) => setShowCyclingDeviationMap(!!o)}>
+                            <DialogContent className="z-[70600] max-h-[92vh] overflow-y-auto p-3 sm:p-4 max-w-2xl w-[96vw]">
+                              <DialogHeader>
+                                <DialogTitle className="text-sm">Polyline &amp; Deviation Points</DialogTitle>
+                              </DialogHeader>
+                              {delivery?.id &&
+                              <React.Suspense fallback={<div className="py-10 text-center text-xs text-slate-500">Loading map…</div>}>
+                                  <StopPolylineDeviationMap delivery={delivery} mapHeight={320} />
+                                </React.Suspense>
+                              }
+                            </DialogContent>
+                          </Dialog>
                           <div className="flex gap-3">
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold text-body">
