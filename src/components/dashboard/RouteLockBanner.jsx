@@ -44,14 +44,11 @@ export default function RouteLockBanner({ deliveries, isAdmin, isDispatcher }) {
 
   if (state.locked) {
     return (
-      <div className="pointer-events-auto mx-1 mb-1 flex items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-[12px] leading-snug text-rose-900 shadow-sm dark:border-rose-800 dark:bg-rose-950/70 dark:text-rose-100">
-        <Lock className="h-4 w-4 shrink-0" />
-        <span>
-          <span className="font-semibold">Route locked at {lockLabel}.</span>{' '}
-          {(isAdmin || isDispatcher)
-            ? 'Drivers can no longer edit stops. Admins can still make changes.'
-            : 'Only an admin can make changes now.'}
-        </span>
+      <div className="pointer-events-none mb-1 flex w-full justify-center px-2">
+        <div className="pointer-events-auto inline-flex w-auto max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-[12px] font-semibold leading-tight text-rose-900 shadow-sm dark:border-rose-800 dark:bg-rose-950/70 dark:text-rose-100">
+          <Lock className="h-3.5 w-3.5 shrink-0" />
+          <span>Route locked.</span>
+        </div>
       </div>
     );
   }
@@ -60,14 +57,16 @@ export default function RouteLockBanner({ deliveries, isAdmin, isDispatcher }) {
   if (isAdmin || isDispatcher) return null;
 
   return (
-    <div className="pointer-events-auto mx-1 mb-1 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-100">
-      <AlertTriangle className="h-4 w-4 shrink-0" />
-      <span>
-        <span className="font-semibold">Route editing locks at {lockLabel}.</span>{' '}
-        {state.minutesLeft > 0
-          ? `Make any edits to your stops before then (${state.minutesLeft} min left).`
-          : 'Make any edits to your stops before then.'}
-      </span>
+    <div className="pointer-events-none mb-1 flex w-full justify-center px-2">
+      <div className="pointer-events-auto inline-flex w-auto max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] leading-tight text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-100">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          <span className="font-semibold">Route editing locks at {lockLabel}.</span>{' '}
+          {state.minutesLeft > 0
+            ? `Make any edits to your stops before then (${state.minutesLeft} min left).`
+            : 'Make any edits to your stops before then.'}
+        </span>
+      </div>
     </div>
   );
 }
