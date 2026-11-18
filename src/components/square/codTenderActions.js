@@ -233,6 +233,16 @@ export async function refundCodDelivery({ deliveryId }) {
     const requiredNum = Number(d.cod_total_amount_required || 0);
     const paidNum = payments.reduce((sm, pm) => sm + (Number(pm?.amount) || 0), 0);
     const amount = requiredNum > 0 ? requiredNum : paidNum;
+    // HOW the money was originally collected (owner spec Nov 17 2026): the
+    // refund credit back onto the store card only applies to a COD that was
+    // collected on a card. A cash/cheque COD that gets refunded never touched
+    // the card, so it must not add a card credit. Stamped before cod_payments
+    // is cleared, because that is the only place the original tender lives.
+    const origTender = payments
+      .map((pm) => String(pm?.type || '').toLowerCase())
+      .find((t) => t === 'debit' || t === 'credit')
+      || String(payments[0]?.type || '').toLowerCase()
+      || 'cash';
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
     const noteSuffix = `Original COD of $${amount.toFixed(2)} was refunded on ${today}.`;
     const existingNote = String(d.delivery_notes || '');
@@ -244,6 +254,7 @@ export async function refundCodDelivery({ deliveryId }) {
       cod_confirmed_collected_at: '',
       cod_refunded_at: new Date().toISOString(),
       cod_refunded_amount: amount,
+      cod_refunded_tender: origTender,
       // OWNER RULE (Nov 8 2026): an existing note is preserved and the refund
       // note starts on its OWN new line.
       delivery_notes: existingNote ? `${existingNote}\n${noteSuffix}` : noteSuffix,

@@ -585,6 +585,30 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
     const locId = storeToLoc.get(String(d?.store_id || ''));
     if (!locId) return;
     const loanRate = loanRateByLoc.get(locId) || 0;
+    // REFUNDED COD (owner spec Nov 17 2026): marking a collected COD Refunded
+    // hands the customer's money back, but the store card KEEPS the collection
+    // story — the refund returns the settled money to the card, and the fee,
+    // Square loan repayment and folder contribution already taken on that sale
+    // are NOT reversed. refundCodDelivery clears cod_payments and stamps
+    // cod_refunded_at + cod_refunded_amount, so the refunded gross is split with
+    // the same rate sheet the live collection would have used.
+    const refundTender = String(d?.cod_refunded_tender || '').toLowerCase();
+    const refundOnCard = refundTender ? (refundTender === 'debit' || refundTender === 'credit') : true;
+    if (String(d?.cod_refunded_at || '') && cardPayments.length === 0 && refundOnCard) {
+      const grossC = Math.round(Number(d?.cod_refunded_amount || 0) * 100);
+      if (grossC > 0) {
+        const agg = aggFor(locId);
+        const feeC = estimateCardFeeCents(grossC, 'credit');
+        const loanC = Math.round(grossC * loanRate);
+        const folderC = folderCentsFor(grossC, folderRate);
+        const settledC = Math.max(0, grossC - feeC - loanC - folderC);
+        agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
+        agg.credits += settledC; agg.count += 1;
+        const refundOcc = String(d?.cod_refunded_at || '');
+        if (refundOcc && String(agg.lastAt || '') < refundOcc) agg.lastAt = refundOcc;
+      }
+      return;
+    }
     if (cardPayments.length === 0) {
       const rows = swipeIdx.get(String(d?.id)) || [];
       if (!rows.length) return;

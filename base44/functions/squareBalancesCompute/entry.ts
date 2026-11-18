@@ -214,6 +214,27 @@ async function computeSummary(b44, userId) {
     // Cash-recorded but Square-swiped: credit the settled net from the
     // linked ledger rows (real cents). Recorded card payments below keep
     // their existing per-payment math.
+    // REFUNDED COD (owner spec Nov 17 2026): mirrors the client summary — a
+    // refunded collected COD keeps the settled money on the store card, and the
+    // fee, loan repayment and folder contribution already taken on the sale are
+    // not reversed.
+    const refundTender = String(d?.cod_refunded_tender || '').toLowerCase();
+    const refundOnCard = refundTender ? (refundTender === 'debit' || refundTender === 'credit') : true;
+    if (String(d?.cod_refunded_at || '') && !cardPayments.length && refundOnCard) {
+      const grossC = Math.round(Number(d?.cod_refunded_amount || 0) * 100);
+      if (grossC > 0) {
+        const agg = aggForCredit(locId);
+        const feeC = estimateCardFeeCents(grossC, 'credit');
+        const loanC = Math.round(grossC * loanRate);
+        const folderC = folderCentsFor(grossC, folderRate);
+        const settledC = Math.max(0, grossC - feeC - loanC - folderC);
+        agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
+        agg.credits += settledC; agg.count += 1;
+        const refundOcc = String(d?.cod_refunded_at || '');
+        if (refundOcc && String(agg.lastAt || '') < refundOcc) agg.lastAt = refundOcc;
+      }
+      continue;
+    }
     if (!cardPayments.length) {
       const swipeRows = swipeIdx.get(String(d.id)) || [];
       if (swipeRows.length) {
