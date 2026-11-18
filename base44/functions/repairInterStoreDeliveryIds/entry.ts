@@ -56,7 +56,14 @@ Deno.serve(async (req) => {
         const id = String(d?.delivery_id || '').toUpperCase();
         if (!id.startsWith('DID-')) continue;
         if (!looksInterStore(d)) continue;
-        damaged.push({ id: d.id, delivery_id: d.delivery_id, delivery_date: d.delivery_date, status: d.status, notes: String(d.delivery_notes || ''), _interstore_stop_type: d._interstore_stop_type || d.interstore_stop_type || null.slice(0, 60) });
+        damaged.push({
+          id: d.id,
+          delivery_id: d.delivery_id,
+          delivery_date: d.delivery_date,
+          status: d.status,
+          notes: String(d.delivery_notes || '').slice(0, 60),
+          _interstore_stop_type: d._interstore_stop_type || d.interstore_stop_type || null,
+        });
       }
       if (list.length < 500) break;
       skip += 500;
