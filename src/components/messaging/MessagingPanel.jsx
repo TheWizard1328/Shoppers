@@ -4,14 +4,9 @@ import ConversationsList from './ConversationsList';
 import ChatWindow from './ChatWindow';
 import PatientThreadsPanel from './PatientThreadsPanel';
 import { loadPatientThreadMessages, isPatientSender } from './patientThreads';
-import { Loader2, RefreshCw, X, Search, Users } from 'lucide-react';
+import { X, Search, Users } from 'lucide-react';
 import { isAppOwner } from '@/components/utils/userRoles';
-import {
-  APP_UPDATE_BROADCAST_MESSAGE,
-  SYSTEM_UPDATES_SENDER_ID,
-  SYSTEM_UPDATES_SENDER_NAME,
-  hideSystemBroadcastMessageForThisDevice,
-} from './updateBroadcastConfig';
+import { hideSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
 
 function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange, pendingBlinkConversationId, onClearBlink }) {
@@ -33,14 +28,11 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   const [tab, setTab] = useState(initialPatientId ? 'patients' : 'staff');
   // Unread patient messages, so the tab shows a badge before it is opened.
   const [patientUnread, setPatientUnread] = useState(0);
-  const [isBroadcastingUpdate, setIsBroadcastingUpdate] = useState(false);
-  const [updateBroadcastSent, setUpdateBroadcastSent] = useState(false);
   // Search + New Group live in the panel's own toolbar, so their state is owned here.
   const [conversationSearch, setConversationSearch] = useState('');
   const [patientSearch, setPatientSearch] = useState('');
   const [patientChatOpen, setPatientChatOpen] = useState(false);
   const [newGroupSignal, setNewGroupSignal] = useState(0);
-  const canBroadcastUpdate = isAppOwner(currentUser);
   
   useEffect(() => {
     let cancelled = false;
@@ -82,59 +74,10 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
     setSelectedConversation(null);
   }, []);
 
-  const handleBroadcastUpdate = useCallback(async () => {
-    if (!currentUser?.id || isBroadcastingUpdate) return;
-
-    const recipients = (users || []).filter((user) => user?.id);
-    if (recipients.length === 0) return;
-
-    setIsBroadcastingUpdate(true);
-    setUpdateBroadcastSent(false);
-
-    const results = await Promise.allSettled(
-      recipients.map(async (user) => {
-        if (user.id === SYSTEM_UPDATES_SENDER_ID) return { recipientId: user.id, message: null };
-        const message = await base44.entities.Message.create({
-          sender_id: SYSTEM_UPDATES_SENDER_ID,
-          sender_name: SYSTEM_UPDATES_SENDER_NAME,
-          receiver_id: user.id,
-          receiver_name: user.user_name || user.full_name || 'User',
-          conversation_id: [SYSTEM_UPDATES_SENDER_ID, user.id].sort().join('_'),
-          content: APP_UPDATE_BROADCAST_MESSAGE,
-          read: false,
-        });
-
-        // App Update is always pushed regardless of user push preference (force: true).
-        // Include an "Update Now" action button so the user can trigger the
-        // update straight from the notification, plus the broadcast message_id
-        // so the "mark read" path works when the update is applied.
-        await base44.functions.invoke('sendPushNotification', {
-          user_id: user.id,
-          title: 'App Update Available',
-          body: 'There is an update available. App restart required.',
-          url: '/',
-          force: true,
-          requireInteraction: true,
-          actions: [{ action: 'update_now', title: 'Update Now' }],
-          data: message?.id ? { message_id: message.id } : undefined,
-        }).catch(() => {});
-
-        return { recipientId: user.id, message };
-      })
-    );
-
-    const selfBroadcast = results.find(
-      (result) => result.status === 'fulfilled' && result.value.recipientId === currentUser.id
-    );
-
-    if (selfBroadcast?.status === 'fulfilled') {
-      hideSystemBroadcastMessageForThisDevice(selfBroadcast.value.message?.id);
-    }
-
-    setIsBroadcastingUpdate(false);
-    setUpdateBroadcastSent(true);
-    window.setTimeout(() => setUpdateBroadcastSent(false), 4000);
-  }, [currentUser?.id, isBroadcastingUpdate, users]);
+  // OWNER DECISION Nov 17 2026: the manual "Broadcast Update" button is retired.
+  // Publishing is announced automatically by the announceWebBuild watchdog +
+  // the "Web Build Publish Watchdog" schedule (writes the same System Updates
+  // message and push), so a manual press would only double-notify everyone.
 
   // OWNER REQUEST Nov 17 2026: panel must sit above the mobile header and bottom
   // nav. Layout forces both to z-index:51000 !important on phones and portrait
@@ -149,17 +92,6 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
         <div className="p-4 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Messages</h2>
           <div className="flex items-center gap-2">
-            {canBroadcastUpdate && (
-              <button
-                type="button"
-                onClick={handleBroadcastUpdate}
-                disabled={isBroadcastingUpdate}
-                className="h-8 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
-              >
-                {isBroadcastingUpdate ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                {updateBroadcastSent ? 'Update Sent' : 'Broadcast Update'}
-              </button>
-            )}
             <button
               type="button"
               onClick={handleCloseMessaging}
