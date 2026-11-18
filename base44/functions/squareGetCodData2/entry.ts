@@ -1214,9 +1214,19 @@ mark('after_db_cleanup');
     }
   }
   // Stamp THIS run's confirmed collections (durable evidence on the Delivery).
+  // NO-OP WRITES WERE THE WS STORM (owner report Nov 18 2026): this loop re-stamped
+  // every already-confirmed delivery with a fresh timestamp on every sync, so dozens
+  // of unchanged deliveries broadcast to every device each run. Only write when the
+  // stamp is actually missing.
+  const stampRowById = new Map((activeDeliveriesWithAmounts || []).map((d) => [String(d?.id), d]));
+  let stampedThisRun = 0;
   for (const did of confirmedCollectedDeliveryIds) {
+    const row = stampRowById.get(String(did));
+    if (row?.cod_confirmed_collected) continue; // already durable — skip write + broadcast
     await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: true, cod_confirmed_collected_at: new Date().toISOString() }).catch((e) => console.warn('[squareGetCodData2] flag stamp failed for', did, e?.message || e));
+    stampedThisRun++;
   }
+  console.log('[squareGetCodData2] fresh collected stamps:', stampedThisRun, 'of', confirmedCollectedDeliveryIds.size, 'confirmed');
   // Purge rows for collected deliveries: tx rows only when older than the
   // floor; catalog mirror rows always (the live-catalog mirror replace in 5b
   // rebuilds the outstanding set).
