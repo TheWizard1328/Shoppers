@@ -2038,10 +2038,17 @@ function DeliveryMap({
   const handleMarkerDragEnd = useCallback(() => {}, []);
 
   // Pan map so marker appears slightly below center (accounts for stop cards at bottom)
-  const panToMarkerOffset = useCallback((lat, lng) => {
+  const panToMarkerOffset = useCallback((lat, lng, opts = {}) => {
     if (!map) return;
     window._lastProgrammaticMapMove = Date.now();
-    const targetZoom = Math.max(currentZoom, 15);
+    // OWNER REQUEST (Nov 18 2026): tapping a clustered pin must zoom in exactly as
+    // far as the level where the cluster fans out on its own (autoFanZoom: 16 on
+    // desktop, 15 on a phone — the same threshold DeliveryMarkers/PickupMarkers use
+    // for isAutoFannedCluster). The old hardcoded 15 floor left desktop clusters
+    // still stacked after the tap. A lone marker keeps the gentler 15 floor so the
+    // map does not dive in tight around a single stop.
+    const zoomFloor = opts?.fanOut ? autoFanZoom(isMobile) : 15;
+    const targetZoom = Math.max(currentZoom, zoomFloor);
     const size = map.getSize();
     const topObscured = isMobile ? (immersiveHidden ? 0 : (effectiveTopOverlayHeight || 116)) : 0;
     const bottomObscured = immersiveHidden ? 0 : (areStopCardsVisible ? stopCardsHeight : 0);
@@ -2097,7 +2104,7 @@ function DeliveryMap({
           window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: pendingTarget.id, fromMarkerClick: true } }));
         }
         onMarkerClick?.(pendingTarget, markerType);
-        panToMarkerOffset(marker.latitude, marker.longitude);
+        panToMarkerOffset(marker.latitude, marker.longitude, { fanOut: true });
         if (isSecondTap) {
           if (fannedLocationKey === locationKey) setFannedLocationKey(null);
           else setFannedLocationKey(locationKey);
@@ -2118,7 +2125,7 @@ function DeliveryMap({
           window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: targetStop.id, fromMarkerClick: true } }));
           onMarkerClick?.(targetStop, markerType);
         }
-        panToMarkerOffset(marker.latitude, marker.longitude);
+        panToMarkerOffset(marker.latitude, marker.longitude, { fanOut: true });
         setTimeout(() => setFannedLocationKey(locationKey), 550);
         return;
       }
@@ -2140,7 +2147,7 @@ function DeliveryMap({
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: targetStop.id, fromMarkerClick: true } }));
         onMarkerClick?.(targetStop, markerType);
       }
-      panToMarkerOffset(marker.latitude, marker.longitude);
+      panToMarkerOffset(marker.latitude, marker.longitude, { fanOut: true });
       return;
     }
 
