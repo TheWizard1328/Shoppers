@@ -27,30 +27,39 @@ export default function WebSocketDiagnosticsCard() {
   }, []);
 
   useEffect(() => {
-    // Check if this is the primary device
+    // OWNER SPEC (Nov 18 2026): this toast is a NON-PRIMARY-DEVICE tool. The
+    // App Owner's primary machine is the one actually driving the app, so the
+    // bubble is noise there — it stays on the secondary/oversight screens only.
+    // The old check was inverted (`device?.is_primary_tracker !== false` reads
+    // true when the field is undefined) and always reported primary, so it is
+    // replaced with the shared isCurrentDevicePrimary() helper.
+    let cancelled = false;
     const checkPrimaryDevice = async () => {
       try {
         const user = await base44.auth.me();
         if (!user?.id) {
-          setIsPrimaryDevice(true);
+          if (!cancelled) setIsPrimaryDevice(true);
           return;
         }
-        const { getCurrentDevice } = await import('@/components/utils/deviceManager');
-        const device = await getCurrentDevice(user.id);
-        const isPrimary = device === null || device?.status !== 'inactive' && device?.is_primary_tracker !== false;
-        setIsPrimaryDevice(isPrimary);
+        const { isCurrentDevicePrimary } = await import('@/components/utils/deviceManager');
+        const isPrimary = await isCurrentDevicePrimary(user.id);
+        if (!cancelled) setIsPrimaryDevice(!!isPrimary);
       } catch (error) {
         console.log('⚠️ [WebSocketDiagnosticsCard] Failed to check primary device status:', error.message);
-        setIsPrimaryDevice(true);
+        // Unknown device state: stay silent rather than risk a toast on the
+        // owner's primary machine.
+        if (!cancelled) setIsPrimaryDevice(true);
       }
     };
 
     checkPrimaryDevice();
+    return () => { cancelled = true; };
   }, []);
 
 
   useEffect(() => {
-    if (disableForMobileOwner) return;
+    // No listeners on the owner's primary device / phone — nothing can show there.
+    if (disableForMobileOwner || isPrimaryDevice) return;
 
     const resolvePatientName = async (patientId) => {
       if (!patientId || patientNameCache[patientId]) return patientNameCache[patientId] || null;
@@ -174,11 +183,12 @@ export default function WebSocketDiagnosticsCard() {
     };
   }, [disableForMobileOwner, isPrimaryDevice, patientNameCache, storeNameCache]);
 
-  if (disableForMobileOwner || !event) return null;
+  // Hidden on the owner's primary device and on the owner's phone (see above).
+  if (disableForMobileOwner || isPrimaryDevice || !event) return null;
 
   return (
     <Card 
-      className="fixed top-[calc(env(safe-area-inset-top,0px)+0.75rem)] right-4 w-80 p-3 bg-blue-50 dark:bg-blue-950 border-blue-200 text-blue-950 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100"
+      className="fixed top-[calc(env(safe-area-inset-top,0px)+0.75rem)] right-4 w-80 p-3 bg-blue-50 dark:bg-blue-950 border-blue-200 text-blue-950 shadow-lg z-[70500] animate-in fade-in slide-in-from-top-2 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
