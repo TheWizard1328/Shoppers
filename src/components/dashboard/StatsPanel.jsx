@@ -548,7 +548,7 @@ export default function StatsPanel({
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
             onMouseLeave={() => handleCardInteraction(false)}
-            onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border cursor-pointer w-full bg-surface border-surface" style={{ pointerEvents: 'auto', touchAction: 'none', position: 'relative', /* OWNER REQUEST Nov 18 2026: stats card 5px taller (extra breathing room under the last row). */ paddingBottom: 'calc(0.125rem + 5px)' }}>
+            onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border cursor-pointer w-full bg-surface border-surface" style={{ pointerEvents: 'auto', touchAction: 'none', position: 'relative', /* OWNER REQUEST Nov 18 2026: +5px breathing room under the last row. */ paddingBottom: 'calc(0.125rem + 5px)' }}>
 
           <div className="mb-0 flex items-center mt-0.25">
             {/* Left: title + status indicators — tapping anywhere here triggers manual refresh */}
@@ -1032,6 +1032,12 @@ export default function StatsPanel({
               </>}
             </motion.div>}
           </AnimatePresence>
+
+          {/* OWNER REQUEST Nov 18 2026: the stats card body itself must be 5px
+              taller. A real block (not padding) so the card's content box grows
+              and the container follows it — the earlier padding-only attempt
+              read as no size change. */}
+          <div aria-hidden="true" style={{ height: '5px', flex: '0 0 5px', pointerEvents: 'none' }} />
         </motion.div>
 
             {(() => {
