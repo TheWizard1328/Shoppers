@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
         const id = String(d?.delivery_id || '').toUpperCase();
         if (!id.startsWith('DID-')) continue;
         if (!looksInterStore(d)) continue;
-        damaged.push({ id: d.id, delivery_id: d.delivery_id, delivery_date: d.delivery_date, status: d.status, notes: String(d.delivery_notes || '').slice(0, 60) });
+        damaged.push({ id: d.id, delivery_id: d.delivery_id, delivery_date: d.delivery_date, status: d.status, notes: String(d.delivery_notes || ''), _interstore_stop_type: d._interstore_stop_type || d.interstore_stop_type || null.slice(0, 60) });
       }
       if (list.length < 500) break;
       skip += 500;
@@ -65,7 +65,10 @@ Deno.serve(async (req) => {
     const repaired: any[] = [];
     if (!dryRun) {
       for (const rec of damaged) {
-        const newId = `${prefixFor(rec)}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+        // prefixFor must see the record's own evidence (stop type + notes), not
+        // just the trimmed report row — otherwise every repair defaults to ISD
+        // and an inter-store PICKUP comes back as a drop-off.
+        const newId = `${prefixFor({ ...rec, delivery_notes: rec.notes })}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
         try {
           await base44.asServiceRole.entities.Delivery.update(String(rec.id), { delivery_id: newId });
           repaired.push({ id: rec.id, from: rec.delivery_id, to: newId });
