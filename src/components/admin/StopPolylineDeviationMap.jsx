@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Map as MapIcon, Plus, Trash2, RefreshCw, Crosshair, Loader2, Code2,
+  RotateCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
@@ -134,6 +135,29 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
   const [hereApiKey, setHereApiKey] = useState(null);
   const [tileKey, setTileKey] = useState(0);
 
+  // ── Fresh local polyline wins for a short window (owner report Nov 17 2026) ──
+  // "Whenever I add or delete a point ... the map actually updates the polyline
+  // but then it reverts back ... yet the deviation point that was added is still
+  // there." Two stale reads did that, both right after the redraw write:
+  //   1. refreshStop() re-reads the stop immediately, and updateDelivery is
+  //      IDB-first, so the server copy could still carry the OLD encoded string;
+  //   2. the parent keeps its opening snapshot of this stop, so the live-adoption
+  //      effect below stamped that old polyline straight back over the new one
+  //      (the waypoints had changed, so the fingerprint looked like a real edit).
+  // A polyline this panel just drew is therefore authoritative for the stop for
+  // LOCAL_POLYLINE_TTL_MS; waypoints still adopt from the server as usual.
+  const LOCAL_POLYLINE_TTL_MS = 25000;
+  const localPolylineRef = useRef({ id: '', encoded: '', at: 0 });
+  const keepLocalPolyline = useCallback((record) => {
+    if (!record) return record;
+    const lock = localPolylineRef.current;
+    if (!lock.encoded) return record;
+    if (String(lock.id) !== String(record.id || delivery?.id || '')) return record;
+    if (Date.now() - lock.at > LOCAL_POLYLINE_TTL_MS) return record;
+    if ((record.encoded_polyline || '') === lock.encoded) return record;
+    return { ...record, encoded_polyline: lock.encoded };
+  }, [delivery?.id]);
+
   // ── Live adoption of remote edits (owner request Nov 13 2026) ────────────
   // A deviation point added or deleted on another device reaches this one as a
   // fresh Delivery record, but the waypoints/encoded state above is initialised
@@ -154,10 +178,11 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
     if (busy) return;                       // never stomp a local write in flight
     if (liveFingerprint === lastLiveRef.current) return;
     lastLiveRef.current = liveFingerprint;
-    setWaypoints(readWaypoints(delivery));
-    setEncoded(delivery?.encoded_polyline || '');
+    const incoming = keepLocalPolyline(delivery);
+    setWaypoints(readWaypoints(incoming));
+    setEncoded(incoming?.encoded_polyline || '');
     setTileKey((k) => k + 1);               // repaint markers/polyline from the new data
-  }, [liveFingerprint, busy, delivery]);
+  }, [liveFingerprint, busy, delivery, keepLocalPolyline]);
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -198,11 +223,14 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
 
   // Panel switches stop → adopt that stop's data.
   useEffect(() => {
-    setWaypoints(readWaypoints(delivery));
-    setEncoded(delivery?.encoded_polyline || '');
+    const incoming = keepLocalPolyline(delivery);
+    setWaypoints(readWaypoints(incoming));
+    setEncoded(incoming?.encoded_polyline || '');
     setAddMode(false);
     setSelectedIdx(null);
-  }, [delivery?.id, delivery?.encoded_polyline]);
+    // Keyed on the stop only. Re-running on every encoded_polyline change let a
+    // stale prop overwrite a polyline this panel had just redrawn.
+  }, [delivery?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const path = useMemo(() => decodePolyline(encoded), [encoded]);
 
@@ -258,14 +286,15 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
     try {
       const fresh = (await base44.entities.Delivery.filter({ id: delivery.id }, '-updated_date', 1))?.[0];
       if (fresh) {
-        setWaypoints(readWaypoints(fresh));
-        setEncoded(fresh.encoded_polyline || '');
-        onChanged?.(fresh);
+        const merged = keepLocalPolyline(fresh);
+        setWaypoints(readWaypoints(merged));
+        setEncoded(merged.encoded_polyline || '');
+        onChanged?.(merged);
       }
     } catch (err) {
       console.warn('[StopPolylineDeviationMap] refresh failed:', err?.message);
     }
-  }, [delivery?.id, onChanged]);
+  }, [delivery?.id, onChanged, keepLocalPolyline]);
 
   // ── Redraw THIS stop's leg with the origin reassigned to the selected stop ──
   // Owner request Oct 30 2026: Redraw must re-anchor the leg on the selected
@@ -426,6 +455,7 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
       ...(Number.isFinite(Number(seg.estimatedDistanceKm)) ? { estimated_distance_km: Number(seg.estimatedDistanceKm) } : {}),
       ...(Number.isFinite(Number(seg.estimatedDurationMinutes)) ? { estimated_duration_minutes: Number(seg.estimatedDurationMinutes) } : {}),
     }, { skipSmartRefresh: true });
+    localPolylineRef.current = { id: delivery.id, encoded, at: Date.now() };
     setEncoded(encoded);
     return { success: true, originSource, points: decodePolyline(encoded).length };
   }, [delivery, resolveOriginForStop]);
@@ -534,6 +564,36 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
             title="Redraw THIS stop's leg, re-anchored on the selected stop (last finished stop, else previous stop, else home)"
           >
             {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Redraw
+          </Button>
+          {/* OWNER REQUEST (Nov 17 2026): "either fix this or add a refresh
+              button as well". Both: the stale-read guard above stops the
+              snap-back, and this button lets the owner pull the latest stored
+              polyline + deviation points for the stop on demand. */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[11px] gap-1"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setRedrawMsg(null);
+              try {
+                localPolylineRef.current = { id: '', encoded: '', at: 0 };
+                await refreshStop();
+                setTileKey((k) => k + 1);
+                setRedrawMsg({ ok: true, text: 'Reloaded the stored polyline and deviation points' });
+                toast.success('Map reloaded from the saved stop');
+              } catch (err) {
+                const why = err?.message || 'unknown';
+                setRedrawMsg({ ok: false, text: `Reload failed: ${why}` });
+                toast.error(`Reload failed: ${why}`);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            title="Reload the stored polyline and deviation points for this stop"
+          >
+            <RotateCw className="w-3 h-3" /> Reload
           </Button>
         </div>
         {redrawMsg &&
