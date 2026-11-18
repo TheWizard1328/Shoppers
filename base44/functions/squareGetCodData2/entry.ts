@@ -1200,6 +1200,19 @@ mark('after_db_cleanup');
   console.log('[squareGetCodData2] tx retention floor:', { floor: txRetentionFloor, uncollectedCandidates: uncollectedFloorCandidates.length, collectedTotal: allCollectedIds.size, collectedOld: collectedOldIds.size });
 
   let purgedTxRows = 0, purgedCatalogRows = 0;
+  // REFUND AFTER COLLECTION = UNCOLLECTED (owner rule Nov 18 2026). A COD whose
+  // money was refunded on a LATER date is not collected any more: the refund voids
+  // the ring, so the item must stay in the catalog and both Square pages must read
+  // it as uncollected. A NEW collection that lands after the refund confirms it
+  // again (that row keeps the delivery out of refundedDeliveryIds once it completes).
+  for (const did of refundedDeliveryIds) {
+    if (confirmedCollectedDeliveryIds.has(did)) continue;
+    const row = (activeDeliveriesWithAmounts || []).find((d) => String(d?.id) === did);
+    if (row?.cod_confirmed_collected) {
+      await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: false, cod_confirmed_collected_at: '' }).catch(() => null);
+      console.log('[squareGetCodData2] refund voided the collection — cleared stamp for', did);
+    }
+  }
   // Stamp THIS run's confirmed collections (durable evidence on the Delivery).
   for (const did of confirmedCollectedDeliveryIds) {
     await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: true, cod_confirmed_collected_at: new Date().toISOString() }).catch((e) => console.warn('[squareGetCodData2] flag stamp failed for', did, e?.message || e));
