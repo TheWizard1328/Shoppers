@@ -48,11 +48,17 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   const mobileOverlayStyle = useMobileFullscreen
     ? { padding: 0, ...(phoneViewportH > 0 ? { top: 0, left: 0, right: 0, bottom: 'auto', height: `${phoneViewportH}px` } : {}) }
     : undefined;
-  const mobileCardStyle = useMobileFullscreen
-    ? {
-        paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
-        paddingBottom: isNativeShell ? 'max(env(safe-area-inset-bottom, 0px), 14px)' : '6px',
-      }
+  // OWNER SPEC (Nov 18 2026): full screen on mobile with the SAME APK inset
+  // handling the edit forms use — the card runs edge to edge and the insets live on
+  // the chrome rows: the title bar clears the status bar / APK top gap, the composer
+  // clears the bottom nav / home indicator. Putting the pads on the card left dead
+  // bands above the title and under the composer.
+  const mobileCardStyle = undefined;
+  const mobileHeaderSafeTop = useMobileFullscreen
+    ? (isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)')
+    : undefined;
+  const mobileComposerSafeBottom = useMobileFullscreen
+    ? (isNativeShell ? 'max(env(safe-area-inset-bottom, 0px), 14px)' : '6px')
     : undefined;
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
   // Patient portal threads (owner build Nov 2 2026) live beside staff chat.
@@ -141,7 +147,9 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
         {/* Header — dark mode mirrors the patient portal panel (owner request
             Nov 3 2026): slate card, slate-100/800 icon buttons, no washed-out
             light-only surfaces. */}
-        <div className="p-4 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+        <div
+          className="px-4 pb-4 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700"
+          style={mobileHeaderSafeTop ? { paddingTop: `calc(${mobileHeaderSafeTop} + 1rem)` } : { paddingTop: '1rem' }}>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Messages</h2>
           <div className="flex items-center gap-2">
             <button
@@ -265,6 +273,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
                 onBack={handleBack}
                 onMessagesRead={handleMessagesRead}
                 canDelete={isAppOwner(currentUser)}
+                composerSafeBottom={mobileComposerSafeBottom}
                 autoFocus={!!(initialConversation && initialConversation.conversationId === selectedConversation.conversationId)}
               />
             ) : (

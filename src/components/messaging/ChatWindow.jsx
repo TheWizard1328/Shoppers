@@ -15,6 +15,35 @@ import {
   isHiddenSystemBroadcastMessageForThisDevice } from
 './updateBroadcastConfig';
 
+// OWNER REPORT (Nov 18 2026): incoming messages were landing out of order or not
+// showing at all. Two causes: a realtime row was appended blindly (so a message with
+// an older timestamp sat below newer ones, and a duplicate id could appear twice),
+// and a row arriving without conversation_id was dropped by the guard above. Every
+// update now goes through one merge that dedupes by id and re-sorts oldest→newest,
+// which keeps the newest message at the bottom where it belongs.
+const messageTimeMs = (m) => {
+  const t = Date.parse(m?.created_date || '');
+  if (Number.isFinite(t)) return t;
+  return Number(m?.__optimistic ? Number.MAX_SAFE_INTEGER : 0);
+};
+
+export function mergeMessages(prev, incoming) {
+  const byId = new Map();
+  for (const m of (Array.isArray(prev) ? prev : [])) {
+    if (m?.id) byId.set(String(m.id), m);
+  }
+  for (const m of (Array.isArray(incoming) ? incoming : [])) {
+    if (!m) continue;
+    const key = String(m.id || `${m.sender_id}-${m.created_date}-${m.content || ''}`);
+    byId.set(key, { ...(byId.get(key) || {}), ...m });
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const d = messageTimeMs(a) - messageTimeMs(b);
+    if (d !== 0) return d;
+    return String(a?.id || '').localeCompare(String(b?.id || ''));
+  });
+}
+
 function ChatWindow({
   currentUser,
   conversationId,
@@ -28,7 +57,10 @@ function ChatWindow({
   // DELETE RIGHTS (owner request Nov 4 2026): only the AppOwner may delete a
   // message or a whole thread. The parent passes this in from isAppOwner().
   canDelete = false,
-  onThreadDeleted
+  onThreadDeleted,
+  // Full-bleed mobile panel passes the bottom-nav / home-indicator pad here so the
+  // composer row (not the whole card) clears the chrome.
+  composerSafeBottom
 }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -127,7 +159,7 @@ function ChatWindow({
         const visibleMessages = (allMessages || []).filter(
           (message) => !isHiddenSystemBroadcastMessageForThisDevice(message?.id)
         );
-        setMessages(visibleMessages);
+        setMessages(mergeMessages([], visibleMessages));
 
         // Mark unread messages as read
         const unreadMessages = visibleMessages.filter(
@@ -162,13 +194,21 @@ function ChatWindow({
 
     const handleRealtimeMessage = (payload) => {
       const event = payload?.detail || payload;
-      if (event.data?.conversation_id !== conversationId || isHiddenSystemBroadcastMessageForThisDevice(event.data?.id)) return;
+      const row = event?.data;
+      if (isHiddenSystemBroadcastMessageForThisDevice(row?.id)) return;
+      // OWNER REPORT (Nov 18 2026): an incoming row written without conversation_id
+      // (older clients, patient/driver threads) was silently dropped here, so the
+      // message never appeared until the thread was reopened. A 1:1 row that matches
+      // this thread's participant pair is accepted and stamped with the conversation.
+      const pairMatch = !!row && !group && otherUserId && (
+        (String(row.sender_id || '') === String(currentUser?.id) && String(row.receiver_id || '') === String(otherUserId)) ||
+        (String(row.sender_id || '') === String(otherUserId) && String(row.receiver_id || '') === String(currentUser?.id))
+      );
+      if (String(row?.conversation_id || '') !== String(conversationId) && !pairMatch) return;
+      if (!row?.conversation_id) event.data = { ...row, conversation_id: conversationId };
       if (event.type === 'create' || event.type === 'update') {
         cacheMessages([event.data]).catch(() => {});
-        setMessages((prev) => {
-          const exists = prev.some((m) => m.id === event.data.id);
-          return exists ? prev.map((m) => m.id === event.data.id ? event.data : m) : [...prev, event.data];
-        });
+        setMessages((prev) => mergeMessages(prev, [event.data]));
         markMessageRead(event.data);
       }
     };
@@ -265,13 +305,9 @@ function ChatWindow({
 
       setNewMessage('');
       removePendingImage();
-      setMessages((prev) => {
-        // Dedupe: the realtime create event may have already appended this
-        // message before handleSend resumed from the await. Appending again
-        // would render a duplicate that only clears on refresh.
-        if (createdMessage?.id && prev.some((m) => m.id === createdMessage.id)) return prev;
-        return [...prev, createdMessage].filter(Boolean);
-      });
+      // Dedupe + time order: the realtime create event may already have delivered
+      // this row, and mergeMessages drops the duplicate instead of rendering it twice.
+      if (createdMessage) setMessages((prev) => mergeMessages(prev, [createdMessage]));
       shouldRestoreFocusRef.current = true;
       restoreInputFocus(isMobileRef.current ? 60 : 0);
     } catch (error) {
@@ -481,7 +517,12 @@ function ChatWindow({
       }
 
       {/* Input */}
-      <div className="p-3 bg-surface" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
+      <div
+        className="px-3 pt-3 bg-surface"
+        style={{
+          borderTop: '1px solid var(--border-slate-200)',
+          ...(composerSafeBottom ? { paddingBottom: `calc(${composerSafeBottom} + 0.75rem)` } : { paddingBottom: '0.75rem' }),
+        }}>
         <div className="flex gap-2">
           <input
             ref={fileInputRef}
@@ -559,7 +600,8 @@ const areChatWindowPropsEqual = (prevProps, nextProps) => {
     (prevProps.currentUser?.user_name || prevProps.currentUser?.full_name) === (nextProps.currentUser?.user_name || nextProps.currentUser?.full_name) &&
     prevProps.onBack === nextProps.onBack &&
     prevProps.onMessagesRead === nextProps.onMessagesRead &&
-    prevProps.autoFocus === nextProps.autoFocus);
+    prevProps.autoFocus === nextProps.autoFocus &&
+    prevProps.composerSafeBottom === nextProps.composerSafeBottom);
 
 };
 

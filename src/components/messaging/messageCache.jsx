@@ -136,15 +136,24 @@ export async function loadConversationMessages({ conversationId, otherUserId = n
   const refresh = async () => {
     try {
       let rows = await base44.entities.Message.filter({ conversation_id: conversationId }, '-created_date', limit).catch(() => null);
-      if (!rows || rows.length === 0) {
-        // Legacy rows may not carry a conversation_id — fall back to the
-        // participant pair so a 1:1 thread can never open empty.
+      // OWNER REPORT (Nov 18 2026): incoming messages were missing from threads and
+      // could not be found. The pair fallback only ran when the conversation_id query
+      // came back EMPTY, so a single row carrying a conversation_id (usually our own
+      // outgoing message) hid every legacy/pair-only row from the other side. The pair
+      // is now always merged in for a 1:1 thread and deduped by id.
+      if (currentUserId && otherUserId) {
         const pair = [];
-        if (currentUserId && otherUserId) {
-          pair.push(...(await base44.entities.Message.filter({ sender_id: currentUserId, receiver_id: otherUserId }, '-created_date', limit).catch(() => []) || []));
-          pair.push(...(await base44.entities.Message.filter({ sender_id: otherUserId, receiver_id: currentUserId }, '-created_date', limit).catch(() => []) || []));
+        pair.push(...(await base44.entities.Message.filter({ sender_id: currentUserId, receiver_id: otherUserId }, '-created_date', limit).catch(() => []) || []));
+        pair.push(...(await base44.entities.Message.filter({ sender_id: otherUserId, receiver_id: currentUserId }, '-created_date', limit).catch(() => []) || []));
+        if (pair.length > 0) {
+          const byId = new Map();
+          for (const m of [...(rows || []), ...pair]) {
+            if (!m) continue;
+            const key = String(m.id || `${m.sender_id}-${m.created_date}-${m.content || ''}`);
+            if (!byId.has(key)) byId.set(key, m);
+          }
+          rows = Array.from(byId.values());
         }
-        rows = pair;
       }
       const list = (rows || []).filter(Boolean).map((m) => (m.conversation_id ? m : { ...m, conversation_id: conversationId }));
       await cacheMessages(list);
