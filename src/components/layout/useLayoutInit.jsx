@@ -118,12 +118,21 @@ export function useLayoutInit({
         // Wrap the entire bootstrap Promise.all in a timeout — if ANY single
         // getAll() call hangs (not rejects), the .catch(() => []) is useless
         // because catch only fires on rejection, not on a promise that never settles.
+        // OWNER FIX (Nov 18 2026): the network manifest call used to live inside the
+        // SAME Promise.all as the local IDB reads, so on a weak signal a slow
+        // getBootstrapManifest burned the whole 10s budget and the boot threw away
+        // perfectly good local data ("continuing with empty IDB data"). The two are
+        // now raced separately: both start together, the local reads get their 10s,
+        // and the network call keeps its own 10s budget. Wall time is still
+        // max(idb, manifest) — not the sum — so a slow network can no longer blank
+        // the boot, a slow disk can no longer hide the manifest, and the worst-case
+        // boot wait is unchanged at ~10s.
+        const _manifestPromise = requestThrottler.queue(
+          () => base44.functions.invoke('getBootstrapManifest', { deviceIdentifier, todayStr }),
+          'critical', 'getBootstrapManifest'
+        ).catch((e) => ({ _error: e }));
+
         const _bootstrapPromise = Promise.all([
-          // Slim backend call: device check + HERE API key only (no entity fetches)
-          requestThrottler.queue(
-            () => base44.functions.invoke('getBootstrapManifest', { deviceIdentifier, todayStr }),
-            'critical', 'getBootstrapManifest'
-          ).catch((e) => ({ _error: e })),
           // IDB-FIRST BOOT (owner directive Oct 22 2026): NEVER preload the whole
           // offline store at boot again — 20k+ delivery records + 4k+ patients were
           // read AND decrypted here every boot, blowing the 10s bootstrap timeout
@@ -148,18 +157,25 @@ export function useLayoutInit({
         // True when the offline read itself failed/was too slow — NOT when the
         // cache is genuinely empty (see the priority-fetch gate below).
         let bootstrapReadFailed = false;
+        // Local reads first — a stalled/slow NETWORK call must never discard them.
         try {
           [
-            offlineManifestResult,
             offlineDels, offlineAppUsers, offlineStores, offlineCities,
             sqConfigs, sqCatalog, sqTx, offlineInterStoreLocations,
-          ] = await _withTimeout(_bootstrapPromise, 10000, 'bootstrap Promise.all');
+          ] = await _withTimeout(_bootstrapPromise, 10000, 'bootstrap IDB reads');
         } catch (bootTimeoutErr) {
-          console.error('❌ [Init] Bootstrap Promise.all timed out — continuing with empty IDB data:', bootTimeoutErr.message);
+          console.error('❌ [Init] Bootstrap IDB reads timed out — continuing with empty IDB data:', bootTimeoutErr.message);
           bootstrapReadFailed = true;
-          offlineManifestResult = { _error: bootTimeoutErr };
           offlineDels = []; offlineAppUsers = []; offlineStores = [];
           offlineCities = []; sqConfigs = []; sqCatalog = []; sqTx = []; offlineInterStoreLocations = [];
+        }
+        // Then the manifest, with its own budget (it has been running in parallel
+        // since before the IDB reads, so this adds no latency in the normal case).
+        try {
+          offlineManifestResult = await _withTimeout(_manifestPromise, 10000, 'bootstrap manifest');
+        } catch (manifestTimeoutErr) {
+          console.warn('⚠️ [Init] Bootstrap manifest slow/unavailable — continuing on cached device state:', manifestTimeoutErr.message);
+          offlineManifestResult = { _error: manifestTimeoutErr };
         }
 
         // The four critical stores are read strictly: null means the offline READ

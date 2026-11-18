@@ -202,7 +202,10 @@ class OfflineManager {
         }
       }
     } catch (error) {
-      console.error('ℹ️ [OfflineManager] Service worker background sync not available');
+      // Informational, not an error: the browser simply has no Background Sync
+      // (iOS Safari, some WebViews). Logged at info so it stops polluting the
+      // hourly error digest (owner report Nov 18 2026).
+      console.log('ℹ️ [OfflineManager] Service worker background sync not available');
     }
   }
 
