@@ -7,6 +7,7 @@ import { loadPatientThreadMessages, isPatientSender } from './patientThreads';
 import { X, Search, Users } from 'lucide-react';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { useDevice } from '@/components/utils/DeviceContext';
+import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
 import { hideSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
 
@@ -20,6 +21,11 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   // safe area, so native keeps a 30px/14px floor; a browser/PWA phone uses the real
   // env() values only, so nothing is wasted when the gap is not needed.
   const { isMobile, isTabletPortrait } = useDevice();
+  // OWNER SPEC (Nov 18 2026): on anything that is not a phone the dialog centres in
+  // the CONTENT area, not the whole window — the sidebar width is measured live
+  // (it is user-resizable), so the card sits centred between the sidebar and the
+  // right edge instead of hiding behind the sidebar.
+  const { area: contentArea } = useMobileChromeHeights(true);
   const useMobileFullscreen = !!isMobile && !isTabletPortrait;
   const isNativeShell = (() => {
     try {
@@ -47,7 +53,9 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   }, [useMobileFullscreen]);
   const mobileOverlayStyle = useMobileFullscreen
     ? { padding: 0, ...(phoneViewportH > 0 ? { top: 0, left: 0, right: 0, bottom: 'auto', height: `${phoneViewportH}px` } : {}) }
-    : undefined;
+    : (contentArea && contentArea.width > 0
+        ? { paddingLeft: `${contentArea.left}px`, paddingRight: 0 }
+        : undefined);
   // OWNER SPEC (Nov 18 2026): full screen on mobile with the SAME APK inset
   // handling the edit forms use — the card runs edge to edge and the insets live on
   // the chrome rows: the title bar clears the status bar / APK top gap, the composer
