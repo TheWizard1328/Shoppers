@@ -26,6 +26,19 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
     markDeleted(deliveryId, targetDelivery);
     console.log(`🛡️ [DELETE Handler] Marked ${deliveryId} in deleted-delivery registry`);
 
+    // CARD BALANCE REVERSAL (owner rule Nov 18 2026, Londonderry $10.50): a
+    // COD to collect that was being deducted from the store card estimate must
+    // be ADDED BACK when its delivery is deleted — otherwise the card reads
+    // short by exactly that amount with no row anywhere to explain it.
+    // Fire-and-forget: never block or fail a delete on balance bookkeeping.
+    try {
+      const { reverseCodDeductionForDelivery } = await import('./cardBalanceAdjustments');
+      reverseCodDeductionForDelivery(targetDelivery, {
+        kind: 'delivery_deleted',
+        storeName: targetDelivery?.store_name || null,
+      }).catch(() => null);
+    } catch (_) { /* non-fatal */ }
+
     console.log('🗑️ [DELETE Handler] Step 2: Deleting from offline DB and backend...');
     const { deleteDeliveryLocal } = await import('./offlineMutations');
     await deleteDeliveryLocal(deliveryId);

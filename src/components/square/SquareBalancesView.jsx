@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
 import { changeCodTender, refundCodDelivery } from "./codTenderActions";
+import { sumAdjustmentsByLoc } from '@/components/utils/cardBalanceAdjustments';
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage, healDeliveryMirror } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
 import { fetchLatestSharedSnapshot, subscribeSharedSnapshot } from "./squareBalancesSharedSnapshot";
@@ -2405,7 +2406,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (!payoutCentsByLoc.has(pw.location_id)) payoutCentsByLoc.set(pw.location_id, []);
       payoutCentsByLoc.get(pw.location_id).push(Math.round(Number(pw.amount_cents || 0)));
     }
+    // CARD ADJUSTMENTS (owner rule Nov 18 2026): a COD that was deducted from
+    // the card estimate and then removed (COD cleared, or its delivery
+    // deleted) is added back here so the balance stops reading short by that
+    // exact amount. Scope mirrors credits/withdrawals: since the last true-up.
+    const adjustmentCentsByLoc = sumAdjustmentsByLoc(config, config?.trued_up_at || null);
     return (config.locations || []).map((loc) => {
+      const adjCents = adjustmentCentsByLoc.get(String(loc.location_id)) || 0;
       // OWNER SPEC (Oct 7 2026) — STRICTLY DELIVERY DATA: gross/fees/loan/
       // folder/credits come from FINISHED deliveries' recorded Debit/Credit
       // cod_payments (loadDeliveryCardCredits), net of the fee rate sheet.
@@ -2491,10 +2498,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // Full integer-cent estimate (owner spec Oct 7 2026, "CW $10.64 vs
         // $10.65"): float dollar addition can land a cent off — sum cents,
         // divide once.
-        cardEstimate: (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100,
+        cardEstimate: (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents + adjCents) / 100,
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
-        level: getBalanceLevel((Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100, Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        level: getBalanceLevel((Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents + adjCents) / 100, Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         pendingDeducted: r2(displayDeductCents / 100),
         pendingDeductCount: displayDeductCount,
         balanceDeduction: r2(pendingDeductCents / 100),

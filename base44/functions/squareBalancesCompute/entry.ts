@@ -641,6 +641,22 @@ async function computeSummary(b44, userId) {
 
   // ── per-card balance math (computeByLocId port) ──
   const byLocId = new Map();
+  // CARD ADJUSTMENTS (owner rule Nov 18 2026, Londonderry $10.50): a COD that
+  // was deducted from the card estimate and then removed (COD cleared, or its
+  // delivery deleted) is added back here so the balance stops reading short.
+  // Scope mirrors credits/withdrawals: since the last true-up.
+  const adjCentsByLoc = new Map<string, number>();
+  for (const a of (Array.isArray((config as any)?.card_adjustments) ? (config as any).card_adjustments : [])) {
+    const locId = String(a?.location_id || '');
+    if (!locId) continue;
+    if (tuMs != null) {
+      const at = a?.at ? new Date(a.at).getTime() : null;
+      if (at == null || !Number.isFinite(at) || at < tuMs) continue;
+    }
+    const cents = Math.round(Number(a?.amount_cents || 0));
+    if (!cents) continue;
+    adjCentsByLoc.set(locId, (adjCentsByLoc.get(locId) || 0) + cents);
+  }
   for (const loc of (config.locations || [])) {
     const _dc = deliveryCredits.get?.(loc.location_id) || {};
     const credits = Number(_dc.credits || 0);
@@ -684,7 +700,8 @@ async function computeSummary(b44, userId) {
       if (mark?.notTapped === true && !markSupersededBySpend) continue;
       pendingDeductCents += cents; pendingDeductCount += 1;
     }
-    const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100;
+    const adjCents = adjCentsByLoc.get(String(loc.location_id)) || 0;
+    const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents + adjCents) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,

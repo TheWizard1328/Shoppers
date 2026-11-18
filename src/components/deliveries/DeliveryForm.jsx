@@ -1465,7 +1465,16 @@ export default function DeliveryForm({
       // COD removed on an existing delivery — clear payment bookkeeping on the save
       // (replicates the old updateSquareCODIfChanged case-2 mutation).
       const codRemovedOnEdit = delivery?.id && Number(delivery.cod_total_amount_required || 0) > 0 && Number(formData.cod_total_amount_required || 0) <= 0;
-      if (codRemovedOnEdit) { dataToSave.cod_payments = []; dataToSave.cod_payment_type = 'No Payment'; dataToSave.cod_amount = ''; }
+      if (codRemovedOnEdit) {
+        dataToSave.cod_payments = []; dataToSave.cod_payment_type = 'No Payment'; dataToSave.cod_amount = '';
+        // CARD BALANCE REVERSAL (owner rule Nov 18 2026, Londonderry $10.50):
+        // the COD was being deducted from the store card estimate, so removing
+        // it must add that amount back. Fire-and-forget, never blocks the save.
+        try {
+          const { reverseCodDeductionForDelivery } = await import('../utils/cardBalanceAdjustments');
+          reverseCodDeductionForDelivery({ ...delivery, id: delivery.id, cod_total_amount_required: delivery.cod_total_amount_required, store_id: delivery.store_id || formData.store_id, patient_name: delivery.patient_name || formData.patient_name }, { kind: 'cod_removed', storeName: delivery?.store_name || null }).catch(() => null);
+        } catch (_) { /* non-fatal */ }
+      }
       if (delivery?.id) {
         // Re-sync the baseline to the value we're about to commit — once this save
         // lands, that status is the new known-safe value, so live updates for the

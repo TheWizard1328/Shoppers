@@ -1876,6 +1876,27 @@ export function computePendingCodDeduction(outstandingItems, marksMap, excludeId
   return { deductCents, count };
 }
 
+// CARD ADJUSTMENTS (owner rule Nov 18 2026, Londonderry $10.50): a COD that was
+// deducted from the card estimate and then removed (COD cleared, or its
+// delivery deleted) is added back here. Kept local to avoid an import cycle
+// with cardBalanceAdjustments (which reads this module's store->location map).
+function sumCardAdjustmentsByLoc(config, sinceIso = null) {
+  const out = new Map();
+  const since = sinceIso ? new Date(sinceIso).getTime() : null;
+  for (const a of Array.isArray(config?.card_adjustments) ? config.card_adjustments : []) {
+    const loc = String(a?.location_id || '');
+    if (!loc) continue;
+    if (since != null) {
+      const at = a?.at ? new Date(a.at).getTime() : null;
+      if (at == null || !Number.isFinite(at) || at < since) continue;
+    }
+    const cents = Math.round(Number(a?.amount_cents || 0));
+    if (!cents) continue;
+    out.set(loc, (out.get(loc) || 0) + cents);
+  }
+  return out;
+}
+
 function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc, payoutCentsByLoc, codOutstandingDetailed, marksMap, truedUpAt, countedIdsSet }) {
   // OWNER SPEC (Oct 7 2026): the credit side of the estimate comes STRICTLY
   // from delivery data — finished deliveries' Debit/Credit cod_payments,
@@ -1883,6 +1904,7 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
   // The Square-ledger sale scan is gone: it only ever held half the
   // collections (broken link chains, pending entries, unlinked rings).
   const byLocId = new Map();
+  const adjustmentCentsByLoc = sumCardAdjustmentsByLoc(config, config?.trued_up_at || null);
   for (const loc of (config.locations || [])) {
     const _dc = deliveryCredits?.get?.(loc.location_id) || {};
     const credits = Number(_dc.credits || 0);
@@ -1960,7 +1982,11 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
     }
     // Full integer-cent estimate (owner spec Oct 7 2026): float dollar
     // addition (e.g. 96.85 + 97.64 − 53.05) can land a cent off — sum cents.
-    const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents) / 100;
+    // CARD ADJUSTMENTS (owner rule Nov 18 2026, Londonderry $10.50): a COD
+    // that was deducted and then removed (COD cleared, or its delivery deleted)
+    // is added back so the estimate stops reading short by that amount.
+    const adjCents = adjustmentCentsByLoc.get(String(loc.location_id)) || 0;
+    const cardEstimate = (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents + adjCents) / 100;
     const codAvg = Math.round(Number(weeklyAvgByLoc?.[loc.location_id] || 0) * 100) / 100;
     byLocId.set(loc.location_id, {
       name: loc.name || loc.location_id,
