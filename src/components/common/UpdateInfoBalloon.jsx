@@ -37,7 +37,7 @@ const BALLOON_WIDTH = 250;
  *   cta:             short call-to-action hint (e.g. 'Tap to update')
  *   onClick:         action fired when the balloon is tapped
  *
- * Rendering uses createPortal to document.body with z-index 11000 — outside
+ * Rendering uses createPortal to document.body with z-index 1000000 — outside
  * the nav/header stacking contexts, so nothing (stop cards included) covers it.
  */
 function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = '#2563EB', icon = '⬆️', title, message, cta, onClick, persistent = false }) {
@@ -126,7 +126,7 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
         ...(direction === 'right' ? { top: `${pos.main.top}px` } : { left: `${pos.left}px` }),
         ...pos.main,
         width: `${BALLOON_WIDTH}px`,
-        zIndex: 11000,
+        zIndex: 1000000,
         background: '#1f2937',
         color: '#fff',
         borderRadius: '10px',
