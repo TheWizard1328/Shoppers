@@ -56,10 +56,46 @@ export const resolveDeliveryCompanyId = (currentUser) => {
 export const isCyclingMarkerPayload = (d) =>
   d?.is_cycling_marker === true || String(d?.delivery_notes || '').includes('Cycling Route');
 
+// ── INTER-STORE IDENTITY (owner rule Nov 17 2026) ──────────────────────────
+// "Whatever is changing ISD/ISP to DID, remove it." An inter-store leg must
+// NEVER carry a DID- id: dashboard stats, payroll, admin metrics, marker type
+// and every inter-store lookup read the prefix. These helpers are the single
+// source of truth for what a record is, and mintDeliveryIdForPayload is now the
+// ONLY place a delivery id is created.
+export const looksInterStorePayload = (d) => {
+  if (!d) return false;
+  // A patient stop is never an inter-store leg, whatever its notes say.
+  if (String(d.patient_id || '').trim()) return false;
+  const id = String(d.delivery_id || '').toUpperCase();
+  if (id.startsWith('ISD-') || id.startsWith('ISP-')) return true;
+  const notes = String(d.delivery_notes || '').toLowerCase();
+  if (notes.includes('interstore') || notes.includes('inter-store') || notes.includes('inter store')) return true;
+  return !!(d.interstore_dest_id || d._interstore_dest_id ||
+    d.interstore_source_id || d._interstore_source_id ||
+    d._interstore_stop_type);
+};
+
+export const interStorePrefixForPayload = (d) => {
+  const kind = String(d?._interstore_stop_type || '').toLowerCase();
+  if (kind === 'dropoff' || kind === 'drop-off') return 'ISD';
+  if (kind === 'pickup') return 'ISP';
+  const notes = String(d?.delivery_notes || '').toLowerCase();
+  if (/drop\s*-?\s*off/.test(notes)) return 'ISD';
+  if (/pick\s*-?\s*up/.test(notes)) return 'ISP';
+  // Fall back to whatever the mangled id said, then to drop-off.
+  return String(d?.delivery_id || '').toUpperCase().startsWith('ISP') ? 'ISP' : 'ISD';
+};
+
 export const generateDeliveryIdValue = (d) => {
+  if (looksInterStorePayload(d)) {
+    return `${interStorePrefixForPayload(d)}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  }
   const prefix = isCyclingMarkerPayload(d) ? 'BIK' : 'DID';
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 };
+
+/** Single entry point for minting a delivery id — never returns DID- for an inter-store leg. */
+export const mintDeliveryIdForPayload = (d) => generateDeliveryIdValue(d);
 
 /**
  * Returns a copy of a delivery payload with delivery_id and company_id filled
@@ -72,6 +108,14 @@ export const ensureDeliveryIdentity = (payload, currentUser) => {
   let changed = false;
   if (!String(next.delivery_id || '').trim()) {
     next.delivery_id = generateDeliveryIdValue(next);
+    changed = true;
+  } else if (/^DID-/i.test(String(next.delivery_id)) && looksInterStorePayload(next)) {
+    // REPAIR (owner rule Nov 17 2026): an inter-store leg was saved with a DID-
+    // id. Restore the correct prefix on write so the record is paid, listed and
+    // rendered as an inter-store leg everywhere again.
+    const repaired = generateDeliveryIdValue(next);
+    console.warn('[deliveryIdentity] repaired inter-store delivery_id', next.delivery_id, '->', repaired);
+    next.delivery_id = repaired;
     changed = true;
   }
   if (!String(next.company_id || '').trim()) {

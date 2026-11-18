@@ -16,7 +16,7 @@ import { optimizeRoute } from '@/components/utils/routeOptimizer';
 import { filterDeleted } from '@/components/utils/deletedDeliveryRegistry';
 import { requestDeferredOptimization, pauseDeferredOptimization } from '@/components/utils/optimizationDebouncer';
 import { recalculateAndUpdateStopOrders } from '@/components/utils/stopOrderManager';
-import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
+import { resolveDeliveryCompanyId, mintDeliveryIdForPayload } from '@/components/utils/deliveryIdentity';
 import { isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
 function addMinutes(time, mins) {
@@ -467,7 +467,9 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       const stopStore = stores.find((s) => s && s.id === stop.store_id);
       stop.stop_order = i + 1;
       if (!stop.stop_id) stop.stop_id = generateUniqueSID(allDeliveriesForDate);
-      const deliveryId = stop.delivery_id || (stop.is_cycling_marker ? `BIK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+      // Never mint DID- for an inter-store leg (owner rule Nov 17 2026) — the id
+      // prefix is what marks a stop as paid ISD/ISP everywhere downstream.
+      const deliveryId = stop.delivery_id || mintDeliveryIdForPayload(stop);
       const payload = {
         delivery_id: deliveryId, company_id: resolveDeliveryCompanyId(currentUser), patient_id: stop.patient_id || null, store_id: stop.store_id,
         driver_id: driverId, driver_name: driver.user_name || driver.full_name, delivery_date: stop.delivery_date,

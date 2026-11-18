@@ -10,7 +10,7 @@ import {
   getNextPickupTrackingNumber
 } from './pickupBaseNumbering';
 import { calculateDistanceKmSafe as calculateDistance } from '@/components/utils/geoUtils';
-import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
+import { resolveDeliveryCompanyId, mintDeliveryIdForPayload } from '@/components/utils/deliveryIdentity';
 
 export const handleBatchSaveDelivery = async ({
   deliveryData,
@@ -412,7 +412,9 @@ export const handleBatchSaveDelivery = async ({
       }
 
       // CRITICAL: Generate delivery_id for new stops
-      const deliveryId = stop.delivery_id || (stop.is_cycling_marker ? `BIK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+      // Never mint DID- for an inter-store leg (owner rule Nov 17 2026) — the id
+      // prefix is what marks a stop as paid ISD/ISP everywhere downstream.
+      const deliveryId = stop.delivery_id || mintDeliveryIdForPayload(stop);
       const dispatcherId = stop.dispatcher_id || currentUser?.id || null;
       const createdByAppUserId = stop.created_by_app_user_id || currentAppUserId || null;
 

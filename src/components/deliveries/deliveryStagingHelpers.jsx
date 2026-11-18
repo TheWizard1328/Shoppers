@@ -1,5 +1,5 @@
 import { isFirstDeliveryPatient } from '@/components/utils/patientHistoryUtils';
-import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
+import { resolveDeliveryCompanyId, mintDeliveryIdForPayload } from '@/components/utils/deliveryIdentity';
 
 /**
  * OWNER REPORT Nov 16 2026: "that interstore drop off had its delivery ID prefix of
@@ -72,7 +72,7 @@ export const buildPickupStagedDelivery = ({ formData, codAmount, store, timeSlot
     unit_number: '',
     cod_total_amount_required: codAmount,
     delivery_date: formData.delivery_date,
-    delivery_id: isInterStoreDraft(formData) ? buildInterStoreDeliveryId(formData) : `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+    delivery_id: isInterStoreDraft(formData) ? buildInterStoreDeliveryId(formData) : mintDeliveryIdForPayload({ ...formData, patient_id: '' }),
     company_id: resolveDeliveryCompanyId(),
     driver_id: formData.driver_id,
     driver_name: formData.driver_name,
@@ -129,7 +129,7 @@ export const buildPatientStagedDelivery = ({
   // staged path with NO delivery_id and NO company_id, so every stop staged
   // here reached the database with a blank company_id. Stamp both at the
   // source, exactly like the pickup builder above.
-  delivery_id: isInterStoreDraft(formData) ? buildInterStoreDeliveryId(formData) : `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+  delivery_id: isInterStoreDraft(formData) ? buildInterStoreDeliveryId(formData) : mintDeliveryIdForPayload(formData),
   company_id: resolveDeliveryCompanyId(),
   time_window_start: formData.time_window_start || patient?.time_window_start || '',
   time_window_end: formData.time_window_end || patient?.time_window_end || '',
