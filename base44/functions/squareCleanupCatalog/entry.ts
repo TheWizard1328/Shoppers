@@ -146,7 +146,7 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
     const txRows = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 4000).catch(() => []);
     for (const t of (Array.isArray(txRows) ? txRows : [])) {
       const st = String(t?.status || '').toLowerCase();
-      if (st !== 'refunded' && st !== 'refund' && st !== 'voided') continue;
+      if (!['refunded','refund','voided','cancelled','canceled'].includes(st)) continue;
       const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
       if (sig && !sig.startsWith('::0')) refundedSignatureSet.add(sig);
     }
@@ -174,6 +174,16 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
 
   if (!toDelete.length) return { success: true, deleted: [], message: 'No collected catalog items found' };
 
+  // A deleted item must be remembered as collected, or the next create run rebuilds
+  // it and the catalog churns forever (owner report Nov 17 2026: three months of
+  // CODs added, then deleted, then added again). The item description carries our
+  // delivery id, so stamp that delivery collected — except any refunded/cancelled
+  // ring, which proves nothing.
+  const descIdByObj = new Map();
+  for (const item of toDelete) {
+    const m = String(item?.item_data?.description || '').match(/delivery\s+([a-f0-9]{24})/i);
+    if (m) descIdByObj.set(item.id, m[1]);
+  }
   const objectIds = toDelete.map((i) => i.id).filter(Boolean);
   const deleteResult = await deleteCatalogObjects(objectIds, accessToken);
 
@@ -183,7 +193,11 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
     for (const r of dbMatches) await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null);
     // Also mark related pending transactions as completed
     const txMatches = await base44.asServiceRole.entities.SquareTransaction.filter({ square_catalog_object_id: objId, status: 'pending' }).catch(() => []);
-    for (const t of txMatches) await base44.asServiceRole.entities.SquareTransaction.update(t.id, { status: 'completed', raw_square_data: { ...(t.raw_square_data||{}), deleted_at: new Date().toISOString(), deleted_reason: 'collected_cleanup' } }).catch(() => null);
+    // NEVER stamp 'completed' here: that fabricated collection proof and made a
+    // refunded COD look collected on the next run (owner report Nov 17 2026).
+    const stampId = descIdByObj.get(objId);
+    if (stampId) await base44.asServiceRole.entities.Delivery.update(stampId, { cod_confirmed_collected: true, cod_confirmed_collected_at: new Date().toISOString() }).catch(() => null);
+    for (const t of txMatches) await base44.asServiceRole.entities.SquareTransaction.update(t.id, { status: 'archived', raw_square_data: { ...(t.raw_square_data||{}), deleted_at: new Date().toISOString(), deleted_reason: 'collected_cleanup' } }).catch(() => null);
   });
   await Promise.all(dbCleanupPromises);
 

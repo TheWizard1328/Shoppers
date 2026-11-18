@@ -174,10 +174,10 @@ async function handleSyncCatalog(base44, payload={}) {
   const safeTxRows = (rawTxRows) => (Array.isArray(rawTxRows) ? rawTxRows : []).map(unwrapEntityRecord).filter(Boolean);
   const allTxRows = safeTxRows(rawTxRows);
   const refundedDeliveryIds = new Set(
-    allTxRows.filter((t) => ['refunded', 'refund', 'voided'].includes(String(t?.status || '').toLowerCase()) && t?.delivery_id).map((t) => String(t.delivery_id))
+    allTxRows.filter((t) => ['refunded', 'refund', 'voided', 'cancelled', 'canceled'].includes(String(t?.status || '').toLowerCase()) && t?.delivery_id).map((t) => String(t.delivery_id))
   );
   const refundedSignatureSet = new Set(
-    allTxRows.filter((t) => ['refunded', 'refund', 'voided'].includes(String(t?.status || '').toLowerCase()))
+    allTxRows.filter((t) => ['refunded', 'refund', 'voided', 'cancelled', 'canceled'].includes(String(t?.status || '').toLowerCase()))
       .map((t) => `${normalizeText(t?.item_name)}::${toAmountCents(t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100))}`)
       .filter((k) => !k.startsWith('::0'))
   );
@@ -295,11 +295,19 @@ async function handleSyncCatalog(base44, payload={}) {
     if (del?.ok) {
       deletedCount++;
       // Clean up DB records
+      // Remember the collection on the delivery, or the create step rebuilds this item
+      // on the next run (the three-month churn, owner report Nov 17 2026).
+      const stampDeliveryId = extractDeliveryIdFromCatalog(item);
+      if (stampDeliveryId && !refundedDeliveryIds.has(String(stampDeliveryId))) {
+        await base44.asServiceRole.entities.Delivery.update(stampDeliveryId, { cod_confirmed_collected: true, cod_confirmed_collected_at: new Date().toISOString() }).catch(() => null);
+      }
       const dbMatches = await base44.asServiceRole.entities.SquareCatalogItems.filter({ square_catalog_object_id: item.id }).catch(() => []);
       for (const r of dbMatches) await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null);
       // Update transaction status
       const txMatches = await base44.asServiceRole.entities.SquareTransaction.filter({ square_catalog_object_id: item.id }).catch(() => []);
-      for (const tx of txMatches) await base44.asServiceRole.entities.SquareTransaction.update(tx.id, { status: 'completed' }).catch(() => null);
+      // 'archived', never 'completed' — a deleted catalog item is not proof the COD
+      // was collected, and stamping it made refunded CODs look paid (Nov 17 2026).
+      for (const tx of txMatches) await base44.asServiceRole.entities.SquareTransaction.update(tx.id, { status: 'archived' }).catch(() => null);
     }
   }
 
