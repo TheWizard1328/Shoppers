@@ -832,8 +832,9 @@ async function handleGetCodData(base44, payload={}) {
   // name and amount) — treating those as collected deleted every still-active
   // catalog item on each Sync, including cash-collected CODs that must stay in
   // the catalog until the store rings them through the register.
+  const DEAD_TX_STATUSES = new Set(['refunded', 'cancelled', 'canceled', 'voided', 'declined', 'failed']);
   const realPosTransactions = (existingTransactions || []).filter(
-    (t) => normalizeText(t?.square_transaction_id) !== ''
+    (t) => normalizeText(t?.square_transaction_id) !== '' && !DEAD_TX_STATUSES.has(String(t?.status || '').toLowerCase())
   );
   for (const t of realPosTransactions) {
     const cid = normalizeText(t?.square_catalog_object_id);

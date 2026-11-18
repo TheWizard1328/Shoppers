@@ -145,7 +145,27 @@ async function handleCreateCodItem(base44, payload) {
   const resolvedStoreAbbr=normalizeText(store?.abbreviation||storeAbbreviation||'XX');
   const amountCents=Math.round(Number(codAmount)*100);
   const itemName=formatItemName(resolvedDeliveryDate,resolvedStoreAbbr,effectivePatientName);
-  const existingPending=await base44.asServiceRole.entities.SquareTransaction.filter({delivery_id:deliveryId,status:'pending'}).catch(()=>[]);
+  // OWNER REPORT (Nov 17 2026, Amanda Klymchuk Oct 28 $10.64): the fast path used to
+  // trust ANY pending bookkeeping row with the same name+amount. After the item was
+  // deleted in Square (auto-confirmed collected off a wrongly-dated ring), those rows
+  // kept pointing at a catalog object that no longer exists, so every later create
+  // "skipped" and the COD never came back to the catalog. A pending row is only a
+  // valid existing item when Square still HAS that object.
+  const liveObjectExists = async (id) => {
+    if (!id) return false;
+    try { const r = await squareFetch(`/v2/catalog/object/${id}`, 'GET', accessToken); return !!r?.object; }
+    catch (e) { return Number(e?.status) === 404 ? false : true; } // unknown error: don't duplicate
+  };
+  const pendingRows=await base44.asServiceRole.entities.SquareTransaction.filter({delivery_id:deliveryId,status:'pending'}).catch(()=>[]);
+  const matchingPending=[];
+  for(const row of (Array.isArray(pendingRows)?pendingRows:[])){
+    if(!row?.square_catalog_object_id)continue;
+    if(row?.item_name===itemName&&row?.amount_cents===amountCents&&await liveObjectExists(row.square_catalog_object_id))matchingPending.push(row);
+    else if(row?.item_name!==itemName||row?.amount_cents!==amountCents)matchingPending.push(row);
+  }
+  const stalePending=(Array.isArray(pendingRows)?pendingRows:[]).filter((r)=>r?.id&&!matchingPending.some((m)=>m.id===r.id));
+  if(stalePending.length){await Promise.all(stalePending.map((r)=>base44.asServiceRole.entities.SquareTransaction.delete(r.id).catch(()=>null)));console.warn('[squareCreateCodItem] pruned',stalePending.length,'stale pending row(s) with a dead catalog object');}
+  const existingPending=matchingPending;
   if(existingPending?.length&&existingPending[0]?.square_catalog_object_id&&existingPending[0]?.item_name===itemName&&existingPending[0]?.amount_cents===amountCents){const tx=existingPending[0];return{success:true,catalogObjectId:tx.square_catalog_object_id,catalogVersion:tx.square_catalog_version,itemName:tx.item_name,transactionId:tx.id,note:'Skipped: existing pending item'};}
   let catalogObjectId,catalogVersion;
   if(existingPending?.length&&existingPending[0]?.square_catalog_object_id&&(existingPending[0]?.item_name!==itemName||existingPending[0]?.amount_cents!==amountCents)){const updated=await updateCatalogItem({catalogObjectId:existingPending[0].square_catalog_object_id,catalogVersion:existingPending[0].square_catalog_version,itemName,amountCents,locationId,deliveryId,patientName:effectivePatientName,accessToken});catalogObjectId=updated?.id||existingPending[0].square_catalog_object_id;catalogVersion=updated?.version||existingPending[0].square_catalog_version;}

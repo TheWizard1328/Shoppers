@@ -2344,8 +2344,18 @@ Deno.serve(async (req) => {
         // cod_collection entry dated BEFORE the delivery day is not this COD's
         // money, so it must not stamp the delivery collected.
         const ledgerConfirmTimes = new Map<string, number[]>();
+        // A refunded COD must never be re-confirmed: the money was returned, so the
+        // collected entry is no longer proof the store keeps it (owner report
+        // Nov 17 2026 — a COD rung on the wrong day, refunded later, otherwise
+        // re-stamps itself on every ledger run).
+        const refundedDeliveryIds = new Set<string>();
+        try {
+          const refundRows: any[] = (await base44.asServiceRole.entities.SquareLedgerEntry.filter({ entry_kind: 'refund' }).catch(() => [])) as any[] || [];
+          for (const r of refundRows || []) { const did = String(r?.delivery_id || ''); if (did) refundedDeliveryIds.add(did); }
+        } catch { /* refund scan must never break the compute */ }
         for (const e of (codSalesRaw || [])) {
           if (!e?.delivery_id || String(e?.status || '').toUpperCase() !== 'COMPLETED') continue;
+          if (refundedDeliveryIds.has(String(e.delivery_id))) continue;
           const did = String(e.delivery_id);
           const ms = Date.parse(String(e?.occurred_at || e?.created_date || '')) || 0;
           if (!ledgerConfirmTimes.has(did)) ledgerConfirmTimes.set(did, []);

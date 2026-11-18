@@ -170,7 +170,11 @@ Deno.serve(async (req) => {
     console.log(`[squareVerifyCatalog] active catalog items: ${liveCatalogItems.length}`);
 
     // ── 3) Our own retained POS evidence sets ─────────────────────────
-    const realPosTransactions = transactions.filter((t) => normalizeText(t?.square_transaction_id) !== '');
+    // Refunded / cancelled POS rows prove nothing (owner report Nov 17 2026: a COD rung
+  // on the WRONG DAY was refunded weeks later — the money came back out, so the row
+  // must stop being able to delete the delivery's catalog item).
+  const DEAD_TX_STATUSES = new Set(['refunded', 'cancelled', 'canceled', 'voided', 'declined', 'failed']);
+  const realPosTransactions = transactions.filter((t) => normalizeText(t?.square_transaction_id) !== '' && !DEAD_TX_STATUSES.has(String(t?.status || '').toLowerCase()));
     const txCatalogObjectIds = new Set();
     const txSignatureSet = new Set();
     const txDeliveryIds = new Set();         // any real tx (pending or completed) — item was used in the POS
