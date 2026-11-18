@@ -583,6 +583,7 @@ function ChatWindow({
           setShowMembersSheet(false);
           if (onBack) onBack();
         }}
+        onMembersChanged={(nextGroup) => setResolvedGroup(nextGroup)}
         onClose={() => setShowMembersSheet(false)} />
 
       }

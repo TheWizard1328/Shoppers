@@ -13,6 +13,13 @@
       },
       "description": "Snapshot of member user_ids. For preset groups this is recomputed live from AppUser roles at read/send time, so role changes auto-sync."
     },
+    "extra_member_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "user_ids added BY HAND on top of a role-based preset group (all_drivers / all_dispatchers / all_admins). Preset membership itself is resolved live from AppUser.app_roles, so a manually added person is stored here and unioned in at read/send time. Unused by custom groups, whose membership lives in member_ids."
+    },
     "preset_type": {
       "type": "string",
       "enum": [

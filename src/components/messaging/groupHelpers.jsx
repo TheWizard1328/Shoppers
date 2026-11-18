@@ -47,6 +47,12 @@ export const resolvePresetMemberIds = (appUsers = [], presetType) => {
  * @param {Array} appUsers — full AppUser records
  * @returns {string[]}
  */
+export const resolveGroupExtraMemberIds = (group) => {
+  if (!group) return [];
+  if (!(group.preset_type && group.preset_type !== 'custom')) return [];
+  return Array.isArray(group.extra_member_ids) ? group.extra_member_ids.filter(Boolean) : [];
+};
+
 export const resolveGroupMemberIds = (group, appUsers = []) => {
   if (!group) return [];
   if (group.preset_type && group.preset_type !== 'custom') {
@@ -56,8 +62,14 @@ export const resolveGroupMemberIds = (group, appUsers = []) => {
     // NewGroupDialog already adds the creator to the stored member_ids snapshot;
     // honor that here by unioning created_by with the live role resolution.
     const creatorId = group.created_by;
-    if (creatorId && !roleIds.includes(creatorId)) return [creatorId, ...roleIds];
-    return roleIds;
+    // OWNER REQUEST (Nov 18 2026): people added BY HAND on a preset group live in
+    // extra_member_ids (a role preset can't be edited person-by-person), so they
+    // are unioned in here — the same list the send path reads.
+    const extraIds = resolveGroupExtraMemberIds(group);
+    const base = creatorId && !roleIds.includes(creatorId) ? [creatorId, ...roleIds] : roleIds;
+    const merged = [...base];
+    extraIds.forEach((id) => { if (!merged.includes(id)) merged.push(id); });
+    return merged;
   }
   return Array.isArray(group.member_ids) ? [...group.member_ids] : [];
 };
