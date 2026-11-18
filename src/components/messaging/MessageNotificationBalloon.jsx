@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import UpdateAppPrompt from './UpdateAppPrompt';
 import {
+  AUTO_UPDATE_PROMPT_ENABLED,
   isAppUpdateBroadcast,
   isHiddenSystemBroadcastMessageForThisDevice,
   hasSystemBroadcastBeenAckedForThisDevice,
+  hideSystemBroadcastMessageForThisDevice,
   SYSTEM_UPDATES_SENDER_ID,
 } from './updateBroadcastConfig';
 
@@ -33,6 +35,13 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
       if (event?.data?.receiver_id !== currentUser.id || isHiddenSystemBroadcastMessageForThisDevice(event?.data?.id)) return;
 
       if (event.type === 'create' && isAppUpdateBroadcast(event.data.content)) {
+        // Master switch OFF (Nov 17 2026): the Broadcast Update button is gone, so
+        // a broadcast-driven update dialog must never block the app. Hide the
+        // message for this device and do nothing else.
+        if (!AUTO_UPDATE_PROMPT_ENABLED) {
+          hideSystemBroadcastMessageForThisDevice(event.data.id);
+          return;
+        }
         setUpdatePromptMessage(event.data.content);
         setUpdatePromptMeta({ messageId: event.data.id, conversationId: event.data.conversation_id });
         setNotification(null);
@@ -86,6 +95,28 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
   //  - sent >= 30s ago -> its countdown already ran out, so update right away
   useEffect(() => {
     if (!currentUser?.id) return undefined;
+    // Master switch OFF: no catch-up prompt and no forced reload. Sweep the
+    // thread once and hide any stale broadcast for this device so nothing can
+    // re-arm the dialog later (this is what kept pop-up-ing every few minutes).
+    if (!AUTO_UPDATE_PROMPT_ENABLED) {
+      let stop = false;
+      (async () => {
+        try {
+          const conversationId = [SYSTEM_UPDATES_SENDER_ID, currentUser.id].sort().join('_');
+          const recent = await base44.entities.Message.filter(
+            { conversation_id: conversationId, receiver_id: currentUser.id },
+            '-created_date',
+            5
+          );
+          if (stop) return;
+          const list = Array.isArray(recent) ? recent : (recent?.items || []);
+          for (const m of list) {
+            if (m?.id && isAppUpdateBroadcast(m.content || '')) hideSystemBroadcastMessageForThisDevice(m.id);
+          }
+        } catch { /* non-critical */ }
+      })();
+      return () => { stop = true; };
+    }
     let cancelled = false;
     let running = false;
 

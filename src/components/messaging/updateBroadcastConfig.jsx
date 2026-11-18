@@ -20,6 +20,22 @@ export const UPDATE_BROADCAST_PROMPT_THEME = {
   meta: 'var(--text-slate-500)'
 };
 
+/**
+ * AUTO PROMPT MASTER SWITCH (owner directive Nov 17 2026): "That auto popup was
+ * supposed to be gone since the Broadcast Update button was removed."
+ *
+ * The blocking "App update available / auto-updating in 30s" dialog is fed by
+ * System Updates broadcast Messages, not by the version check. With the
+ * Broadcast Update button gone nothing legitimately sends them any more, but an
+ * OLD broadcast still sitting in the thread kept re-arming the dialog on every
+ * foreground return (the catch-up scan re-finds it because a Cancel never acks),
+ * so it looked like it "kept popping up every few minutes" while there was no
+ * new build at all. Off means: no prompt, no forced reload from a broadcast;
+ * stale broadcasts are simply hidden for this device. The real update path
+ * (version.json check, green arrow, preview self-reload) is untouched.
+ */
+export const AUTO_UPDATE_PROMPT_ENABLED = false;
+
 export const isAppUpdateBroadcast = (content = '') => {
   return content.trim().startsWith(APP_UPDATE_TRIGGER_PHRASE);
 };

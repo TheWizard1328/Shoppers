@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
+  AUTO_UPDATE_PROMPT_ENABLED,
   UPDATE_BROADCAST_PROMPT_POSITION,
   UPDATE_BROADCAST_PROMPT_THEME,
   sendSystemBroadcastAckIfNeeded,
@@ -44,6 +45,9 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel, currentUs
     deadlineRef.current = Date.now() + 30000;
     firedRef.current = false;
     setSecondsLeft(30);
+    // Master switch OFF (Nov 17 2026): never auto-reload/auto-close the app from
+    // a broadcast prompt. Guarded so a stray render of this dialog cannot fire.
+    if (!AUTO_UPDATE_PROMPT_ENABLED) return undefined;
 
     const check = () => {
       const remaining = Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000));
