@@ -271,7 +271,10 @@ export default function EndOfDayStatsDialog({
   if (!stats && !isProcessing) return null;
   if (!stats) return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="max-w-md z-[10030] border bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent
+        className="z-[10050] w-[calc(100vw-2rem)] max-w-md rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
+        style={{ borderColor: 'var(--border-slate-300)', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', height: 'auto' }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle className="w-6 h-6 text-emerald-600" />
@@ -288,7 +291,23 @@ export default function EndOfDayStatsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md z-[10030] border bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
+      {/* OWNER SPEC (Nov 18 2026): the EOD stats are a FLOATING panel centred on the
+          screen, even on a phone — never a full-height sheet behind the header/nav.
+          Width stays inset from the edges and the height is capped to the free
+          space between the mobile header and bottom nav, scrolling inside if needed. */}
+      <DialogContent
+        className="z-[10050] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
+        style={{
+          borderColor: 'var(--border-slate-300)',
+          maxHeight: 'calc(100dvh - var(--actual-bottom-nav-height, 0px) - 6rem)',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          bottom: 'auto',
+          right: 'auto',
+          height: 'auto',
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="w-6 h-6" />
