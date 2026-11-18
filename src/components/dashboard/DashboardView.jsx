@@ -398,6 +398,10 @@ function DashboardView({
           data-stats-panel="true"
           className="absolute top-0 left-0 right-0 z-[230] transition-transform duration-500 ease-in-out"
           style={{
+            /* OWNER REQUEST Nov 18 2026: whole stats panel sits 5px higher (pairs with
+               the stats card being 5px taller, so the top edge rises without the
+               card growing downward over the map). */
+            top: '-5px',
             transform: immersiveHidden ? 'translateY(calc(-100% - 1rem))' : 'translateY(0)',
             opacity: immersiveHidden ? 0 : 1,
             pointerEvents: immersiveHidden ? 'none' : 'auto'
