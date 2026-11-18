@@ -71,7 +71,29 @@ self.addEventListener('push', (event) => {
     requireInteraction: !!data.requireInteraction,
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // OWNER REQUEST Nov 17 2026: a published build must reach minimized and
+  // backgrounded web clients without waiting for someone to tap anything.
+  // A suspended page cannot run its own timers, but Chrome/Edge allow the
+  // service worker to navigate its own window clients from a push event, which
+  // reloads that client onto the new bundle. iOS ignores this silently — there
+  // the notification stays and the tap path below applies the update.
+  const shouldAutoApply = data.type === 'update_available' || data.autoApply === true;
+  const autoApply = shouldAutoApply
+    ? (async () => {
+        try {
+          const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+          await Promise.all(all.map(async (client) => {
+            if (!('navigate' in client)) return;
+            try {
+              await client.navigate(resolvePwaUrl('/?rx_auto_update=' + Date.now()));
+              await client.focus().catch(() => {});
+            } catch (_) { /* ignore — notification tap still applies it */ }
+          }));
+        } catch (_) { /* ignore */ }
+      })()
+    : Promise.resolve();
+
+  event.waitUntil(Promise.all([self.registration.showNotification(title, options), autoApply]));
 });
 
 self.addEventListener('notificationclick', (event) => {

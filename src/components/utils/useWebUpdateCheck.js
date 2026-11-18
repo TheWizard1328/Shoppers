@@ -250,10 +250,27 @@ export function useWebUpdateCheck() {
       timer = setInterval(check, POLL_INTERVAL);
     }, 10_000);
 
+    // OWNER REQUEST Nov 17 2026: a device that was minimized/backgrounded must
+    // learn about a published build the moment it comes back, not up to 5
+    // minutes later on the next poll. Every foreground return re-checks now.
+    let resumeDebounce = null;
+    const checkNowOnResume = () => {
+      if (document.hidden) return;
+      if (resumeDebounce) clearTimeout(resumeDebounce);
+      resumeDebounce = setTimeout(() => { check(); }, 800);
+    };
+    document.addEventListener('visibilitychange', checkNowOnResume);
+    window.addEventListener('focus', checkNowOnResume);
+    window.addEventListener('pageshow', checkNowOnResume);
+
     return () => {
       cancelled = true;
       mountedRef.current = false;
       clearTimeout(delayTimer);
+      if (resumeDebounce) clearTimeout(resumeDebounce);
+      document.removeEventListener('visibilitychange', checkNowOnResume);
+      window.removeEventListener('focus', checkNowOnResume);
+      window.removeEventListener('pageshow', checkNowOnResume);
       if (timer) clearInterval(timer);
     };
   }, []);
