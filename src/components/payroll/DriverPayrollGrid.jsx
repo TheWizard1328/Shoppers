@@ -1,3 +1,4 @@
+import { getDeliveryTypeFlags } from '@/components/utils/deliveryTypeUtils';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -256,7 +257,7 @@ export default function DriverPayrollGrid({
       // N/C (no_charge) deliveries are still counted here so they appear in the
       // grid and show a "+" for oversized — only BASE pay is excluded (in payroll calc).
       // Exclude bare pickups — keep patient deliveries, ISD/ISP inter-store, and after_hours_pickup
-      const isInterStore = String(d.delivery_id || '').toUpperCase().startsWith('ISD-') || String(d.delivery_id || '').toUpperCase().startsWith('ISP-');
+      const isInterStore = getDeliveryTypeFlags(d).isInterStore;
       if (!d.patient_id && !d.after_hours_pickup && !isInterStore) return false;
 
       // Per-delivery pay cycle check: only include deliveries whose date falls

@@ -120,7 +120,13 @@ const isReturnDelivery = (delivery) => {
 // ISD/ISP inter-store deliveries: always counted as deliveries, never as pickups
 const isInterStoreDelivery = (delivery) => {
   const id = String(delivery?.delivery_id || '').toUpperCase();
-  return id.startsWith('ISD-') || id.startsWith('ISP-');
+  if (id.startsWith('ISD-') || id.startsWith('ISP-')) return true;
+  // Prefix alone is not reliable (owner report Nov 17 2026): the transfer flow can
+  // rewrite delivery_id to a plain 'DID-...' value. Fall back to the record's own
+  // inter-store markers, matching src/components/utils/deliveryTypeUtils.jsx.
+  const notes = String(delivery?.delivery_notes || '').toLowerCase();
+  if (notes.includes('interstore') || notes.includes('inter-store') || notes.includes('inter store')) return true;
+  return !!(delivery?.interstore_dest_id || delivery?._interstore_dest_id || delivery?.interstore_source_id || delivery?._interstore_source_id);
 };
 const isStandardOrInterStoreDelivery = (delivery) => isPatientOrTransferDelivery(delivery) || isInterStoreDelivery(delivery);
 const isRegularPickupDelivery = (delivery) => !isAfterHoursPickupDelivery(delivery) && !isStandardOrInterStoreDelivery(delivery);

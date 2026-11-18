@@ -145,10 +145,17 @@ Deno.serve(async (req) => {
       return String(patient?.address || '').toUpperCase().includes('(RTN)');
     };
 
-    // ISD/ISP inter-store deliveries are always counted as deliveries (never pickups)
+    // ISD/ISP inter-store deliveries are always counted as deliveries (never
+    // pickups). The prefix alone is NOT reliable (owner report Nov 17 2026): the
+    // transfer flow can rewrite delivery_id to a plain 'DID-...' value, which
+    // silently dropped inter-store legs out of driver pay. Fall back to the
+    // record's own inter-store markers, matching deliveryTypeUtils.
     const isInterStore = (d) => {
       const id = String(d?.delivery_id || '').toUpperCase();
-      return id.startsWith('ISD-') || id.startsWith('ISP-');
+      if (id.startsWith('ISD-') || id.startsWith('ISP-')) return true;
+      const notes = String(d?.delivery_notes || '').toLowerCase();
+      if (notes.includes('interstore') || notes.includes('inter-store') || notes.includes('inter store')) return true;
+      return !!(d?.interstore_dest_id || d?._interstore_dest_id || d?.interstore_source_id || d?._interstore_source_id);
     };
 
     // --- Count countable deliveries (same logic as getDriverPayrollStats) ---

@@ -660,8 +660,10 @@ function Dashboard() {
   const stats = useMemo(() => {
     let rd = filteredDeliveries || [];
     if (isDispatcher && !isAdmin && currentUser?.store_ids) { const ds = new Set(currentUser.store_ids); rd = rd.filter((d) => d && ds.has(d.store_id)); }
-    const isISD=(d)=>String(d?.delivery_id||'').toUpperCase().startsWith('ISD-');
-    const isISP=(d)=>String(d?.delivery_id||'').toUpperCase().startsWith('ISP-');
+    // ISD/ISP detection goes through getDeliveryTypeFlags so an inter-store leg
+    // whose delivery_id was rewritten still counts as a delivery, not a pickup.
+    const isISD=(d)=>getDeliveryTypeFlags(d).isISD;
+    const isISP=(d)=>getDeliveryTypeFlags(d).isISP;
     // sd = patient deliveries + ISD (count as deliveries); ap = store pickups + ISP (count as pickups)
     const sd=rd.filter((d)=>d&&!d.is_cycling_marker&&(d.patient_id||isISD(d))); const ap=rd.filter((d)=>d&&!d.is_cycling_marker&&!d.patient_id&&!isISD(d));
     if (!Array.isArray(sd)) return {total:0,inTransit:0,enRoute:0,completed:0,failed:0,returned:0,totalDrivers:0,inTransitDrivers:0,completedDrivers:0,totalPickups:0,completedPickups:0};

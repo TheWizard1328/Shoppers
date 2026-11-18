@@ -23,9 +23,17 @@
 /**
  * Returns true if the delivery_id indicates an inter-store transfer (ISP or ISD).
  */
-export function isInterStoreDeliveryId(delivery_id) {
-  if (!delivery_id) return false;
-  const upper = String(delivery_id).toUpperCase();
+export function isInterStoreDeliveryId(deliveryOrId) {
+  if (!deliveryOrId) return false;
+  // A whole delivery record is accepted: the prefix alone is not reliable
+  // (owner report Nov 17 2026 — the transfer flow sometimes rewrites a record's
+  // delivery_id to a plain 'DID-...' value, which used to make an inter-store
+  // leg read as a store pickup and stop being paid).
+  if (typeof deliveryOrId === 'object') {
+    const t = getDeliveryType(deliveryOrId);
+    return t === 'ISP' || t === 'ISD';
+  }
+  const upper = String(deliveryOrId).toUpperCase();
   return upper.startsWith('ISP-') || upper.startsWith('ISD-');
 }
 

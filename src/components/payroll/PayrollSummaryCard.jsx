@@ -1,3 +1,4 @@
+import { getDeliveryTypeFlags } from '@/components/utils/deliveryTypeUtils';
 import React, { useMemo, useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -184,8 +185,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         null;
         const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
 
-        const deliveryIdUpper = String(d.delivery_id || '').toUpperCase();
-        const isInterStore = deliveryIdUpper.startsWith('ISD-') || deliveryIdUpper.startsWith('ISP-');
+        const isInterStore = getDeliveryTypeFlags(d).isInterStore;
         const isPatientOrTransfer = !!d.patient_id || isInterStore;
         const isAfterHours = d.after_hours_pickup === true;
 
@@ -306,8 +306,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         if (!delivery) return false;
         const validStatus = delivery.status === 'completed' || delivery.status === 'failed' || delivery.status === 'cancelled' && delivery.after_hours_pickup;
         if (!validStatus) return false;
-        const dIdUpper = String(delivery.delivery_id || '').toUpperCase();
-        const isIS = dIdUpper.startsWith('ISD-') || dIdUpper.startsWith('ISP-');
+        const isIS = getDeliveryTypeFlags(delivery).isInterStore;
         if (!delivery.patient_id && !delivery.after_hours_pickup && !isIS) return false;
         return true;
       });
@@ -490,8 +489,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
       if (deliveryDate < new Date(periodStartStr + 'T00:00:00') || deliveryDate > new Date(periodEndStr + 'T00:00:00')) return;
       // Exclude no-charge deliveries from app fee billing
       if (d.no_charge) return;
-      const dIdUpper = String(d.delivery_id || '').toUpperCase();
-      const isInterStore = dIdUpper.startsWith('ISD-') || dIdUpper.startsWith('ISP-');
+      const isInterStore = getDeliveryTypeFlags(d).isInterStore;
       const isPatientOrTransfer = !!d.patient_id || isInterStore;
       const isAfterHours = d.after_hours_pickup === true;
       const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (isAfterHours || isPatientReturn);
