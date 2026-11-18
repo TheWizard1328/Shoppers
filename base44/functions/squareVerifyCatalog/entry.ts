@@ -187,6 +187,17 @@ Deno.serve(async (req) => {
       const did = normalizeText(t?.delivery_id);
       if (did) { txDeliveryIds.add(did); if (String(t?.status || '') === 'completed') completedTxDeliveryIds.add(did); }
     }
+    // Owner report Nov 17 2026 (Amanda Klymchuk Oct 28 $10.64): a COD rung on the
+    // WRONG DAY and refunded days later stays COMPLETED on the Square order (the
+    // refund lives on the payment), so the name+amount pass kept confirming it and
+    // deleting the recreated catalog item. A refunded ring never confirms anything.
+    const refundedSignatureSet = new Set();
+    for (const t of (transactions || [])) {
+      const st = String(t?.status || '').toLowerCase();
+      if (st !== 'refunded' && st !== 'refund' && st !== 'voided') continue;
+      const rsig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
+      if (rsig && rsig !== '::0') refundedSignatureSet.add(rsig);
+    }
 
     // ── 4) Pass 1: transaction-evidence deletions (no delivery fetch) ─
     const toDelete = new Map(); // objectId -> { name, amount_cents, reason }
@@ -290,6 +301,7 @@ Deno.serve(async (req) => {
         const d = did ? deliveryRows.get(did) : null;
         if (d && isCompletedCashCod(d) && !d.cod_confirmed_collected) {
           const sig = buildItemSignature(name, amountCents);
+          if (sig && sig !== '::0' && refundedSignatureSet.has(sig)) continue;
           const sigRings = (sig && sig !== '::0') ? (completedSigTimes.get(sig) || []) : [];
           if (sigRings.some((ms) => isSameDayOrFuture(ms, d.delivery_date))) {
             toDelete.set(item.id, { name, amount_cents: amountCents, reason: 'order_signature_cash_confirmed' });

@@ -796,7 +796,9 @@ async function handleGetCodData(base44, payload={}) {
         const pn = normalizeText(pat?.full_name || d?.patient_name) || `Delivery ${d.id.slice(-6)}`;
         const iname = formatItemName(d.delivery_date, getPreferredStoreAbbreviation(store), pn);
         const ac = Math.round(Number(d.cod_total_amount_required || 0) * 100);
-        const sigRings = wideSig.get(`${normalizeText(iname)}::${ac}`) || [];
+        const wideKey = `${normalizeText(iname)}::${ac}`;
+        if (refundedSignatureSet.has(wideKey)) continue;
+        const sigRings = wideSig.get(wideKey) || [];
         if (sigRings.some((ms) => isSameDayOrFuture(ms, d.delivery_date))) wideConfirmedIds.add(d.id);
       }
       if (wideConfirmedIds.size > 0) {
@@ -841,6 +843,19 @@ async function handleGetCodData(base44, payload={}) {
     if (cid && cid !== '') txCatalogObjectIds.add(cid);
     const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
     if (sig && sig !== '::0') txSignatureSet.add(sig);
+  }
+  // REFUNDED POS RINGS CANNOT CONFIRM ANYTHING (owner report Nov 17 2026: Amanda
+  // Klymchuk's Oct 28 $10.64 COD was rung on Nov 5 by mistake; refunding it left
+  // the Square ORDER still looking COMPLETED/paid because the refund sits on the
+  // payment, so every name+amount scan re-confirmed the delivery and deleted the
+  // recreated catalog item. Any item name+amount whose OWN payment was refunded
+  // is now excluded from every confirmation path.
+  const refundedSignatureSet = new Set();
+  for (const t of (existingTransactions || [])) {
+    const st = String(t?.status || '').toLowerCase();
+    if (st !== 'refunded' && st !== 'refund' && st !== 'voided') continue;
+    const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
+    if (sig && sig !== '::0') refundedSignatureSet.add(sig);
   }
 
   // Pre-stamped collected deliveries: their leftover Square catalog items must be
@@ -1038,6 +1053,7 @@ mark('ootw_orders_fetched');
       const matchedDeliveryStamps = new Set();
       for (const c of work) {
         const sig = `${normalizeText(c.item?.item_data?.name)}::${getCatalogItemAmountCents(c.item)}`;
+        if (refundedSignatureSet.has(sig)) continue;
         const rings = sigRings.get(sig) || [];
         const hit = rings.some((payT) => isSameDayOrFuture(payT, c.dateStr) && payT <= c.dateMs + PROXIMITY_MS);
         if (!hit) continue;
