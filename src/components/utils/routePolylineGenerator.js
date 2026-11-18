@@ -435,8 +435,18 @@ export async function generateRoutePolylines({
     if (_cyclingLoopActive && idx > -1) {
       // Start marker always drives in; everything up to it is driving.
       if (idx === _startMarkerIdx) return 'driving';
-      // Loop interior (cycle stops and the end marker) rides the bicycle leg.
-      if (idx > _startMarkerIdx && idx <= _endMarkerIdx) return 'cycling';
+      // OWNER RULE (Nov 18 2026): a stop rides the bicycle leg ONLY when it was
+      // explicitly given cycling travel mode (or it IS the end marker). The old
+      // index-range test swept EVERY stop between the markers onto the loop, which
+      // dragged an active Callingwood pickup and an active Hamptons driving stop
+      // into the bicycle leg and drew cycling polylines to them.
+      if (idx === _endMarkerIdx) return 'cycling';
+      if (idx > _startMarkerIdx && idx <= _endMarkerIdx) {
+        const own = String(delivery?.transport_mode || '').toLowerCase();
+        if (own === 'cycling') return 'cycling';
+        if (own === 'pedestrian') return 'pedestrian';
+        return 'driving';
+      }
     }
 
     const raw = String(delivery?.transport_mode || fallbackTravelMode).toLowerCase();
