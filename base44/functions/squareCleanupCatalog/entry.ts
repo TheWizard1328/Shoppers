@@ -138,6 +138,25 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
   // catalog item would be falsely deleted when only June 2 was paid.
   const paidCatalogObjectIds = new Set(paidOrderItems.map((x) => x.catalog_object_id).filter(Boolean));
 
+  // REFUNDED RINGS PROVE NOTHING (owner report Nov 17 2026 — Amanda Klymchuk's
+  // Oct 28 $10.64 COD was rung on Nov 5 by mistake and refunded; the Square ORDER
+  // still looks paid, so structured-name matching kept deleting the rebuilt item).
+  const refundedSignatureSet = new Set();
+  try {
+    const txRows = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 4000).catch(() => []);
+    for (const t of (Array.isArray(txRows) ? txRows : [])) {
+      const st = String(t?.status || '').toLowerCase();
+      if (st !== 'refunded' && st !== 'refund' && st !== 'voided') continue;
+      const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
+      if (sig && !sig.startsWith('::0')) refundedSignatureSet.add(sig);
+    }
+  } catch { /* refund scan must never break the cleanup */ }
+  const hasRefundedTwin = (name) => {
+    const key = normalizeText(name);
+    for (const sig of refundedSignatureSet) if (sig.split('::')[0] === key) return true;
+    return false;
+  };
+
   // Find catalog items that have been paid — exact Square object ID match only.
   const toDelete = (liveCatalogItems||[]).filter((item) => {
     if (!item?.id) return false;
@@ -147,7 +166,8 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
     // Structured name: require exact structural match with a paid order item (same date+store+patient)
     const n = normalizeText(item?.item_data?.name);
     if (isStructuredCodName(n)) {
-      return paidOrderItems.some((pi) => structuredCodNamesMatch(pi.item_name, n, null)===true);
+      if (hasRefundedTwin(n)) return false;
+      return paidOrderItems.some((pi) => structuredCodNamesMatch(pi.item_name, n, null)===true && !hasRefundedTwin(pi.item_name));
     }
     return false;
   });

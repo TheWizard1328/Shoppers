@@ -158,12 +158,29 @@ async function handleSyncCatalog(base44, payload={}) {
   const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
 
   // ── Step 1: Fetch all data in parallel (no base44.functions.invoke) ──
-  const [stores, locationConfigs, patients, existingCatalogDb] = await Promise.all([
+  const [stores, locationConfigs, patients, existingCatalogDb, rawTxRows] = await Promise.all([
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
     base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []),
     base44.asServiceRole.entities.Patient.list('-updated_date', 5000).catch(() => []),
     base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []),
+    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 4000).catch(() => []),
   ]);
+  // REFUNDED COD = NEVER COLLECTED (owner report Nov 17 2026). Amanda Klymchuk's
+  // Oct 28 $10.64 COD was rung on Nov 5 by mistake; refunding it flipped our own
+  // SquareTransaction row to 'refunded' but the Square ORDER still looks paid, so
+  // this function's name/amount cleanup deleted the rebuilt catalog item on every
+  // run while the create step rebuilt it — the create/delete churn. A refunded
+  // ring can never justify deleting that delivery's item again.
+  const safeTxRows = (rawTxRows) => (Array.isArray(rawTxRows) ? rawTxRows : []).map(unwrapEntityRecord).filter(Boolean);
+  const allTxRows = safeTxRows(rawTxRows);
+  const refundedDeliveryIds = new Set(
+    allTxRows.filter((t) => ['refunded', 'refund', 'voided'].includes(String(t?.status || '').toLowerCase()) && t?.delivery_id).map((t) => String(t.delivery_id))
+  );
+  const refundedSignatureSet = new Set(
+    allTxRows.filter((t) => ['refunded', 'refund', 'voided'].includes(String(t?.status || '').toLowerCase()))
+      .map((t) => `${normalizeText(t?.item_name)}::${toAmountCents(t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100))}`)
+      .filter((k) => !k.startsWith('::0'))
+  );
   const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
   const safeConfigs = (Array.isArray(locationConfigs) ? locationConfigs : []).map(unwrapEntityRecord).filter(Boolean);
   const activeConfigById = new Map(safeConfigs.filter((c) => c?.status === 'active').map((c) => [c.id, c]));
@@ -240,6 +257,7 @@ async function handleSyncCatalog(base44, payload={}) {
       const resolvedStore = abbrStore || locationStore;
       const cands = resolvedStore ? safeDeliveries.filter((d) => d.store_id === resolvedStore.id) : safeDeliveries;
       for (const d of cands) {
+        if (refundedDeliveryIds.has(String(d.id))) continue;
         if (d?.cod_total_amount_required && toAmountCents(d.cod_total_amount_required * 100) === toAmountCents(pi.amount_cents) && d?.status === 'completed') {
           collectedDeliveryIds.add(d.id);
           break;
@@ -260,10 +278,13 @@ async function handleSyncCatalog(base44, payload={}) {
     if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
     // Structured name match against paid order items
     const n = normalizeText(item?.item_data?.name);
-    if (isStructuredCodName(n) && paidOrderItems.some((pi) => normalizeText(pi.item_name) === n)) return true;
+    const itemSig = `${n}::${toAmountCents(item?.item_data?.variations?.[0]?.item_variation_data?.price_money?.amount)}`;
+    if (refundedSignatureSet.has(itemSig)) return false;
+    if (isStructuredCodName(n) && paidOrderItems.some((pi) => normalizeText(pi.item_name) === n && !refundedSignatureSet.has(`${n}::${toAmountCents(pi.amount_cents)}`))) return true;
     // Description → delivery_id → already collected
     const descDeliveryId = extractDeliveryIdFromCatalog(item);
-    if (descDeliveryId && collectedDeliveryIds.has(descDeliveryId)) return true;
+    if (descDeliveryId && refundedDeliveryIds.has(String(descDeliveryId))) return false;
+    if (descDeliveryId && collectedDeliveryIds.has(descDeliveryId)) return false;
     return false;
   });
 
