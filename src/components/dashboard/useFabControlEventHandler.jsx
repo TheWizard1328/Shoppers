@@ -330,6 +330,15 @@ export function useFabControlEventHandler({
           armTimer(500);
           break;
         }
+        case 'STAGED_TO_PENDING_COMPLETED': {
+          // Add to Route finished promoting staged stops to pending. Briefly lock
+          // Phase 1 (500ms) so the map refits to the updated route, then auto-unlock.
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
+          clearTimer();
+          setFabPhase(1, true);
+          armTimer(500);
+          break;
+        }
         case 'ON_DUTY_FROM_TOGGLE': {
           // Driver went on_duty via the toggle (not the Start button).
           // Use the ref so the stable closure always calls the latest callback.

@@ -334,6 +334,22 @@ export const fabControlEvents = {
    * Dashboard listens for this and clears the FAB lock (turns it gray).
    * FAB phase is preserved — a double-tap re-locks it.
    */
+  /**
+   * OWNER SPEC (Nov 18 2026): once Add to Route has closed and every background
+   * step finished (staged stops promoted to pending, TR# recalc, refresh), lock the
+   * map-cycle FAB into phase 1 for 500ms so the map refits around the route that
+   * just gained stops.
+   */
+  notifyStagedToPendingCompleted: () => {
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'STAGED_TO_PENDING_COMPLETED' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
+  },
+
   notifyUserMapInteraction: () => {
     fabControlListeners.forEach(callback => {
       try {

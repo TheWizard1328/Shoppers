@@ -12,6 +12,7 @@ import { notifyDispatcherAssignedStops } from './dispatcherAssignedStopsNotifier
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import { getAutoCyclingTargets } from '../utils/autoCyclingMode';
 import { syncDeliveriesSquareCod } from '../utils/squareCodSync';
+import { fabControlEvents } from '../utils/fabControlEvents';
 
 // OWNER REPORT (Nov 12 2026, hourly digest): an Add To Route batch save failed four
 // times on the Meadows desktop and RemoteLogEntry only ever showed "{}" — the
@@ -729,6 +730,15 @@ export async function handleBatchSave({
         } catch (optErr) {
           console.warn('[AddToRoute] Done-last-step optimization scheduling failed:', optErr?.message || optErr);
         }
+
+        // OWNER SPEC (Nov 18 2026): the Add to Route form has closed and every
+        // background step above has run (staged→pending writes, TR# recalc, refresh,
+        // optimization scheduling). Lock the map-cycle FAB into phase 1 for 500ms so
+        // the map refits around the route that just gained stops. Deferred one tick so
+        // the fresh deliveries have painted before the refit is measured.
+        setTimeout(() => {
+          try { fabControlEvents.notifyStagedToPendingCompleted(); } catch { /* non-fatal */ }
+        }, 250);
 
         // Stats refresh already fired by handleBatchSaveDelivery (line 572) — removed duplicate.
       } catch (bgError) {
