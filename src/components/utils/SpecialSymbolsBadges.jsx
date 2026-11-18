@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Phone, Bell, BellOff, Mailbox, StickyNote, PenLine } from "lucide-react";
+import { Phone, Bell, BellOff, Mailbox, StickyNote, PenLine, DoorClosed } from "lucide-react";
 import HelpTooltip, { HELP_CONTENT } from "../common/HelpTooltip";
 import { isFirstDeliveryPatient } from '@/components/utils/patientHistoryUtils';
 
@@ -117,11 +117,14 @@ export default function SpecialSymbolsBadges({
   const hasRingBell = !isPickup && !isInterStore && (delivery.ring_bell || patient?.ring_bell) && !(delivery.dont_ring_bell || patient?.dont_ring_bell);
   const hasDontRingBell = !isPickup && !isInterStore && (delivery.dont_ring_bell || patient?.dont_ring_bell);
   const hasMailboxOk = !isPickup && !isInterStore && (delivery.mailbox_ok || patient?.mailbox_ok);
+  // Owner spec (Nov 17 2026): BACK DOOR delivery preference gets its own door
+  // symbol in the badge, alongside the ring-bell / mailbox preferences.
+  const hasBackDoor = !isPickup && !isInterStore && (delivery.back_door || patient?.back_door);
   const hasDriverNotes = !!delivery.delivery_notes;
 
   // Check if anything should be shown (fridge-only doesn't count for card size since F is hidden there)
   const hasNonFridgeContent = hasCOD || isFirstDelivery || hasOversized || hasSignature ||
-    hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+    hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasBackDoor || hasDriverNotes;
   const hasAnyContent = hasNonFridgeContent || (hasFridgeItem && size !== 'card');
 
   if (!hasAnyContent) return null;
@@ -148,6 +151,7 @@ export default function SpecialSymbolsBadges({
         {hasRingBell && <Bell className={config.icon} style={{ color: '#16a34a' }} />}
         {hasDontRingBell && <BellOff className={config.icon} style={{ color: '#dc2626' }} />}
         {hasMailboxOk && <Mailbox className={config.icon} style={{ color: '#2563eb' }} />}
+        {hasBackDoor && <DoorClosed className={config.icon} style={{ color: '#b45309' }} />}
         {hasDriverNotes && <StickyNote className={config.icon} style={{ color: '#7c3aed' }} />}
       </Badge>
       {showHelp &&
@@ -180,10 +184,11 @@ export function hasSpecialSymbols(delivery, patient, isPickup = false, isInterSt
   const hasRingBell = !isPickup && !isInterStore && (delivery.ring_bell || patient?.ring_bell) && !(delivery.dont_ring_bell || patient?.dont_ring_bell);
   const hasDontRingBell = !isPickup && !isInterStore && (delivery.dont_ring_bell || patient?.dont_ring_bell);
   const hasMailboxOk = !isPickup && !isInterStore && (delivery.mailbox_ok || patient?.mailbox_ok);
+  const hasBackDoor = !isPickup && !isInterStore && (delivery.back_door || patient?.back_door);
   const hasDriverNotes = !!delivery.delivery_notes;
 
   return hasCOD || isFirstDelivery || hasOversized || hasSignature || hasFridgeItem ||
-  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasBackDoor || hasDriverNotes;
 }
 
 /**
