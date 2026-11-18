@@ -136,8 +136,12 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
     window.setTimeout(() => setUpdateBroadcastSent(false), 4000);
   }, [currentUser?.id, isBroadcastingUpdate, users]);
 
+  // OWNER REQUEST Nov 17 2026: panel must sit above the mobile header and bottom
+  // nav. Layout forces both to z-index:51000 !important on phones and portrait
+  // tablets, so the old 50000 left them painted over the panel. 60000 matches the
+  // edit forms.
   return (
-    <div className="fixed inset-0 z-[50000] bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
+    <div className="fixed inset-0 z-[60000] bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
       <div className="rounded-xl shadow-2xl dark:shadow-black/50 w-full max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
         {/* Header — dark mode mirrors the patient portal panel (owner request
             Nov 3 2026): slate card, slate-100/800 icon buttons, no washed-out

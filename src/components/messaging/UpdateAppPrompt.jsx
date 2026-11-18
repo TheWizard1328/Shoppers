@@ -31,26 +31,47 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel, currentUs
     handleUpdateClickRef.current = handleUpdateClick;
   }, [handleUpdateClick]);
 
+  // OWNER REPORT Nov 17 2026: the 30s auto-update never fired on backgrounded or
+  // minimized web views / PWAs. A setInterval countdown is throttled or frozen
+  // by the browser while the page is hidden, so it only "ticked" after the user
+  // came back. The deadline is now an absolute wall-clock time: every tick (and
+  // every visibility/focus/pageshow event) recomputes remaining = deadline - now,
+  // so the instant the app is foregrounded past the deadline it updates at once.
+  const deadlineRef = useRef(Date.now() + 30000);
+  const firedRef = useRef(false);
+
   useEffect(() => {
+    deadlineRef.current = Date.now() + 30000;
+    firedRef.current = false;
     setSecondsLeft(30);
 
-    const intervalId = window.setInterval(() => {
-      setSecondsLeft((current) => {
-        if (current <= 1) {
-          window.clearInterval(intervalId);
-          handleUpdateClickRef.current?.();
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
+    const check = () => {
+      const remaining = Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining <= 0 && !firedRef.current) {
+        firedRef.current = true;
+        window.clearInterval(intervalId);
+        handleUpdateClickRef.current?.();
+      }
+    };
 
-    return () => window.clearInterval(intervalId);
+    const intervalId = window.setInterval(check, 1000);
+    const onResume = () => { if (!document.hidden) check(); };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className={`fixed inset-0 z-[10003] p-4 ${isTopStatsCardPosition ? 'pointer-events-none' : 'flex items-center justify-center bg-black/60'}`}>
+    <div className={`fixed inset-0 z-[70000] p-4 ${isTopStatsCardPosition ? 'pointer-events-none' : 'flex items-center justify-center bg-black/60'}`}>
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}

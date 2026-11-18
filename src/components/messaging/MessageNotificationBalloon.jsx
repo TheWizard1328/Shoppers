@@ -6,11 +6,16 @@ import UpdateAppPrompt from './UpdateAppPrompt';
 import {
   isAppUpdateBroadcast,
   isHiddenSystemBroadcastMessageForThisDevice,
+  hasSystemBroadcastBeenAckedForThisDevice,
+  SYSTEM_UPDATES_SENDER_ID,
 } from './updateBroadcastConfig';
+
+const UPDATE_PROMPT_WINDOW_MS = 30000;
 
 export default function MessageNotificationBalloon({ currentUser, onOpenConversation, onDismiss, suppressBalloon }) {
   const [notification, setNotification] = useState(null);
   const [updatePromptMessage, setUpdatePromptMessage] = useState(null);
+  const [updatePromptMeta, setUpdatePromptMeta] = useState(null);
   const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
   const autoDismissTimeoutRef = useRef(null);
 
@@ -29,6 +34,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
 
       if (event.type === 'create' && isAppUpdateBroadcast(event.data.content)) {
         setUpdatePromptMessage(event.data.content);
+        setUpdatePromptMeta({ messageId: event.data.id, conversationId: event.data.conversation_id });
         setNotification(null);
         if (autoDismissTimeoutRef.current) {
           clearTimeout(autoDismissTimeoutRef.current);
@@ -71,6 +77,72 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
     };
   }, [currentUser?.id]);
 
+  // OWNER REPORT Nov 17 2026: backgrounded / minimized web views and PWAs never
+  // updated. The browser freezes the page (and its websocket) while hidden, so the
+  // broadcast message is never delivered live and no prompt (or 30s timer) ever
+  // exists. On every return to the foreground, look for an update broadcast sent to
+  // this user that this device has not acknowledged yet:
+  //  - sent < 30s ago  -> show the prompt for the time that is left
+  //  - sent >= 30s ago -> its countdown already ran out, so update right away
+  useEffect(() => {
+    if (!currentUser?.id) return undefined;
+    let cancelled = false;
+    let running = false;
+
+    const catchUpOnMissedUpdateBroadcast = async () => {
+      if (running || document.hidden) return;
+      running = true;
+      try {
+        const conversationId = [SYSTEM_UPDATES_SENDER_ID, currentUser.id].sort().join('_');
+        const recent = await base44.entities.Message.filter(
+          { conversation_id: conversationId, receiver_id: currentUser.id },
+          '-created_date',
+          5
+        );
+        if (cancelled) return;
+        const list = Array.isArray(recent) ? recent : (recent?.items || []);
+        const missed = list.find((m) =>
+          m && isAppUpdateBroadcast(m.content || '') &&
+          !isHiddenSystemBroadcastMessageForThisDevice(m.id) &&
+          !hasSystemBroadcastBeenAckedForThisDevice(m.id)
+        );
+        if (!missed) return;
+
+        const age = Date.now() - new Date(missed.created_date).getTime();
+        // Ignore stale broadcasts (e.g. from days ago on a device that was off).
+        if (!Number.isFinite(age) || age > 6 * 60 * 60 * 1000) return;
+
+        if (age >= UPDATE_PROMPT_WINDOW_MS) {
+          const { sendSystemBroadcastAckIfNeeded } = await import('./updateBroadcastConfig');
+          await sendSystemBroadcastAckIfNeeded({
+            currentUser, messageId: missed.id, conversationId: missed.conversation_id,
+          }).catch(() => {});
+          window.location.reload();
+          return;
+        }
+        setUpdatePromptMessage(missed.content);
+        setUpdatePromptMeta({ messageId: missed.id, conversationId: missed.conversation_id });
+      } catch (_) {
+        // Non-critical; the next foreground event retries.
+      } finally {
+        running = false;
+      }
+    };
+
+    const onResume = () => { if (!document.hidden) catchUpOnMissedUpdateBroadcast(); };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+    window.addEventListener('online', onResume);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+      window.removeEventListener('online', onResume);
+    };
+  }, [currentUser?.id]);
+
   const handleClick = () => {
     if (notification) {
       onOpenConversation(notification.conversation_id, notification.sender_id, notification.sender_name);
@@ -90,6 +162,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
 
   const handleCancelUpdatePrompt = () => {
     setUpdatePromptMessage(null);
+    setUpdatePromptMeta(null);
   };
 
   return (
@@ -97,6 +170,9 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
       {updatePromptMessage && (
         <UpdateAppPrompt
           message={updatePromptMessage}
+          currentUser={currentUser}
+          messageId={updatePromptMeta?.messageId}
+          conversationId={updatePromptMeta?.conversationId}
           onUpdate={handleUpdateApp}
           onCancel={handleCancelUpdatePrompt}
         />
