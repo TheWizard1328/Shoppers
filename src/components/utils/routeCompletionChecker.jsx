@@ -1,6 +1,10 @@
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 
+// Local hour (24h) at which a finished route locks: Edit/Restart/Delete stop
+// being offered to the driver for that day. App Owner and admin are exempt.
+const ROUTE_LOCK_HOUR_LOCAL = 21;
+
 const getLocalDateString = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -23,8 +27,11 @@ export function isRouteCompleted(delivery, allDeliveries) {
   const now = new Date();
   const currentHour = now.getHours();
   const todayDateString = getLocalDateString();
-  const isAfter8PM = currentHour >= 20;
+  // OWNER RULE (Nov 17 2026): the route locks for the driver at 9:00 PM local,
+  // not 8:00 PM. Until that hour the driver can still edit finished stops even
+  // after the last one is completed.
+  const isAfterLockHour = currentHour >= ROUTE_LOCK_HOUR_LOCAL;
   const isRouteDateInPast = String(delivery.delivery_date || '') < todayDateString;
 
-  return isAfter8PM || isRouteDateInPast;
+  return isAfterLockHour || isRouteDateInPast;
 }
