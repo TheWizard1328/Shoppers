@@ -475,6 +475,18 @@ export async function generateRoutePolylines({
     // + cycling markers get polylines; pending stops never do. The
     // cycling-segment-only mode keeps its local extra case (segment regens).
     const isCyclingSegmentStop = cyclingSegmentOnly && resolveMode(s.delivery) === 'cycling';
+    // OWNER RULE (Nov 18 2026): a PENDING stop never gets a polyline — not even a
+    // cycling marker. Only the two loop BOUNDARIES (cycling start / end marker)
+    // stay eligible while pending, because they define where the bicycle leg runs.
+    // A pending interior marker (e.g. a stop near the store) must be skipped so the
+    // loop reads start → cycling stops → end instead of detouring to it.
+    if (String(status).toLowerCase() === 'pending') {
+      const mIdx = _idxById.has(String(s.delivery?.id)) ? _idxById.get(String(s.delivery?.id)) : -1;
+      const flags = mIdx > -1 ? _markerFlags[mIdx] : null;
+      const isBoundaryMarker = !!flags && (flags.isCyclingStart || flags.isCyclingEnd);
+      if (!isBoundaryMarker) return false;
+      return true;
+    }
     return sharedIsPolylineEligible({ status, isCyclingMarker, transportMode: null }) || isCyclingSegmentStop;
   });
 
