@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle, Car, Bike, Sparkles } from "lucide-react";
+import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle, Car, Bike, Sparkles, MapPin } from "lucide-react";
+import StopPolylineDeviationMap from '../admin/StopPolylineDeviationMap';
 import { Badge } from "@/components/ui/badge";
 import { locationTracker } from "@/components/utils/locationTracker";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -800,6 +801,9 @@ export default function DeliveryFormView({
       clearTimeout(t2);
     };
   }, [formOpenKey, scrollFormToTop]);
+
+  // Deviation-point editor toggle for the cycling marker form (owner spec Nov 18 2026).
+  const [showCyclingDeviationMap, setShowCyclingDeviationMap] = useState(false);
 
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
     ? {
@@ -1848,7 +1852,25 @@ export default function DeliveryFormView({
                       {delivery?.is_cycling_marker ?
                       <div className="space-y-3">
                           <div className="space-y-1">
-                            <Label className="text-sm font-semibold text-body">Cycling Point</Label>
+                            {/* OWNER SPEC (Nov 18 2026): the deviation-point editor opens from a
+                                map badge that sits on the Cycling Point label row, far right — just
+                                above the Cycling Route End button. */}
+                            <div className="flex items-center justify-between gap-2">
+                              <Label className="text-sm font-semibold text-body">Cycling Point</Label>
+                              {isAppOwner(currentUser) &&
+                              <button
+                                type="button"
+                                onClick={() => setShowCyclingDeviationMap((v) => !v)}
+                                disabled={isSaving}
+                                title={showCyclingDeviationMap ? 'Hide deviation points' : 'Edit deviation points'}
+                                aria-label={showCyclingDeviationMap ? 'Hide deviation points' : 'Edit deviation points'}
+                                aria-pressed={showCyclingDeviationMap}
+                                className={`shrink-0 inline-flex items-center gap-1 h-7 px-2 rounded-lg border text-[11px] font-medium transition-colors ${showCyclingDeviationMap ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>Points</span>
+                              </button>
+                              }
+                            </div>
                             <div className="flex gap-2">
                               {['Cycling Route Start', 'Cycling Route End'].map((label) => {
                               const isSelected = formData.delivery_notes === label;
@@ -1869,6 +1891,11 @@ export default function DeliveryFormView({
                             })}
                             </div>
                           </div>
+                          {showCyclingDeviationMap && isAppOwner(currentUser) && delivery?.id &&
+                          <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-slate-300)' }}>
+                              <StopPolylineDeviationMap delivery={delivery} mapHeight={220} />
+                            </div>
+                          }
                           <div className="flex gap-3">
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold text-body">
