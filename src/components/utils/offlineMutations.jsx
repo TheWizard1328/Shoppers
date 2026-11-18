@@ -14,7 +14,7 @@ import { Store } from '@/entities/Store';
 import { Company } from '@/entities/Company';
 import { getOfflineStoreName } from './offlineEntityRegistry';
 import { sanitizeDeliveryPayload, sanitizeDeliveryPayloads } from './deliveryPayloadSanitizer';
-import { ensureDeliveryIdentity } from './deliveryIdentity';
+import { ensureDeliveryIdentity, stripIdentityFromUpdate } from './deliveryIdentity';
 import {
   createGenericEntityLocal,
   updateGenericEntityLocal,
@@ -39,7 +39,8 @@ export const hasStopOrderChanged = (previousDelivery = {}, nextDelivery = {}) =>
 };
 
 const getMeaningfulDeliveryUpdates = async (existingDelivery, updates = {}) => {
-  const sanitizedUpdates = await sanitizeDeliveryPayload(updates);
+  // UPDATE payloads are partial: never mint identity here (see stripIdentityFromUpdate).
+  const sanitizedUpdates = await sanitizeDeliveryPayload(stripIdentityFromUpdate(updates, existingDelivery), { stampIdentity: false });
   return Object.entries(sanitizedUpdates).reduce((acc, [key, value]) => {
     // Force-update fields always pass through (explicit user intent)
     if (FORCE_DELIVERY_UPDATE_FIELDS.has(key)) {
@@ -636,7 +637,9 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     if (!existingDelivery) {
 
       try {
-        const meaningfulUpdates = await sanitizeDeliveryPayload(updates);
+        // The server record already owns its identity — never let a partial
+        // payload mint a new DID- id over it.
+        const meaningfulUpdates = await sanitizeDeliveryPayload(stripIdentityFromUpdate(updates, null), { stampIdentity: false });
         if (Object.keys(meaningfulUpdates).length === 0) {
           return null;
         }

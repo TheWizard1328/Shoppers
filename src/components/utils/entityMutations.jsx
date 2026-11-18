@@ -12,7 +12,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { ensureDeliveryIdentity } from './deliveryIdentity';
+import { ensureDeliveryIdentity, stripIdentityFromUpdate } from './deliveryIdentity';
 import { offlineDB } from './offlineDatabase';
 import { connectionMonitor } from './connectionMonitor';
 import { hasPendingEntityMutation } from './pendingEntityMutations';
@@ -667,7 +667,12 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
   
   // CRITICAL: Sanitize actual_delivery_time before updating
-  const sanitizedUpdates = sanitizeDeliveryData(updates);
+  // Identity guard: an update may never replace delivery_id (owner report
+  // Nov 18 2026 — partial payloads were flipping ISD/ISP ids to DID).
+  const sanitizedUpdates = stripIdentityFromUpdate(
+    sanitizeDeliveryData(updates),
+    (Array.isArray(window.__appDeliveries) ? window.__appDeliveries.find((d) => d?.id === deliveryId) : null)
+  );
   
   // CRITICAL: Skip ALL SmartRefresh operations during batch
   const shouldManageSmartRefresh = !skipSmartRefresh && !isBatchOperation;

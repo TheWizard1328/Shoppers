@@ -159,7 +159,11 @@ const normalizeValue = (key, value, fieldSchema) => {
   return value;
 };
 
-export const sanitizeDeliveryPayload = async (delivery = {}) => {
+export const sanitizeDeliveryPayload = async (delivery = {}, options = {}) => {
+  // stampIdentity:false — for UPDATE payloads. An update is a partial object with
+  // no delivery_id, so stamping here minted a brand-new DID- id and the caller
+  // then wrote it over a real ISD-/ISP- id (owner report Nov 18 2026).
+  const { stampIdentity = true } = options;
   const schema = await getDeliverySchema();
   const schemaProperties = schema?.properties || {};
   const allowedFields = Object.keys(schemaProperties).length > 0
@@ -186,7 +190,7 @@ export const sanitizeDeliveryPayload = async (delivery = {}) => {
   // this sanitizer, so stamping delivery_id + company_id HERE means no caller
   // can ship a stop with a blank company_id even if it never called
   // ensureDeliveryIdentity itself.
-  return ensureDeliveryIdentity(clean);
+  return stampIdentity ? ensureDeliveryIdentity(clean) : clean;
 };
 
 export const sanitizeDeliveryPayloads = async (deliveries = []) => Promise.all((deliveries || []).map((delivery) => sanitizeDeliveryPayload(delivery)));

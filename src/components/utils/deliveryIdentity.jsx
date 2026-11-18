@@ -126,6 +126,36 @@ export const ensureDeliveryIdentity = (payload, currentUser) => {
   return changed ? next : payload;
 };
 
+/**
+ * UPDATE GUARD (owner report Nov 18 2026 — "something keeps changing ISD/ISP to DID").
+ *
+ * ROOT CAUSE: an UPDATE payload is a PARTIAL object ({status:'in_transit'}, …) with
+ * no delivery_id. The create sanitizer used to stamp identity on it, minting a
+ * fresh `DID-<now>` id, and the update diff then wrote that over the real
+ * ISD-/ISP- id. Four inter-store legs flipped in one day.
+ *
+ * Rule: an update may never mint or replace an identity. The ONLY allowed change
+ * is the existing repair (a DID- id on an inter-store leg → ISD-/ISP-).
+ */
+export const stripIdentityFromUpdate = (updates, existing = null) => {
+  if (!updates || typeof updates !== 'object') return updates;
+  if (!Object.prototype.hasOwnProperty.call(updates, 'delivery_id')) return updates;
+
+  const incoming = String(updates.delivery_id || '').trim();
+  const existingId = String(existing?.delivery_id || '').trim();
+  const isInterStoreRepair = /^DID-/i.test(existingId) && /^(ISD|ISP)-/i.test(incoming);
+  if (isInterStoreRepair) return updates;
+
+  const next = { ...updates };
+  delete next.delivery_id;
+  if (existingId) delete next.company_id;
+  console.warn(
+    '[deliveryIdentity] blocked an identity write on update',
+    { existing: existingId || '(not cached)', attempted: incoming || '(blank)' }
+  );
+  return next;
+};
+
 /** Same stamping for an array of payloads (batch saves). */
 export const ensureDeliveryIdentityBatch = (payloads, currentUser) =>
   (Array.isArray(payloads) ? payloads : []).map((p) => ensureDeliveryIdentity(p, currentUser));
