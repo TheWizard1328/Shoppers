@@ -1140,7 +1140,13 @@ export default function PatientForm({
   // flush with the nav's real top edge (the nav itself already sits above
   // that inset via .app-container's own padding-bottom).
   // OWNER REVERSAL (Nov 8 2026): back to the centred card, same as the other forms.
-  const desktopFillStyle = undefined;
+  // OWNER REQUEST (Nov 18 2026): the card must centre between the sidebar and the
+  // right edge of the page. It used a hardcoded lg:pl-64, but the sidebar is
+  // user-resizable, so a wider (or narrower) sidebar pushed the card off centre.
+  // The overlay now reserves the MEASURED sidebar width instead.
+  const desktopFillStyle = (!isMobile && contentArea && contentArea.width > 0)
+    ? { paddingLeft: `${contentArea.left}px`, paddingRight: 0 }
+    : undefined;
 
   // OWNER SPEC (Nov 7 2026): on a phone the form fills from the STATUS BAR down to
   // the TOP OF THE BOTTOM NAV - it deliberately COVERS the app's mobile header.
@@ -1172,7 +1178,7 @@ export default function PatientForm({
     // adding padding-bottom too would double-count the safe area.
     role="dialog"
     ref={patientFormContainerRef}
-    className={`patient-form-overlay fixed inset-0 bg-black/60 flex z-[65000] items-center justify-center ${isMobile ? 'p-0' : 'p-4 pt-20 lg:pt-4 lg:pl-64'}`}
+    className={`patient-form-overlay fixed inset-0 bg-black/60 flex z-[65000] items-center justify-center ${isMobile ? 'p-0' : 'p-4 pt-20 lg:pt-4'}`}
     style={mobileFormInsetStyle || desktopFillStyle}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}

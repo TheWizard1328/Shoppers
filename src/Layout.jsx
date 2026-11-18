@@ -1977,13 +1977,7 @@ export default function Layout({ children, currentPageName }) {
       {isLoadingLayout ?
       <AppLoadingScreen showRetryHint={showInitRetryHint} onRetry={() => window.location.reload()} /> :
       !hasAccess || !currentUser ?
-      <div className="h-screen flex items-center justify-center bg-slate-50">
-          <div className="text-center p-8">
-            <h2 className="2xl font-bold text-slate-900 mb-4">RxDeliver</h2>
-            <p className="text-slate-600 mb-6">Redirecting to login...</p>
-            <p className="text-sm text-slate-500">If you're not redirected automatically, please refresh the page.</p>
-          </div>
-        </div> :
+      <AuthRedirectScreen /> :
 
       <UserProvider initialUser={currentUser}>
            <AppDataProvider value={{
@@ -2147,4 +2141,44 @@ export default function Layout({ children, currentPageName }) {
         />
       )}
     </AppErrorBoundary>);
+}
+
+// OWNER REPORT (Nov 18 2026): this screen said "Redirecting to login..." and then
+// did nothing at all — there was no navigation, so a weak-connection auth timeout
+// left the app stuck on a spinner-shaped dead end. It now really navigates to
+// /login (and offers manual buttons in case the router is wedged).
+function AuthRedirectScreen() {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        if (window.location.pathname !== '/login') window.location.replace('/login');
+      } catch { /* noop */ }
+    }, 1200);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="h-screen flex items-center justify-center bg-slate-50">
+      <div className="text-center p-8">
+        <h2 className="text-2xl font-bold text-slate-900 mb-4">RxDeliver</h2>
+        <p className="text-slate-600 mb-2">Taking you to the login screen...</p>
+        <p className="text-sm text-slate-500 mb-6">If nothing happens in a few seconds, tap below.</p>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => { window.location.replace('/login'); }}
+            className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium"
+          >
+            Go to login
+          </button>
+          <button
+            type="button"
+            onClick={() => { window.location.reload(); }}
+            className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

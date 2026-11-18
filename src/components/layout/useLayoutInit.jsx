@@ -73,14 +73,32 @@ export function useLayoutInit({
             setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
           )]);
 
+        // OWNER REPORT (Nov 18 2026): on a weak connection the very first
+        // getEffectiveUser call timed out, which dropped the user straight onto the
+        // dead-end "Redirecting to login..." screen with no retry and no navigation.
+        // A timeout is a NETWORK failure, not a signed-out user, so give it two more
+        // attempts before treating the session as gone.
         let fetchedUser;
-        try {
-          fetchedUser = await _withTimeout(
-            requestThrottler.queue(() => getEffectiveUser(), 'critical', 'getEffectiveUser'),
-            10000, 'getEffectiveUser'
-          );
-        } catch (e) {
-          console.error('❌ [Init] getEffectiveUser failed/timeout:', e.message);
+        let lastAuthError = null;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          try {
+            fetchedUser = await _withTimeout(
+              requestThrottler.queue(() => getEffectiveUser(), 'critical', 'getEffectiveUser'),
+              10000, 'getEffectiveUser'
+            );
+            lastAuthError = null;
+            break;
+          } catch (e) {
+            lastAuthError = e;
+            const status = e?.response?.status;
+            const hardAuthFail = status === 401 || status === 403;
+            console.warn(`⚠️ [Init] getEffectiveUser attempt ${attempt}/3 failed:`, e?.message || e);
+            if (hardAuthFail || attempt === 3) break;
+            await new Promise((r) => setTimeout(r, attempt * 1500));
+          }
+        }
+        if (lastAuthError) {
+          console.error('❌ [Init] getEffectiveUser failed/timeout after retries:', lastAuthError?.message || lastAuthError);
           setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return;
         }
         if (!fetchedUser) {setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return;}
