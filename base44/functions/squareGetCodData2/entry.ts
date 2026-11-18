@@ -697,7 +697,7 @@ async function handleGetCodData(base44, payload={}) {
   // catalog item must be allowed to exist (the store still has to ring it).
   const refundedDeliveryIds = new Set(
     (existingTransactions || [])
-      .filter((t) => ['refunded', 'refund', 'voided', 'cancelled', 'canceled'].includes(String(t?.status || '').toLowerCase()) && t?.delivery_id)
+      .filter((t) => (['refunded', 'refund', 'voided', 'cancelled', 'canceled'].includes(String(t?.status || '').toLowerCase()) || t?.refunded_at) && t?.delivery_id)
       .map((t) => String(t.delivery_id))
   );
   const collectedDeliveryIds = new Set(
@@ -864,7 +864,7 @@ async function handleGetCodData(base44, payload={}) {
   const refundedSignatureSet = new Set();
   for (const t of (existingTransactions || [])) {
     const st = String(t?.status || '').toLowerCase();
-    if (!['refunded','refund','voided','cancelled','canceled'].includes(st)) continue;
+    if (!['refunded','refund','voided','cancelled','canceled'].includes(st) && !t?.refunded_at) continue;
     const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
     if (sig && sig !== '::0') refundedSignatureSet.add(sig);
   }

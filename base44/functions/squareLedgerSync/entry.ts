@@ -1221,6 +1221,20 @@ Deno.serve(async (req) => {
 
       // Refunds -> linked back to their payment (and through it, to the delivery)
       for (const refund of refunds) {
+        // Durable refund marker on our own SquareTransaction rows (owner rule
+        // Nov 18 2026): a refunded ring must stop proving collection forever, even
+        // after a later payments sync rewrites the row's status.
+        if (refund?.payment_id) {
+          const refundedAt = refund?.created_at || new Date().toISOString();
+          await base44.asServiceRole.entities.SquareTransaction
+            .filter({ square_transaction_id: refund.payment_id })
+            .then(async (rows: any[]) => {
+              for (const r of (rows || [])) {
+                await base44.asServiceRole.entities.SquareTransaction.update(r.id, { status: 'refunded', refunded_at: refundedAt }).catch(() => null);
+              }
+            })
+            .catch(() => null);
+        }
         const refPayment = refund?.payment_id ? paymentById.get(refund.payment_id) : null;
         const order = refPayment?.order_id ? orderById.get(refPayment.order_id) : null;
         const codLink = order ? resolveCodLink(order, catalogByObjectId) : null;

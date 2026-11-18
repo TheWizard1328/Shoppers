@@ -146,7 +146,7 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
     const txRows = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 4000).catch(() => []);
     for (const t of (Array.isArray(txRows) ? txRows : [])) {
       const st = String(t?.status || '').toLowerCase();
-      if (!['refunded','refund','voided','cancelled','canceled'].includes(st)) continue;
+      if (!['refunded','refund','voided','cancelled','canceled'].includes(st) && !t?.refunded_at) continue;
       const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
       if (sig && !sig.startsWith('::0')) refundedSignatureSet.add(sig);
     }

@@ -2080,7 +2080,10 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     // collected. Cash the driver took (no Square record yet) is uncollected, and a
     // collection that was later REFUNDED goes back to uncollected — it must never
     // count as collected just because a refunded row still exists.
-    const isCollectedTx = (tx) => !!tx && String(tx?.status || '').toLowerCase() === 'completed' && isRealSquareTx(tx);
+    // A row carrying refunded_at is void forever, even if a later payments sync
+    // rewrites its status back to 'completed' (the refunded Nov 5 ring kept its
+    // transaction id and kept the Oct 28 COD looking collected).
+    const isCollectedTx = (tx) => !!tx && String(tx?.status || '').toLowerCase() === 'completed' && isRealSquareTx(tx) && !tx?.refunded_at;
     const txByDeliveryId = new Map();
     const txByCatalogObjId = new Map();
     const txByKey = new Map();
@@ -2602,12 +2605,13 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       if (linkedDelivery?.id) matchingTx = lookupIndexes.txByDeliveryId.get(linkedDelivery.id);
       if (matchingTx && !lookupIndexes.isCollectedTx(matchingTx)) matchingTx = null;
       if (!matchingTx && catalogObjectId) matchingTx = lookupIndexes.txByCatalogObjId.get(catalogObjectId) || lookupIndexes.txByCatalogObjId.get(item.id);
+      if (matchingTx && !lookupIndexes.isCollectedTx(matchingTx)) matchingTx = null;
 
       // Fallback: scan only if no direct match
       if (!matchingTx) {
         matchingTx = (allTransactions || []).find((tx) => {
           if (!tx) return false;
-          if (!(tx?.square_transaction_id && String(tx.square_transaction_id).trim())) return false; // bookkeeping pending rows are NOT Square transactions
+          if (!lookupIndexes.isCollectedTx(tx)) return false; // refunded/cancelled/booking rows prove nothing
           if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
           if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
           const txAmountCents = Math.round(Number(tx.amount || 0) * 100);

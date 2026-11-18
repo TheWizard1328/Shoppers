@@ -174,10 +174,10 @@ async function handleSyncCatalog(base44, payload={}) {
   const safeTxRows = (rawTxRows) => (Array.isArray(rawTxRows) ? rawTxRows : []).map(unwrapEntityRecord).filter(Boolean);
   const allTxRows = safeTxRows(rawTxRows);
   const refundedDeliveryIds = new Set(
-    allTxRows.filter((t) => ['refunded', 'refund', 'voided', 'cancelled', 'canceled'].includes(String(t?.status || '').toLowerCase()) && t?.delivery_id).map((t) => String(t.delivery_id))
+    allTxRows.filter((t) => (['refunded', 'refund', 'voided', 'cancelled', 'canceled'].includes(String(t?.status || '').toLowerCase()) || t?.refunded_at) && t?.delivery_id).map((t) => String(t.delivery_id))
   );
   const refundedSignatureSet = new Set(
-    allTxRows.filter((t) => ['refunded', 'refund', 'voided', 'cancelled', 'canceled'].includes(String(t?.status || '').toLowerCase()))
+    allTxRows.filter((t) => ['refunded', 'refund', 'voided', 'cancelled', 'canceled'].includes(String(t?.status || '').toLowerCase()) || t?.refunded_at)
       .map((t) => `${normalizeText(t?.item_name)}::${toAmountCents(t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100))}`)
       .filter((k) => !k.startsWith('::0'))
   );
