@@ -98,8 +98,8 @@ export default function PatientStoreMapDialog({ open, onClose, patient, store, d
           10000/10001, so the map used to open BEHIND the active form. Overlay and
           content are both raised above the forms. */}
       <DialogContent
-        overlayClassName="z-[10099] bg-black/60"
-        className="p-0 overflow-hidden w-[92vw] max-w-[620px] rounded-xl z-[10100]">
+        overlayClassName="z-[70500] bg-black/60"
+        className="p-0 overflow-hidden w-[92vw] max-w-[620px] rounded-xl z-[70600]">
         <DialogHeader className="px-3 pt-3 pb-1">
           <DialogTitle className="text-sm font-semibold text-body">
             {patient?.full_name || patient?.patient_name || 'Patient'} · {store?.name || 'Store'}

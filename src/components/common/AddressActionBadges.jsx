@@ -318,11 +318,15 @@ export default function AddressActionBadges({
       <Dialog open={!!polylineTarget} onOpenChange={(o) => { if (!o) setPolylineTarget(null); }}>
         <DialogContent
           /* The Edit Delivery / Edit Patient forms are full-screen layers at
-             z-[10020] (their own popovers go to 10051), so a stock dialog
-             (overlay 10000 / content 10001) opened from inside them rendered
-             BEHIND the form (owner report Nov 12 2026). Raise both. */
-          overlayClassName={`z-[10060] ${isPhoneLayout ? '' : 'map-dialog-overlay-wide'}`}
-          className={`z-[10070] max-h-[92vh] overflow-y-auto p-3 sm:p-4 ${isPhoneLayout ? 'max-w-2xl w-[96vw]' : 'map-dialog-wide'}`}>
+             z-[10020] desktop and z-[60000] on a phone, and the messaging panel
+             is 60000 too, so a stock dialog (overlay 10000 / content 10001)
+             opened from inside them rendered BEHIND the form (owner report
+             Nov 12 2026). OWNER REPORT Nov 17 2026: "raise the z level of the
+             deviation point editor ... the map editor is behind these forms" —
+             the old 10060/10070 still lost to the 60000 forms, so both layers now
+             sit above every form, panel, header (51000) and nav in the app. */
+          overlayClassName={`z-[70500] ${isPhoneLayout ? '' : 'map-dialog-overlay-wide'}`}
+          className={`z-[70600] max-h-[92vh] overflow-y-auto p-3 sm:p-4 ${isPhoneLayout ? 'max-w-2xl w-[96vw]' : 'map-dialog-wide'}`}>
           <DialogHeader>
             <DialogTitle className="text-sm">
               Polyline &amp; Deviation Points
