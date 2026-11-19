@@ -9,6 +9,9 @@ import { Phone, MapPin, Hash, CheckCircle, XCircle, Loader2 } from 'lucide-react
 import SpecialSymbolsBadges from '@/components/utils/SpecialSymbolsBadges';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 import FailureReasonDialog from '../deliveries/FailureReasonDialog';
+import { useAppData } from '../utils/AppDataContext';
+import { useUser } from '../utils/UserContext';
+import { useSquareLocationCheck } from '../dashboard/useSquareLocationCheck';
 
 const GPS_MATCH_THRESHOLD = 0.025; // ~25 metres tolerance
 
@@ -34,6 +37,98 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
  *  onFailDelivery    – async (delivery, reason) => void — called after failure reason confirmed
  */
 const ACTIVE_STATUSES = ['en_route', 'in_transit'];
+
+/**
+ * CLUSTER SQUARE COD BUTTON (owner request Nov 18 2026): the cluster dialog's
+ * Square button used to be a bare logo, so a driver got no read on whether their
+ * Square reader was on the right location. It now carries the SAME status badge
+ * the regular stop card shows beside its Square button:
+ *   loading  → grey spinner chip
+ *   mismatch → amber warning chip (the driver's last Square transaction was at a
+ *              DIFFERENT location — the charge would land on the wrong card)
+ *   verified → emerald check chip (peek confirmed the expected location)
+ *   no_data / idle → no chip (first COD of the day is neutral)
+ *
+ * The peek hook caches per location+driver for 5 minutes, so opening the dialog
+ * never repeats the network call the stop card already made. The launch itself
+ * stays on the delivery's own StopCard (rxCollectCod event) because Android
+ * gesture trust must stay inside the original tap.
+ */
+function ClusterSquareCodButton({ delivery, disabled }) {
+  const appData = useAppData();
+  const { currentUser } = useUser();
+
+  const configs = useMemo(() => {
+    const ctx = appData?.squareLocationConfigs;
+    if (Array.isArray(ctx) && ctx.length > 0) return ctx;
+    return (typeof window !== 'undefined' && window.__squareLocationConfigCache) || [];
+  }, [appData?.squareLocationConfigs]);
+
+  const store = useMemo(() => {
+    const stores = appData?.stores || [];
+    return stores.find((st) => String(st?.id) === String(delivery?.store_id)) || null;
+  }, [appData?.stores, delivery?.store_id]);
+
+  const expectedLocationId = useMemo(() => {
+    const cfgId = store?.square_location_config_id;
+    if (!cfgId) return null;
+    const matched = configs.find((c) => String(c?.id) === String(cfgId));
+    return matched?.square_location_id || null;
+  }, [store, configs]);
+
+  const driverName = useMemo(() => {
+    const me = (appData?.appUsers || []).find((u) => u?.user_id === currentUser?.id);
+    return me?.user_name || null;
+  }, [appData?.appUsers, currentUser?.id]);
+
+  const codRequired = Number(delivery?.cod_total_amount_required || 0);
+  const codCollected = Number(delivery?.cod_confirmed_collected || 0);
+  const status = useSquareLocationCheck({
+    isNextDelivery: !!delivery?.isNextDelivery,
+    hasCODRequired: codRequired > 0,
+    isCODComplete: codRequired > 0 && codRequired - codCollected <= 0.02,
+    expectedLocationId,
+    driverName,
+  });
+
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        type="button"
+        disabled={disabled}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          // Fire on the delivery's own StopCard so the Square launch keeps its
+          // gesture trust and its COD panel.
+          window.dispatchEvent(new CustomEvent('rxCollectCod', { detail: { deliveryId: delivery.id } }));
+        }}
+        style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+        className="inline-flex items-center justify-center h-10 w-12 rounded-lg border border-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-600 transition-colors"
+        title={status === 'mismatch' ? 'Square reader may be on a different location' : 'Collect COD with Square POS'}
+        aria-label="Collect COD with Square POS">
+        <img
+          src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/cc4cb3e37_Screenshot_20260605_155930_OneUIHome.png"
+          alt="Square POS"
+          className="w-6 h-6 rounded-md object-cover" />
+      </button>
+      {status === 'loading' ?
+        <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-slate-400 z-10 pointer-events-none">
+          <Loader2 className="w-2.5 h-2.5 text-white animate-spin" />
+        </span> :
+        status === 'mismatch' ?
+        <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold leading-none z-10 pointer-events-none">
+          ⚠
+        </span> :
+        status === 'verified' ?
+        <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-bold leading-none z-10 pointer-events-none">
+          ✓
+        </span> :
+        null}
+    </div>
+  );
+}
 
 export default function MultiDeliveryArrivalDialog({
   open,
@@ -347,28 +442,7 @@ export default function MultiDeliveryArrivalDialog({
                           Fail
                         </button>
                         {showCodButton && (
-                          <button
-                            type="button"
-                            disabled={!!loadingId}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onTouchStart={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Fire on the delivery's own StopCard so the Square
-                              // launch keeps its gesture trust and its COD panel.
-                              window.dispatchEvent(new CustomEvent('rxCollectCod', { detail: { deliveryId: delivery.id } }));
-                            }}
-                            style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
-                            className="flex-shrink-0 inline-flex items-center justify-center h-10 w-12 rounded-lg border border-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-600 transition-colors"
-                            title="Collect COD with Square POS"
-                            aria-label="Collect COD with Square POS"
-                          >
-                            <img
-                              src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/cc4cb3e37_Screenshot_20260605_155930_OneUIHome.png"
-                              alt="Square POS"
-                              className="w-6 h-6 rounded-md object-cover"
-                            />
-                          </button>
+                          <ClusterSquareCodButton delivery={delivery} disabled={!!loadingId} />
                         )}
                         <button
                           type="button"
