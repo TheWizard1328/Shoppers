@@ -158,6 +158,7 @@ export default function DeliveryFormView({
   applyDeliveryChangesLocally, onDriverManuallyChanged,
   scheduledDriverMap = {},
   defaultSlotDrivers = null,
+  defaultSlotDriverIds = null,
   statHolidayWarning = null,
   autoCommitProgress = 1,
   pastDateAddBlocked = false,
@@ -530,13 +531,39 @@ export default function DeliveryFormView({
   // for on that date and slot (the inverse of getDefaultDriverForStoreSlot above).
   const getDefaultPickupVariantIdsForDriver = (driverId, deliveryDate) => {
     if (!driverId || !deliveryDate) return [];
+    // SLOT-STRICT (owner report Nov 19 2026): only a slot that really is this driver's
+    // assigned default counts. The first version resolved through
+    // getDefaultDriverForStoreSlot(), whose store-keyed scheduledDriverMap entry and
+    // "other slot's driver" fallback both reported a default for BOTH slots, so every AM
+    // and PM variant of the store got ticked. defaultSlotDriverIds carries the exact
+    // per-slot default (per-slot override, else the store's ENABLED day-of-week default
+    // for that slot) — the same rule as the "Default" badge — so a PM pickup is only
+    // ticked when the driver is genuinely the PM default.
+    if (defaultSlotDriverIds && defaultSlotDriverIds.size > 0) {
+      const ids = [];
+      (availableStores || []).forEach((store) => {
+        if (!store || store.status === 'inactive') return;
+        const storeId = store._originalStoreId || store.id;
+        const slot = store._timeSlot || 'AM';
+        const slotDriverId = defaultSlotDriverIds.get(`${storeId}_${slot}`);
+        if (slotDriverId && String(slotDriverId) === String(driverId)) ids.push(store.id);
+      });
+      return ids;
+    }
+    // Fallback (map not loaded yet): the store's own slot field, with no cross-slot
+    // suggestion and no store-keyed override spreading to the other slot.
+    const dateObj = new Date(`${deliveryDate}T00:00:00`);
+    const day = dateObj.getDay();
+    const prefix = day === 0 ? 'sunday' : day === 6 ? 'saturday' : 'weekday';
     const ids = [];
     (availableStores || []).forEach((store) => {
       if (!store || store.status === 'inactive') return;
       const storeId = store._originalStoreId || store.id;
       const slot = store._timeSlot || 'AM';
-      const { driverId: defaultDriverId } = getDefaultDriverForStoreSlot(storeId, slot, deliveryDate);
-      if (defaultDriverId && String(defaultDriverId) === String(driverId)) ids.push(store.id);
+      const base = (stores || []).find((s) => s && s.id === storeId) || store;
+      if (base[`${prefix}_${String(slot).toLowerCase()}_enabled`] !== true) return;
+      const slotDriverId = base[`${prefix}_${String(slot).toLowerCase()}_driver_id`];
+      if (slotDriverId && String(slotDriverId) === String(driverId)) ids.push(store.id);
     });
     return ids;
   };

@@ -308,6 +308,10 @@ export default function DeliveryForm({
   // or enabled store default). Used ONLY for the pickup "Default" badge — NOT driver
   // auto-select (which stays slot-agnostic).
   const [defaultSlotDrivers, setDefaultSlotDrivers] = useState(new Map());
+  // Slot -> default driver ID, built with the exact same rule as the "Default" badge
+  // (per-slot override, else the store's ENABLED day-of-week default for that slot).
+  // Used by pickup mode to auto-check only a driver's real assigned pickups.
+  const [defaultSlotDriverIds, setDefaultSlotDriverIds] = useState(new Map());
   const {
     projectedDeliveries,
     setProjectedDeliveries,
@@ -1255,6 +1259,7 @@ export default function DeliveryForm({
       scheduledDriverMapRef.current = {};
       setScheduledDriverMap({});
       setDefaultSlotDrivers(new Map());
+      setDefaultSlotDriverIds(new Map());
       return;
     }
     let cancelled = false;
@@ -1267,6 +1272,7 @@ export default function DeliveryForm({
         const prefix = dow === 0 ? 'sunday' : dow === 6 ? 'saturday' : 'weekday';
         const map = {};
         const defaultSlotMap = new Map();
+        const defaultSlotIdMap = new Map();
         // For dispatchers: only map their single store; for admins/others: map all stores
         const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
         const storesToMap = isDispatcherOnly
@@ -1302,7 +1308,10 @@ export default function DeliveryForm({
           const amDefaultDriverId = amOverrideDriver || amStoreDriver;
           if (amDefaultDriverId) {
             const driver = allDrivers.find((d) => d && (d.id === amDefaultDriverId || d.user_id === amDefaultDriverId));
-            if (driver) defaultSlotMap.set(`${store.id}_AM`, driver.user_name || driver.full_name || 'Driver');
+            if (driver) {
+              defaultSlotMap.set(`${store.id}_AM`, driver.user_name || driver.full_name || 'Driver');
+              defaultSlotIdMap.set(`${store.id}_AM`, driver.id);
+            }
           }
           const pmSlotOverride = overrides.find((o) => o.store_id === store.id && o.slot_key === `${prefix}_pm`);
           const pmOverrideDriver = pmSlotOverride && pmSlotOverride.driver_id && pmSlotOverride.driver_id !== '__booked_off__' ? pmSlotOverride.driver_id : null;
@@ -1310,7 +1319,10 @@ export default function DeliveryForm({
           const pmDefaultDriverId = pmOverrideDriver || pmStoreDriver;
           if (pmDefaultDriverId) {
             const driver = allDrivers.find((d) => d && (d.id === pmDefaultDriverId || d.user_id === pmDefaultDriverId));
-            if (driver) defaultSlotMap.set(`${store.id}_PM`, driver.user_name || driver.full_name || 'Driver');
+            if (driver) {
+              defaultSlotMap.set(`${store.id}_PM`, driver.user_name || driver.full_name || 'Driver');
+              defaultSlotIdMap.set(`${store.id}_PM`, driver.id);
+            }
           }
           // Base store key = override driver (preferred) or AM default for backwards compat
           const primaryDriverId = overrideDriverId || store[`${prefix}_am_driver_id`] || store[`${prefix}_pm_driver_id`];
@@ -1323,6 +1335,7 @@ export default function DeliveryForm({
           scheduledDriverMapRef.current = map;
           setScheduledDriverMap(map);
           setDefaultSlotDrivers(defaultSlotMap);
+          setDefaultSlotDriverIds(defaultSlotIdMap);
         }
       } catch { /* silent */ }
     })();
@@ -2073,6 +2086,7 @@ export default function DeliveryForm({
       applyDeliveryChangesLocally={applyDeliveryChangesLocally}
       scheduledDriverMap={scheduledDriverMap}
       defaultSlotDrivers={defaultSlotDrivers}
+      defaultSlotDriverIds={defaultSlotDriverIds}
       statHolidayWarning={statHolidayWarning}
       autoCommitProgress={autoCommitProgress}
     />
