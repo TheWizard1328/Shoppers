@@ -128,11 +128,16 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              the chrome rules but later in the sheet, so it wins; it also kills
              tailwindcss-animate's enter transform (fill-mode both), which was overriding the
              inline centring transform and leaving the card slightly off centre. */
-          [data-eod-stats-panel][data-eod-stats-panel][data-eod-stats-panel] {
+          html body [data-eod-stats-panel][data-eod-stats-panel][data-eod-stats-panel] {
             z-index: 60000 !important;
             animation: none !important;
             transform: none !important;
             position: fixed !important;
+          }
+          /* Radix's own close button is a direct child of the panel container; the panel
+             draws its own X inside the card, so the default one is hidden. */
+          html body [data-eod-stats-panel][data-eod-stats-panel][data-eod-stats-panel] > button {
+            display: none !important;
           }
           .app-container.tablet-portrait .app-sidebar { position:fixed !important; left:0 !important; top:var(--drawer-top, calc(var(--app-inset-top) + 64px)) !important; bottom:0 !important; padding-top:0 !important; padding-bottom:var(--drawer-bottom, 0px) !important; width:320px !important; max-width:85vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important;  box-sizing:border-box !important; }
           .app-container.tablet-portrait .app-sidebar.sidebar-open { transform:translateX(0) !important; box-shadow:4px 0 12px var(--shadow-color) !important; }

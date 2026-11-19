@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useChrome } from '@/components/utils/appChrome';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign, Car, Bike } from 'lucide-react';
+import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign, Car, Bike, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { computeBestDay } from '@/components/utils/driverDailyTotals';
 import confetti from 'canvas-confetti';
@@ -283,7 +282,6 @@ export default function EndOfDayStatsDialog({
   // locally. src/components/utils/appChrome.js owns that measurement (visualViewport
   // clamped, so the APK's taller-than-visible layout cannot drag it down) and every panel
   // that needs it asks the same hook.
-  const { band } = useChrome();
 
   // MEASURED, TRANSFORM-FREE FRAME (owner report Nov 18 2026, eleventh pass: "again off
   // center and the z levels lower than the bottom nav bar"). Two root causes:
@@ -299,62 +297,62 @@ export default function EndOfDayStatsDialog({
   //     and an !important declaration beats a normal inline zIndex:60000 — which is why the
   //     bottom nav painted OVER the card whenever the two overlapped. layoutStyles now
   //     carries an equally-!important, higher-specificity rule for [data-eod-stats-panel].
-  const cardRef = useRef(null);
-  const [cardH, setCardH] = useState(0);
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    const el = cardRef.current;
-    const read = () => {
-      if (!el || typeof el.getBoundingClientRect !== 'function') return;
-      const h = Math.round(el.getBoundingClientRect().height);
-      setCardH((prev) => (prev === h ? prev : h));
-    };
-    read();
-    let ro = null;
-    if (typeof ResizeObserver !== 'undefined' && el) {
-      ro = new ResizeObserver(read);
-      ro.observe(el);
-    }
-    return () => ro?.disconnect();
-  }, [isOpen, stats, isProcessing]);
-
-  const bandHeight = band ? band.bottom - band.top : 0;
+  // FULL-VIEWPORT FLEX FRAME (owner spec Nov 18 2026, twelfth pass: "the EOD stats panel
+  // is supposed to have a higher z than the mobile header and the bottom nav and be
+  // vertically centred within the app's vertical height. It is currently too low on all
+  // accounts"). Every previous pass tried to compute a top offset: band midpoint, measured
+  // card height, translate. Each one landed low, because the APK lays the app out taller
+  // than the screen and a measured height is always one render stale.
+  // Now there is NO offset to compute: the dialog CONTENT is a transparent fixed container
+  // the exact size of the real visible viewport (window.visualViewport), and the card is a
+  // child centred by flexbox. Centring is done by the layout engine, so it cannot drift.
+  // The card scrolls inside itself when the content is taller than the screen.
+  // Z: layoutStyles carries an !important, higher-specificity [data-eod-stats-panel] rule
+  // that beats the chrome's z-index:51000 !important, so this sits above BOTH the mobile
+  // header and the bottom nav.
   const vv = typeof window !== 'undefined' ? window.visualViewport : null;
   const viewLeft = Math.round(vv?.offsetLeft || 0);
   const viewTop = Math.round(vv?.offsetTop || 0);
   const viewWidth = Math.round(vv?.width || (typeof window !== 'undefined' ? window.innerWidth : 0));
   const viewHeight = Math.round(vv?.height || (typeof window !== 'undefined' ? window.innerHeight : 0));
-  // Free area to centre in: the header-to-nav band when it is known, else the visual viewport.
-  const areaTop = band && bandHeight > 200 ? Math.round(band.top) : viewTop;
-  const areaHeight = band && bandHeight > 200 ? Math.round(bandHeight) : viewHeight;
-  const cardWidth = Math.max(240, Math.min(viewWidth - 32, 448));
-  const maxCardHeight = Math.max(200, areaHeight - 16);
-  const effectiveHeight = cardH > 0 ? Math.min(cardH, maxCardHeight) : Math.min(maxCardHeight, 320);
-  const panelFrame = {
+  const containerFrame = {
     position: 'fixed',
     zIndex: 60000,
-    left: Math.round(viewLeft + Math.max(0, (viewWidth - cardWidth) / 2)),
-    top: Math.round(areaTop + Math.max(0, (areaHeight - effectiveHeight) / 2)),
-    width: cardWidth,
+    left: viewLeft,
+    top: viewTop,
+    width: viewWidth,
+    height: viewHeight,
     maxWidth: 'none',
-    maxHeight: maxCardHeight,
-    height: 'auto',
-    bottom: 'auto',
-    right: 'auto',
+    maxHeight: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 16px',
+    border: 'none',
+    background: 'transparent',
+    boxShadow: 'none',
     transform: 'none',
     animation: 'none',
-    margin: 0,
+    overflow: 'visible',
+    // The container spans the whole visible screen so flexbox can centre the card. It must
+    // not swallow taps meant for the header or nav underneath, so only the card is clickable.
+    pointerEvents: 'none',
   };
+  const cardClass = 'relative w-full max-w-md max-h-full overflow-y-auto rounded-2xl border bg-surface p-4 pb-2 shadow-2xl sm:p-6 sm:pb-3';
+  const cardStyle = { borderColor: 'var(--border-slate-300)', pointerEvents: 'auto' };
 
   if (!stats && !isProcessing) return null;
   if (!stats) return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent
         data-eod-stats-panel="true"
-        ref={cardRef}
-        className="z-[60000] max-w-md rounded-2xl border bg-surface p-4 pb-2 shadow-2xl sm:p-6 sm:pb-3"
-        style={{ ...panelFrame, borderColor: 'var(--border-slate-300)' }}
+        className="p-0 border-0 bg-transparent shadow-none"
+        style={containerFrame}
       >
+        <div data-eod-stats-card="true" className={cardClass} style={cardStyle}>
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+          <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+        </button>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle className="w-6 h-6 text-emerald-600" />
@@ -364,6 +362,7 @@ export default function EndOfDayStatsDialog({
         <div className="flex flex-col items-center justify-center py-10 gap-3">
           <div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
           <p className="text-sm text-label">Finalizing your route stats...</p>
+        </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -386,10 +385,13 @@ export default function EndOfDayStatsDialog({
           space between the mobile header and bottom nav, scrolling inside if needed. */}
       <DialogContent
         data-eod-stats-panel="true"
-        ref={cardRef}
-        className="z-[60000] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 pb-2 shadow-2xl sm:p-6 sm:pb-3"
-        style={{ ...panelFrame, borderColor: 'var(--border-slate-300)' }}
+        className="p-0 border-0 bg-transparent shadow-none"
+        style={containerFrame}
       >
+        <div data-eod-stats-card="true" className={cardClass} style={cardStyle}>
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+          <X className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+        </button>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="w-6 h-6" />
@@ -570,6 +572,7 @@ export default function EndOfDayStatsDialog({
               )}
             </Button>
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>
