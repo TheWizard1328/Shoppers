@@ -92,8 +92,38 @@ export const deserializeSummary = (payload) => {
     deliveryCredits: map(payload.deliveryCredits),
     sales: Array.isArray(payload.sales) ? payload.sales : [],
     payouts: Array.isArray(payload.payouts) ? payload.payouts : [],
+    // ROW-LEVEL SECTIONS (owner request Nov 18 2026) — Collected / Uncollected
+    // Today / Uncollected Past / Awaiting Pickup rows, keyed by location id.
+    codCollectedToday: payload.codCollectedToday || {},
+    catalogUncollected: payload.catalogUncollected || {},
+    rowsSavedAt: payload.rowsSavedAt || null,
     savedAt: payload.savedAt || null,
   };
+};
+
+/**
+ * Merge just the row sections into the stored summary record. Used by devices
+ * that computed rows but have not published a full summary, and by every device
+ * that receives a shared snapshot over the wire: the rows land in this device's
+ * offline database so the NEXT load paints instantly even offline.
+ */
+export const mergeRowsIntoSummarySnapshot = async (userId, rows = {}) => {
+  try {
+    const rec = await offlineDB.getById(SUMMARY_STORE, RECORD_ID);
+    if (!rec?.payload) return { skipped: true };
+    if (rec.user_id && userId && rec.user_id !== userId) return { skipped: true };
+    const payload = {
+      ...rec.payload,
+      codCollectedToday: rows.codCollectedToday || rec.payload.codCollectedToday || {},
+      catalogUncollected: rows.catalogUncollected || rec.payload.catalogUncollected || {},
+      rowsSavedAt: new Date().toISOString(),
+    };
+    await offlineDB.save(SUMMARY_STORE, { ...rec, saved_at: new Date().toISOString(), payload });
+    return { success: true };
+  } catch (error) {
+    console.error('[SquareBalancesOffline] Error merging rows snapshot:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 export const purgeSummarySnapshot = async () => {

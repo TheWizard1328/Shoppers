@@ -12,7 +12,8 @@ import { edmontonBusinessDayKey, edmontonWallString, parseAnyTimestamp } from "@
 import { changeCodTender, refundCodDelivery } from "./codTenderActions";
 import { sumAdjustmentsByLoc } from '@/components/utils/cardBalanceAdjustments';
 import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage, healDeliveryMirror } from "./useSquareBalancesSummary";
-import { getSummarySnapshot, deserializeSummary } from "./squareBalancesOfflineManager";
+import { getSummarySnapshot, deserializeSummary, mergeRowsIntoSummarySnapshot } from "./squareBalancesOfflineManager";
+import { setRowsSnapshot, rowsSignature } from "./squareBalancesRowsSnapshot";
 import { fetchLatestSharedSnapshot, subscribeSharedSnapshot } from "./squareBalancesSharedSnapshot";
 import { invalidateLedgerWindows } from "./useSquareBalancesSummary";
 import { EDITOR_HOST_DEVICE_NAME, getCurrentDevice } from "@/components/utils/deviceManager";
@@ -584,6 +585,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [driverNoteView, setDriverNoteView] = useState(null);
   const [codCollectedTodayByLoc, setCodCollectedTodayByLoc] = useState({}); // owner-only: today's collected CODs per card
   const [catalogUncollectedByLoc, setCatalogUncollectedByLoc] = useState(undefined); // owner-only: ACTIVE SquareCatalogItems = uncollected, all dates
+  // ROW SNAPSHOT (owner request Nov 18 2026): the four row sections used to be
+  // rebuilt from live reads on every load, so cards painted instantly and the
+  // rows trickled in. The computed rows are now held in the same snapshot the
+  // cards use (squareBalancesRowsSnapshot) and merged into this device's offline
+  // summary, so the next load paints the whole page from IDB.
+  const codCollectedTodayRef = useRef({});
+  const rowsPersistSigRef = useRef('');
+  const persistRowsToSnapshot = useCallback((collected, catalog) => {
+    try {
+      const snap = setRowsSnapshot({ codCollectedToday: collected, catalogUncollected: catalog });
+      const sig = rowsSignature(snap);
+      if (sig === rowsPersistSigRef.current) return; // unchanged — no write
+      rowsPersistSigRef.current = sig;
+      mergeRowsIntoSummarySnapshot(currentUser?.id || null, snap).catch?.(() => {});
+    } catch {/* snapshot is best-effort */}
+  }, [currentUser?.id]);
   // RACE GUARD (Oct 6 2026, owner report: "Past Uncollected shows up then
   // disappears"). computeCatalogUncollected is triggered from several
   // places — initial mount, manual sync, Delivery WS (8s debounce), and
@@ -1247,6 +1264,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       if (!isLatest()) return; // a newer call already started — don't stomp its result
       catalogUncollectedByLocRef.current = out;
       setCatalogUncollectedByLoc(out);
+      persistRowsToSnapshot(codCollectedTodayRef.current || {}, out);
 
       // CASH-ALREADY-COLLECTED tag (Oct 6 2026, owner report: Emilen Brochu
       // looked like a plain duplicate between Collected Today and
@@ -1870,7 +1888,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
       const out = {};
       for (const [locId, rows] of byLoc) out[locId] = rows;
+      codCollectedTodayRef.current = out;
       setCodCollectedTodayByLoc(out);
+      persistRowsToSnapshot(out, catalogUncollectedByLocRef.current || {});
     } catch (e) {
       console.error('cod collected-today compute failed:', e);
     }
@@ -1898,6 +1918,38 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     return isEditorHostRef.current;
   }, [currentUser?.id]);
 
+  // ROW SECTIONS FROM A SNAPSHOT (owner request Nov 18 2026). The four lists
+  // (Collected / Uncollected Today / Uncollected Past / Awaiting Pickup) now ride
+  // in the snapshot payload, so the page paints them immediately instead of
+  // waiting for the live catalog sweep + collected-today reads. The rows are also
+  // merged into THIS device's offline summary, which is how a websocket-delivered
+  // snapshot refreshes another device's IDB in the background for a fast next load.
+  const applyRowsFromSnapshot = useCallback((data) => {
+    if (!data) return;
+    try {
+      if (data.codCollectedToday && Object.keys(data.codCollectedToday).length) {
+        codCollectedTodayRef.current = data.codCollectedToday;
+        setCodCollectedTodayByLoc(data.codCollectedToday);
+      }
+      if (data.catalogUncollected) {
+        catalogUncollectedByLocRef.current = data.catalogUncollected;
+        setCatalogUncollectedByLoc(data.catalogUncollected);
+      }
+      // Seed the holder too: this device's own next publish then carries the rows
+      // it just received, so the chain keeps converging instead of dropping them.
+      if (data.codCollectedToday !== undefined || data.catalogUncollected !== undefined) {
+        setRowsSnapshot({
+          codCollectedToday: data.codCollectedToday || {},
+          catalogUncollected: data.catalogUncollected || {},
+        });
+      }
+      mergeRowsIntoSummarySnapshot(currentUser?.id || null, {
+        codCollectedToday: data.codCollectedToday || {},
+        catalogUncollected: data.catalogUncollected || {},
+      }).catch?.(() => {});
+    } catch {/* rows are best-effort — the live compute below still lands */}
+  }, [currentUser?.id]);
+
   const paintLatestSharedSnapshot = useCallback(async () => {
     try {
       const rec = await fetchLatestSharedSnapshot().catch(() => null);
@@ -1917,6 +1969,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         setDeliveryCredits(data.deliveryCredits instanceof Map ? data.deliveryCredits : new Map(Array.isArray(data.deliveryCredits) ? data.deliveryCredits : []));
         setPayouts(data.payouts || []);
         if (data.codOutstandingDetailed && Object.keys(data.codOutstandingDetailed).length) setLocalOutstanding(data.codOutstandingDetailed);
+        applyRowsFromSnapshot(data);
+        // The snapshot IS the page — stop the section spinner now instead of
+        // waiting for the local compute chain (that is the whole point of the
+        // row payload). The chain below still overwrites with fresh data.
+        setIsLoading(false);
         return true;
       }
     } catch {/* snapshot is best-effort */}
@@ -1973,6 +2030,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       setDeliveryCredits(data.deliveryCredits instanceof Map ? data.deliveryCredits : new Map(Array.isArray(data.deliveryCredits) ? data.deliveryCredits : []));
       setPayouts(data.payouts || []);
       if (data.codOutstandingDetailed && Object.keys(data.codOutstandingDetailed).length) setLocalOutstanding(data.codOutstandingDetailed);
+      applyRowsFromSnapshot(data);
       setIsLoading(false);
       return true;
     };
@@ -2564,7 +2622,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       pagePublishTimerRef.current = null;
       if (Date.now() - pagePublishLastRef.current >= 60_000) runPagePublish();
     }, 60_000 - since + 250);
-  }, [ownerCanEdit, config, perLocation, deliveryCredits, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, configRecordId, runPagePublish]);
+  }, [ownerCanEdit, config, perLocation, deliveryCredits, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, configRecordId, runPagePublish, codCollectedTodayByLoc, catalogUncollectedByLoc]);
   useEffect(() => () => {if (pagePublishTimerRef.current) clearTimeout(pagePublishTimerRef.current);}, []);
 
   // SINGLE folder total — the 2% flows from every card's sales into ONE folder

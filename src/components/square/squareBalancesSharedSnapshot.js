@@ -19,6 +19,7 @@
 // the entity carries no extra restrictions (same posture as the other Square
 // entities; rls {}).
 import { base44 } from '@/api/base44Client';
+import { getRowsSnapshot } from '@/components/square/squareBalancesRowsSnapshot';
 
 /**
  * JSON-plain payload from a summary data object. Same shape the IDB snapshot
@@ -27,6 +28,10 @@ import { base44 } from '@/api/base44Client';
  */
 export const buildSummaryPayload = (data) => {
   if (!data) return null;
+  const rows = getRowsSnapshot();
+  const rowsKnown = data.codCollectedToday !== undefined ||
+    data.catalogUncollected !== undefined ||
+    !!rows.savedAt;
   return {
     byLocId: [...(data.byLocId || new Map())],
     payoutsByLoc: [...(data.payoutsByLoc || new Map())],
@@ -40,6 +45,18 @@ export const buildSummaryPayload = (data) => {
     deliveryCredits: [...(data.deliveryCredits || new Map())],
     sales: data.sales || [],
     payouts: data.payouts || [],
+    // ROW-LEVEL SECTIONS (owner request Nov 18 2026): the payload used to carry
+    // money math only, so the four row lists had to be rebuilt from live reads on
+    // every load. The last computed rows ride along here (capped + trimmed by
+    // squareBalancesRowsSnapshot) so one snapshot paints the whole page.
+    // OMITTED WHEN UNKNOWN: a device that has not computed or painted rows yet
+    // (fresh boot) must not publish empty lists over a good snapshot — an absent
+    // key means "no opinion" to every reader.
+    ...(rowsKnown ? {
+      codCollectedToday: data.codCollectedToday || rows.codCollectedToday || {},
+      catalogUncollected: data.catalogUncollected || rows.catalogUncollected || {},
+      rowsSavedAt: data.rowsSavedAt || rows.savedAt || null,
+    } : {}),
     savedAt: new Date().toISOString(),
   };
 };
