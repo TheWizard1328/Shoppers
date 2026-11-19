@@ -3,6 +3,7 @@
  * All logic remains in DeliveryForm.jsx; this file just renders it.
  */
 import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
+import { readInset } from '@/components/utils/appChrome';
 import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -834,21 +835,41 @@ export default function DeliveryFormView({
   // to the real visual viewport: top:0 / left:0 / right:0 with an explicit pixel height of
   // window.visualViewport.height (falling back to innerHeight), so the footer's bottom edge
   // is the bottom edge of what the user can actually see.
-  const [phoneViewportH, setPhoneViewportH] = React.useState(() => {
+  // APK FIX (owner report Nov 19 2026): "the add to route form is extending below the bottom
+  // edge of the entire app and behind the phone's navigation bar". The Android WebView is
+  // edge-to-edge, so visualViewport.height still counts the strip that sits behind the
+  // phone's own navigation bar — the form was exactly that strip too tall and its
+  // Cancel / Update footer drew under the system bar. On the native APK the measured
+  // --app-inset-bottom (MainActivity's --native-safe-bottom, floored at 14px) is subtracted
+  // from the viewport height so the footer clears the system bar. Browser/PWA behaviour is
+  // unchanged (the owner tuned that gutter already).
+  const isNativeApkShell = () => {
+    if (typeof document === 'undefined') return false;
+    return !!document.body?.classList?.contains('is-native-apk');
+  };
+  const readFormViewportHeight = () => {
     if (typeof window === 'undefined') return 0;
-    return Math.round(window.visualViewport?.height || window.innerHeight || 0);
-  });
+    const raw = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+    if (!isNativeApkShell()) return raw;
+    const insetBottom = Math.round(readInset('bottom') || 0);
+    return Math.max(0, raw - insetBottom);
+  };
+  const [phoneViewportH, setPhoneViewportH] = React.useState(() => readFormViewportHeight());
   React.useEffect(() => {
     if (!(useMobileLayout && isMobileDevice) || typeof window === 'undefined') return undefined;
     const read = () => {
-      const h = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+      const h = readFormViewportHeight();
       setPhoneViewportH((prev) => (prev === h ? prev : h));
     };
     read();
+    const t1 = setTimeout(read, 150);
+    const t2 = setTimeout(read, 600);
     window.addEventListener('resize', read);
     window.addEventListener('orientationchange', read);
     window.visualViewport?.addEventListener?.('resize', read);
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
       window.removeEventListener('resize', read);
       window.removeEventListener('orientationchange', read);
       window.visualViewport?.removeEventListener?.('resize', read);
