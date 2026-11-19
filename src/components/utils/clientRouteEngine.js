@@ -1363,7 +1363,22 @@ let _inheritedWindowCount = 0;
         const keepers = newNextId ? holderStops.filter((h) => h.rs.delivery.id === newNextId) : holderStops;
         const movers = newNextId ? holderStops.filter((h) => h.rs.delivery.id !== newNextId) : [];
         if (movers.length > 0 && newNextId) {
-          const movedPts = movers.flatMap((h) => h.pts)
+          // ── ONLY THE STOP THE DRIVER WAS HEADING TO HANDS OFF ────────────────
+          // OWNER DIRECTIVE (Nov 19 2026): "if the current stop is stop 20 and
+          // polyline generation starts at stop 19, anything to do with stop 18
+          // shouldn't even be a factor — it's two stops back." Deviation points
+          // are only ever valid as via points on the leg INTO the current next
+          // stop (legContributesVias already restricts them to that one leg), so
+          // the only legitimate donor is the stop that was the next stop a moment
+          // ago. Every other holder is EMPTIED, never merged — merging points
+          // from a stop two back dragged an old detour onto the current leg.
+          const _prevNext = [...movers].sort((a, b) => {
+            const af = a.rs.delivery?.isNextDelivery === true ? 0 : 1;
+            const bf = b.rs.delivery?.isNextDelivery === true ? 0 : 1;
+            if (af !== bf) return af - bf;
+            return (Number(a.rs.delivery?.stop_order) || 999) - (Number(b.rs.delivery?.stop_order) || 999);
+          })[0] || null;
+          const movedPts = (_prevNext ? _prevNext.pts : [])
             .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
           // Guard: drop points that now sit BEHIND the new leg (closer to the
           // origin than to the new next stop) — the driver has already passed

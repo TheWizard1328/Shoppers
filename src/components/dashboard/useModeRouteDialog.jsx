@@ -302,8 +302,15 @@ export default function useModeRouteDialog({
           .localeCompare(String(a.actual_delivery_time || a.updated_date || a.created_date || '')))[0] || null;
       const _originCompletedMs = _latestFinishedStop?.actual_delivery_time
         ? new Date(_latestFinishedStop.actual_delivery_time).getTime() : null;
-      const _handoffWaypoints = otherNextStops
-        .flatMap((d) => (Array.isArray(d.deviation_waypoints) ? d.deviation_waypoints : []).filter(_validWp))
+      // ONLY the stop the driver was actually heading to donates. A second stop
+      // that happens to hold points is two stops back (owner directive Nov 19
+      // 2026: "anything to do with stop 18 shouldn't be a factor") — its points
+      // are emptied with it, never merged onto the marker.
+      const _donorNextStop = [...otherNextStops].sort(
+        (a, b) => (Number(a.stop_order) || 999) - (Number(b.stop_order) || 999)
+      )[0] || null;
+      const _handoffWaypoints = (_donorNextStop ? (Array.isArray(_donorNextStop.deviation_waypoints) ? _donorNextStop.deviation_waypoints : []) : [])
+        .filter(_validWp)
         .filter((pt) => {
           const vt = pt?.timestamp ? new Date(pt.timestamp).getTime() : NaN;
           if (!Number.isFinite(vt) || !Number.isFinite(_originCompletedMs)) return true;
