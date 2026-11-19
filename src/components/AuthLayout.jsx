@@ -12,7 +12,7 @@
  * Now the shell does not scroll itself: it is a normal block whose content flows
  * from the top with the device insets reserved as padding, and the DOCUMENT
  * scrolls when the card is taller than the screen. The bottom reserve is
- * `1.25rem + max(--native-safe-bottom, env(safe-area-inset-bottom))`, so it is
+ * `1.25rem + max(--native-safe-bottom, var(--app-inset-bottom))`, so it is
  * always at least 20px even if the APK reports a zero navigation-bar inset.
  *
  * --native-safe-top/bottom are injected by MainActivity when the APK runs
@@ -25,10 +25,10 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
       style={{
         // dvh where supported (APK / modern Chrome); the class above is the fallback.
         minHeight: "100dvh",
-        paddingTop: "calc(1.25rem + max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px)))",
-        paddingBottom: "calc(1.25rem + max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px)))",
-        paddingLeft: "calc(1rem + env(safe-area-inset-left, 0px))",
-        paddingRight: "calc(1rem + env(safe-area-inset-right, 0px))"
+        paddingTop: "calc(1.25rem + var(--app-inset-top))",
+        paddingBottom: "calc(1.25rem + var(--app-inset-bottom))",
+        paddingLeft: "calc(1rem + var(--app-inset-left))",
+        paddingRight: "calc(1rem + var(--app-inset-right))"
       }}
     >
       {/* Top-aligned on phones (thumb reach + no clipped logo), vertically

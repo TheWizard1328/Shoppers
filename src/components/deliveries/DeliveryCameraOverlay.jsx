@@ -527,7 +527,7 @@ export default function DeliveryCameraOverlay({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[1000000] bg-black flex flex-col items-center justify-between"
-        style={{ paddingTop: "env(safe-area-inset-top, 12px)", paddingBottom: "0px" }}
+        style={{ paddingTop: "max(var(--app-inset-top), 12px)", paddingBottom: "0px" }}
       >
         {/* ── Top: viewfinder + status hint + results ── */}
         <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
@@ -629,7 +629,7 @@ export default function DeliveryCameraOverlay({
         </div>
 
         {/* ── Bottom: action bar pinned to bottom of screen ── */}
-        <div className="w-full max-w-lg flex items-center justify-between px-6" style={{ paddingBottom: "max(40px, env(safe-area-inset-bottom, 34px))" }}>
+        <div className="w-full max-w-lg flex items-center justify-between px-6" style={{ paddingBottom: "max(40px, var(--app-inset-bottom))" }}>
           {/* Left: switch camera — always visible, same size/shape as capture */}
           <button
             type="button"

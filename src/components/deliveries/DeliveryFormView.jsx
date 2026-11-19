@@ -821,7 +821,7 @@ export default function DeliveryFormView({
   // top and bottom borders sit flush with the screen edges.
   const mobileCardInsetStyle = undefined;
   const mobileHeaderSafeTop = useMobileLayout && isMobileDevice
-    ? (isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)')
+    ? ('var(--app-inset-top)')
     : undefined;
   // OWNER SPEC (Nov 15 2026, third pass): the 34px home-indicator pad inside the footer
   // read as dead space under the Cancel / Update row on iOS PWA. The footer now keeps only
@@ -834,7 +834,7 @@ export default function DeliveryFormView({
   // footer's bottom edge IS the bottom of the usable screen; a flat 6px gutter is enough and
   // the buttons stay clear of the indicator bar. Native keeps its 14px floor.
   const mobileFooterSafeBottom = useMobileLayout && isMobileDevice
-    ? (isNativeShell ? 'max(env(safe-area-inset-bottom, 0px), 14px)' : '6px')
+    ? 'var(--app-form-footer-gutter)'
     : undefined;
 
   // Auto-focus the barcode scanner manual input when a staged or pending item is selected (desktop only)

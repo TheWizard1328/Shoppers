@@ -1165,8 +1165,8 @@ export default function PatientForm({
   })();
   const mobileFormInsetStyle = isMobile
     ? {
-        paddingTop: isNativeShell ? 'max(env(safe-area-inset-top, 0px), 30px)' : 'env(safe-area-inset-top, 0px)',
-        paddingBottom: `max(env(safe-area-inset-bottom, 0px), ${isNativeShell ? '14px' : '0px'})`
+        paddingTop: 'var(--app-inset-top)',
+        paddingBottom: 'var(--app-inset-bottom)'
       }
     : undefined;
 

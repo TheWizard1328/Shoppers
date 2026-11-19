@@ -1053,9 +1053,9 @@ const EmergencyController = ({ currentUser }) => {
             // Top inset: on the APK the WebView is edge-to-edge (Android 15
             // enforces it), so the banner sat UNDER the status bar / notification
             // panel — owner report Nov 14 2026. MainActivity injects the real
-            // status-bar height as --native-safe-top; env(safe-area-inset-top) is
+            // status-bar height as --native-safe-top; var(--app-inset-top) is
             // the web/PWA fallback.
-            paddingTop: 'max(10px, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 6px))',
+            paddingTop: 'max(10px, calc(var(--app-inset-top) + 6px))',
             boxSizing: 'border-box',
             background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)',
             color: '#fff',
@@ -1139,7 +1139,7 @@ const EmergencyController = ({ currentUser }) => {
             cursor: 'pointer',
             font: 'inherit',
             padding: '10px 14px 12px',
-            paddingTop: 'max(10px, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 6px))',
+            paddingTop: 'max(10px, calc(var(--app-inset-top) + 6px))',
             boxSizing: 'border-box',
             background: 'linear-gradient(180deg, #16a34a 0%, #15803d 100%)',
             color: '#fff',

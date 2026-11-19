@@ -62,10 +62,10 @@ export default function MobilePatientDetailsSheet({
               // in-app bottom nav) padding so the sheet isn't clipped and the
               // header / drag-handle stay reachable. --actual-bottom-nav-height is
               // published by Layout; --native-safe-* are set by the native shell.
-              maxHeight: "calc(100dvh - var(--native-safe-top, env(safe-area-inset-top, 0px)))",
+              maxHeight: "calc(100dvh - var(--app-inset-top))",
               background: "var(--bg-slate-100)",
               boxShadow: "0 -4px 32px rgba(0,0,0,0.18)",
-              paddingBottom: "calc(var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) + var(--actual-bottom-nav-height, 0px))",
+              paddingBottom: "calc(var(--app-inset-bottom) + var(--actual-bottom-nav-height, 0px))",
               y: dragY,
             }}
             className="fixed left-0 right-0 bottom-0 z-[810] rounded-t-2xl overflow-hidden flex flex-col lg:hidden"

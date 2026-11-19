@@ -990,7 +990,7 @@ export default function SmartBarcodeScanner({
 
       {showCamera && typeof document !== 'undefined' && createPortal(
       <div className="fixed inset-0 z-[1000000] bg-black flex flex-col items-center justify-between"
-        style={{ paddingTop: 'env(safe-area-inset-top, 12px)', paddingBottom: 'max(40px, env(safe-area-inset-bottom, 34px))' }}>
+        style={{ paddingTop: 'max(var(--app-inset-top), 12px)', paddingBottom: 'max(40px, var(--app-inset-bottom))' }}>
         <style>{`
           @keyframes barcodeScan {
             0%, 100% { transform: translateY(-50%); opacity: 0.3; }

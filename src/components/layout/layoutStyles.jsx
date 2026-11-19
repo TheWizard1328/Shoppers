@@ -40,6 +40,42 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
             --actual-bottom-nav-height: 0px;
             --drawer-top: 0px;
             --drawer-bottom: 0px;
+
+            /* ══ THE ONE PLACE PHONE CHROME GAPS ARE DECIDED (owner, Nov 18 2026) ══
+               Every panel, dialog, sheet and form now uses var(--app-inset-top) /
+               var(--app-inset-bottom) from src/components/utils/appChrome.js and no
+               longer branches on APK vs browser PWA vs iPhone vs tablet vs PC.
+               One value per edge, resolved once:
+                 APK        -> MainActivity's --native-safe-* (+ a small safety floor)
+                 iPhone/PWA -> env(safe-area-inset-*)
+                 desktop    -> 0
+               Need a new platform quirk handled? Change it HERE, once. */
+            --app-inset-top: max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
+            --app-inset-bottom: max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
+            --app-inset-left: max(var(--native-safe-left, 0px), env(safe-area-inset-left, 0px));
+            --app-inset-right: max(var(--native-safe-right, 0px), env(safe-area-inset-right, 0px));
+
+            /* Full-screen forms and the messaging sheet do not use the raw inset as a
+               padding: on iOS the 34px home-indicator band read as dead space under the
+               Cancel / Update row (owner, Nov 15 2026), and the APK card already reserves
+               its own inset, so the composer must not add it twice. Those two product
+               decisions now live here instead of in isNativeShell ternaries. */
+            --app-form-footer-gutter: 6px;
+            --app-form-card-top: var(--app-inset-top);
+            --app-form-card-bottom: var(--app-inset-bottom);
+            --app-form-composer-gutter: 6px;
+          }
+
+          /* Edge-to-edge APK only: if MainActivity ever fails to inject a status bar
+             height, keep the old 30px / 14px floors so nothing hides under the OS bars.
+             This is the ONLY place those numbers exist now. */
+          body.is-native-apk {
+            --app-inset-top: max(30px, var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
+            --app-inset-bottom: max(14px, var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
+            --app-form-footer-gutter: 14px;
+            --app-form-card-top: 0px;
+            --app-form-card-bottom: 0px;
+            --app-form-composer-gutter: 0px;
           }
 
           /* iOS STANDALONE HEIGHT LOCK (owner report Nov 15 2026): on an iPhone
@@ -56,7 +92,7 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              bottom nav out of the container instead of scrolling inside main. */
           .app-container .main-content-area { min-height:0 !important; }
           .app-container main { min-height:0 !important; }
-          .app-container::before { content:''; position:absolute; top:0; left:0; right:0; height:env(safe-area-inset-top, 0px); background:var(--safe-area-bg); z-index:0; pointer-events:none; }
+          .app-container::before { content:''; position:absolute; top:0; left:0; right:0; height:var(--app-inset-top); background:var(--safe-area-bg); z-index:0; pointer-events:none; }
           .app-container::after { content:''; position:absolute; bottom:0; left:0; right:0; height:env(safe-area-inset-bottom, 0px); background:var(--safe-area-bg); z-index:0; pointer-events:none; }
           main { overscroll-behavior-y: contain !important; -webkit-overflow-scrolling: touch !important; max-height:100%; }
           .leaflet-container, .leaflet-tile-pane, .leaflet-map-pane { background: var(--bg-slate-50) !important; }
@@ -72,7 +108,7 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
                               landscape height >= 480px): persistent sidebar, no mobile chrome */
           .app-container.chrome-mobile .mobile-header { display:flex !important; position:sticky; top:0; z-index:51000 !important; background:var(--bg-white); border-bottom:1px solid var(--border-slate-200); }
           .app-container.chrome-mobile main { overflow-y:auto !important; overflow-x:hidden !important; flex:1; }
-          .app-container.chrome-mobile .app-sidebar { position:fixed !important; left:0 !important; top:var(--drawer-top, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 64px)) !important; bottom:0 !important; padding-top:0 !important; padding-bottom:var(--drawer-bottom, 0px) !important; width:280px !important; max-width:80vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important;  box-sizing:border-box !important; }
+          .app-container.chrome-mobile .app-sidebar { position:fixed !important; left:0 !important; top:var(--drawer-top, calc(var(--app-inset-top) + 64px)) !important; bottom:0 !important; padding-top:0 !important; padding-bottom:var(--drawer-bottom, 0px) !important; width:280px !important; max-width:80vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important;  box-sizing:border-box !important; }
           /* Bottom nav must stay above the full-height drawer (owner Nov 16 2026) so it is
              visible and tappable while the drawer is open. */
           .app-container.chrome-mobile [data-mobile-bottom-nav],
@@ -84,7 +120,7 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .app-container.chrome-desktop .main-content-area { flex:1 1 auto !important; width:calc(100vw - var(--sidebar-width) - 1px) !important; min-width:400px !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
           /* tablet-portrait (Mode 2): overrides chrome-mobile with a roomier 320px drawer */
           .app-container.tablet-portrait .mobile-header { display:flex !important; position:sticky; top:0; z-index:51000 !important; background:var(--bg-white); border-bottom:1px solid var(--border-slate-200); }
-          .app-container.tablet-portrait .app-sidebar { position:fixed !important; left:0 !important; top:var(--drawer-top, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 64px)) !important; bottom:0 !important; padding-top:0 !important; padding-bottom:var(--drawer-bottom, 0px) !important; width:320px !important; max-width:85vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important;  box-sizing:border-box !important; }
+          .app-container.tablet-portrait .app-sidebar { position:fixed !important; left:0 !important; top:var(--drawer-top, calc(var(--app-inset-top) + 64px)) !important; bottom:0 !important; padding-top:0 !important; padding-bottom:var(--drawer-bottom, 0px) !important; width:320px !important; max-width:85vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important;  box-sizing:border-box !important; }
           .app-container.tablet-portrait .app-sidebar.sidebar-open { transform:translateX(0) !important; box-shadow:4px 0 12px var(--shadow-color) !important; }
           .app-container.tablet-portrait .main-content-area { width:100vw !important; flex:1 !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
           .app-container.tablet-portrait main { overflow-y:auto !important; overflow-x:hidden !important; flex:1; }
@@ -137,10 +173,10 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
             padding-top:0 !important; padding-bottom:0 !important; box-sizing:border-box;
           }
           body.is-native-apk .patient-history-panel {
-            bottom:var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            bottom:var(--app-inset-bottom) !important;
           }
           body.is-native-apk .fixed.inset-0[data-state="open"].patient-history-backdrop { padding:0 !important; }
-          .sidebar-overlay { position:fixed; left:0; right:0; top:var(--drawer-top, calc(var(--native-safe-top, env(safe-area-inset-top, 0px)) + 64px)); bottom:0; background:rgba(0,0,0,0.5); z-index:49998; animation:fadeIn 0.2s ease-out; }
+          .sidebar-overlay { position:fixed; left:0; right:0; top:var(--drawer-top, calc(var(--app-inset-top) + 64px)); bottom:0; background:rgba(0,0,0,0.5); z-index:49998; animation:fadeIn 0.2s ease-out; }
           @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
           .custom-scrollbar::-webkit-scrollbar { height:8px; width:8px; }
           .custom-scrollbar::-webkit-scrollbar-track { background:transparent; }
@@ -198,8 +234,8 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              status bar (top) and navigation bar (bottom). */
           body.is-native-apk .fixed.inset-0[role="dialog"][data-state="open"],
           body.is-native-apk .fixed.inset-0[role="alertdialog"][data-state="open"] {
-            padding-top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            padding-top: var(--app-inset-top) !important;
+            padding-bottom: var(--app-inset-bottom) !important;
             padding-left: var(--native-safe-left, env(safe-area-inset-left, 0px)) !important;
             padding-right: var(--native-safe-right, env(safe-area-inset-right, 0px)) !important;
           }
@@ -207,7 +243,7 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           /* Shadcn Drawer overlay + content */
           body.is-native-apk .fixed.inset-0[data-vaul-drawer-wrapper],
           body.is-native-apk .fixed.inset-0[class*="z-50"][data-state="open"]:not([role="dialog"]):not([role="alertdialog"]) {
-            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: var(--app-inset-bottom) !important;
           }
           /* Bottom sheets in the edge-to-edge APK - owner spec Nov 15 2026: "increase the
              theme selection panel by the height of the phone navigation bar". With the sheet
@@ -218,49 +254,49 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              no less. The web/PWA path is untouched and keeps the flush 8px footer. */
           body.is-native-apk [data-vaul-drawer-content],
           body.is-native-apk [role="dialog"][data-vaul-drawer] {
-            padding-bottom: max(0px, calc(var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) - 0.5rem)) !important;
+            padding-bottom: max(0px, calc(var(--app-inset-bottom) - 0.5rem)) !important;
           }
 
           /* Shadcn Sheet overlay */
           body.is-native-apk .fixed.inset-0[data-state="open"]:not([role="dialog"]):not([role="alertdialog"]) {
-            padding-top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            padding-top: var(--app-inset-top) !important;
+            padding-bottom: var(--app-inset-bottom) !important;
           }
 
           /* Toast notifications pinned to top — push down past status bar */
           body.is-native-apk [data-sonner-toaster][data-y-position="top"] {
-            top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+            top: var(--app-inset-top) !important;
           }
           body.is-native-apk [data-sonner-toaster][data-y-position="bottom"] {
-            bottom: calc(var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) + var(--bottom-nav-height, 0px) + 0.5rem) !important;
+            bottom: calc(var(--app-inset-bottom) + var(--bottom-nav-height, 0px) + 0.5rem) !important;
           }
 
           /* Custom full-screen overlays (fixed inset-0) — generic catch-all
              for non-Shadcn overlays like BarcodeOverlay, DeliveryCameraOverlay,
              SmartBarcodeScanner, etc. that use their own fixed inset-0 divs. */
           body.is-native-apk .fixed.inset-0:not([role="dialog"]):not([role="alertdialog"]):not([data-state]) {
-            padding-top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            padding-top: var(--app-inset-top) !important;
+            padding-bottom: var(--app-inset-bottom) !important;
           }
 
           /* Full-screen panels that should fill the entire screen (camera,
              scanner) — these need safe-area padding on their inner content,
              not on the overlay itself which should stay full-bleed. */
           body.is-native-apk .fixed.inset-0.bg-black:not([role="dialog"]):not([role="alertdialog"]) {
-            padding-top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            padding-top: var(--app-inset-top) !important;
+            padding-bottom: var(--app-inset-bottom) !important;
           }
 
           /* Generic fixed elements pinned to top: 0 — push down by status bar */
           body.is-native-apk .fixed.top-0:not(.inset-0):not(.patient-history-panel) {
-            top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+            top: var(--app-inset-top) !important;
           }
 
           /* Generic fixed elements pinned to bottom: 0 — push up by nav bar.
              Bottom sheets are excluded: lifting a sheet off the bottom edge left a strip of
              map showing under it, which read as a second gap below the panel. */
           body.is-native-apk .fixed.bottom-0:not(.inset-0):not([data-vaul-drawer]):not(.patient-history-panel) {
-            bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            bottom: var(--app-inset-bottom) !important;
           }
 
           /* PatientHistoryPanel — owner spec Nov 16 2026: NO top offset any more. This rule used
@@ -268,12 +304,12 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              the white band above the panel header in the APK. The patient panel is excluded
              and sits flush at the top (the panel header itself clears the status bar). */
           body.is-native-apk .fixed.top-0.right-0:not(.patient-history-panel) {
-            top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+            top: var(--app-inset-top) !important;
           }
 
           /* RouteManagementHeader dropdown — fixed bottom panel */
           body.is-native-apk .fixed.bottom-\[var\(--bottom-nav-height\)\] {
-            bottom: calc(var(--bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+            bottom: calc(var(--bottom-nav-height, 0px) + var(--app-inset-bottom)) !important;
           }
           /* Hide bottom nav on desktop chrome only (Mode 3 / desktop browsers).
              Scoped to the chrome class — NOT a width media query. A width query

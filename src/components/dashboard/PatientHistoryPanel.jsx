@@ -148,7 +148,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
           }}>
           
             {/* Header */}
-            <div className="flex items-start justify-between gap-2 px-4 pb-3 border-b flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)', paddingTop: 'calc(0.75rem + max(env(safe-area-inset-top, 0px), var(--native-safe-top, 0px)))' }}>
+            <div className="flex items-start justify-between gap-2 px-4 pb-3 border-b flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)', paddingTop: 'calc(0.75rem + max(var(--app-inset-top), var(--app-inset-top)))' }}>
               <div className="min-w-0 flex-1">
                 {/* Row 1: patient name + store badge + special symbol badges */}
                 <div className="flex items-center gap-1.5 min-w-0">

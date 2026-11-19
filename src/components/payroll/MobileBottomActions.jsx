@@ -86,7 +86,7 @@ export default function MobileBottomActions({ onSummary, onShare, onRefresh, ref
       style={{
         bottom: navOffset != null
           ? `${navOffset}px`
-          : `calc(${bottomNav}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
+          : `calc(${bottomNav}px + var(--app-inset-bottom))`
       }}>
       <div className="w-full max-w-full px-2 py-2 grid grid-cols-3 gap-2">
         <Button

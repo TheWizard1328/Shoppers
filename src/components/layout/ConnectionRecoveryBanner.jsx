@@ -156,7 +156,7 @@ export default function ConnectionRecoveryBanner({ currentUser = null }) {
   return (
     <div
       className="fixed left-1/2 z-[10002] -translate-x-1/2 pointer-events-none"
-      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.35rem)' }}
+      style={{ top: 'calc(var(--app-inset-top) + 0.35rem)' }}
       role="status"
       aria-live="polite"
       title={details || label}

@@ -57,9 +57,9 @@ export function MobileSelect({
       </DrawerTrigger>
       {/* OWNER REPORT (Nov 15 2026, iPhone screenshot of Theme): huge empty bands above and
           below the option list. Three pads were stacking inside one bottom sheet - the
-          DrawerHeader carries pt-[max(1rem,env(safe-area-inset-top))] (48px on an iPhone
+          DrawerHeader carries pt-[max(1rem,var(--app-inset-top))] (48px on an iPhone
           PWA, which belongs to a top sheet, not this one), and the content AND the options
-          list each added their own max(1rem, env(safe-area-inset-bottom)) on top of the
+          list each added their own max(1rem, var(--app-inset-bottom)) on top of the
           DrawerFooter's own bottom pad. The paddings now live in one place: a tight header,
           a 0.5rem list tail, and the footer owning the single safe-area bottom pad. */}
       {/* OWNER REPORT (Nov 18 2026): on PWA/web/mobile-editor the Theme sheet sat

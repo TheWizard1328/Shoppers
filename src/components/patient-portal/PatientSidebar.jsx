@@ -58,7 +58,7 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
           /* Embedded (App-Owner overlay): the overlay wrapper already pads the
              safe-area insets, so the sidebar must NOT add them again — that was
              the extra empty strip at the top of the panel. */
-          style={{ paddingTop: embedded ? '1rem' : 'calc(1rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}>
+          style={{ paddingTop: embedded ? '1rem' : 'calc(1rem + var(--app-inset-top))' }}>
           
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center flex-shrink-0">
@@ -121,7 +121,7 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
         {/* Footer */}
         <div
           className="p-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0"
-          style={{ paddingBottom: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}>
+          style={{ paddingBottom: embedded ? '0.75rem' : 'calc(0.75rem + var(--app-inset-bottom))' }}>
           
           {/* Sign Out + Exit, EVENLY SPACED (owner request Nov 3 2026): the row
                used to be a wide Sign Out, a small Exit pill and the version all

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useChrome } from '@/components/utils/appChrome';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign, Car, Bike } from 'lucide-react';
@@ -278,39 +279,11 @@ export default function EndOfDayStatsDialog({
   // that band's midpoint, its height hugs the content, and maxHeight is the band so a tall
   // aspect ratio simply gives it more room and a short one scrolls instead of sliding under
   // the chrome.
-  const [band, setBand] = useState(null);
-  useEffect(() => {
-    const measure = () => {
-      const headerEl = document.querySelector('[data-mobile-header]');
-      const navEl = document.querySelector('[data-mobile-bottom-nav]');
-      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-      const viewTop = vv ? vv.offsetTop : 0;
-      const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-      const rawTop = headerEl ? headerEl.getBoundingClientRect().bottom : viewTop;
-      const rawBottom = navEl ? navEl.getBoundingClientRect().top : viewBottom;
-      // Clamp both edges into the visible viewport so an off-screen nav rect cannot drag the
-      // midpoint down, and never let the band invert on a very short screen.
-      const top = Math.max(viewTop, Math.min(rawTop, viewBottom));
-      const bottom = Math.min(viewBottom, Math.max(rawBottom, top));
-      if (!(bottom - top > 160)) { setBand(null); return; }
-      setBand({
-        top: Math.round(top),
-        bottom: Math.round(bottom),
-        left: 0,
-        width: window.innerWidth,
-      });
-    };
-    measure();
-    const t1 = setTimeout(measure, 80);
-    const t2 = setTimeout(measure, 350);
-    window.addEventListener('resize', measure);
-    window.addEventListener('orientationchange', measure);
-    return () => {
-      clearTimeout(t1); clearTimeout(t2);
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('orientationchange', measure);
-    };
-  }, []);
+  // SINGLE SOURCE (owner, Nov 18 2026): the header-to-nav band is no longer measured
+  // locally. src/components/utils/appChrome.js owns that measurement (visualViewport
+  // clamped, so the APK's taller-than-visible layout cannot drag it down) and every panel
+  // that needs it asks the same hook.
+  const { band } = useChrome();
 
   const bandHeight = band ? band.bottom - band.top : 0;
   const panelFrame = band && bandHeight > 200

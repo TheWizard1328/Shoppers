@@ -1487,7 +1487,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         {/* Top Bar */}
         <div
           className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3 flex-shrink-0 z-10 py-4 px-4"
-          style={{ paddingTop: embedded ? '0.75rem' : 'calc(0.75rem + var(--native-safe-top, env(safe-area-inset-top, 0px)))' }}>
+          style={{ paddingTop: embedded ? '0.75rem' : 'calc(0.75rem + var(--app-inset-top))' }}>
           
           <button
             onClick={() => setSidebarOpen(true)}
@@ -1594,7 +1594,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         {/* Map */}
         <div
           className="flex-1 overflow-hidden relative pt-2 pr-2 pl-2 pb-1"
-          style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))' }}>
+          style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--app-inset-bottom))' }}>
           
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
                  Only while the sidebar is hidden (phones, or the drawer closed), and

@@ -601,15 +601,15 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
         <DrawerOverlay className="z-[11000] bg-black/70" />
         <DrawerContent
           // The base DrawerContent primitive (src/components/ui/drawer.jsx) bakes
-          // in its own `pb-[max(0px,env(safe-area-inset-bottom,0px))]` class. Our
+          // in its own `pb-[max(0px,var(--app-inset-bottom))]` class. Our
           // `bottom` style below already lifts the WHOLE panel above the nav bar
           // AND the safe-area inset, so that baked-in bottom padding is now
           // redundant and shows as extra empty space under Cancel/Apply. `pb-0`
           // overrides it via tailwind-merge (cn() in drawer.jsx uses twMerge, so
           // the later pb-0 here wins over the primitive's default pb- class).
-          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--native-safe-bottom,0px)-0.75rem)] pb-0 bg-surface" style={{ bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))" }}>
+          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--app-inset-bottom)-0.75rem)] pb-0 bg-surface" style={{ bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--app-inset-bottom))" }}>
           
-          <DrawerHeader style={{ paddingTop: "max(1rem, var(--native-safe-top, env(safe-area-inset-top, 0px)))" }}>
+          <DrawerHeader style={{ paddingTop: "max(1rem, var(--app-inset-top))" }}>
             <DrawerTitle className="text-body">Bulk Edit Stops</DrawerTitle>
             <DrawerDescription className="text-soft">
               Update the basic route info for the selected stops.
@@ -626,10 +626,10 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       className={`fixed z-[11000] flex items-center justify-center ${open ? '' : 'pointer-events-none opacity-0'}`}
       style={{
         transition: 'opacity 0.2s',
-        top: 'var(--native-safe-top, env(safe-area-inset-top, 0px))',
-        bottom: 'calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))',
-        left: `calc(${sidebarWidth}px + var(--native-safe-left, env(safe-area-inset-left, 0px)))`,
-        right: 'var(--native-safe-right, env(safe-area-inset-right, 0px))',
+        top: 'var(--app-inset-top)',
+        bottom: 'calc(var(--actual-bottom-nav-height, 0px) + var(--app-inset-bottom))',
+        left: `calc(${sidebarWidth}px + var(--app-inset-left))`,
+        right: 'var(--app-inset-right)',
       }}>
       
       {/* Backdrop */}

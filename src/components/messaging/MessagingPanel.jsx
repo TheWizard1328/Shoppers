@@ -73,15 +73,15 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   // top AND the bottom. On native both pads are zero; the panel runs edge to edge.
   // The PWA/browser keeps the real env() insets.
   const mobileCardStyle = useMobileFullscreen
-    ? { paddingBottom: isNativeShell ? '0px' : 'env(safe-area-inset-bottom, 0px)' }
+    ? { paddingBottom: 'var(--app-form-card-bottom)' }
     : undefined;
   const mobileHeaderSafeTop = useMobileFullscreen
-    ? (isNativeShell ? '0px' : 'env(safe-area-inset-top, 0px)')
+    ? 'var(--app-form-card-top)'
     : undefined;
   // The card already reserves the bottom inset on native, so the composer must not
   // add it a second time.
   const mobileComposerSafeBottom = useMobileFullscreen
-    ? (isNativeShell ? null : '6px')
+    ? 'var(--app-form-composer-gutter)'
     : undefined;
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
   // Patient portal threads (owner build Nov 2 2026) live beside staff chat.

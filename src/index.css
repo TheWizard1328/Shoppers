@@ -290,7 +290,7 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
 
 /* iOS safe area support for bottom nav */
 .ios-safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  padding-bottom: var(--app-inset-bottom) !important;
 }
 /* Polyline Viewer map — use an arrow pointer instead of Leaflet's grab/hand cursor.
    Brush-pick mode overrides to a crosshair for precise point removal. */

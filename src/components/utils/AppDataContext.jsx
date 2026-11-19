@@ -1324,7 +1324,7 @@ export const AppDataProvider = ({ children, value }) => {
   return (
     <AppDataContext.Provider value={wrappedValue}>
       {isProgressiveSyncing && (
-        <div className="fixed top-[calc(env(safe-area-inset-top,0px)+0.75rem)] left-1/2 -translate-x-1/2 z-[9999] rounded-full bg-slate-900/90 text-white text-xs px-3 py-1 shadow">
+        <div className="fixed top-[calc(var(--app-inset-top)+0.75rem)] left-1/2 -translate-x-1/2 z-[9999] rounded-full bg-slate-900/90 text-white text-xs px-3 py-1 shadow">
           Syncing…
         </div>
       )}

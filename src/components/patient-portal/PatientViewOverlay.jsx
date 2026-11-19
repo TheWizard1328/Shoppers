@@ -57,10 +57,10 @@ export default function PatientViewOverlay() {
         // so the embedded portal (which skips its own insets in embedded mode) starts
         // below the status bar and ends above the nav bar. Same variables MainActivity
         // injects on :root; env() fallback covers browsers/PWA where they're absent.
-        paddingTop: 'var(--native-safe-top, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'var(--native-safe-bottom, env(safe-area-inset-bottom, 0px))',
-        paddingLeft: 'var(--native-safe-left, env(safe-area-inset-left, 0px))',
-        paddingRight: 'var(--native-safe-right, env(safe-area-inset-right, 0px))'
+        paddingTop: 'var(--app-inset-top)',
+        paddingBottom: 'var(--app-inset-bottom)',
+        paddingLeft: 'var(--app-inset-left)',
+        paddingRight: 'var(--app-inset-right)'
       }}
     >
       {/* Full-height container: the wrapper is padded by the safe-area insets, so the
