@@ -268,28 +268,31 @@ export default function EndOfDayStatsDialog({
     }
   }, [isOpen, performanceStats, localStats]);
 
-  // HEADER-TOP-TO-NAV-BOTTOM BAND (owner spec Nov 18 2026, ninth pass): the card is centred
-  // on the band from the header's TOP edge to the nav's BOTTOM edge, so a tall aspect ratio
-  // or a large system font can never squeeze it. (Earlier passes used the free gap between
-  // the chrome, and .main-content-area before that. That box runs behind the nav on this layout, so centring in
-  // it pushed the card down by roughly half the nav height - exactly the "sitting a little
-  // too low" the owner reported. The band is measured straight off the two chrome elements
-  // (fixed positioning shares the viewport coordinate space), re-measured after mount, on
-  // resize and on orientation change, and the card is centred on that band's midpoint with
-  // its height still hugging the content.
+  // VISIBLE FREE BAND (owner spec Nov 18 2026, tenth pass). Two things were wrong:
+  //  1. The APK lays the app out taller than the visible screen, so the bottom nav's rect can
+  //     sit BELOW the fold. Measuring the outer band off raw rects put its midpoint ~30px too
+  //     low, which is why the card kept landing halfway through the nav.
+  //  2. Widening the band to header-top -> nav-bottom let the card grow into the nav at all.
+  // Now the band is the FREE visible area: header bottom to nav top, clamped into
+  // window.visualViewport (the real visible box, not the inflated layout). The card centres on
+  // that band's midpoint, its height hugs the content, and maxHeight is the band so a tall
+  // aspect ratio simply gives it more room and a short one scrolls instead of sliding under
+  // the chrome.
   const [band, setBand] = useState(null);
   useEffect(() => {
     const measure = () => {
       const headerEl = document.querySelector('[data-mobile-header]');
       const navEl = document.querySelector('[data-mobile-bottom-nav]');
-      // OUTER BAND (owner spec Nov 18 2026, ninth pass): centre on the header's TOP edge to
-      // the nav's BOTTOM edge, not the gap between them. On a tall-aspect device or with a
-      // large system font the free gap can shrink until the card is squeezed, so the full
-      // band is used: the card may overhang the chrome if it must, and z-index 60000 keeps it
-      // above both. Centring is then on the true middle of the usable screen.
-      const top = headerEl ? headerEl.getBoundingClientRect().top : 0;
-      const bottom = navEl ? navEl.getBoundingClientRect().bottom : window.innerHeight;
-      if (!(bottom - top > 200)) { setBand(null); return; }
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      const viewTop = vv ? vv.offsetTop : 0;
+      const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      const rawTop = headerEl ? headerEl.getBoundingClientRect().bottom : viewTop;
+      const rawBottom = navEl ? navEl.getBoundingClientRect().top : viewBottom;
+      // Clamp both edges into the visible viewport so an off-screen nav rect cannot drag the
+      // midpoint down, and never let the band invert on a very short screen.
+      const top = Math.max(viewTop, Math.min(rawTop, viewBottom));
+      const bottom = Math.min(viewBottom, Math.max(rawBottom, top));
+      if (!(bottom - top > 160)) { setBand(null); return; }
       setBand({
         top: Math.round(top),
         bottom: Math.round(bottom),
@@ -318,7 +321,7 @@ export default function EndOfDayStatsDialog({
         transform: 'translate(-50%, -50%)',
         width: 'calc(100vw - 2rem)',
         maxWidth: 448,
-        maxHeight: Math.max(220, bandHeight - 24),
+        maxHeight: Math.max(200, bandHeight - 16),
         bottom: 'auto',
         right: 'auto',
         height: 'auto',
@@ -384,7 +387,7 @@ export default function EndOfDayStatsDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 pt-2">
+        <div className="space-y-3 pt-1">
           {/* Driver & Date */}
           <div className="text-center pb-3 border-b border-surface">
             <p className="text-lg font-semibold text-body">
