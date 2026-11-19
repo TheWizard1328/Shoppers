@@ -540,9 +540,22 @@ export function useRouteDeviationMonitor({
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
       if (!nextStop) { _diag('gate:no_next_stop'); return; }
 
-      // Cycling markers have their own specialized regen paths (segment-only,
-      // hand-picked origins) — never deviation-regen them.
-      if (nextStop.delivery_notes === 'Cycling Route Start') { _diag('gate:cycling_marker'); return; }
+      // ── CYCLING MARKERS (owner correction Nov 19 2026) ─────────────────────
+      // The START marker is NOT a special case: its leg is the DRIVE INTO the
+      // loop — a normal driving leg from the last finished stop (or home) — so a
+      // driver really can deviate on it (miss the turn to the loop, take a
+      // detour) and it must regenerate like any other current leg. The old gate
+      // skipped every start-marker deviation, so that leg only ever refreshed on
+      // a full optimization. The leg is still drawn driving-only and the loop's
+      // own passes (PASS 1A on the client, the mixed-mode drive-in pass on the
+      // server) rewrite it from the same origin on the next full run, so nothing
+      // about the bicycle geometry is at risk.
+      // Every OTHER cycling marker keeps the gate: its leg is a BICYCLE leg
+      // anchored at the previous cycling stop, and a single-stop regen has no
+      // loop context — resolveMode falls back to driving, so it would redraw the
+      // bike leg as a car route.
+      const _markerNotes = String(nextStop.delivery_notes || '').toLowerCase();
+      if (nextStop.is_cycling_marker && !_markerNotes.includes('start')) { _diag('gate:cycling_marker'); return; }
 
       // Cycling legs use the tighter cycling threshold (default half of driving).
       const threshold = resolveDeviationThresholdMeters(settings, { cycling: isCyclingLeg(nextStop) });

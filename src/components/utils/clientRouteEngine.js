@@ -1344,7 +1344,19 @@ let _inheritedWindowCount = 0;
         // affect the first NON-InterStore stop, so the result is identical.
         const _routeInProgress = completedDeliveries.length > 0;
         const firstNonInterStore = inFlightStops.find((rs) => !isInterStoreDelivery(rs.delivery?.delivery_id)) || null;
+        // FLAG-ON-THE-STOP PARITY (owner report Nov 19 2026): the writeBatch's
+        // next-stop rule honours isNextDelivery carried by the stop itself
+        // (rule 2 below), but this transfer only consulted the caller's param —
+        // so a mid-route run that did not pass one found newNextId = null and
+        // moved NOTHING. That is exactly the cycling-marker case: the start
+        // marker is flagged next after the loop is created, and the previous
+        // stop's deviation points were left stranded on it (and then dropped
+        // once it completed). Same ladder as the writeBatch now: caller param →
+        // flag on the stop → first accepted active stop.
         const newNextId = (explicitNextDelivery && !clearNextDeliveryLock ? explicitNextDelivery.id : null)
+          || (!clearNextDeliveryLock
+            ? (inFlightStops.find((rs) => rs.delivery?.isNextDelivery === true)?.delivery?.id || null)
+            : null)
           || (clearNextDeliveryLock || !_routeInProgress
             ? (firstNonInterStore?.delivery?.id || inFlightStops[0]?.delivery?.id || null)
             : null);
@@ -1358,13 +1370,36 @@ let _inheritedWindowCount = 0;
           // them; routing back through them would zigzag.
           const newNextRs = inFlightStops.find((rs) => rs.delivery.id === newNextId);
           const newNextCoords = newNextRs ? { lat: newNextRs.lat, lng: newNextRs.lng } : null;
-          const keptPts = newNextCoords
-            ? movedPts.filter((pt) => {
-                const dOrigin = haversineKm(polylineOrigin.lat, polylineOrigin.lon, Number(pt.lat), Number(pt.lng));
-                const dNext = haversineKm(newNextCoords.lat, newNextCoords.lng, Number(pt.lat), Number(pt.lng));
-                return dNext <= dOrigin;
-              })
-            : [];
+          // ── CYCLING START MARKER TARGET (owner report Nov 19 2026) ──────────
+          // "Deviation points from the stop that was isNextDelivery before the
+          // cycling markers were generated should have transferred to the start
+          // marker." When a loop is inserted mid-leg the start marker takes over
+          // as next, but its address is the LOOP MOUTH, not the old destination —
+          // so the "closer to the new next stop than to the origin" test threw
+          // away every point recorded on the leg actually being driven (they sit
+          // near the old destination, far from the loop). For a start-marker
+          // target the leg is still "origin -> driven path -> loop mouth", so the
+          // right filter is the TIMESTAMP rule already used by the stale re-guard
+          // below: a point is a valid midway point of this leg when it was
+          // recorded AFTER the origin stop was finished. Points from an earlier
+          // leg stay dropped (they are behind the origin and would zigzag).
+          const _targetIsCyclingStart = !!newNextRs?.delivery?.is_cycling_marker
+            && String(newNextRs?.delivery?.delivery_notes || '').toLowerCase().includes('start');
+          const _originCompletedMs = latestFinishedDelivery?.actual_delivery_time
+            ? new Date(latestFinishedDelivery.actual_delivery_time).getTime() : null;
+          const keptPts = !newNextCoords
+            ? []
+            : (_targetIsCyclingStart
+              ? movedPts.filter((pt) => {
+                  const vt = pt?.timestamp ? new Date(pt.timestamp).getTime() : NaN;
+                  if (!Number.isFinite(vt) || !Number.isFinite(_originCompletedMs)) return true;
+                  return vt >= _originCompletedMs;
+                })
+              : movedPts.filter((pt) => {
+                  const dOrigin = haversineKm(polylineOrigin.lat, polylineOrigin.lon, Number(pt.lat), Number(pt.lng));
+                  const dNext = haversineKm(newNextCoords.lat, newNextCoords.lng, Number(pt.lat), Number(pt.lng));
+                  return dNext <= dOrigin;
+                }));
           const existingNextPts = keepers.flatMap((h) => h.pts)
             .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
           const merged = [...existingNextPts, ...keptPts]
