@@ -222,6 +222,25 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
     initialData: []
   });
 
+  // OWNER FIX (Nov 19 2026): acting on a card must remove it from the list immediately.
+  // The backend now purges every log row for that patient, but a refetch can still be in
+  // flight, so acted-on ids are also dismissed locally for the life of the dialog.
+  const [dismissedLogIds, setDismissedLogIds] = useState(() => new Set());
+  const dismissLogIds = (ids) => {
+    if (!ids || ids.length === 0) return;
+    setDismissedLogIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => id && next.add(id));
+      return next;
+    });
+    // Drop them from the query cache too, so the list updates before the refetch lands.
+    queryClient.setQueryData(['patient-gps-logs'], (old) => {
+      if (!Array.isArray(old)) return old;
+      const drop = new Set(ids);
+      return old.filter((l) => !drop.has(l?.id));
+    });
+  };
+
   const pendingLogs = useMemo(() => {
     const directUpdates = logs.filter((log) => log.is_source_patient);
     const latestMap = new Map();
@@ -251,8 +270,10 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
       return !loggedUserMove;
     });
 
-    return needsReview.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-  }, [logs, allOfflinePatients]);
+    return needsReview
+      .filter((log) => !dismissedLogIds.has(log.id))
+      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+  }, [logs, allOfflinePatients, dismissedLogIds]);
 
   // Auto-select first log when list loads
   useEffect(() => {
@@ -294,6 +315,8 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
   };
 
   const handleAction = async (logId, action, matchingPatients = []) => {
+    // Card leaves the list straight away, whatever the backend round trip does.
+    dismissLogIds([logId]);
     if (action === 'accept') {
       const log = pendingLogs.find((l) => l.id === logId);
       // Offline DB + in-memory first
@@ -311,6 +334,7 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
 
   const handleDiscardAll = async () => {
     setBulkProcessing(true);
+    dismissLogIds(pendingLogs.map((l) => l.id));
     for (const log of pendingLogs) {
       await base44.functions.invoke('updateMatchingPatientGPS', { action: 'cancel', logId: log.id }).catch(() => {});
     }
@@ -320,6 +344,7 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
 
   const handleAcceptAll = async () => {
     setBulkProcessing(true);
+    dismissLogIds(pendingLogs.map((l) => l.id));
     // Step 1 & 2: Update offline DB + in-memory for all logs first
     await Promise.all(
       pendingLogs.map((log) => applyLocalUpdates(log, matchesMap[log.id] || []))

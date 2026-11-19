@@ -2,6 +2,28 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
+// OWNER FIX (Nov 19 2026): a patient can accumulate one PatientGPSLog row per move, and the
+// Pending Review list shows only the LATEST row per patient. Deleting just the acted-on row
+// left older rows behind, so after the refetch the same patient came straight back into the
+// list. Once an admin has accepted or discarded a move, every log row for that patient is
+// purged so the card cannot resurface.
+const purgePatientLogs = async (patientId: string) => {
+  if (!patientId) return 0;
+  const rows = await base44.asServiceRole.entities.PatientGPSLog
+    .filter({ patient_id: patientId }, '-created_date', 500)
+    .catch(() => []);
+  let removed = 0;
+  for (const row of rows || []) {
+    if (!row?.id) continue;
+    await base44.asServiceRole.entities.PatientGPSLog.delete(row.id).catch((e) => {
+      if (!isNotFoundError(e)) throw e;
+    });
+    removed += 1;
+  }
+  return removed;
+};
+
+
 const MATCH_RADIUS_KM = 0.15;
 
 const STREET_TYPE_MAP = {
@@ -253,13 +275,18 @@ Deno.serve(async (req) => {
       return Response.json({ matchingPatients: matching });
     }
 
-    // ── CANCEL: just delete the log entry ──────────────────────────────────
+    // ── CANCEL: delete the log entry (and every older row for that patient) ──
     if (action === 'cancel') {
       if (!logId) return Response.json({ error: 'Missing logId' }, { status: 400 });
+      const cancelEntry = await base44.asServiceRole.entities.PatientGPSLog.get(logId).catch((e) => {
+        if (isNotFoundError(e)) return null;
+        throw e;
+      });
       await base44.asServiceRole.entities.PatientGPSLog.delete(logId).catch((e) => {
         if (!isNotFoundError(e)) throw e;
       });
-      return Response.json({ success: true, action: 'cancelled' });
+      const purged = await purgePatientLogs(cancelEntry?.patient_id || cancelEntry?.source_patient_id || '');
+      return Response.json({ success: true, action: 'cancelled', purged });
     }
 
     // ── ACCEPT: bulk update matching patients, then delete the log entry ───
@@ -353,16 +380,19 @@ Deno.serve(async (req) => {
 
       const successfulUpdates = updateResults.filter(Boolean);
 
-      // Delete the log entry now that the admin has acted
+      // Delete the log entry now that the admin has acted, plus every older row for the
+      // same patient so the Pending Review card cannot come back on the next refetch.
       await base44.asServiceRole.entities.PatientGPSLog.delete(logId).catch((e) => {
         if (!isNotFoundError(e)) throw e;
       });
+      const purged = await purgePatientLogs(sourcePatientId || logEntry.patient_id || '');
 
       return Response.json({
         success: true,
         action: 'accepted',
         updatedCount: successfulUpdates.length,
         updatedPatients: successfulUpdates,
+        purged,
       });
     }
 
