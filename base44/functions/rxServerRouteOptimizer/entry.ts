@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-import { resolveFeatureSecretName, resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
+import { resolveFeatureSecretName, resolveFeatureApiKey, resolveFeatureProvider } from '../../shared/apiKeyResolver.ts';
 import { encodeGooglePolyline as codecEncodeGooglePolyline, decodeGooglePolyline as codecDecodeGooglePolyline, calculateCrowFliesDistance as codecCrowFliesKm } from '../../shared/polylineCodec.ts';
 
 // ─── Time helpers (ported from clientRouteEngine.js) ────────────────────────
@@ -729,6 +729,20 @@ Deno.serve(async (req) => {
     let googleCalls = 0;
     let googleKey = null;
     try { googleKey = await resolveGoogleKey(base44); } catch (_) { googleKey = null; }
+    // OWNER RULE (Nov 19 2026): the engines must FOLLOW THE SELECTED APIS IN SETTINGS —
+    // 'route_optimization' (HERE) drives sequencing, 'polylines' drives the polyline drawing.
+    // The server used to hardcode the polyline provider (HERE first, then Google), which is
+    // why a HERE refusal silently drew crow-flies. The polylines slot is now read the same way
+    // the client reads it, and only that provider runs first; the other is the emergency
+    // fallback so a provider outage can never produce straight lines again.
+    let polylineProvider = null;
+    try { polylineProvider = await resolveFeatureProvider(base44, 'polylines'); } catch (_) { polylineProvider = null; }
+    let polylineHereKey = '';
+    if (polylineProvider === 'here') {
+      try { polylineHereKey = (await resolveFeatureApiKey(base44, 'polylines')) || ''; } catch (_) { polylineHereKey = ''; }
+      if (!polylineHereKey) polylineHereKey = apiKey;
+    }
+    console.log(`[rxServerRouteOptimizer] polyline provider from settings: ${polylineProvider || 'unset'}`);
     let hereCalls = 0;
 
     // Resolve findsequence2 waypoints back to request stops (shared by the
@@ -1126,24 +1140,32 @@ Deno.serve(async (req) => {
           // different decoder, so whenever HERE refused the request the server silently drew
           // crow-flies while the client was fine. Google Directions is now FIRST, exactly like
           // the client; HERE Router is only the emergency fallback when Google is unavailable.
-          let r = null;
-          if (googleKey) {
+          const tryGoogle = async () => {
+            if (!googleKey) return null;
             try {
-              r = await getMultiStopRouteSectionsGoogle(pts, mode, googleKey);
+              const res = await getMultiStopRouteSectionsGoogle(pts, mode, googleKey);
               googleCalls++;
+              return res;
             } catch (gErr) {
-              console.warn('[rxServerRouteOptimizer] Google polyline path failed, trying HERE Router:', gErr?.message || gErr);
-              r = null;
+              console.warn('[rxServerRouteOptimizer] Google polyline path failed:', gErr?.message || gErr);
+              return null;
             }
-          }
-          if (!r || (r.usedFallbackPolyline && (r.sections || []).every((sec) => !sec.encoded_polyline))) {
+          };
+          const tryHereRouter = async () => {
             try {
-              r = await getMultiStopRouteSections(pts, apiKey, mode);
+              const res = await getMultiStopRouteSections(pts, polylineHereKey || apiKey, mode);
               hereCalls++;
+              return res;
             } catch (hErr) {
-              console.warn('[rxServerRouteOptimizer] HERE Router fallback failed too:', hErr?.message || hErr);
-              r = null;
+              console.warn('[rxServerRouteOptimizer] HERE Router polyline path failed:', hErr?.message || hErr);
+              return null;
             }
+          };
+          // Settings decide the provider; the other one is only a rescue.
+          const preferGoogle = polylineProvider ? polylineProvider === 'google' : true;
+          let r = preferGoogle ? await tryGoogle() : await tryHereRouter();
+          if (!r || (r.usedFallbackPolyline && (r.sections || []).every((sec) => !sec.encoded_polyline))) {
+            r = preferGoogle ? await tryHereRouter() : await tryGoogle();
           }
           if (r) usedFallbackPolyline = usedFallbackPolyline || !!r.usedFallbackPolyline;
           // Both providers refused: leave the legs empty rather than crash the whole run.
