@@ -231,8 +231,28 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
         latestMap.set(log.patient_id, log);
       }
     }
-    return Array.from(latestMap.values()).sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-  }, [logs]);
+    const latest = Array.from(latestMap.values());
+
+    // OWNER RULE (Nov 19 2026): the Pending Review list is only for moves that still need a
+    // decision, so a card appears ONLY when:
+    //   a) the moved patient shares the address with at least one OTHER patient
+    //      (findMatchingPatients returns the other patients — the moved one is excluded),
+    //      because accepting the move has to carry them along; or
+    //   b) the moved patient is alone at that address AND the move was not a normal stamped
+    //      user action — i.e. it came from a background process, was unstamped, or was never
+    //      logged (no change_source / change_action). Those are the suspect silent writers.
+    // A lone patient moved by a logged user gesture has nothing to review, so it is dropped.
+    const needsReview = latest.filter((log) => {
+      const othersAtAddress = (findMatchingPatients(log, allOfflinePatients) || []).length;
+      if (othersAtAddress > 0) return true;
+      const source = String(log.change_source || '').toLowerCase();
+      const action = String(log.change_action || '').toLowerCase();
+      const loggedUserMove = source === 'user' && action !== 'unstamped';
+      return !loggedUserMove;
+    });
+
+    return needsReview.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+  }, [logs, allOfflinePatients]);
 
   // Auto-select first log when list loads
   useEffect(() => {
@@ -319,7 +339,8 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [
         <DialogHeader className="pr-8 shrink-0">
           <DialogTitle>GPS Updates — Pending Review</DialogTitle>
           <DialogDescription>
-            Review direct GPS changes and apply them to other patients at the same address.
+            Only moves that affect other patients at the same address, or that were made by a
+            background process / went unstamped / were never logged, appear here.
           </DialogDescription>
         </DialogHeader>
 
