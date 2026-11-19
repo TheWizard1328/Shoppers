@@ -352,7 +352,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                   // at the POS anyway).
                   const candSrc = Array.isArray(combineCandidates) && combineCandidates.length ?
                   combineCandidates :
-                  (sections || []).flatMap((sec) => (sec?.rows || []).filter((x) => x && x.cashAwaitingSquare));
+                  (sections || []).flatMap((sec) => (sec?.rows || []).filter((x) => x && x.cashAwaitingSquare && !x.pendingPickup && !x.inTransit));
                   const cashRows = statusLabel === 'Cash' ?
                   candSrc.filter((x) => x && !!x.delivery_id && String(x.delivery_id) !== String(r.delivery_id) && String(x.locId || cardLocId || '') === String(cardLocId || '')) : [];
                   setCashPick({ row: r, label: statusLabel, kind: 'cash', cashRows, tappedLocId: cardLocId, sel: {}, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
@@ -3010,8 +3010,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // for deliveries assigned to them.
   const combineCandidates = (() => {
     const byId = new Map();
+    // OWNER RULE (Nov 19 2026): the Set tender popup must never list an item that has not
+    // been collected yet. Awaiting Pickup (pending), Pending and In Transit stops are still
+    // out on the road, so they cannot be part of a swipe — only collected / cash-awaiting
+    // items qualify. Failed CODs keep their own refund path.
+    const NOT_COLLECTED_STATUSES = new Set(['pending', 'in_transit', 'en_route']);
     const push = (it, locId = null) => {
       if (!it?.delivery_id) return;
+      const statusKey = String(it.status || '').toLowerCase();
+      if (NOT_COLLECTED_STATUSES.has(statusKey)) return;
+      if (it.pendingPickup || it.inTransit) return;
       const key = String(it.delivery_id);
       if (byId.has(key)) return;
       const locCfg = (config?.locations || []).find((l) => l.location_id === locId);
