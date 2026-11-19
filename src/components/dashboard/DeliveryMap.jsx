@@ -2071,7 +2071,12 @@ function DeliveryMap({
     onMarkerClick?.(m, t);
   }, [onMarkerClick]);
 
-  const handleMarkerClickForFanning = useCallback((marker, markerType) => {
+  // treatAsSingle (owner report Nov 19 2026): a FANNED-OUT petal of a cluster must behave
+  // like the stop it represents — tapping it opens that patient's info panel and centres its
+  // own stop card. Previously the fanned branch in DeliveryMarkers.jsx bypassed this handler
+  // entirely and called the plain onMarkerClick, which only opens the patient panel for
+  // dispatchers, so on a fanned cluster the panel never opened at all.
+  const handleMarkerClickForFanning = useCallback((marker, markerType, opts = {}) => {
     window.dispatchEvent(new CustomEvent('rxMarkerTapped'));
     const locationKey = getLocationKey(marker.latitude, marker.longitude, currentZoom);
     const now = Date.now();
@@ -2080,7 +2085,7 @@ function DeliveryMap({
     lastTappedRef.current = { id: locationKey, time: now };
 
     // --- CLUSTERED ---
-    if (marker.duplicateCount > 1) {
+    if (marker.duplicateCount > 1 && !opts?.treatAsSingle) {
       onMapInteraction?.();
 
       // PENDING PIN INSIDE A CLUSTER (owner report Oct 30 2026): tapping a
