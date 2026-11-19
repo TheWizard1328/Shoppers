@@ -487,8 +487,18 @@ async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') 
   const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
     signal: AbortSignal.timeout(25000)
   });
-  const routeData = await routeResp.json().catch(() => null);
+  const rawBody = await routeResp.text().catch(() => '');
+  let routeData = null;
+  try { routeData = rawBody ? JSON.parse(rawBody) : null; } catch (_) { routeData = null; }
   const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
+  // OWNER REPORT (Nov 19 2026): "the server side polyline generator totally failed, all I got
+  // was straight lines for every active stop". This call never checked the HTTP status, so a
+  // rejected HERE request (401/400/429) produced zero sections, every leg fell back to
+  // crow-flies, and because the helper still RETURNED a result the caller never tried Google.
+  // A refusal is now an error so the caller can fall back to the provider the client uses.
+  if (!routeResp.ok || routeSections.length === 0) {
+    throw new Error(`HERE router v8 ${routeResp.status}${rawBody ? ` — ${rawBody.replace(/\s+/g, ' ').slice(0, 240)}` : ''}`);
+  }
 
   let anySegmentFellBack = false;
   const builtSections = validPoints.slice(0, -1).map((fromPoint, index) => {
@@ -510,6 +520,10 @@ async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') 
       estimated_duration_minutes: summary.duration ? Math.ceil(Number(summary.duration) / 60) : null,
     };
   });
+  // HERE answered but drew nothing: treat it as a failure so the caller can use Google.
+  if (builtSections.length > 0 && builtSections.every((sec) => !sec.encoded_polyline)) {
+    throw new Error('HERE router v8 returned sections with no polylines');
+  }
   return { sections: builtSections, usedFallbackPolyline: anySegmentFellBack };
 }
 
@@ -1104,31 +1118,36 @@ Deno.serve(async (req) => {
           pts.push({ lat: st.lat, lon: st.lng });
         });
         if (pts.length >= 2) {
-          // CLIENT PARITY (owner report Nov 16 2026): the client generator
-          // (routePolylineGenerator -> getMultiStopRouteHere) draws and times
-          // every leg with the HERE Router. The server used to prefer Google
-          // Directions here, so the two engines timed the same legs from two
-          // different traffic models and every ETA drifted. HERE first now;
-          // Google Directions only when HERE fails.
+          // PROVIDER PARITY (owner report Nov 19 2026: "the server side polyline generator
+          // totally failed... but when I change back to the client side all works fine").
+          // The client draws and times every leg with GOOGLE DIRECTIONS
+          // (routePolylineGenerator -> clientRouteGoogle -> getGoogleDirectionsPolyline).
+          // The server had been preferring HERE Router v8, a different provider with a
+          // different decoder, so whenever HERE refused the request the server silently drew
+          // crow-flies while the client was fine. Google Directions is now FIRST, exactly like
+          // the client; HERE Router is only the emergency fallback when Google is unavailable.
           let r = null;
-          try {
-            r = await getMultiStopRouteSections(pts, apiKey, mode);
-            hereCalls++;
-          } catch (hErr) {
-            console.warn('[rxServerRouteOptimizer] HERE section path failed, trying Google Directions fallback:', hErr?.message || hErr);
-            r = null;
-          }
-          if (!r && googleKey) {
+          if (googleKey) {
             try {
               r = await getMultiStopRouteSectionsGoogle(pts, mode, googleKey);
               googleCalls++;
             } catch (gErr) {
-              console.warn('[rxServerRouteOptimizer] Google polyline path failed too:', gErr?.message || gErr);
+              console.warn('[rxServerRouteOptimizer] Google polyline path failed, trying HERE Router:', gErr?.message || gErr);
               r = null;
             }
           }
-          usedFallbackPolyline = usedFallbackPolyline || r.usedFallbackPolyline;
-          const secs = (r.sections || []);
+          if (!r || (r.usedFallbackPolyline && (r.sections || []).every((sec) => !sec.encoded_polyline))) {
+            try {
+              r = await getMultiStopRouteSections(pts, apiKey, mode);
+              hereCalls++;
+            } catch (hErr) {
+              console.warn('[rxServerRouteOptimizer] HERE Router fallback failed too:', hErr?.message || hErr);
+              r = null;
+            }
+          }
+          if (r) usedFallbackPolyline = usedFallbackPolyline || !!r.usedFallbackPolyline;
+          // Both providers refused: leave the legs empty rather than crash the whole run.
+          const secs = (r?.sections || []);
           eligibleStops.slice(gi, gj).forEach((st, li) => {
             const stopIdx = stopIdxs[li];
             const viaCount = viaCounts[li] || 0;
