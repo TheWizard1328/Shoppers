@@ -277,14 +277,19 @@ export default function EndOfDayStatsDialog({
   // to that same box so nothing is ever cut off by the chrome.
   const chrome = useMobileChromeHeights();
   const freeBox = chrome?.area;
+  // BOTTOM-ANCHORED (owner report Nov 18 2026, fifth attempt): centring the card in the free
+  // box left a ~26px empty band between the Close button and the bottom nav, which read as a
+  // dead gap "right below the button". The card's BOTTOM edge is now pinned 8px above the nav
+  // top (measured, same coordinate space as the fixed overlay) and its height still hugs the
+  // content, so there is no band under the button and no internal padding either.
   const panelFrame = freeBox && freeBox.height > 200
     ? {
         zIndex: 60000,
-        top: Math.round(freeBox.top + freeBox.height / 2),
+        top: Math.round(freeBox.top + freeBox.height - 8),
         left: Math.round(freeBox.left + freeBox.width / 2),
-        transform: 'translate(-50%, -50%)',
+        transform: 'translate(-50%, -100%)',
         width: Math.max(240, Math.min(freeBox.width - 24, 448)),
-        maxHeight: Math.max(220, freeBox.height - 32),
+        maxHeight: Math.max(220, freeBox.height - 16),
         bottom: 'auto',
         right: 'auto',
         height: 'auto',
