@@ -268,9 +268,10 @@ export default function EndOfDayStatsDialog({
     }
   }, [isOpen, performanceStats, localStats]);
 
-  // HEADER-TO-NAV BAND (owner spec Nov 18 2026, eighth pass): the card must be centred
-  // between the BOTTOM EDGE of the mobile header and the TOP EDGE of the bottom nav, not
-  // inside .main-content-area. That box runs behind the nav on this layout, so centring in
+  // HEADER-TOP-TO-NAV-BOTTOM BAND (owner spec Nov 18 2026, ninth pass): the card is centred
+  // on the band from the header's TOP edge to the nav's BOTTOM edge, so a tall aspect ratio
+  // or a large system font can never squeeze it. (Earlier passes used the free gap between
+  // the chrome, and .main-content-area before that. That box runs behind the nav on this layout, so centring in
   // it pushed the card down by roughly half the nav height - exactly the "sitting a little
   // too low" the owner reported. The band is measured straight off the two chrome elements
   // (fixed positioning shares the viewport coordinate space), re-measured after mount, on
@@ -281,8 +282,13 @@ export default function EndOfDayStatsDialog({
     const measure = () => {
       const headerEl = document.querySelector('[data-mobile-header]');
       const navEl = document.querySelector('[data-mobile-bottom-nav]');
-      const top = headerEl ? headerEl.getBoundingClientRect().bottom : 0;
-      const bottom = navEl ? navEl.getBoundingClientRect().top : window.innerHeight;
+      // OUTER BAND (owner spec Nov 18 2026, ninth pass): centre on the header's TOP edge to
+      // the nav's BOTTOM edge, not the gap between them. On a tall-aspect device or with a
+      // large system font the free gap can shrink until the card is squeezed, so the full
+      // band is used: the card may overhang the chrome if it must, and z-index 60000 keeps it
+      // above both. Centring is then on the true middle of the usable screen.
+      const top = headerEl ? headerEl.getBoundingClientRect().top : 0;
+      const bottom = navEl ? navEl.getBoundingClientRect().bottom : window.innerHeight;
       if (!(bottom - top > 200)) { setBand(null); return; }
       setBand({
         top: Math.round(top),
