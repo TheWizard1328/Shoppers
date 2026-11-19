@@ -284,6 +284,34 @@ export default function useModeRouteDialog({
       const updatedCyclingStops = crowSorted.map((d, i) => ({ ...d, stop_order: cyclingStartOrder + i, transport_mode: 'cycling' }));
       const updatedDrivingStops = drivingStops.map((d, i) => ({ ...d, stop_order: endMarkerOrder + 1 + i }));
 
+      // ── DEVIATION POINT HANDOFF (owner directive Nov 19 2026) ──────────────
+      // "Any deviation points on the current isNextDelivery stop should get
+      // transferred over to the cycling route start marker once it has been
+      // created and set as the is next delivery." Those points describe the leg
+      // the driver is driving RIGHT NOW, and that leg becomes
+      // origin -> driven path -> loop mouth, so the recorded detour still
+      // belongs to it (the engine uses them as via waypoints, which keeps the
+      // drive-in line on the road actually taken instead of the theoretical one).
+      // Points recorded BEFORE the origin (the last finished stop) completed are
+      // dropped: they sit behind the driver and routing back through them
+      // zigzags. Same 3-point cap as the regenerator and the engine transfer.
+      const _validWp = (pt) => pt && Number.isFinite(Number(pt.lat)) && Number.isFinite(Number(pt.lng));
+      const _latestFinishedStop = freshDeliveries
+        .filter((d) => d && FINISHED.has(d.status))
+        .sort((a, b) => String(b.actual_delivery_time || b.updated_date || b.created_date || '')
+          .localeCompare(String(a.actual_delivery_time || a.updated_date || a.created_date || '')))[0] || null;
+      const _originCompletedMs = _latestFinishedStop?.actual_delivery_time
+        ? new Date(_latestFinishedStop.actual_delivery_time).getTime() : null;
+      const _handoffWaypoints = otherNextStops
+        .flatMap((d) => (Array.isArray(d.deviation_waypoints) ? d.deviation_waypoints : []).filter(_validWp))
+        .filter((pt) => {
+          const vt = pt?.timestamp ? new Date(pt.timestamp).getTime() : NaN;
+          if (!Number.isFinite(vt) || !Number.isFinite(_originCompletedMs)) return true;
+          return vt >= _originCompletedMs;
+        })
+        .sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')))
+        .slice(-3);
+
       let localUpserts;
       if (fromAcceptAllRef.current) {
         // Accept All path: don't touch isNextDelivery — pickup already has it.
@@ -295,9 +323,15 @@ export default function useModeRouteDialog({
         ];
       } else {
         // Standalone path: set isNextDelivery on start marker, clear on others.
-        const startWithNext = { ...updatedStartMarker, isNextDelivery: true };
+        const startWithNext = { ...updatedStartMarker, isNextDelivery: true, deviation_waypoints: _handoffWaypoints };
         const endWithNext   = { ...updatedEndMarker,   isNextDelivery: false };
-        const clearedNextStops = otherNextStops.map((d) => ({ ...d, isNextDelivery: false }));
+        // The stop that held the flag is emptied in the SAME write, so the points
+        // can never live on two stops (a duplicated point bends both legs through
+        // it and the stale one survives the next full optimization).
+        const clearedNextStops = otherNextStops.map((d) => ({ ...d, isNextDelivery: false, deviation_waypoints: [] }));
+        if (_handoffWaypoints.length > 0) {
+          console.log(`[useModeRouteDialog] deviation handoff: ${_handoffWaypoints.length} point(s) moved from ${otherNextStops.length} previous next stop(s) to cycling start marker ${startMarker.id}`);
+        }
         localUpserts = [
           startWithNext,
           endWithNext,
