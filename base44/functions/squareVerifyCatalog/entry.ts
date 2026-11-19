@@ -223,6 +223,18 @@ Deno.serve(async (req) => {
         if (sig && sig !== '::0' && txSignatureSet.has(sig)) reason = 'pos_transaction_signature';
       }
       if (!reason && descDeliveryId && (txDeliveryIds.has(descDeliveryId) || completedTxDeliveryIds.has(descDeliveryId))) reason = 'delivery_transaction';
+      // REFUNDED RING NEVER CONFIRMS (owner report Nov 17-19 2026, Amanda
+      // Klymchuk Oct 28 $10.64): a COD rung on the wrong day and refunded days
+      // later stays COMPLETED on the Square order, so these transaction passes
+      // kept deleting the recreated catalog item every run — the COD vanished
+      // from the register, and once the register item was gone the balances
+      // page lost the only row that had been showing it. When the item's
+      // delivery carries refunded/cancelled transaction evidence, transaction
+      // evidence must NOT delete it; the delivery-side passes below still
+      // decide (and they already honour the refund sets).
+      if (reason && descDeliveryId && refundedDeliveryIds.has(String(descDeliveryId))) {
+        reason = null;
+      }
       if (reason) toDelete.set(item.id, { name, amount_cents: amountCents, reason });
     }
 
