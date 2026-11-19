@@ -273,7 +273,7 @@ export default function EndOfDayStatsDialog({
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent
         className="z-[60000] w-[calc(100vw-2rem)] max-w-md rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
-        style={{ borderColor: 'var(--border-slate-300)', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', height: 'auto' }}
+        style={{ zIndex: 60000, borderColor: 'var(--border-slate-300)', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', height: 'auto' }}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -298,11 +298,16 @@ export default function EndOfDayStatsDialog({
           old z-[10050] and painted the header and bottom nav OVER this card. The panel now
           sits at 60000 — above the chrome, below the New Patient form (65000) and the
           settings menu (99999).
+          Z VIA INLINE STYLE (third attempt, Nov 18 2026): ui/dialog's base class z-[10001]
+          competes with any z-[...] class on the same element and CSS ORDER decides the
+          winner, not the class attribute order — which is why the class-only bump still
+          lost to the chrome. zIndex in the style object always wins.
           Width stays inset from the edges and the height is capped to the free
           space between the mobile header and bottom nav, scrolling inside if needed. */}
       <DialogContent
         className="z-[60000] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
         style={{
+          zIndex: 60000,
           borderColor: 'var(--border-slate-300)',
           maxHeight: 'calc(100dvh - var(--actual-bottom-nav-height, 0px) - 6rem)',
           top: '50%',
