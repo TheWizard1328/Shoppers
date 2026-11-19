@@ -618,6 +618,15 @@ export const buildServerOptimizeRequest = async ({
         }
       })(),
       options: {
+        // POLYLINE ORIGIN IN BOTH PLACES (owner report Nov 19 2026): the server
+        // function used to read polylineOrigin out of `options`, so the
+        // top-level copy never reached it and the first leg of the chain
+        // (last finished stop -> first active stop, i.e. the drive INTO a
+        // cycling loop's start marker) had no anchor and was never drawn. The
+        // server now reads either location; sending both means this client also
+        // works against an older deployed server, so the fix lands on the first
+        // side that updates instead of needing both.
+        ...(polylineOrigin ? { polylineOrigin: { lat: polylineOrigin.lat, lng: polylineOrigin.lng } } : {}),
         ...(viaPoint ? { viaPoint } : {}),
         preserveExistingOrder,
         forceRegenerate,

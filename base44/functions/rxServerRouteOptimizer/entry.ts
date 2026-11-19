@@ -643,7 +643,28 @@ Deno.serve(async (req) => {
     const _cyclingLoopPending = hasPendingCyclingLoop(routeStops);
     const mixedMode = !!_endMarker && _cyclingLoopPending;
 
-    const { preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false, routeInProgress = false, forceRegenerate = false, viaPoint = null, polylineOrigin = null } = options;
+    const {
+      preserveExistingOrder = false, explicitNextDeliveryId = null, clearNextDeliveryLock = false,
+      routeInProgress = false, forceRegenerate = false,
+      viaPoint: _optViaPoint = null, polylineOrigin: _optPolyOrigin = null,
+    } = options;
+    // ── POLYLINE ORIGIN ARRIVES AT THE TOP LEVEL (owner report Nov 19 2026) ───
+    // "It did not generate a polyline from my last completed stop to the cycling
+    // road — only the loop drew." The client builder sends polylineOrigin as a
+    // TOP-LEVEL request field (serverOptimizationMode.js → request.polylineOrigin)
+    // while this function destructured it out of `options`. It was therefore
+    // ALWAYS null on the server, so the polyline chain had NO anchor for its
+    // first mode run and the first eligible stop got no inbound leg at all. On a
+    // cycling route the first eligible stop IS the cycling START marker, which is
+    // exactly the leg that went missing (every later leg — start → loop stops →
+    // end marker → driving stops — is anchored to its predecessor and still drew).
+    // Read BOTH locations, top level first, so any client build anchors the leg.
+    const polylineOrigin = (payload?.polylineOrigin && Number.isFinite(Number(payload.polylineOrigin.lat)))
+      ? payload.polylineOrigin
+      : _optPolyOrigin;
+    const viaPoint = (payload?.viaPoint && Number.isFinite(Number(payload.viaPoint.lat)))
+      ? payload.viaPoint
+      : _optViaPoint;
 
     // ── Route preference (Fastest / Shortest / Best + traffic) ────────────────
     // OWNER DIRECTIVE (Oct 30 2026): "any changes that I make to the route
