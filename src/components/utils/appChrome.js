@@ -68,7 +68,7 @@ export const readInset = (side = 'top') => {
 const rectOf = (selector) => {
   if (typeof document === 'undefined') return null;
   const el = document.querySelector(selector);
-  if (!el) return null;
+  if (!el || typeof el.getBoundingClientRect !== 'function') return null;
   const r = el.getBoundingClientRect();
   if (!r || (!r.width && !r.height)) return null;
   return r;
@@ -89,10 +89,11 @@ export const readBand = () => {
   const vv = window.visualViewport;
   const viewTop = vv ? vv.offsetTop : 0;
   const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-  const headerEl = rectOf('[data-mobile-header]');
-  const navEl = rectOf('[data-mobile-bottom-nav]');
-  const rawTop = headerEl ? headerEl.getBoundingClientRect().bottom : viewTop;
-  const rawBottom = navEl ? navEl.getBoundingClientRect().top : viewBottom;
+  // rectOf() returns a DOMRect, so read its edges directly (never .getBoundingClientRect()).
+  const headerRect = rectOf('[data-mobile-header]');
+  const navRect = rectOf('[data-mobile-bottom-nav]');
+  const rawTop = headerRect ? headerRect.bottom : viewTop;
+  const rawBottom = navRect ? navRect.top : viewBottom;
   const top = Math.max(viewTop, Math.min(rawTop, viewBottom));
   const bottom = Math.min(viewBottom, Math.max(rawBottom, top));
   if (!(bottom - top > 160)) return null;
@@ -126,14 +127,14 @@ export const useChrome = () => {
     let raf = 0;
     const measure = () => {
       const band = readBand();
-      const headerEl = rectOf('[data-mobile-header]');
-      const navEl = rectOf('[data-mobile-bottom-nav]');
+      const headerRect = rectOf('[data-mobile-header]');
+      const navRect = rectOf('[data-mobile-bottom-nav]');
       const vv = window.visualViewport;
       setState((prev) => {
         const next = {
           band,
-          headerH: headerEl ? Math.round(headerEl.height) : 0,
-          navH: navEl ? Math.round(navEl.height) : 0,
+          headerH: headerRect ? Math.round(headerRect.height) : 0,
+          navH: navRect ? Math.round(navRect.height) : 0,
           insetTop: Math.round(readInset('top')),
           insetBottom: Math.round(readInset('bottom')),
           viewportH: Math.round(vv ? vv.height : window.innerHeight),
