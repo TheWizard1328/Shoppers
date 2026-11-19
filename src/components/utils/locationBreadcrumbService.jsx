@@ -2,6 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { haversineMeters } from './geoUtils';
 import { getLocalDateString } from './localTimeHelper';
 import { acquireBreadcrumbSyncLock } from './breadcrumbSyncLock';
+import { errorText, isRateLimitError } from './errorText';
 
 // ─── Master Timeline Architecture ─────────────────────────────────────────────
 // All breadcrumbs are collected into a single 'TODAY' record per driver/date,
@@ -184,9 +185,15 @@ async function loadTrailIntoCache(driverId, deliveryDate, offlineKey) {
   let points = [];
   if (existingRecord?.encoded_polyline && existingRecord?.timestamps) {
     const coords = decodePolyline(existingRecord.encoded_polyline);
-    const tsArr = existingRecord.timestamps.split(',').map(Number);
-    points = coords
-      .map((coord, i) => [coord[0], coord[1], tsArr[i] || 0])
+    // timestamps is written as a comma string, but a legacy/hand-repaired row can
+    // hold a real array — coerce both instead of assuming .split exists.
+    const rawTs = existingRecord.timestamps;
+    const tsArr = Array.isArray(rawTs)
+      ? rawTs.map(Number)
+      : String(rawTs).split(',').map(Number);
+    points = (Array.isArray(coords) ? coords : [])
+      .map((coord, i) => [Number(coord?.[0]), Number(coord?.[1]), tsArr[i] || 0])
+      .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]))
       .filter(p => !(Math.abs(p[0]) < 0.0001 && Math.abs(p[1]) < 0.0001));
 
     if (isCorruptedByBitwiseOverflow(points)) {
@@ -261,7 +268,7 @@ export function getLastCommittedCrumb(driverId, deliveryDate) {
   return { lat: last[0], lng: last[1], ts: Number(last[2]) || 0 };
 }
 
-export const collectBreadcrumbForTracker = async ({
+const collectBreadcrumbInner = async ({
   driverStatus,
   appUserId,
   currentUser,
@@ -440,9 +447,12 @@ export const collectBreadcrumbForTracker = async ({
         await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...latest, _pending_server_sync: false });
       }
     } catch (error) {
-      const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.includes('rate limit');
+      // NEVER let error inspection throw: a non-string error.message used to call
+      // .includes on undefined here, and that TypeError escaped the whole crumb
+      // collection ("Failed to collect breadcrumb: N.includes is not a function").
+      const isRateLimited = isRateLimitError(error);
       if (!isRateLimited) {
-        console.warn(`⚠️ [Breadcrumbs] Server sync failed:`, error.message);
+        console.warn(`⚠️ [Breadcrumbs] Server sync failed:`, errorText(error));
       }
     } finally {
       releaseLock();
@@ -461,6 +471,25 @@ export const collectBreadcrumbForTracker = async ({
   }));
 
   return { pendingKey: offlineKey, deliveryDate };
+};
+
+/**
+ * collectBreadcrumbForTracker — public entry point.
+ *
+ * Hard rule (owner report Nov 19 2026): collecting a crumb must NEVER throw into
+ * the tracker. One badly-shaped rejection used to abort the whole commit chain
+ * (no chain advance, no live-map event) and log "Failed to collect breadcrumb".
+ * The local IDB write is the part that matters, so any unexpected failure is
+ * logged and reported as null — the tracker keeps its buffer and retries on the
+ * next tick instead of losing the point.
+ */
+export const collectBreadcrumbForTracker = async (args) => {
+  try {
+    return await collectBreadcrumbInner(args);
+  } catch (error) {
+    console.warn('\u26a0\ufe0f [Breadcrumbs] Collect failed (crumb kept in buffer, retrying next tick):', errorText(error));
+    return null;
+  }
 };
 // ═══════════════════════════════════════════════════════════════════════════════
 // seedHomeAnchorOnDuty — home anchor for the master trail (on_duty toggle)

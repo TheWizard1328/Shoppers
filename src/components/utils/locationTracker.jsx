@@ -21,6 +21,7 @@ import { remoteLogger } from './remoteLogger';
 import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCaches, getLastCommittedCrumb } from './locationBreadcrumbService';
 import { offlineDB } from './offlineDatabase';
 import { selectChainCommitPoint, shouldDropByAccuracy } from './breadcrumbChainCommit';
+import { errorText, isRateLimitError } from './errorText';
 import { connectionMonitor } from './connectionMonitor';
 import { markNativeHidden } from './uiGate';
 import * as driverIdleAlerts from './driverIdleAlerts';
@@ -1022,10 +1023,13 @@ class LocationTracker {
       this._logLocationRemote('error', 'UPLOAD-FAILED', { latitude, longitude, accuracy, error: error?.message });
 
       // Implement exponential backoff
-      if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
+      // errorText() first: optional chaining does NOT protect a non-string
+      // error.message, and calling .includes on it threw (Nov 19 2026).
+      const _uploadErrText = errorText(error, '').toLowerCase();
+      if (isRateLimitError(error)) {
         this.backoffTime = Math.min(60000 * Math.pow(2, this.failedUpdateCount), 300000);
         console.warn(`⏰ Rate limited. Backing off for ${this.backoffTime / 1000}s`);
-      } else if (error.message?.includes('Network Error') || !navigator.onLine) {
+      } else if (_uploadErrText.includes('network error') || !navigator.onLine) {
         this.backoffTime = 30000;
         console.warn(`🔌 Network error. Backing off for ${this.backoffTime / 1000}s`);
       } else {
@@ -2021,7 +2025,7 @@ class LocationTracker {
       this.lastBreadcrumbPosition = { latitude: commit.lat, longitude: commit.lng, timestamp: commit.ts };
       this.lastBreadcrumbSavedAt = timestamp;
     } catch (error) {
-      console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
+      console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, errorText(error));
     } finally {
       this._breadcrumbWriteInFlight = false;
     }
