@@ -2090,6 +2090,12 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
     // Also build a settled set for fast "is collected?" checks
     const settledTxCatalogIds = new Set();
     const settledTxDeliveryIds = new Set();
+    // A LIVE pending row means the COD item is still on the register counter —
+    // the delivery is NOT settled. Without this, an old ring that was refunded
+    // (owner report Nov 19 2026, Amanda Klymchuk Oct 28 $10.64: rung by mistake
+    // on Nov 5, refunded Nov 18, item rebuilt in Square) left the rebuilt item
+    // hidden here forever while the balances page showed it.
+    const pendingTxDeliveryIds = new Set();
     // And a signature index for amount+name fallback matching
     const txByAmountName = new Map(); // key: amountCents::lowercaseitemName → tx
     for (const tx of (allTransactions || [])) {
@@ -2104,6 +2110,9 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       }
       const orderKey = `${tx?.square_transaction_id || ''}::${tx?.raw_square_data?.line_item_uid || ''}`;
       if (orderKey !== '::') txByKey.set(orderKey, tx);
+      if (String(tx.status || '').toLowerCase() === 'pending' && tx.delivery_id) {
+        pendingTxDeliveryIds.add(String(tx.delivery_id));
+      }
       if (String(tx.status || '').toLowerCase() === 'completed' && tx.delivery_id) {
         settledTxDeliveryIds.add(tx.delivery_id);
       }
@@ -2114,6 +2123,8 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
         txByAmountName.set(`${amtC}::${nameLower}`, tx);
       }
     }
+    // A rebuilt COD item (pending) outranks an older completed ring.
+    for (const did of pendingTxDeliveryIds) settledTxDeliveryIds.delete(did);
 
     // Catalog item lookups: by delivery_id, by catalog_object_id
     const catalogByDeliveryId = new Map();
