@@ -62,7 +62,24 @@ const isTransportFailure = (error) => {
     || msg.includes('timed out');
 };
 
-const AuthContext = createContext();
+// ── ONE SHARED CONTEXT PER PAGE, EVEN WITH DUPLICATE MODULE COPIES ──────────
+// Owner report Nov 19 2026 (hourly error digest): bursts of
+// "useAuth must be used within an AuthProvider" from the preview host. Cause is
+// module duplication — App.jsx imports AuthContext with one ?t= query and a lazy
+// chunk imports it with another, so Vite loads TWO copies of this file. Copy A
+// renders the <AuthContext.Provider>, copy B's useAuth reads copy B's context
+// object, finds no provider, and throws — killing every subtree under it.
+// The context object is now stored on globalThis, so every copy in the page
+// resolves the same React context and the duplicate-module case cannot happen.
+// A full page reload clears globalThis, so this never leaks across sessions.
+const AUTH_CONTEXT_GLOBAL_KEY = '__rxdeliver_auth_context_v1__';
+const AuthContext = (() => {
+  if (typeof globalThis === 'undefined') return createContext();
+  if (!globalThis[AUTH_CONTEXT_GLOBAL_KEY]) {
+    globalThis[AUTH_CONTEXT_GLOBAL_KEY] = createContext();
+  }
+  return globalThis[AUTH_CONTEXT_GLOBAL_KEY];
+})();
 
 const getAppReturnUrl = () =>  `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
 
@@ -482,10 +499,35 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+// Last-resort value used ONLY if a consumer genuinely renders outside the
+// provider (a mount-order race during a hot reload). Throwing here takes down
+// the whole route with an error boundary screen; reporting an unauthenticated,
+// still-loading state lets the next render — once the provider mounts — recover
+// on its own. isLoadingAuth stays true on purpose: it keeps pages in their
+// loading state instead of flashing the login screen.
+const NO_PROVIDER_FALLBACK = Object.freeze({
+  user: null,
+  isAuthenticated: false,
+  isLoadingAuth: true,
+  isLoadingPublicSettings: true,
+  authError: null,
+  appPublicSettings: null,
+  logout: () => {},
+  navigateToLogin: () => {},
+  checkAppState: () => Promise.resolve(),
+});
+
+let _warnedMissingProvider = false;
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (context) return context;
+  if (!_warnedMissingProvider) {
+    _warnedMissingProvider = true;
+    console.error(
+      '[AuthContext] useAuth() rendered outside AuthProvider — serving a loading fallback instead of crashing. ' +
+      'This is a mount-order/duplicate-module artifact; reload the page if it persists.'
+    );
   }
-  return context;
+  return NO_PROVIDER_FALLBACK;
 };

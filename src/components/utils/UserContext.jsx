@@ -2,11 +2,23 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { applyTestModeOverlay } from './testMode';
 import { getEffectiveUser } from './auth';
 
-const UserContext = createContext({
+// Shared on globalThis for the same reason as AuthContext: a hot reload / stale
+// chunk can load two copies of this module, and then useUser reads copy B's
+// context while copy A renders the provider — which used to throw and take the
+// route down. One context object per page makes that impossible.
+const USER_CONTEXT_GLOBAL_KEY = '__rxdeliver_user_context_v1__';
+const USER_CONTEXT_DEFAULT = {
   currentUser: null,
   isLoadingUser: true,
   refreshUser: async () => {}
-});
+};
+const UserContext = (() => {
+  if (typeof globalThis === 'undefined') return createContext(USER_CONTEXT_DEFAULT);
+  if (!globalThis[USER_CONTEXT_GLOBAL_KEY]) {
+    globalThis[USER_CONTEXT_GLOBAL_KEY] = createContext(USER_CONTEXT_DEFAULT);
+  }
+  return globalThis[USER_CONTEXT_GLOBAL_KEY];
+})();
 
 // Native APK dynamic environment routing — must match MainActivity.java's
 // serverUrl values exactly (minus the trailing slash on preview).
@@ -107,10 +119,17 @@ export const UserProvider = ({ children, initialUser = null }) => {
   );
 };
 
+let _warnedMissingUserProvider = false;
+
 export const useUser = () => {
   const context = useContext(UserContext);
-  if (!context) {
-    throw new Error('useUser must be used within a UserProvider');
+  if (context) return context;
+  // Same fallback rule as useAuth: never crash the route on a mount-order race.
+  if (!_warnedMissingUserProvider) {
+    _warnedMissingUserProvider = true;
+    console.error(
+      '[UserContext] useUser() rendered outside UserProvider — serving a loading fallback instead of crashing.'
+    );
   }
-  return context;
+  return USER_CONTEXT_DEFAULT;
 };
