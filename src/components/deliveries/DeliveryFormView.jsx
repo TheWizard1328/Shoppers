@@ -523,6 +523,60 @@ export default function DeliveryFormView({
     return { driverId: null, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: false, hasSlotDriver: false };
   };
 
+  // OWNER RULE (Nov 19 2026): manually picking a driver in PICKUP MODE auto-checks that
+  // driver's default pickup locations in the pickup filter — but never one that is already
+  // in their route for that date, because that pickup already exists.
+  // "Default pickup location for a driver" = the store they are the scheduled/default driver
+  // for on that date and slot (the inverse of getDefaultDriverForStoreSlot above).
+  const getDefaultPickupVariantIdsForDriver = (driverId, deliveryDate) => {
+    if (!driverId || !deliveryDate) return [];
+    const ids = [];
+    (availableStores || []).forEach((store) => {
+      if (!store || store.status === 'inactive') return;
+      const storeId = store._originalStoreId || store.id;
+      const slot = store._timeSlot || 'AM';
+      const { driverId: defaultDriverId } = getDefaultDriverForStoreSlot(storeId, slot, deliveryDate);
+      if (defaultDriverId && String(defaultDriverId) === String(driverId)) ids.push(store.id);
+    });
+    return ids;
+  };
+
+  // A pickup already sits in this driver's route for that store and date.
+  const pickupAlreadyInDriverRoute = (storeId, driverId, deliveryDate) => {
+    if (!storeId || !driverId || !deliveryDate) return false;
+    const day = String(deliveryDate).slice(0, 10);
+    return (allDeliveries || []).some((d) => {
+      if (!d || d.patient_id || d.is_cycling_marker === true) return false;
+      if (String(d.store_id || '') !== String(storeId)) return false;
+      if (String(d.delivery_date || '').slice(0, 10) !== day) return false;
+      if (['cancelled', 'failed'].includes(String(d.status || ''))) return false;
+      return String(d.driver_id || '') === String(driverId);
+    });
+  };
+
+  const autoCheckDriverDefaultPickups = (driverId) => {
+    if (!driverId) return;
+    const date = formData.delivery_date;
+    const candidates = getDefaultPickupVariantIdsForDriver(driverId, date)
+      .map((variantId) => (availableStores || []).find((s) => s && s.id === variantId))
+      .filter(Boolean)
+      .filter((variant) => !pickupAlreadyInDriverRoute(variant._originalStoreId || variant.id, driverId, date));
+    if (candidates.length === 0) return;
+    const first = candidates[0];
+    setSelectedPickupStoreIds((prev) => {
+      const next = new Set(prev);
+      candidates.forEach((variant) => next.add(variant.id));
+      return next;
+    });
+    // Fill the pickup slot fields only when nothing is chosen yet, so a manual pick wins.
+    setSelectedPickupOption((prev) => prev || first.id);
+    setFormData((prev) => (prev.store_id ? prev : {
+      ...prev,
+      store_id: first._originalStoreId || first.id,
+      ampm_deliveries: first._timeSlot || 'AM',
+    }));
+  };
+
   // NOTE: Driver auto-set from patient selection is handled in DeliveryForm's handlePatientSelect
   // (which uses scheduledDriverMap with schedule overrides). This view-level effect is intentionally
   // removed to prevent it from overwriting the scheduled driver with the store default.
@@ -1406,6 +1460,9 @@ export default function DeliveryFormView({
                         const newDriverName = driver ? getDriverNameForStorage(driver) : '';
                         onDriverManuallyChanged?.();
                         setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
+                        // Auto-check this driver's default pickup locations (never one already
+                        // in their route) — owner rule Nov 19 2026.
+                        autoCheckDriverDefaultPickups(newDriverId);
                         setForceOpenDriverSelect(false);
                       }} disabled={isSaving}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
