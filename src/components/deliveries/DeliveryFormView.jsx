@@ -835,24 +835,41 @@ export default function DeliveryFormView({
   // to the real visual viewport: top:0 / left:0 / right:0 with an explicit pixel height of
   // window.visualViewport.height (falling back to innerHeight), so the footer's bottom edge
   // is the bottom edge of what the user can actually see.
-  // APK FIX (owner report Nov 19 2026): "the add to route form is extending below the bottom
-  // edge of the entire app and behind the phone's navigation bar". The Android WebView is
-  // edge-to-edge, so visualViewport.height still counts the strip that sits behind the
-  // phone's own navigation bar — the form was exactly that strip too tall and its
-  // Cancel / Update footer drew under the system bar. On the native APK the measured
-  // --app-inset-bottom (MainActivity's --native-safe-bottom, floored at 14px) is subtracted
-  // from the viewport height so the footer clears the system bar. Browser/PWA behaviour is
-  // unchanged (the owner tuned that gutter already).
-  const isNativeApkShell = () => {
-    if (typeof document === 'undefined') return false;
-    return !!document.body?.classList?.contains('is-native-apk');
+  // OWNER SPEC (Nov 19 2026): the form fills the viewport BETWEEN the phone's notification bar
+  // and the phone's navigation bar - never under either one - exactly like the rest of the app.
+  // The earlier gate on body.is-native-apk was wrong: the APK can resolve --app-inset-bottom
+  // from the injected native var WITHOUT that body class being present, so the subtraction was
+  // skipped and the whole card (footer included) still ran under the system navigation bar.
+  // Detection is now the platform itself (Android WebView), the inset comes from the same
+  // --app-inset-bottom the rest of the app uses, and if that inset is somehow 0 we fall back to
+  // the app's own bottom nav edge, which is the app's usable bottom edge on every device.
+  const isAndroidShell = () => {
+    if (typeof navigator === 'undefined') return false;
+    return /Android/i.test(navigator.userAgent || '');
   };
   const readFormViewportHeight = () => {
     if (typeof window === 'undefined') return 0;
-    const raw = Math.round(window.visualViewport?.height || window.innerHeight || 0);
-    if (!isNativeApkShell()) return raw;
-    const insetBottom = Math.round(readInset('bottom') || 0);
-    return Math.max(0, raw - insetBottom);
+    const vv = window.visualViewport;
+    const visible = Math.round(vv?.height || window.innerHeight || 0);
+    if (!visible) return 0;
+    let height = visible;
+    if (isAndroidShell()) {
+      const insetBottom = Math.round(readInset('bottom') || 0);
+      if (insetBottom > 0) {
+        height = Math.max(0, visible - insetBottom);
+      } else {
+        // Inset unavailable: the app's own bottom nav is flush with the usable bottom edge.
+        try {
+          const navRect = document.querySelector('[data-mobile-bottom-nav]')?.getBoundingClientRect?.();
+          const navBottom = navRect && navRect.height > 0 ? Math.round(navRect.bottom - (vv?.offsetTop || 0)) : 0;
+          if (navBottom > 0 && navBottom < height) height = navBottom;
+        } catch (_) { /* keep the plain viewport height */ }
+      }
+    }
+    try {
+      console.log(`[FormBounds] visible=${visible} insetBottom=${readInset('bottom')} android=${isAndroidShell()} formHeight=${height} innerH=${Math.round(window.innerHeight || 0)} screenH=${Math.round(window.screen?.height || 0)}`);
+    } catch (_) {}
+    return height;
   };
   const [phoneViewportH, setPhoneViewportH] = React.useState(() => readFormViewportHeight());
   React.useEffect(() => {
