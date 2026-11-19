@@ -148,11 +148,51 @@ Deno.serve(async (req) => {
     const address = `${streetNumber} ${route}`.trim();
     const unit = subpremise;
 
+    // ── ADDRESS VERIFICATION (owner report Nov 19 2026) ────────────────
+    // Google autocomplete happily offers street names that do not exist in the
+    // city: typing "5537 138A Avenue NW" produced a suggestion for
+    // "5537 136A Avenue NW", the form accepted its coordinates, and the driver
+    // was routed to a wrong point. Every selected place is now geocoded and
+    // must resolve to a REAL street address — ROOFTOP or RANGE_INTERPOLATED
+    // with no partial_match — before a caller may take its coordinates.
+    // Anything else returns verified:false plus a reason, and the address form
+    // refuses the selection instead of dropping a marker.
+    let verified: boolean | null = null;
+    let verificationReason: string | null = null;
+    let locationType: string | null = null;
+    let partialMatch = false;
+    try {
+      const geocodeTarget = result.formattedAddress || address;
+      const geoRes = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeTarget)}&components=country:CA&key=${apiKey}`
+      );
+      const geo = await geoRes.json();
+      const first = (geo?.results || [])[0] || null;
+      locationType = first?.geometry?.location_type || null;
+      partialMatch = first?.partial_match === true;
+      if (geo?.status !== 'OK' || !first) {
+        verified = false;
+        verificationReason = 'not_found';
+      } else if (partialMatch) {
+        verified = false;
+        verificationReason = 'partial_match';
+      } else if (!['ROOFTOP', 'RANGE_INTERPOLATED'].includes(String(locationType))) {
+        verified = false;
+        verificationReason = 'imprecise';
+      } else {
+        verified = true;
+      }
+    } catch (verifyErr) {
+      // A verification hiccup must never block a real lookup — report unknown.
+      verified = null;
+      verificationReason = 'check_failed';
+    }
+
     await logApiUsage({
       base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name,
       provider, apiType: 'Place Details', purpose: 'Fetch place details',
       functionName: 'googlePlaceDetails', success: true, durationMs: Date.now() - startedAt,
-      metadata: { place_id },
+      metadata: { place_id, verified, verification_reason: verificationReason, location_type: locationType },
     });
 
     return Response.json({
@@ -160,7 +200,11 @@ Deno.serve(async (req) => {
       unit,
       formatted_address: result.formattedAddress,
       latitude: result.location?.latitude,
-      longitude: result.location?.longitude
+      longitude: result.location?.longitude,
+      verified,
+      verification_reason: verificationReason,
+      location_type: locationType,
+      partial_match: partialMatch
     });
 
   } catch (error) {

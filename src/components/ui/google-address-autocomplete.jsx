@@ -88,6 +88,11 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [hasTypedSinceFocus, setHasTypedSinceFocus] = useState(false);
+  // A picked suggestion that Google cannot confirm as a real street address
+  // (owner report Nov 19 2026: "5537 136A Avenue NW" was offered for 138A and
+  // routed the driver to the wrong point). The selection is refused and this
+  // message tells the user to fix the street instead of silently accepting it.
+  const [verifyWarning, setVerifyWarning] = useState(null);
   const debounceTimer = useRef(null);
   const justSelected = useRef(false);
   const inputRef = useRef(null);
@@ -262,6 +267,23 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       console.log('[GoogleAddressAutocomplete] Place details response:', response);
 
       const data = response?.data || response;
+
+      // ADDRESS VERIFICATION GATE — never let an unverified suggestion reach
+      // the map. verified:false means Google could not confirm a real street
+      // address for this place, so no coordinates are handed to the form.
+      if (data?.verified === false) {
+        setVerifyWarning(
+          data.verification_reason === 'not_found'
+            ? 'That address does not exist. Check the street name and number.'
+            : 'That address could not be verified. Check the street name and number.'
+        );
+        setOpen(false);
+        setSuggestions([]);
+        justSelected.current = false;
+        return;
+      }
+      setVerifyWarning(null);
+
       const resolvedLatitude = data?.latitude ?? data?.lat ?? data?.location?.latitude ?? data?.location?.lat ?? data?.geometry?.location?.lat ?? null;
       const resolvedLongitude = data?.longitude ?? data?.lng ?? data?.location?.longitude ?? data?.location?.lng ?? data?.geometry?.location?.lng ?? null;
       
@@ -440,6 +462,9 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         className={className}
         disabled={disabled}
       />
+      {verifyWarning && (
+        <p className="mt-1 text-[11px] font-medium text-red-600 dark:text-red-400">{verifyWarning}</p>
+      )}
       {isLoading && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10">
           <div className="w-4 h-4 border-2 border-slate-300 dark:border-slate-600 border-t-slate-600 rounded-full animate-spin"></div>
