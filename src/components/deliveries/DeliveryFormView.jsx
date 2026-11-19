@@ -889,9 +889,12 @@ export default function DeliveryFormView({
   // clears the status bar and the button footer clears the home indicator, while the form's
   // top and bottom borders sit flush with the screen edges.
   const mobileCardInsetStyle = undefined;
-  const mobileHeaderSafeTop = useMobileLayout && isMobileDevice
-    ? ('var(--app-inset-top)')
-    : undefined;
+  // OWNER REPORT (Nov 19 2026): "remove the extra padding at the top of the edit form ...
+  // there is a slight white base padding above the header and the X". Since w197 the OVERLAY
+  // reserves --app-inset-top (Edit Patient's sizing), so the header padding here counted the
+  // same inset a second time and showed as a white band above the title row. Edit Patient's
+  // header has no inset of its own, so this one doesn't either.
+  const mobileHeaderSafeTop = undefined;
   // OWNER SPEC (Nov 15 2026, third pass): the 34px home-indicator pad inside the footer
   // read as dead space under the Cancel / Update row on iOS PWA. The footer now keeps only
   // a 6px gutter on a browser/PWA phone (native keeps its 14px floor, where Capacitor
