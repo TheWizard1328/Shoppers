@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { resolveFeatureSecretName } from '../../shared/apiKeyResolver.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -16,7 +17,11 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'place_id is required' }, { status: 400 });
     }
 
-    const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    // OWNER RULE (Nov 19 2026): key comes from Admin Utilities > App Settings
+    // ('place_details' slot), never straight from the env var.
+    let secretName = 'GOOGLE_MAPS_API_KEY';
+    try { secretName = (await resolveFeatureSecretName(base44, 'place_details')) || secretName; } catch (_) {}
+    const apiKey = Deno.env.get(secretName) || Deno.env.get('GOOGLE_MAPS_API_KEY');
     if (!apiKey) {
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }

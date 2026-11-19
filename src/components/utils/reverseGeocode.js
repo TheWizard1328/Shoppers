@@ -42,7 +42,16 @@ export const reverseGeocode = async (latitude, longitude, timeoutMs = DEFAULT_TI
   if (!hasUsableCoords(latitude, longitude)) return null;
   let timer = null;
   try {
-    const apiKey = await getOrFetchHereApiKey().catch(() => null);
+    // OWNER RULE (Nov 19 2026): API usage derives from Admin Utilities > App Settings.
+    // A reverse geocode is an ADDRESS LOOKUP, so the 'address_lookup' slot is authoritative;
+    // the shared HERE key store (map tiles slot) is only the fallback.
+    let apiKey = null;
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      const res = await base44.functions.invoke('getActiveHereApiKey', { feature: 'address_lookup' });
+      apiKey = res?.data?.apiKey || res?.apiKey || null;
+    } catch { apiKey = null; }
+    if (!apiKey) apiKey = await getOrFetchHereApiKey().catch(() => null);
     if (!apiKey) return null;
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     timer = setTimeout(() => { try { controller?.abort(); } catch { /* ignore */ } }, timeoutMs);

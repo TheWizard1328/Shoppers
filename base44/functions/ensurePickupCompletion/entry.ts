@@ -1,5 +1,6 @@
 // Redeployed on 2026-03-28
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.21';
+import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
@@ -81,10 +82,15 @@ function isPatientReturn(delivery) {
   return /\(RTN\)|\breturn(?:ed)?\b/i.test(notes);
 }
 
-async function getHereTravelDurationMinutes(origin, destination) {
-  const hereApiKey = Deno.env.get('HERE_API_KEY');
+// OWNER RULE (Nov 19 2026): every HERE/Google call derives its key from Admin Utilities >
+// App Settings. This is a routing call, so it reads the 'route_optimization' slot (HERE)
+// instead of the raw HERE_API_KEY env var.
+async function getHereTravelDurationMinutes(origin, destination, base44) {
+  let hereApiKey = null;
+  try { hereApiKey = await resolveFeatureApiKey(base44, 'route_optimization'); } catch (_) { hereApiKey = null; }
+  if (!hereApiKey) hereApiKey = Deno.env.get('HERE_API_KEY');
   if (!hereApiKey) {
-    throw new Error('HERE_API_KEY secret is not set');
+    throw new Error('HERE API key is not configured (route_optimization slot)');
   }
 
   const params = new URLSearchParams({
@@ -172,7 +178,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'missing_route_coordinates' });
     }
 
-    const estimatedDurationMinutes = await getHereTravelDurationMinutes(origin, destination);
+    const estimatedDurationMinutes = await getHereTravelDurationMinutes(origin, destination, base44);
     if (!Number.isFinite(estimatedDurationMinutes) || estimatedDurationMinutes < 0) {
       return Response.json({ success: true, skipped: true, reason: 'invalid_estimated_duration' });
     }

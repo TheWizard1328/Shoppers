@@ -1,14 +1,28 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
 
 // HERE API key cache (5 min TTL)
 const _HERE_SECRET_MAP = { HERE_API_KEY: 'HERE_API_KEY', Here_API_Key_2: 'Here_API_Key_2', Here_API_Key_3: 'Here_API_Key_3' };
 let _hereSecretName = null;
 let _hereSecretExpiresAt = 0;
+let _slotKeyCache = null;
+let _slotKeyExpiresAt = 0;
 
 async function getHereApiKey(base44) {
   const now = Date.now();
+  if (_slotKeyCache && now < _slotKeyExpiresAt) return _slotKeyCache;
   if (_hereSecretName && now < _hereSecretExpiresAt) {
     return Deno.env.get(_hereSecretName) || null;
+  }
+  // OWNER RULE (Nov 19 2026): derive the key from Admin Utilities > App Settings. This is a
+  // HERE routing call, so the 'route_optimization' slot is authoritative; the legacy
+  // refresh_intervals selected_api_key field is only kept as a fallback for old installs.
+  let slotKey = null;
+  try { slotKey = await resolveFeatureApiKey(base44, 'route_optimization'); } catch (_) { slotKey = null; }
+  if (slotKey) {
+    _slotKeyCache = slotKey;
+    _slotKeyExpiresAt = now + 5 * 60 * 1000;
+    return slotKey;
   }
   const settings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
   const val = settings?.[0]?.setting_value || {};

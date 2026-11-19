@@ -71,10 +71,15 @@ Deno.serve(async (req) => {
     const date = q.delivery_date || '2026-11-09';
     const sm = Number(q.sample_m) || 60, td = Number(q.turn_deg) || 12;
 
+    // OWNER RULE (Nov 19 2026): HERE routing key comes from Admin Utilities > App Settings
+    // ('route_optimization' slot); the env keys are only a last-resort fallback.
     let key = null, keyName = null;
-    for (const n of ['Here_API_Key_2', 'HERE_API_KEY', 'Here_API_Key_3']) {
-      const v = Deno.env.get(n);
-      if (v) { key = v; keyName = n; break; }
+    try { key = await resolveFeatureApiKey(base44, 'route_optimization'); if (key) keyName = 'route_optimization'; } catch (_) { key = null; }
+    if (!key) {
+      for (const n of ['Here_API_Key_2', 'HERE_API_KEY', 'Here_API_Key_3']) {
+        const v = Deno.env.get(n);
+        if (v) { key = v; keyName = n; break; }
+      }
     }
     if (!key) return Response.json({ error: 'no here key' }, { status: 500 });
 
