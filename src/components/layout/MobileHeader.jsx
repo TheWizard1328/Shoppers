@@ -133,7 +133,12 @@ export default function MobileHeader({
           The logo is a fixed 64px square, so the box is now exactly that: the
           old py-1.5 (6px top + 6px bottom) padding is gone and nothing inside
           changed size. 76px -> 64px. */}
-      <div className="w-full min-h-[64px] flex items-center justify-between gap-2 px-4 py-0">
+      {/* OWNER REQUEST (Nov 19 2026): "reduce that gap at the bottom edge and maybe a
+          couple of pixels at the top ... give the main area of the app a little extra real
+          estate". The row was sized entirely by the 64px logo, so 5px is trimmed from the
+          top and 5px from the bottom (64px -> 54px) and everything stays centred on the
+          same axis. Nothing else in the row changes size. */}
+      <div className="w-full min-h-[54px] flex items-center justify-between gap-2 px-4 py-0">
         {/* LEFT: Back button + Logo (+ Menu button for dispatchers) */}
         <div className="flex-1 min-w-0 flex items-center justify-start gap-1">
           <button
@@ -165,7 +170,7 @@ export default function MobileHeader({
               src={logo}
               alt="RxDeliver"
               className="rounded object-contain shrink-0"
-              style={{ width: '64px', height: '64px', minWidth: '64px', minHeight: '64px', filter: 'var(--image-filter, none)' }}
+              style={{ width: '54px', height: '54px', minWidth: '54px', minHeight: '54px', filter: 'var(--image-filter, none)' }}
               onError={() => setLogoFailed(true)} /> :
 
 
