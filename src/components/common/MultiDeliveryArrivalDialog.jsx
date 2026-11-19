@@ -54,7 +54,7 @@ const ACTIVE_STATUSES = ['en_route', 'in_transit'];
  * stays on the delivery's own StopCard (rxCollectCod event) because Android
  * gesture trust must stay inside the original tap.
  */
-function ClusterSquareCodButton({ delivery, disabled }) {
+function ClusterSquareCodButton({ delivery, disabled, onClose }) {
   const appData = useAppData();
   const { currentUser } = useUser();
 
@@ -101,8 +101,13 @@ function ClusterSquareCodButton({ delivery, disabled }) {
         onClick={(e) => {
           e.stopPropagation();
           // Fire on the delivery's own StopCard so the Square launch keeps its
-          // gesture trust and its COD panel.
+          // gesture trust and its COD panel. Dispatched FIRST, still inside the
+          // tap, so Android gesture trust is not lost to the state update below.
           window.dispatchEvent(new CustomEvent('rxCollectCod', { detail: { deliveryId: delivery.id } }));
+          // OWNER REQUEST (Nov 18 2026): close the cluster dialog so the driver
+          // lands on that delivery's own stop card, where the COD panel opens and
+          // the completion flow lives — the dialog was covering it.
+          onClose && onClose();
         }}
         style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
         className="inline-flex items-center justify-center h-10 w-12 rounded-lg border border-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-600 transition-colors"
@@ -442,7 +447,7 @@ export default function MultiDeliveryArrivalDialog({
                           Fail
                         </button>
                         {showCodButton && (
-                          <ClusterSquareCodButton delivery={delivery} disabled={!!loadingId} />
+                          <ClusterSquareCodButton delivery={delivery} disabled={!!loadingId} onClose={onClose} />
                         )}
                         <button
                           type="button"
