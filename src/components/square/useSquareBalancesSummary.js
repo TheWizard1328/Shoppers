@@ -1455,23 +1455,35 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   // money is still not back on the card. They are excluded from `agg.total`
   // (display total unchanged); the deduction math runs off items +
   // deductItems in computeByLocId.
-  // DISPLAY LOOKBACK (owner report Nov 19 2026 — Amanda Klymchuk's Oct 28
-  // $10.64 COD vanished from the Collingwood card): uncollected DRAWER money
-  // does not age out. The old gate was the current window (yesterday onward),
-  // so a completed cash COD dropped off the card after one day and only
-  // survived while its Square register item did — the moment the item was rung
-  // or refunded and the catalog sweep cleaned it up, the money silently
-  // disappeared from the card with nothing left to show for it. Cash rows are
-  // DISPLAY ONLY (the deduction math runs off deductItems / balance scope), so
-  // they can safely look back 30 days. A COD stamped refunded is no longer
-  // uncollected money and stays out.
-  const cashDisplayOldestDate = edmDateString(Date.now() - 30 * 86400000);
+  // OLD CASH CODS: current window only, with ONE narrow rescue.
+  // A blanket lookback was tried (w207) and flooded every card with months of
+  // cash CODs that Square had already matched, so the display window stays as
+  // it was. The one case that must still surface is a COD whose money went
+  // BACK on the card as an UNLINKED Square refund while the delivery was never
+  // stamped refunded (owner report Nov 19 2026, Amanda Klymchuk's Oct 28
+  // $10.64 on the Collingwood card — its register item was rung/refunded and
+  // cleaned up, which removed the only row that had been showing it). Those
+  // rows are DISPLAY ONLY; the deduction math still runs off deductItems.
   const cashByLoc = new Map();
   for (const d of deliveriesWithStatus(allDeliveries, 'completed') || []) {
     const required = Number(d?.cod_total_amount_required || 0);
     const _cashDay = String(d?.delivery_date || '').slice(0, 10);
-    if (required <= 0 || !_cashDay || _cashDay < cashDisplayOldestDate) continue; // display only — deduction comes from deductItems
+    if (required <= 0 || !_cashDay) continue; // display only — deduction comes from deductItems
     if (d?.cod_refunded_at) continue; // refunded → not uncollected money
+    if (!isCounted(d)) {
+      // Outside the display window: keep it ONLY when Square holds an
+      // unlinked refund for exactly this COD at this store. Linked refunds
+      // and ordinary matched CODs stay hidden, so no flood.
+      const _locForStore = storeToLoc.get(String(d?.store_id || ''));
+      const _cents = Math.round(centsOf(required));
+      const _orphanRefund = !!_locForStore && (refundRows || []).some((r) =>
+        !r?.delivery_id &&
+        Math.round(Number(r?.amount_cents || 0)) === _cents &&
+        String(r?.location_id || '') === String(_locForStore) &&
+        String(r?.occurred_at || '').slice(0, 10) >= _cashDay
+      );
+      if (!_orphanRefund) continue;
+    }
     const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const hasCash = payments.some((p) => String(p?.type || '').toLowerCase() === 'cash');
     const hasCard = payments.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
