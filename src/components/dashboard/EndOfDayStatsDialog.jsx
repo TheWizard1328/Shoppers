@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign, Car, Bike } from 'lucide-react';
 import { format } from 'date-fns';
 import { computeBestDay } from '@/components/utils/driverDailyTotals';
-import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
 import confetti from 'canvas-confetti';
 
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -269,26 +268,51 @@ export default function EndOfDayStatsDialog({
     }
   }, [isOpen, performanceStats, localStats]);
 
-  // MEASURED CHROME FRAME (owner report Nov 18 2026, fourth attempt): the panel used to be
-  // centred on the WHOLE viewport (top:50% + translateY(-50%)), so its lower edge landed
-  // exactly on the top of the in-app bottom nav — flush against it, reading as "behind the
-  // nav". It is now centred inside the MEASURED free box between the mobile header and the
-  // bottom nav (.main-content-area), with a real gap above the nav, and its height is capped
-  // to that same box so nothing is ever cut off by the chrome.
-  const chrome = useMobileChromeHeights();
-  const freeBox = chrome?.area;
-  // PERFECTLY CENTRED (owner spec Nov 18 2026, seventh pass): the card is centred both ways
-  // inside the MEASURED free box (header bottom to nav top) and its height hugs the content.
-  // The old nav-height band under the Close button is gone (see the data-eod-stats-panel
-  // padding override in layoutStyles), so the space above and below the card is now equal.
-  const panelFrame = freeBox && freeBox.height > 200
+  // HEADER-TO-NAV BAND (owner spec Nov 18 2026, eighth pass): the card must be centred
+  // between the BOTTOM EDGE of the mobile header and the TOP EDGE of the bottom nav, not
+  // inside .main-content-area. That box runs behind the nav on this layout, so centring in
+  // it pushed the card down by roughly half the nav height - exactly the "sitting a little
+  // too low" the owner reported. The band is measured straight off the two chrome elements
+  // (fixed positioning shares the viewport coordinate space), re-measured after mount, on
+  // resize and on orientation change, and the card is centred on that band's midpoint with
+  // its height still hugging the content.
+  const [band, setBand] = useState(null);
+  useEffect(() => {
+    const measure = () => {
+      const headerEl = document.querySelector('[data-mobile-header]');
+      const navEl = document.querySelector('[data-mobile-bottom-nav]');
+      const top = headerEl ? headerEl.getBoundingClientRect().bottom : 0;
+      const bottom = navEl ? navEl.getBoundingClientRect().top : window.innerHeight;
+      if (!(bottom - top > 200)) { setBand(null); return; }
+      setBand({
+        top: Math.round(top),
+        bottom: Math.round(bottom),
+        left: 0,
+        width: window.innerWidth,
+      });
+    };
+    measure();
+    const t1 = setTimeout(measure, 80);
+    const t2 = setTimeout(measure, 350);
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    return () => {
+      clearTimeout(t1); clearTimeout(t2);
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    };
+  }, []);
+
+  const bandHeight = band ? band.bottom - band.top : 0;
+  const panelFrame = band && bandHeight > 200
     ? {
         zIndex: 60000,
-        top: Math.round(freeBox.top + freeBox.height / 2),
-        left: Math.round(freeBox.left + freeBox.width / 2),
+        top: Math.round(band.top + bandHeight / 2),
+        left: '50%',
         transform: 'translate(-50%, -50%)',
-        width: Math.max(240, Math.min(freeBox.width - 24, 448)),
-        maxHeight: Math.max(220, freeBox.height - 16),
+        width: 'calc(100vw - 2rem)',
+        maxWidth: 448,
+        maxHeight: Math.max(220, bandHeight - 24),
         bottom: 'auto',
         right: 'auto',
         height: 'auto',
