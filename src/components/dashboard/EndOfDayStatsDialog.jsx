@@ -263,7 +263,7 @@ export default function EndOfDayStatsDialog({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        zIndex: 10100,
+        zIndex: 60100,
       });
     }
   }, [isOpen, performanceStats, localStats]);
@@ -272,7 +272,7 @@ export default function EndOfDayStatsDialog({
   if (!stats) return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent
-        className="z-[10050] w-[calc(100vw-2rem)] max-w-md rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
+        className="z-[60000] w-[calc(100vw-2rem)] max-w-md rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
         style={{ borderColor: 'var(--border-slate-300)', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', height: 'auto' }}
       >
         <DialogHeader>
@@ -293,10 +293,15 @@ export default function EndOfDayStatsDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       {/* OWNER SPEC (Nov 18 2026): the EOD stats are a FLOATING panel centred on the
           screen, even on a phone — never a full-height sheet behind the header/nav.
+          Z-LEVEL (owner report Nov 18 2026, second attempt): the phone / tablet-portrait
+          chrome is forced to z-index 51000 !important by layoutStyles, which outranked the
+          old z-[10050] and painted the header and bottom nav OVER this card. The panel now
+          sits at 60000 — above the chrome, below the New Patient form (65000) and the
+          settings menu (99999).
           Width stays inset from the edges and the height is capped to the free
           space between the mobile header and bottom nav, scrolling inside if needed. */}
       <DialogContent
-        className="z-[10050] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
+        className="z-[60000] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
         style={{
           borderColor: 'var(--border-slate-300)',
           maxHeight: 'calc(100dvh - var(--actual-bottom-nav-height, 0px) - 6rem)',
