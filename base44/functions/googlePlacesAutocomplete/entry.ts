@@ -2,6 +2,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 import { resolveFeatureSecretName } from '../../shared/apiKeyResolver.ts';
 
+// Address verification cache (owner report Nov 19 2026). Suggestions for
+// street names that do not exist in the city ("5537 136A Avenue NW" offered
+// while typing 138A) must never reach the dropdown. Geocode verdicts are
+// cached per address for 10 minutes so repeated keystrokes cost nothing.
+const addressVerificationCache = new Map<string, { ok: boolean; at: number }>();
+const VERIFY_CACHE_MS = 10 * 60 * 1000;
+const normalizeAddressKeyForVerify = (value: unknown) =>
+  String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
 const logApiUsage = async ({
   base44,
   appUserId,
@@ -226,12 +235,58 @@ Deno.serve(async (req) => {
       return a.distance - b.distance;
     });
 
+    // ── NONEXISTENT-STREET FILTER (owner report Nov 19 2026) ────────────
+    // Typing "5537 138A Avenue NW" offered "5537 136A Avenue NW", a street
+    // that does not exist in Edmonton, and picking it put the marker on a
+    // wrong point. Address-shaped input (a leading street number) now has its
+    // top suggestions geocoded, and any that do not resolve to a REAL street
+    // address — ROOFTOP or RANGE_INTERPOLATED with no partial_match — is
+    // dropped before the dropdown sees it. Deeper suggestions are left alone
+    // to keep the per-search geocode count small; the pick gate in
+    // googlePlaceDetails still blocks an unverified selection.
+    let droppedUnverified = 0;
+    if (addressVerificationCache.size > 400) addressVerificationCache.clear();
+    const looksLikeAddress = /^\s*\d+[a-zA-Z]?\s+\S/.test(String(input || ''));
+    if (looksLikeAddress && predictions.length > 0) {
+      const cap = Math.min(predictions.length, 6);
+      const head = predictions.slice(0, cap);
+      const tail = predictions.slice(cap);
+      const verdicts = await Promise.all(head.map(async (prediction) => {
+        const key = normalizeAddressKeyForVerify(prediction.description);
+        const hit = addressVerificationCache.get(key);
+        if (hit && Date.now() - hit.at < VERIFY_CACHE_MS) return hit.ok;
+        let ok = true;
+        try {
+          const geoRes = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(prediction.description)}&components=country:CA&key=${apiKey}`
+          );
+          googleApiCallCount += 1;
+          const geo = await geoRes.json();
+          const first = (geo?.results || [])[0] || null;
+          const locationType = String(first?.geometry?.location_type || '');
+          ok = geo?.status === 'OK' && !!first && first?.partial_match !== true &&
+            (locationType === 'ROOFTOP' || locationType === 'RANGE_INTERPOLATED');
+        } catch {
+          ok = true; // a verification failure must never hide real results
+        }
+        addressVerificationCache.set(key, { ok, at: Date.now() });
+        return ok;
+      }));
+      const kept = head.filter((_, index) => verdicts[index]);
+      droppedUnverified = head.length - kept.length;
+      if (droppedUnverified > 0) {
+        console.log('[googlePlacesAutocomplete] dropped', droppedUnverified, 'unverified suggestion(s) for:', input);
+        predictions.length = 0;
+        predictions.push(...kept, ...tail);
+      }
+    }
+
     await logApiUsage({
       base44, appUserId: userAppUser?.id, appUserName: userAppUser?.user_name || user.full_name,
       provider, apiType: 'Places Autocomplete', purpose: 'Address autocomplete search',
       functionName: 'googlePlacesAutocomplete', success: true, durationMs: Date.now() - startedAt,
       callCount: googleApiCallCount,
-      metadata: { input, has_location_bias: !!(latitude && longitude), suggestion_count: predictions.length },
+      metadata: { input, has_location_bias: !!(latitude && longitude), suggestion_count: predictions.length, dropped_unverified: droppedUnverified },
     });
     return Response.json({ predictions });
   } catch (error) {
