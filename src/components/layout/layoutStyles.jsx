@@ -120,6 +120,20 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .app-container.chrome-desktop .main-content-area { flex:1 1 auto !important; width:calc(100vw - var(--sidebar-width) - 1px) !important; min-width:400px !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
           /* tablet-portrait (Mode 2): overrides chrome-mobile with a roomier 320px drawer */
           .app-container.tablet-portrait .mobile-header { display:flex !important; position:sticky; top:0; z-index:51000 !important; background:var(--bg-white); border-bottom:1px solid var(--border-slate-200); }
+
+          /* END OF DAY STATS PANEL (owner report Nov 18 2026: "z levels lower than the
+             bottom nav bar"). The mobile chrome above sets z-index:51000 !important, and an
+             !important declaration beats a normal inline zIndex — so the nav painted over
+             the card wherever they overlapped. This rule is the same specificity class as
+             the chrome rules but later in the sheet, so it wins; it also kills
+             tailwindcss-animate's enter transform (fill-mode both), which was overriding the
+             inline centring transform and leaving the card slightly off centre. */
+          [data-eod-stats-panel][data-eod-stats-panel][data-eod-stats-panel] {
+            z-index: 60000 !important;
+            animation: none !important;
+            transform: none !important;
+            position: fixed !important;
+          }
           .app-container.tablet-portrait .app-sidebar { position:fixed !important; left:0 !important; top:var(--drawer-top, calc(var(--app-inset-top) + 64px)) !important; bottom:0 !important; padding-top:0 !important; padding-bottom:var(--drawer-bottom, 0px) !important; width:320px !important; max-width:85vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important;  box-sizing:border-box !important; }
           .app-container.tablet-portrait .app-sidebar.sidebar-open { transform:translateX(0) !important; box-shadow:4px 0 12px var(--shadow-color) !important; }
           .app-container.tablet-portrait .main-content-area { width:100vw !important; flex:1 !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }

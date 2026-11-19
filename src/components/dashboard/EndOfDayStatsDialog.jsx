@@ -285,37 +285,73 @@ export default function EndOfDayStatsDialog({
   // that needs it asks the same hook.
   const { band } = useChrome();
 
+  // MEASURED, TRANSFORM-FREE FRAME (owner report Nov 18 2026, eleventh pass: "again off
+  // center and the z levels lower than the bottom nav bar"). Two root causes:
+  //  1. OFFSET. The card was centred with left:50% + translate(-50%,-50%), but ui/dialog's
+  //     base class ships tailwindcss-animate's enter animation
+  //     (data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%])
+  //     with fill-mode both. The animation's final transform OVERRIDES the inline transform,
+  //     so the card settled on the animation's end pose instead of the one we asked for.
+  //     It is now positioned with explicit px left/top/width from window.visualViewport
+  //     (offsetLeft + width, the REAL visible box) and the card's own measured height, so
+  //     there is no transform to fight and nothing to be "slightly left".
+  //  2. Z-LEVEL. The phone/tablet chrome rules in layoutStyles set z-index:51000 !important,
+  //     and an !important declaration beats a normal inline zIndex:60000 — which is why the
+  //     bottom nav painted OVER the card whenever the two overlapped. layoutStyles now
+  //     carries an equally-!important, higher-specificity rule for [data-eod-stats-panel].
+  const cardRef = useRef(null);
+  const [cardH, setCardH] = useState(0);
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const el = cardRef.current;
+    const read = () => {
+      if (!el || typeof el.getBoundingClientRect !== 'function') return;
+      const h = Math.round(el.getBoundingClientRect().height);
+      setCardH((prev) => (prev === h ? prev : h));
+    };
+    read();
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined' && el) {
+      ro = new ResizeObserver(read);
+      ro.observe(el);
+    }
+    return () => ro?.disconnect();
+  }, [isOpen, stats, isProcessing]);
+
   const bandHeight = band ? band.bottom - band.top : 0;
-  const panelFrame = band && bandHeight > 200
-    ? {
-        zIndex: 60000,
-        top: Math.round(band.top + bandHeight / 2),
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: 'calc(100vw - 2rem)',
-        maxWidth: 448,
-        maxHeight: Math.max(200, bandHeight - 16),
-        bottom: 'auto',
-        right: 'auto',
-        height: 'auto',
-      }
-    : {
-        zIndex: 60000,
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: 'calc(100vw - 2rem)',
-        maxHeight: 'calc(100dvh - 6rem)',
-        bottom: 'auto',
-        right: 'auto',
-        height: 'auto',
-      };
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+  const viewLeft = Math.round(vv?.offsetLeft || 0);
+  const viewTop = Math.round(vv?.offsetTop || 0);
+  const viewWidth = Math.round(vv?.width || (typeof window !== 'undefined' ? window.innerWidth : 0));
+  const viewHeight = Math.round(vv?.height || (typeof window !== 'undefined' ? window.innerHeight : 0));
+  // Free area to centre in: the header-to-nav band when it is known, else the visual viewport.
+  const areaTop = band && bandHeight > 200 ? Math.round(band.top) : viewTop;
+  const areaHeight = band && bandHeight > 200 ? Math.round(bandHeight) : viewHeight;
+  const cardWidth = Math.max(240, Math.min(viewWidth - 32, 448));
+  const maxCardHeight = Math.max(200, areaHeight - 16);
+  const effectiveHeight = cardH > 0 ? Math.min(cardH, maxCardHeight) : Math.min(maxCardHeight, 320);
+  const panelFrame = {
+    position: 'fixed',
+    zIndex: 60000,
+    left: Math.round(viewLeft + Math.max(0, (viewWidth - cardWidth) / 2)),
+    top: Math.round(areaTop + Math.max(0, (areaHeight - effectiveHeight) / 2)),
+    width: cardWidth,
+    maxWidth: 'none',
+    maxHeight: maxCardHeight,
+    height: 'auto',
+    bottom: 'auto',
+    right: 'auto',
+    transform: 'none',
+    animation: 'none',
+    margin: 0,
+  };
 
   if (!stats && !isProcessing) return null;
   if (!stats) return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent
         data-eod-stats-panel="true"
+        ref={cardRef}
         className="z-[60000] max-w-md rounded-2xl border bg-surface p-4 pb-2 shadow-2xl sm:p-6 sm:pb-3"
         style={{ ...panelFrame, borderColor: 'var(--border-slate-300)' }}
       >
@@ -350,6 +386,7 @@ export default function EndOfDayStatsDialog({
           space between the mobile header and bottom nav, scrolling inside if needed. */}
       <DialogContent
         data-eod-stats-panel="true"
+        ref={cardRef}
         className="z-[60000] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 pb-2 shadow-2xl sm:p-6 sm:pb-3"
         style={{ ...panelFrame, borderColor: 'var(--border-slate-300)' }}
       >
