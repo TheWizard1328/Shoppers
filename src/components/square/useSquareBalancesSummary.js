@@ -1455,10 +1455,23 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
   // money is still not back on the card. They are excluded from `agg.total`
   // (display total unchanged); the deduction math runs off items +
   // deductItems in computeByLocId.
+  // DISPLAY LOOKBACK (owner report Nov 19 2026 — Amanda Klymchuk's Oct 28
+  // $10.64 COD vanished from the Collingwood card): uncollected DRAWER money
+  // does not age out. The old gate was the current window (yesterday onward),
+  // so a completed cash COD dropped off the card after one day and only
+  // survived while its Square register item did — the moment the item was rung
+  // or refunded and the catalog sweep cleaned it up, the money silently
+  // disappeared from the card with nothing left to show for it. Cash rows are
+  // DISPLAY ONLY (the deduction math runs off deductItems / balance scope), so
+  // they can safely look back 30 days. A COD stamped refunded is no longer
+  // uncollected money and stays out.
+  const cashDisplayOldestDate = edmDateString(Date.now() - 30 * 86400000);
   const cashByLoc = new Map();
   for (const d of deliveriesWithStatus(allDeliveries, 'completed') || []) {
     const required = Number(d?.cod_total_amount_required || 0);
-    if (required <= 0 || !isCounted(d)) continue; // display only — deduction comes from deductItems
+    const _cashDay = String(d?.delivery_date || '').slice(0, 10);
+    if (required <= 0 || !_cashDay || _cashDay < cashDisplayOldestDate) continue; // display only — deduction comes from deductItems
+    if (d?.cod_refunded_at) continue; // refunded → not uncollected money
     const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
     const hasCash = payments.some((p) => String(p?.type || '').toLowerCase() === 'cash');
     const hasCard = payments.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
