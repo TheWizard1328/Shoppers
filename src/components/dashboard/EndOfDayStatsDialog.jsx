@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign, Car, Bike } from 'lucide-react';
 import { format } from 'date-fns';
 import { computeBestDay } from '@/components/utils/driverDailyTotals';
+import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
 import confetti from 'canvas-confetti';
 
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -268,12 +269,44 @@ export default function EndOfDayStatsDialog({
     }
   }, [isOpen, performanceStats, localStats]);
 
+  // MEASURED CHROME FRAME (owner report Nov 18 2026, fourth attempt): the panel used to be
+  // centred on the WHOLE viewport (top:50% + translateY(-50%)), so its lower edge landed
+  // exactly on the top of the in-app bottom nav — flush against it, reading as "behind the
+  // nav". It is now centred inside the MEASURED free box between the mobile header and the
+  // bottom nav (.main-content-area), with a real gap above the nav, and its height is capped
+  // to that same box so nothing is ever cut off by the chrome.
+  const chrome = useMobileChromeHeights();
+  const freeBox = chrome?.area;
+  const panelFrame = freeBox && freeBox.height > 200
+    ? {
+        zIndex: 60000,
+        top: Math.round(freeBox.top + freeBox.height / 2),
+        left: Math.round(freeBox.left + freeBox.width / 2),
+        transform: 'translate(-50%, -50%)',
+        width: Math.max(240, Math.min(freeBox.width - 24, 448)),
+        maxHeight: Math.max(220, freeBox.height - 32),
+        bottom: 'auto',
+        right: 'auto',
+        height: 'auto',
+      }
+    : {
+        zIndex: 60000,
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 'calc(100vw - 2rem)',
+        maxHeight: 'calc(100dvh - 6rem)',
+        bottom: 'auto',
+        right: 'auto',
+        height: 'auto',
+      };
+
   if (!stats && !isProcessing) return null;
   if (!stats) return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent
-        className="z-[60000] w-[calc(100vw-2rem)] max-w-md rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
-        style={{ zIndex: 60000, borderColor: 'var(--border-slate-300)', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', height: 'auto' }}
+        className="z-[60000] max-w-md rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
+        style={{ ...panelFrame, borderColor: 'var(--border-slate-300)' }}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -305,18 +338,8 @@ export default function EndOfDayStatsDialog({
           Width stays inset from the edges and the height is capped to the free
           space between the mobile header and bottom nav, scrolling inside if needed. */}
       <DialogContent
-        className="z-[60000] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
-        style={{
-          zIndex: 60000,
-          borderColor: 'var(--border-slate-300)',
-          maxHeight: 'calc(100dvh - var(--actual-bottom-nav-height, 0px) - 6rem)',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          bottom: 'auto',
-          right: 'auto',
-          height: 'auto',
-        }}
+        className="z-[60000] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 shadow-2xl sm:p-6"
+        style={{ ...panelFrame, borderColor: 'var(--border-slate-300)' }}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-emerald-600">
