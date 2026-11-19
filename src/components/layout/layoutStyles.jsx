@@ -176,6 +176,13 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              added --native-safe-bottom on top of it, which is why the gap was twice as tall
              there. Each sheet pads its own footer for the OS safe area instead. */
           .fixed[role="dialog"][data-state="open"]:not([data-vaul-drawer]), .fixed[role="alertdialog"][data-state="open"]:not([data-vaul-drawer]) { padding-bottom:calc(var(--bottom-nav-height,0px) + var(--native-safe-bottom,0px)) !important; }
+          /* EOD STATS PANEL (owner report Nov 18 2026, sixth attempt): the sheet rule above
+             applies to EVERY [role="dialog"], so it also reserved the phone navigation bar
+             height under the Route Summary card's Close button - an empty band exactly the
+             height of the OS nav bar, which no Tailwind padding class could beat because the
+             rule is !important. The stats card is a centred card, not a bottom sheet, so it
+             opts out by attribute (higher specificity, declared after, still !important). */
+          body .fixed[role="dialog"][data-state="open"][data-eod-stats-panel="true"] { padding-bottom: 8px !important; }
           [data-sonner-toaster][data-y-position="bottom"] { bottom:calc(var(--bottom-nav-height) + 0.5rem) !important; }
 
           /* ════════════════════════════════════════════════════════════

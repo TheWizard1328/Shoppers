@@ -310,6 +310,7 @@ export default function EndOfDayStatsDialog({
   if (!stats) return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent
+        data-eod-stats-panel="true"
         className="z-[60000] max-w-md rounded-2xl border bg-surface p-4 pb-2 shadow-2xl sm:p-6 sm:pb-3"
         style={{ ...panelFrame, borderColor: 'var(--border-slate-300)' }}
       >
@@ -343,6 +344,7 @@ export default function EndOfDayStatsDialog({
           Width stays inset from the edges and the height is capped to the free
           space between the mobile header and bottom nav, scrolling inside if needed. */}
       <DialogContent
+        data-eod-stats-panel="true"
         className="z-[60000] max-w-md overflow-y-auto rounded-2xl border bg-surface p-4 pb-2 shadow-2xl sm:p-6 sm:pb-3"
         style={{ ...panelFrame, borderColor: 'var(--border-slate-300)' }}
       >
