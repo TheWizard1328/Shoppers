@@ -7,20 +7,32 @@ const isNotFoundError = (error) => error?.status === 404 || error?.response?.sta
 // left older rows behind, so after the refetch the same patient came straight back into the
 // list. Once an admin has accepted or discarded a move, every log row for that patient is
 // purged so the card cannot resurface.
-const purgePatientLogs = async (patientId: string) => {
-  if (!patientId) return 0;
-  const rows = await base44.asServiceRole.entities.PatientGPSLog
-    .filter({ patient_id: patientId }, '-created_date', 500)
-    .catch(() => []);
-  let removed = 0;
-  for (const row of rows || []) {
-    if (!row?.id) continue;
-    await base44.asServiceRole.entities.PatientGPSLog.delete(row.id).catch((e) => {
-      if (!isNotFoundError(e)) throw e;
-    });
-    removed += 1;
+// NOTE: `base44` is created INSIDE the request handler, so it must be passed in — reading it
+// from module scope threw "base44 is not defined" and turned Accept/Discard into a 500.
+// The purge is best-effort: it can never fail the request, because by the time it runs the
+// patient records are already updated and the acted-on log row is already gone.
+const purgePatientLogs = async (client: any, patientId: string) => {
+  if (!client || !patientId) return 0;
+  try {
+    const res = await client.asServiceRole.entities.PatientGPSLog
+      .filter({ patient_id: patientId }, '-created_date', 500)
+      .catch(() => []);
+    const rows = Array.isArray(res) ? res : (Array.isArray(res?.items) ? res.items : []);
+    let removed = 0;
+    for (const row of rows) {
+      if (!row?.id) continue;
+      try {
+        await client.asServiceRole.entities.PatientGPSLog.delete(row.id);
+        removed += 1;
+      } catch (e) {
+        if (!isNotFoundError(e)) console.warn('[updateMatchingPatientGPS] purge row failed:', e?.message || e);
+      }
+    }
+    return removed;
+  } catch (e) {
+    console.warn('[updateMatchingPatientGPS] purge failed (non-fatal):', e?.message || e);
+    return 0;
   }
-  return removed;
 };
 
 
@@ -285,7 +297,7 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.PatientGPSLog.delete(logId).catch((e) => {
         if (!isNotFoundError(e)) throw e;
       });
-      const purged = await purgePatientLogs(cancelEntry?.patient_id || cancelEntry?.source_patient_id || '');
+      const purged = await purgePatientLogs(base44, cancelEntry?.patient_id || cancelEntry?.source_patient_id || '');
       return Response.json({ success: true, action: 'cancelled', purged });
     }
 
@@ -385,7 +397,7 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.PatientGPSLog.delete(logId).catch((e) => {
         if (!isNotFoundError(e)) throw e;
       });
-      const purged = await purgePatientLogs(sourcePatientId || logEntry.patient_id || '');
+      const purged = await purgePatientLogs(base44, sourcePatientId || logEntry.patient_id || '');
 
       return Response.json({
         success: true,
