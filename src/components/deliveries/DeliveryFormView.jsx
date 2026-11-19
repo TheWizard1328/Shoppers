@@ -3,7 +3,6 @@
  * All logic remains in DeliveryForm.jsx; this file just renders it.
  */
 import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
-import { readInset } from '@/components/utils/appChrome';
 import { resolveDeliveryCompanyId } from '@/components/utils/deliveryIdentity';
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -835,63 +834,15 @@ export default function DeliveryFormView({
   // to the real visual viewport: top:0 / left:0 / right:0 with an explicit pixel height of
   // window.visualViewport.height (falling back to innerHeight), so the footer's bottom edge
   // is the bottom edge of what the user can actually see.
-  // OWNER SPEC (Nov 19 2026): the form fills the viewport BETWEEN the phone's notification bar
-  // and the phone's navigation bar - never under either one - exactly like the rest of the app.
-  // The earlier gate on body.is-native-apk was wrong: the APK can resolve --app-inset-bottom
-  // from the injected native var WITHOUT that body class being present, so the subtraction was
-  // skipped and the whole card (footer included) still ran under the system navigation bar.
-  // Detection is now the platform itself (Android WebView), the inset comes from the same
-  // --app-inset-bottom the rest of the app uses, and if that inset is somehow 0 we fall back to
-  // the app's own bottom nav edge, which is the app's usable bottom edge on every device.
-  const isAndroidShell = () => {
-    if (typeof navigator === 'undefined') return false;
-    return /Android/i.test(navigator.userAgent || '');
-  };
-  const readFormViewportHeight = () => {
-    if (typeof window === 'undefined') return 0;
-    const vv = window.visualViewport;
-    const visible = Math.round(vv?.height || window.innerHeight || 0);
-    if (!visible) return 0;
-    let height = visible;
-    if (isAndroidShell()) {
-      const insetBottom = Math.round(readInset('bottom') || 0);
-      if (insetBottom > 0) {
-        height = Math.max(0, visible - insetBottom);
-      } else {
-        // Inset unavailable: the app's own bottom nav is flush with the usable bottom edge.
-        try {
-          const navRect = document.querySelector('[data-mobile-bottom-nav]')?.getBoundingClientRect?.();
-          const navBottom = navRect && navRect.height > 0 ? Math.round(navRect.bottom - (vv?.offsetTop || 0)) : 0;
-          if (navBottom > 0 && navBottom < height) height = navBottom;
-        } catch (_) { /* keep the plain viewport height */ }
-      }
-    }
-    try {
-      console.log(`[FormBounds] visible=${visible} insetBottom=${readInset('bottom')} android=${isAndroidShell()} formHeight=${height} innerH=${Math.round(window.innerHeight || 0)} screenH=${Math.round(window.screen?.height || 0)}`);
-    } catch (_) {}
-    return height;
-  };
-  const [phoneViewportH, setPhoneViewportH] = React.useState(() => readFormViewportHeight());
-  React.useEffect(() => {
-    if (!(useMobileLayout && isMobileDevice) || typeof window === 'undefined') return undefined;
-    const read = () => {
-      const h = readFormViewportHeight();
-      setPhoneViewportH((prev) => (prev === h ? prev : h));
-    };
-    read();
-    const t1 = setTimeout(read, 150);
-    const t2 = setTimeout(read, 600);
-    window.addEventListener('resize', read);
-    window.addEventListener('orientationchange', read);
-    window.visualViewport?.addEventListener?.('resize', read);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      window.removeEventListener('resize', read);
-      window.removeEventListener('orientationchange', read);
-      window.visualViewport?.removeEventListener?.('resize', read);
-    };
-  }, [useMobileLayout, isMobileDevice]);
+  // OWNER SPEC (Nov 19 2026): "make all of these pop up forms ... the same height and width
+  // coding as the edit patient form cuz that one is perfect". Edit Patient sizes itself with
+  // plain CSS - a `fixed inset-0` overlay, paddingTop/paddingBottom from --app-inset-top /
+  // --app-inset-bottom, and a card at height:100% - and never reads a pixel height from JS.
+  // This form used to pin itself to window.visualViewport.height, which on the edge-to-edge
+  // APK is taller than the usable screen, so Add To Route / Edit Delivery / Edit Pickup /
+  // Edit InterStore / Cycling Marker all stretched under the phone's navigation bar no matter
+  // how the inset was subtracted. It now uses Edit Patient's exact sizing, so every one of
+  // these forms lands between the notification bar and the navigation bar.
   // OWNER SPEC (Nov 15 2026, all devices): every time an edit form or Add To Route opens, the
   // inner scrolling section must start at the TOP. It was opening part way down (or at the
   // bottom) whenever the container was reused, the browser restored a previous scroll
@@ -927,9 +878,8 @@ export default function DeliveryFormView({
 
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice
     ? {
-        paddingTop: 0,
-        paddingBottom: 0,
-        ...(phoneViewportH > 0 ? { top: 0, left: 0, right: 0, bottom: 'auto', height: `${phoneViewportH}px` } : {})
+        paddingTop: 'var(--app-inset-top)',
+        paddingBottom: 'var(--app-inset-bottom)',
       }
     : undefined;
   // OWNER SPEC (Nov 15 2026, second pass): "we can extend the height even more, there is
@@ -952,8 +902,11 @@ export default function DeliveryFormView({
   // under its own last row. The overlay is already pinned to the visual viewport (w34), so the
   // footer's bottom edge IS the bottom of the usable screen; a flat 6px gutter is enough and
   // the buttons stay clear of the indicator bar. Native keeps its 14px floor.
+  // Edit Patient's footer has NO extra bottom pad - the overlay already reserves
+  // --app-inset-bottom - so this form matches it exactly (the old 6px/14px gutter
+  // double-counted the inset once the overlay started reserving it).
   const mobileFooterSafeBottom = useMobileLayout && isMobileDevice
-    ? 'var(--app-form-footer-gutter)'
+    ? 0
     : undefined;
 
   // Auto-focus the barcode scanner manual input when a staged or pending item is selected (desktop only)
