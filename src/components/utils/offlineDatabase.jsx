@@ -1442,6 +1442,26 @@ const countStore = async (storeName) => {
 // transaction answers all of them at once, and if a write burst is still in
 // flight we serve the last snapshot instead of competing with it.
 let _lastStatsSnapshot = null;
+// PERSISTED LAST-GOOD SNAPSHOT (Kingsway tablet, owner report Nov 19 2026): on a bloated
+// local DB the single-txn snapshot can time out on EVERY refresh, so the stats panel kept
+// falling back to neutral defaults (all zeros) and read as blank. The last good snapshot is
+// now written to localStorage and hydrated at startup, so a timeout serves real numbers from
+// the previous successful read instead of zeros, even on a cold boot.
+const STATS_SNAPSHOT_STORAGE_KEY = 'rx_stats_snapshot_v1';
+const _persistStatsSnapshot = (snapshot) => {
+  if (typeof localStorage === 'undefined' || !snapshot) return;
+  try { localStorage.setItem(STATS_SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshot)); } catch (_) {}
+};
+const _hydrateStatsSnapshot = () => {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STATS_SNAPSHOT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && parsed.patients ? parsed : null;
+  } catch (_) { return null; }
+};
+try { _lastStatsSnapshot = _hydrateStatsSnapshot(); } catch (_) {}
 // TIMEOUT COOLDOWN (owner report Nov 14 2026): when the single-txn snapshot
 // timed out, getStats fell straight into 15 parallel per-store reads that
 // queued behind the SAME blocked writer and timed out too — a 32s stall with
@@ -1494,7 +1514,10 @@ const _readStatsSnapshot = async () => {
         request.onsuccess = () => { syncRows[name] = request.result || null; };
       } catch (_) { syncRows[name] = null; }
     }
-  }), IDB_OPERATION_TIMEOUT_MS, 'IDB stats snapshot (single txn)');
+  // Counts over a bloated store are pure metadata reads but still O(n), and the Kingsway
+  // tablet routinely needs longer than the standard 8s op timeout while a sync pull drains.
+  // A longer budget is safe now that a timeout serves the persisted last-good snapshot.
+  }), Math.max(15000, IDB_OPERATION_TIMEOUT_MS), 'IDB stats snapshot (single txn)');
 };
 
 const getStats = async () => {
@@ -1618,6 +1641,7 @@ const getStats = async () => {
     };
     result.rawSyncStatus = syncRows;
     _lastStatsSnapshot = result;
+    _persistStatsSnapshot(result);
     return result;
   } catch (error) {
     // A timeout here means the per-store fallback also lost the lock race:
