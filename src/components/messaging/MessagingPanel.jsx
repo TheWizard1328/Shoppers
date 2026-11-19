@@ -8,6 +8,7 @@ import { X, Search, Users } from 'lucide-react';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { useDevice } from '@/components/utils/DeviceContext';
 import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
+import { useChrome } from '@/components/utils/appChrome';
 import { hideSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
 
@@ -51,11 +52,31 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
       window.visualViewport?.removeEventListener?.('resize', read);
     };
   }, [useMobileFullscreen]);
-  const mobileOverlayStyle = useMobileFullscreen
-    ? { padding: 0, ...(phoneViewportH > 0 ? { top: 0, left: 0, right: 0, bottom: 'auto', height: `${phoneViewportH}px` } : {}) }
+  // OWNER REQUEST (Nov 18 2026): "revamp the messages page so it goes full screen
+  // like all the other pages across the bottom navbar instead of being a floating
+  // page on top of everything, set between the top mobile header and the bottom nav."
+  // It is now a PAGE, not a dialog:
+  //   phone   -> fills the measured band from the header's bottom edge to the nav's
+  //              top edge (useChrome/readBand, visualViewport clamped) at a z-index
+  //              BELOW the header and nav, so both stay visible and tappable.
+  //   tablet/PC -> fills the measured content area right of the sidebar.
+  // No dim backdrop, no rounded floating card, no dialog padding anywhere.
+  const { band } = useChrome();
+  const pageStyle = useMobileFullscreen
+    ? (band
+        ? { top: `${band.top}px`, left: 0, right: 0, bottom: 'auto', height: `${band.height}px` }
+        : { top: 0, left: 0, right: 0, bottom: 0 })
     : (contentArea && contentArea.width > 0
-        ? { paddingLeft: `${contentArea.left}px`, paddingRight: 0 }
-        : undefined);
+        ? {
+            top: `${contentArea.top}px`,
+            left: `${contentArea.left}px`,
+            width: `${contentArea.width}px`,
+            height: `${contentArea.height}px`,
+            right: 'auto',
+            bottom: 'auto',
+          }
+        : { top: 0, left: 0, right: 0, bottom: 0 });
+  const mobileOverlayStyle = pageStyle;
   // OWNER SPEC (Nov 18 2026): full screen on mobile with the SAME APK inset
   // handling the edit forms use — the card runs edge to edge and the insets live on
   // the chrome rows: the title bar clears the status bar / APK top gap, the composer
@@ -72,17 +93,21 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   // system bars, so --native-safe-top/bottom here only added a second gap at the
   // top AND the bottom. On native both pads are zero; the panel runs edge to edge.
   // The PWA/browser keeps the real env() insets.
-  const mobileCardStyle = useMobileFullscreen
-    ? { paddingBottom: 'var(--app-form-card-bottom)' }
-    : undefined;
-  const mobileHeaderSafeTop = useMobileFullscreen
-    ? 'var(--app-form-card-top)'
-    : undefined;
+  const mobileCardStyle = useMobileFullscreen ? { paddingBottom: 0 } : undefined;
+  const mobileHeaderSafeTop = useMobileFullscreen ? '0.75rem' : undefined;
   // The card already reserves the bottom inset on native, so the composer must not
   // add it a second time.
-  const mobileComposerSafeBottom = useMobileFullscreen
-    ? 'var(--app-form-composer-gutter)'
-    : undefined;
+  const mobileComposerSafeBottom = useMobileFullscreen ? 0 : undefined;
+  // Tell the bottom nav this tab is the active PAGE while the panel is mounted, so
+  // Messages highlights like every other page (owner request Nov 18 2026).
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    window.dispatchEvent(new CustomEvent('messagingPanelState', { detail: { open: true } }));
+    return () => {
+      try { window.dispatchEvent(new CustomEvent('messagingPanelState', { detail: { open: false } })); } catch { /* noop */ }
+    };
+  }, []);
+
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
   // Patient portal threads (owner build Nov 2 2026) live beside staff chat.
   // A push notification or balloon for a patient/driver thread arrives as a
@@ -158,15 +183,11 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   // edit forms.
   return (
     <div
-      className={`fixed inset-0 z-[60000] bg-black/50 dark:bg-black/70 flex items-center justify-center overflow-y-auto overflow-x-hidden ${useMobileFullscreen ? 'p-0' : 'p-4'}`}
+      className={`fixed z-[45000] flex overflow-hidden bg-transparent ${useMobileFullscreen ? '' : 'items-center justify-center'}`}
       style={mobileOverlayStyle}>
       <div
         style={mobileCardStyle}
-        className={`flex flex-col overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full ${
-          useMobileFullscreen
-            ? 'rounded-none h-full max-h-none max-w-none shadow-none border-0'
-            : 'rounded-xl shadow-2xl dark:shadow-black/50 max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)]'
-        }`}>
+        className="flex flex-col overflow-hidden bg-white dark:bg-slate-900 w-full h-full max-h-none max-w-none rounded-none shadow-none border-0">
         {/* Header — dark mode mirrors the patient portal panel (owner request
             Nov 3 2026): slate card, slate-100/800 icon buttons, no washed-out
             light-only surfaces. */}

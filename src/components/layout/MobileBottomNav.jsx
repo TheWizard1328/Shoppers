@@ -46,6 +46,14 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
   // has not hydrated yet.
   const driverScopeNeeded = !isAdminNav && (isDriverNav || isDispatcherNav);
   const [driverNavStoreIds, setDriverNavStoreIds] = React.useState(null);
+  // Messages is a PAGE now, not a floating dialog (owner, Nov 18 2026), so its nav
+  // item highlights while the panel is mounted. MessagingPanel dispatches the state.
+  const [messagingPageOpen, setMessagingPageOpen] = React.useState(false);
+  React.useEffect(() => {
+    const onState = (e) => setMessagingPageOpen(!!e?.detail?.open);
+    window.addEventListener('messagingPanelState', onState);
+    return () => window.removeEventListener('messagingPanelState', onState);
+  }, []);
   React.useEffect(() => {
     if (!currentUser || !driverScopeNeeded) { setDriverNavStoreIds(null); return; }
     let alive = true;
@@ -174,7 +182,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
         <div data-mobile-bottom-nav-scroll className="flex-1 flex overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overscrollBehaviorX: 'contain' }}>
           {navItems.map((item) => {
             const isMessagingItem = item.action === 'messaging';
-            const isActive = !isMessagingItem && activeTab === item.tabKey;
+            const isActive = isMessagingItem ? messagingPageOpen : activeTab === item.tabKey;
             const Icon = item.icon;
             // Even distribution: every tab grows equally to fill the row width, so
             // wider screens show MORE tabs. The 76px floor keeps them from
@@ -201,8 +209,8 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
                   {...sharedProps}
                   onClick={() => window.dispatchEvent(new CustomEvent('openMessagingPanel'))}
                 >
-                  <Icon className="w-5 h-5 mb-0.5 text-soft" />
-                  <span className="text-sm font-medium truncate text-soft" style={{ maxWidth: '80px' }}>
+                  <Icon className="w-5 h-5 mb-0.5" style={{ color: isActive ? '#10b981' : undefined, opacity: isActive ? 1 : undefined }} />
+                  <span className={`text-sm font-medium truncate ${isActive ? '' : 'text-soft'}`} style={{ maxWidth: '80px', color: isActive ? '#10b981' : undefined }}>
                     {item.name}
                   </span>
                 </button>
