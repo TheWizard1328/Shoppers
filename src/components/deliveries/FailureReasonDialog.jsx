@@ -34,12 +34,15 @@ export default function FailureReasonDialog({
     // OWNER (Nov 20 2026): RxDeliver moves patients, not customers — the fail
     // dialog says Patient. The stored reason string is what lands in
     // delivery_notes, so keep the wording identical everywhere it is read.
+    // OWNER ORDER (Nov 20 2026): patient-side reasons first, address problems
+    // last, with Incorrect Address at the very bottom because it also flips the
+    // patient to inactive.
     'Patient Unavailable',
-    'Address Not Found',
     'Refused by Patient',
+    'Patient Requested Reschedule',
     'Access Denied (Building/Gate)',
-    'Incorrect Address',
-    'Patient Requested Reschedule'
+    'Address Not Found',
+    'Incorrect Address'
   ];
 
   const handleConfirm = () => {
