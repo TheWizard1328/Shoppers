@@ -10,7 +10,8 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import useStopCardActions from "./useStopCardActions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { GripVertical, Loader2, Phone, Navigation, LocateFixed } from "lucide-react";
+import { GripVertical, Loader2, Navigation, LocateFixed } from "lucide-react";
+import CallButtonWithText from "./CallButtonWithText";
 import { getStoreColor, getContrastColor } from "../utils/colorGenerator";
 import { format } from "date-fns";
 import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
@@ -1156,14 +1157,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                       </button>
                     )}
                     {!isAtPickupLocation && finalDisplayPhone &&
-                <a
-                  href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
-                  onClick={(e) => { e.stopPropagation(); dispatchStopCardActionCollapse(); }}
-                  aria-label="Call customer"
-                  className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#34A853] text-white transition-colors hover:bg-[#2D9249]">
-                  
-                        <Phone className="w-6 h-6" />
-                      </a>
+                <CallButtonWithText
+                  phone={finalDisplayPhone}
+                  patient={patient}
+                  patientName={finalDisplayName}
+                  onBeforeCall={dispatchStopCardActionCollapse}
+                />
                 }
                     {!isAtPickupLocation && isNextDelivery && navigationHref && (
                 isWithinActiveStopRange ?
@@ -1211,13 +1210,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   Call button to reach the patient. Call only, nothing else. */}
               {routeCompletedForLayout && canCallOnCompletedRoute && finalDisplayPhone && !shouldRedact &&
               <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                    <a
-                      href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
-                      onClick={(e) => { e.stopPropagation(); dispatchStopCardActionCollapse(); }}
-                      aria-label="Call customer"
-                      className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#34A853] text-white transition-colors hover:bg-[#2D9249]">
-                        <Phone className="w-6 h-6" />
-                      </a>
+                    <CallButtonWithText
+                      phone={finalDisplayPhone}
+                      patient={patient}
+                      patientName={finalDisplayName}
+                      onBeforeCall={dispatchStopCardActionCollapse}
+                    />
                   </div>
               }
               </div>
