@@ -1105,13 +1105,13 @@ export default function DeliveryFormView({
       
       {/* OWNER SPEC (Nov 19 2026): the Add to Route form (desktop/tablet) is tall
           enough that its main section needs no scrollbar — the height cap is now
-          70rem = the 57rem the owner approved PLUS the patient info panel (Address / Unit / Name / Email / phones, ~13.5rem). min(95vh, 72rem) keeps the old behaviour on
+          70rem = the 57rem the owner approved PLUS the patient info panel (Address / Unit / Name / Email / phones, ~13.5rem). min(95vh, 75rem) keeps the old behaviour on
           shorter screens (95% of the viewport) and mobile is untouched (h-full). */}
       <motion.div
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-none flex' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[67.5rem] h-[min(95vh,72rem)] max-h-[72rem]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
+        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-none flex' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[67.5rem] h-[min(95vh,75rem)] max-h-[75rem]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
         >
         <Card
           onKeyDown={handleGlobalKeyDown}
