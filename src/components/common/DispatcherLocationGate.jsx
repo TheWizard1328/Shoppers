@@ -176,17 +176,44 @@ export default function DispatcherLocationGate() {
     }
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => evaluatePosition(pos.coords),
-      (err) => {
-        // PERMISSION_DENIED / POSITION_UNAVAILABLE / TIMEOUT → fail open.
-        // Never lock without a fix (owner: "no GPS fix = non-mobile device").
-        console.log('[DispatcherLocationGate] geolocation error — failing open:', err?.code, err?.message);
-      },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
-    );
+    let watchId = null;
+    let cancelled = false;
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    // ── PERMISSION GATE (owner request Nov 20 2026) ──────────────────────────
+    // Do not start the boot watch on a device that has not granted location. The
+    // old unconditional watch re-triggered the OS prompt on every iOS swipe-away
+    // relaunch, and on a denied device it produced error rows forever. Ask first;
+    // only a confirmed grant opens the watch.
+    (async () => {
+      let allowed = false;
+      try {
+        const { getLocationPermission, isLocationGranted, notifyLocationPermissionNeeded } =
+          await import('@/components/utils/locationPermission');
+        const perm = await getLocationPermission();
+        allowed = isLocationGranted(perm.state);
+        if (!allowed) {
+          console.log('[DispatcherLocationGate] location permission not granted — skipping boot watch:', perm.state);
+          if (perm.state === 'denied') notifyLocationPermissionNeeded('dispatcher_gate');
+        }
+      } catch {
+        allowed = true; // permission module unavailable — keep the old behaviour
+      }
+      if (!allowed || cancelled) return;
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => evaluatePosition(pos.coords),
+        (err) => {
+          // PERMISSION_DENIED / POSITION_UNAVAILABLE / TIMEOUT → fail open.
+          // Never lock without a fix (owner: "no GPS fix = non-mobile device").
+          console.log('[DispatcherLocationGate] geolocation error — failing open:', err?.code, err?.message);
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    };
   }, [isEligible, evaluatePosition]);
 
   // ── Manual recheck (button on the overlay) ───────────────────────────────

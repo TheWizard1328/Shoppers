@@ -3,6 +3,7 @@ import MobileOverlayBackHandler from './MobileOverlayBackHandler';
 import PWAInstallPrompt from '../common/PWAInstallPrompt';
 import DomainMigrationNotice from '../common/DomainMigrationNotice';
 import PushNotificationPrompt from '../common/PushNotificationPrompt';
+import LocationPermissionModal from '../location/LocationPermissionModal';
 import DriverAvailabilityPrompt from './DriverAvailabilityPrompt';
 import AppIssueSupport from './AppIssueSupport';
 import CitySelectionPopup from '../cities/CitySelectionPopup';
@@ -48,6 +49,9 @@ export default function GlobalOverlays({
   return (
     <>
       <ConnectionRecoveryBanner currentUser={currentUser} />
+      {/* Location permission gate (owner request Nov 20 2026): explains the grant
+          and re-triggers the OS approval when it is missing or denied. */}
+      <LocationPermissionModal />
       <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} onRequestCloseOverlay={() => {if (sidebarOpen) setSidebarOpen(false);if (showMessaging) {setShowMessaging(false);setInitialConversation(null);}if (showInviteQRModal) setShowInviteQRModal(false);if (isFormOverlayOpen) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));}} />
 
       {/* wizardworxx.com migration notice (owner Oct 25 2026) */}

@@ -1310,6 +1310,30 @@ class LocationTracker {
       throw new Error('User is required to start tracking');
     }
 
+    // ── PERMISSION GATE (owner request Nov 20 2026) ──────────────────────────
+    // Never open a GPS session on a device that has not granted location: on iOS
+    // web/PWA the grant is effectively per-session, so a swipe-away relaunch was
+    // re-triggering the OS prompt every cold start, and a denied device burned a
+    // full fix timeout on every timer tick. Denied = refuse and let the modal
+    // explain; prompt = let this call through only when it came from a gesture
+    // (the duty toggle) and ask the OS first.
+    try {
+      const { getLocationPermission, requestLocationPermission, isLocationGranted } =
+        await import('./locationPermission');
+      const perm = await getLocationPermission();
+      if (perm.state === 'denied') {
+        console.warn('📍 [LocationTracker] startTracking refused — location permission is denied on this device.');
+        return;
+      }
+      if (!isLocationGranted(perm.state)) {
+        const asked = await requestLocationPermission();
+        if (!isLocationGranted(asked.state)) {
+          console.warn(`📍 [LocationTracker] startTracking refused — location permission ${asked.state}.`);
+          return;
+        }
+      }
+    } catch { /* permission module unavailable — fall through to the old behaviour */ }
+
     // NOTE: isMobileDevice() gate intentionally removed.
     // GPS tracking is available on ANY device — iOS, Android, PWA, or desktop browser.
     // Whether this device actually WRITES coordinates to the backend is controlled
