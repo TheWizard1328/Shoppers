@@ -5,7 +5,8 @@ import { useDevice } from '@/components/utils/DeviceContext';
 import MapViewCycleFAB from '@/components/dashboard/MapViewCycleFAB';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
 import TorchFAB from '@/components/dashboard/TorchFAB';
-import { Phone, Navigation } from 'lucide-react';
+import { Navigation } from 'lucide-react';
+import CallButtonWithText from '@/components/common/CallButtonWithText';
 import { motion } from 'framer-motion';
 
 export default function FABControls({
@@ -117,10 +118,18 @@ export default function FABControls({
       ? (immersiveInterStoreLocation?.store_address || immersiveOverlayStore?.address)
       : immersiveOverlayIsPickup ? immersiveOverlayStore?.address : immersiveOverlayPatient?.address;
 
-  const handleImmersiveCall = () => {
-    if (!immersivePatientPhone) return;
-    window.location.href = `tel:${immersivePatientPhone.replace(/\D/g, '')}`;
-  };
+  // OWNER SPEC (Nov 20 2026): the immersive-mode call FAB gets the same texting
+  // behaviour as the stop card's call button — a "T" in the upper-left when the
+  // patient's PRIMARY number texts, and a 1.5s press-and-hold that opens texting
+  // instead of dialing. Store numbers (pickup / inter-store) never text, and the
+  // phone_secondary fallback is not a primary number, so neither shows the T.
+  const immersiveCallPatient = (() => {
+    if (immersiveIsInterStore || immersiveOverlayIsPickup) return null;
+    const p = immersiveOverlayPatient;
+    if (!p || p.sms_primary !== true) return null;
+    const digits = (v) => String(v || '').replace(/\D/g, '');
+    return digits(p.phone) && digits(p.phone) === digits(immersivePatientPhone) ? p : null;
+  })();
 
   const handleImmersiveNavigate = () => {
     if (immersiveNavLat && immersiveNavLon) {
@@ -142,16 +151,14 @@ export default function FABControls({
           className="z-[700]"
           style={{ position: fabPosition, bottom: `${immersiveFabBottom}px`, right: '108px', pointerEvents: 'auto' }}
         >
-          <button
-            type="button"
-            onClick={handleImmersiveCall}
+          <CallButtonWithText
+            phone={immersivePatientPhone}
+            patient={immersiveCallPatient}
+            patientName={immersiveOverlayPatient?.full_name || ''}
+            ariaLabel="Call patient"
             title="Call patient"
-            aria-label="Call patient"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#34A853] text-white transition-colors hover:bg-[#2D9249]"
-            style={{ touchAction: 'manipulation' }}
-          >
-            <Phone className="w-5 h-5" />
-          </button>
+            size="compact"
+          />
         </motion.div>
       )}
       {immersiveHidden && immersiveOverlayDelivery && isMobile && (immersiveNavLat || immersiveNavAddress) && (

@@ -31,6 +31,11 @@ export default function CallButtonWithText({
   patientName = '',
   onBeforeCall,
   ariaLabel = 'Call customer',
+  title,
+  // 'card' = the 56px stop-card button, 'compact' = the 40px immersive-mode FAB.
+  size = 'card',
+  className = '',
+  style,
 }) {
   const device = useDevice();
   const canTextOnDevice = !!device?.isMobile && isCurrentDevicePrimary();
@@ -78,6 +83,8 @@ export default function CallButtonWithText({
     onBeforeCall?.();
   }, [onBeforeCall]);
 
+  const isCompact = size === 'compact';
+
   return (
     <a
       href={`tel:${String(phone || '').replace(/\D/g, '')}`}
@@ -88,13 +95,14 @@ export default function CallButtonWithText({
       onPointerCancel={clearHold}
       onContextMenu={(e) => { if (showTextBadge) e.preventDefault(); }}
       aria-label={ariaLabel}
-      className="relative inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#34A853] text-white transition-colors hover:bg-[#2D9249]"
-      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', touchAction: 'manipulation' }}
+      title={title || ariaLabel}
+      className={`relative inline-flex items-center justify-center rounded-full bg-[#34A853] text-white transition-colors hover:bg-[#2D9249] ${isCompact ? 'h-10 w-10' : 'h-14 w-14'} ${className}`}
+      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', touchAction: 'manipulation', ...style }}
     >
-      <Phone className="w-6 h-6" />
+      <Phone className={isCompact ? 'w-5 h-5' : 'w-6 h-6'} />
       {showTextBadge && (
         <span
-          className="absolute top-2 left-2 font-bold text-[10px] leading-none pointer-events-none text-white/90"
+          className={`absolute font-bold text-[10px] leading-none pointer-events-none text-white/90 ${isCompact ? 'top-1.5 left-1.5' : 'top-2 left-2'}`}
           title="Hold 1.5s to text this patient"
         >
           T
