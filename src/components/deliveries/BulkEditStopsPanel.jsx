@@ -607,6 +607,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
           // redundant and shows as extra empty space under Cancel/Apply. `pb-0`
           // overrides it via tailwind-merge (cn() in drawer.jsx uses twMerge, so
           // the later pb-0 here wins over the primitive's default pb- class).
+          data-lifted-sheet="true"
           className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--app-inset-bottom)-0.75rem)] pb-0 bg-surface" style={{ bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--app-inset-bottom))" }}>
           
           <DrawerHeader style={{ paddingTop: "max(1rem, var(--app-inset-top))" }}>

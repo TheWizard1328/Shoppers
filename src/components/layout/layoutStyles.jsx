@@ -238,6 +238,13 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              rule is !important. The stats card is a centred card, not a bottom sheet, so it
              opts out by attribute (higher specificity, declared after, still !important). */
           body .fixed[role="dialog"][data-state="open"][data-eod-stats-panel="true"] { padding-bottom: 8px !important; }
+          /* COMPACT DIALOGS (owner report Nov 20 2026): the same nav-bar
+             reservation also landed inside centred, content-hugging dialogs -
+             Edit Activity Segments showed a dead band the height of the phone
+             navigation bar under Add Segment / Cancel / Save. Those panels opt
+             out by attribute (same mechanism as the stats card above). */
+          body .fixed[role="dialog"][data-state="open"][data-compact-dialog="true"],
+          body .fixed[role="alertdialog"][data-state="open"][data-compact-dialog="true"] { padding-bottom: 8px !important; }
           [data-sonner-toaster][data-y-position="bottom"] { bottom:calc(var(--bottom-nav-height) + 0.5rem) !important; }
 
           /* ════════════════════════════════════════════════════════════
@@ -274,6 +281,15 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           body.is-native-apk [data-vaul-drawer-content],
           body.is-native-apk [role="dialog"][data-vaul-drawer] {
             padding-bottom: max(0px, calc(var(--app-inset-bottom) - 0.5rem)) !important;
+          }
+          /* LIFTED SHEETS (owner report Nov 20 2026): a sheet that already parks
+             itself above the nav bar with bottom: calc(nav + inset) — Bulk Edit
+             Stops — must NOT also collect the APK inset padding. Stacked, that
+             was the old APK buffer zone sitting as dead space under Cancel /
+             Apply. Opted out by attribute. */
+          body.is-native-apk [data-vaul-drawer-content][data-lifted-sheet="true"],
+          body.is-native-apk [role="dialog"][data-vaul-drawer][data-lifted-sheet="true"] {
+            padding-bottom: 0 !important;
           }
 
           /* Shadcn Sheet overlay */

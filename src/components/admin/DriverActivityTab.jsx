@@ -344,7 +344,11 @@ function SegmentDialog({ record, onSave, onClose }) {
           under the nav and stole its taps. Keep the stock centred dialog and
           simply give the panel no bottom padding, so Add Segment / Cancel / Save
           finish exactly at the panel's bottom edge. */}
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto gap-2 p-4 pb-0">
+      {/* OWNER (Nov 20 2026): data-compact-dialog opts this panel out of the
+          global "reserve the bottom nav height" dialog rule in layoutStyles —
+          that reservation was the dead band under Add Segment / Cancel / Save.
+          The dialog already floats above the nav, so it reserves nothing. */}
+      <DialogContent data-compact-dialog="true" className="max-w-lg max-h-[80vh] overflow-y-auto gap-2 p-4 pb-0">
         <DialogHeader>
           <DialogTitle>{record?.id ? 'Edit Activity Segments' : 'Add Activity Record'}</DialogTitle>
         </DialogHeader>
