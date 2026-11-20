@@ -27,7 +27,7 @@ const DrawerOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
-const DrawerContent = React.forwardRef(({ className, children, ...props }, ref) => (
+const DrawerContent = React.forwardRef(({ className, children, hideHandle = false, ...props }, ref) => (
   <DrawerPortal>
     <DrawerOverlay />
     <DrawerPrimitive.Content
@@ -37,7 +37,10 @@ const DrawerContent = React.forwardRef(({ className, children, ...props }, ref) 
         className
       )}
       {...props}>
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+      {/* Drag handle. Panels that float as a centred card (Bulk Edit Stops on
+          mobile) opt out with hideHandle — a grab bar on a floating window
+          reads as a dead control (owner request Nov 20 2026). */}
+      {!hideHandle && <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />}
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>

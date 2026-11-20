@@ -1503,7 +1503,7 @@ export default function Patients() {
 
   if (isLoading) {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="h-full flex flex-col min-h-0">
         <div className="flex-shrink-0 p-6 bg-surface" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
           <h1 className="text-3xl font-bold text-body">Patient Database</h1>
         </div>
@@ -1516,7 +1516,7 @@ export default function Patients() {
 
   if (!hasAccess) {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="h-full flex flex-col min-h-0">
         <div className="flex-shrink-0 p-6 bg-surface" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
           <h1 className="text-3xl font-bold text-body">Patient Database</h1>
         </div>
@@ -1528,7 +1528,7 @@ export default function Patients() {
   }
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="h-full flex flex-col min-h-0" style={{ background: 'var(--bg-slate-50)' }}>
       {/* Static Header - Only show when NOT in overview context */}
       {!inOverviewContext &&
       <div className="flex-shrink-0 shadow-sm bg-surface" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
