@@ -1076,6 +1076,16 @@ export default function DeliveryForm({
   }, [formData, allDrivers, allDeliveries, appUsers, currentUser, getDriverNameForStorage, applyDeliveryChangesLocally, onCancel,
       delivery, openMode, stagedDeliveries, hasChanges, hasPendingDeletes]);
 
+  const stagedSigRef = useRef('');
+  // OWNER RULE (Nov 19 2026): a row that was just written by the Update button is
+  // authoritative until the pending pool catches up. Without this the pool's stale
+  // copy (old date / old driver / old patient name) repainted straight back over
+  // the edit, so "Update" looked like it did nothing.
+  const pendingRowOverridesRef = useRef(new Map());
+  // OWNER RULE (Nov 19 2026): the staged panel refreshes only on Clear, Add and
+  // Update. Bumping this key re-runs the pending loader exactly then.
+  const [pendingReloadKey, setPendingReloadKey] = useState(0);
+  const bumpPendingReload = useCallback(() => setPendingReloadKey((k) => k + 1), []);
   const handleClearForm = useCallback(() => {
     void cleanupDetachedAutoCreatedPickups({ stagedDeliveries, deleteDeliveryLocal, autoCreatedPickupsRef, setStagedDeliveries });
     resetDraftEditorState({ setSelectedPatient, setSelectedPatientIds, setPatientSearch, setError, setEditingStagedId, setHighlightedPatientIndex, setFormData, setSelectedPickupOption, shouldAutoFocusFields, focusRef: patientSearchInputRef, setNewPatientMode });
@@ -1094,7 +1104,8 @@ export default function DeliveryForm({
       }
     }
     resetDriverFilterOnClear(currentUser, stores, userHasRole);
-  }, [stagedDeliveries, shouldAutoFocusFields, currentUser, stores, allDrivers]);
+    bumpPendingReload();
+  }, [stagedDeliveries, shouldAutoFocusFields, currentUser, stores, allDrivers, bumpPendingReload]);
 
   const handleAddToStaging = useCallback(async (overrideFormData, extraPickups = []) => {
     const fd = overrideFormData || formData;
@@ -1130,8 +1141,9 @@ export default function DeliveryForm({
     const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === resolvedFormData.delivery_date && d.patient_id === pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
     setSelectedRoutePickup(null); setPendingRoutePickup(null);
+    bumpPendingReload();
     resetDraftEditorState({ setSelectedPatient, setSelectedPatientIds, setPatientSearch, setError, setEditingStagedId, setHighlightedPatientIndex, setFormData, setSelectedPickupOption, shouldAutoFocusFields, focusRef: patientSearchInputRef, setNewPatientMode });
-  }, [formData, patients, freshStores, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
+  }, [formData, patients, freshStores, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption, bumpPendingReload]);
 
   useEffect(() => {
     if (delivery || isPickupMode || !selectedPatient || !formData.driver_id || !formData.delivery_date) return;
@@ -1172,6 +1184,8 @@ export default function DeliveryForm({
         prevDeliveryDate: selectedStaged?.delivery_date || '',
         prevDriverId: selectedStaged?.driver_id || '',
       });
+      pendingRowOverridesRef.current.set(String(deliveryId), { ...stagedDelivery });
+      stagedSigRef.current = ''; // force the panel to repaint from the edited values
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged)); setHasChanges(true);
       // CRITICAL: Do NOT dispatch refreshDeliveryStats or deliveriesUpdated here.
       // updateDeliveryLocal already called notifyMutation() which updated the
@@ -1189,8 +1203,9 @@ export default function DeliveryForm({
     setError(null); setEditingStagedId(null); setSelectedRoutePickup(null); setPendingRoutePickup(null); setSelectedPatient(null); setSelectedPatientIds(new Set()); setPatientSearch(''); setHighlightedPatientIndex(-1);
     const { getClearedDraftFormData } = await import('../utils/deliveryFormActionHelpers');
     setFormData((prev) => getClearedDraftFormData(prev)); setSelectedPickupOption('');
+    bumpPendingReload();
     if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
+  }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice, bumpPendingReload]);
 
   const handleBatchSave = useCallback(async () => {
     // OWNER SPEC (Oct 23 2026): Done ALWAYS ends with the route optimizer +
@@ -1668,7 +1683,16 @@ export default function DeliveryForm({
 
   useEffect(() => {
     if (delivery || stagedDeliveries.length === 0) return;
-    const deletedPendingDeliveries = stagedDeliveries.filter((staged) => { if (!staged.id) return false; return !widenedDeliveries?.some((d) => d && d.id === staged.id); });
+    // OWNER RULE (Nov 19 2026): a row the Update button just wrote, or the row being
+    // edited, is never "deleted". The pool is a date window, so moving a stop to an
+    // earlier date briefly drops it out of the window and this check used to queue a
+    // real deletion for it.
+    const deletedPendingDeliveries = stagedDeliveries.filter((staged) => {
+      if (!staged.id) return false;
+      if (staged._tempId === editingStagedId) return false;
+      if (pendingRowOverridesRef.current.has(String(staged.id))) return false;
+      return !widenedDeliveries?.some((d) => d && d.id === staged.id);
+    });
     if (deletedPendingDeliveries.length > 0) {
       deletedPendingDeliveries.forEach((del) => registerDeletedDeliveryId(del.id));
       setStagedDeliveries((prev) => prev.filter((staged) => !deletedPendingDeliveries.some((del) => del.id === staged.id)));
@@ -1677,7 +1701,7 @@ export default function DeliveryForm({
       setProjectedDeliveries(filteredPredictions);
       if (editingStagedId && deletedPendingDeliveries.some((d) => d._tempId === editingStagedId)) { setEditingStagedId(null); handleClearForm(); }
     }
-  }, [widenedDeliveries, stagedDeliveries.length, delivery]);
+  }, [widenedDeliveries, stagedDeliveries.length, delivery, editingStagedId]);
 
   // Pending panel follows the FORM's Delivery Date + Driver, not the dashboard date,
   // and reloads whenever either changes (owner fix Nov 8 2026). The old guard
@@ -1693,9 +1717,13 @@ export default function DeliveryForm({
     () => (widenedDeliveries || []).map((d) => `${d.id || d.delivery_id}:${d.updated_date || ''}`).sort().join(','),
     [widenedDeliveries]
   );
-  const stagedSigRef = useRef('');
   useEffect(() => {
     if (delivery) return;
+    // OWNER RULE (Nov 19 2026): while a staged/pending row is being edited the
+    // panel must NOT reload from the pool. Changing the date or driver mid-edit
+    // re-filtered the list, rebuilt the card from stale data and dragged the row
+    // out from under the editor. The panel refreshes only on Clear, Add or Update.
+    if (editingStagedId) return;
     const formDate = formData.delivery_date || suggestedDate || '';
     const formDriverId = formData.driver_id || '';
     if (!formDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
@@ -1742,19 +1770,40 @@ export default function DeliveryForm({
       // info side still showed it. This loader replaces the whole list from the
       // pending pool, and unsaved rows are not in that pool, so every pool refresh
       // wiped them. Unsaved rows (no server id) are now carried across every reload.
-      const mergeUnsaved = (prev) => {
+      const mergeUnsavedBase = (prev) => {
         // Only rows that still belong to THIS form's date/driver are carried over,
         // so switching date or driver never drags a stale unsaved row along.
         const unsaved = (prev || []).filter((it) => it && !it.id
           && (!it.delivery_date || it.delivery_date === formDate)
           && (!formDriverId || !it.driver_id || it.driver_id === formDriverId));
-        if (!unsaved.length) return stagedItems;
-        const poolIds = new Set(stagedItems.map((it) => String(it.id || '')).filter(Boolean));
+        if (!unsaved.length) return stagedItems2;
+        const poolIds = new Set(stagedItems2.map((it) => String(it.id || '')).filter(Boolean));
         const kept = unsaved.filter((it) => !(it.id && poolIds.has(String(it.id))));
         const keptPatientIds = new Set(kept.map((it) => String(it.patient_id || '')).filter(Boolean));
-        return [...kept, ...stagedItems.filter((it) => !keptPatientIds.has(String(it.patient_id || '')))];
+        return [...kept, ...stagedItems2.filter((it) => !keptPatientIds.has(String(it.patient_id || '')))];
       };
-      const sig = stagedItems.map((it) => `${it.id || it._tempId}`).sort().join(',');
+      const mergeUnsaved = mergeUnsavedBase;
+      // Apply the just-written rows, then drop any pool row whose authoritative
+      // override now belongs to a different date/driver (it moved out of scope).
+      const overrides = pendingRowOverridesRef.current;
+      const resolvedItems = stagedItems.map((it) => {
+        const ov = it?.id ? overrides.get(String(it.id)) : null;
+        if (!ov) return it;
+        const poolCaughtUp = String(it.delivery_date || '') === String(ov.delivery_date || '')
+          && String(it.driver_id || '') === String(ov.driver_id || '')
+          && String(it.patient_name || '') === String(ov.patient_name || '');
+        if (poolCaughtUp) { overrides.delete(String(it.id)); return it; }
+        return { ...it, ...ov };
+      }).filter((it) => {
+        const ov = it?.id ? overrides.get(String(it.id)) : null;
+        if (!ov) return true;
+        const date = ov.delivery_date || it.delivery_date;
+        const driver = ov.driver_id || it.driver_id;
+        return (!formDate || String(date || '') === String(formDate))
+          && (!formDriverId || !driver || String(driver) === String(formDriverId));
+      });
+      const stagedItems2 = resolvedItems;
+      const sig = stagedItems2.map((it) => `${it.id || it._tempId}:${it.delivery_date || ''}:${it.driver_id || ''}:${it.patient_name || ''}`).sort().join(',');
       if (sig === stagedSigRef.current) return; // identical set, do not repaint (kills the flicker)
       stagedSigRef.current = sig;
       setStagedDeliveries((prev) => mergeUnsaved(prev));
@@ -1770,7 +1819,7 @@ export default function DeliveryForm({
       }
     })();
     return () => { cancelled = true; };
-  }, [delivery, pendingPoolSignature, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id]);
+  }, [delivery, pendingPoolSignature, currentUser, patients, stores, suggestedDate, formData.delivery_date, formData.driver_id, editingStagedId, pendingReloadKey]);
 
   // Resolve InterStore From/To locations from delivery_id phone numbers when editing
   useEffect(() => {

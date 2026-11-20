@@ -22,6 +22,10 @@ export async function persistPendingDeliveryUpdate({
   const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
   const immediateUpdateData = {
     patient_id: formData.patient_id || '',
+    // OWNER SPEC (Nov 19 2026): the edited name/phone travel with the delivery
+    // row too, so a repaint from the pending pool cannot show the old spelling.
+    ...(formData.patient_name ? { patient_name: formData.patient_name } : {}),
+    ...(formData.patient_phone ? { patient_phone: formData.patient_phone } : {}),
     delivery_date: formData.delivery_date,
     delivery_time_start: formData.delivery_time_start || '',
     delivery_time_end: formData.delivery_time_end || '',

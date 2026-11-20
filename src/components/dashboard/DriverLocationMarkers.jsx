@@ -911,7 +911,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                     📍 Last known location (no timestamp)
                   </p>
                 )}
-                {!isActive && !isSharedLocation && (
+                {/* OWNER SPEC (Nov 19 2026): never offer Goto/Call on the user's OWN
+                    marker (shared or not) — you cannot navigate to or phone yourself. */}
+                {!isActive && !isSharedLocation && !isSelf && (
                   <>
                     <div className="flex gap-2 mt-3">
                       <button

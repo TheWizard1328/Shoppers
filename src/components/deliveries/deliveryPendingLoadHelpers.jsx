@@ -107,7 +107,10 @@ export const mapPendingDeliveriesToStaged = ({
     ...delivery,
     _tempId: Date.now() + Math.random() + index,
     _wasEdited: false,
-    patient_name: delivery.patient_name || patient?.full_name || 'Unknown',
+    // OWNER SPEC (Nov 19 2026): the PATIENT record owns the name. The delivery
+    // row keeps an old copy, so a case/name edit made in the form reappeared in
+    // its previous spelling as soon as the panel repainted from the pool.
+    patient_name: patient?.full_name || delivery.patient_name || 'Unknown',
     patient_phone: delivery.patient_phone || patient?.phone || '',
     unit_number: delivery.unit_number || patient?.unit_number || '',
     // Care Pro fields — pulled from the patient record so the pending card can show
