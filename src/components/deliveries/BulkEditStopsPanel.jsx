@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -612,8 +613,14 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     return (
       <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
         {/* Our own band-limited backdrop; the primitive's inset-0 overlay is
-            suppressed with hideOverlay so it can't dim the header or the nav. */}
-        <div className="fixed z-[11000] bg-black/70" style={overlayStyle} onClick={() => onOpenChange(false)} />
+            suppressed with hideOverlay so it can't dim the header or the nav.
+            It MUST be gated on `open` and portalled to body: vaul keeps its
+            root mounted, and a bare fixed div inside the dashboard painted a
+            permanent grey sheet over the map (owner report Nov 20 2026). */}
+        {open && createPortal(
+          <div className="fixed z-[11000] bg-black/70" style={overlayStyle} onClick={() => onOpenChange(false)} />,
+          document.body
+        )}
         <DrawerContent
           hideOverlay
           // The base DrawerContent primitive (src/components/ui/drawer.jsx) bakes
