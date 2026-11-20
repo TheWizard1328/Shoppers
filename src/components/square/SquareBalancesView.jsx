@@ -2580,6 +2580,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // $10.65"): float dollar addition can land a cent off — sum cents,
         // divide once.
         cardEstimate: (Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents + adjCents) / 100,
+        // Breakdown parts (owner report Nov 20 2026: "the cards don't match the
+        // true-up values"). Exposed so the card can show its own arithmetic
+        // instead of asking the owner to trust a single number.
+        cardBase: r2(Number(loc.card_start || 0)),
+        cardCredits: r2(credits),
+        cardWithdrawn: r2(withdrawn),
+        cardCodCharges: r2(pendingDeductCents / 100),
+        cardAdjustments: r2(adjCents / 100),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         level: getBalanceLevel((Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents + adjCents) / 100, Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
@@ -3340,6 +3348,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Wallet className="w-3.5 h-3.5" /> Card</div>
                 <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(loc.cardEstimate)}</div>
               </div>
+              {ownerCanEdit &&
+                <details className="text-[11px] text-slate-500 dark:text-slate-400">
+                  <summary className="cursor-pointer list-none select-none inline-flex items-center gap-1 opacity-80">
+                    <ChevronDown className="w-3 h-3 opacity-50 group-open:rotate-180" />
+                    true-up {fmtMoney(loc.cardBase)} + collected {fmtMoney(loc.cardCredits)} − withdrawn {fmtMoney(loc.cardWithdrawn)} − COD charges {fmtMoney(loc.cardCodCharges)}{Number(loc.cardAdjustments || 0) !== 0 ? ` + adj ${fmtMoney(loc.cardAdjustments)}` : ''}
+                  </summary>
+                  <div className="pt-1 pl-4">
+                    The card is the last true-up number plus card collections, minus withdrawals from the card, minus COD charges still on the card. It only equals the true-up number when nothing has happened since.
+                  </div>
+                </details>
+                }
               {ownerCanEdit &&
                 <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Landmark className="w-3.5 h-3.5" /> Loan left</div>
