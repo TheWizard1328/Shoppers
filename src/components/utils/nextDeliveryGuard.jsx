@@ -23,7 +23,7 @@
 
 import { offlineDB } from './offlineDatabase';
 import { updateDeliveryLocal } from './offlineMutations';
-import { canThisDeviceRestoreNextFlag, stampNextFlagOwner } from './nextFlagOwnership';
+import { canThisDeviceRestoreNextFlag, stampNextFlagOwner, parseFlagOwner } from './nextFlagOwnership';
 
 const TERMINAL = ['completed', 'failed', 'cancelled'];
 const isInterStoreId = (id) => String(id || '').startsWith('ISP') || String(id || '').startsWith('ISD');
@@ -134,6 +134,70 @@ export async function clearTerminalNextFlags({
   return cleared;
 }
 
+/**
+ * ONE next stop, never two.
+ *
+ * OWNER REPORT (Nov 20 2026): "I click Start on another stop and the previous
+ * stop that had the next-delivery flag doesn't get cleared — I end up with two
+ * stops marked next, and it survives a refresh and a full restart."
+ *
+ * The Start path's server CLEAR of the previous holder could be dropped by the
+ * route-commit guard (fixed in routeCommitMarker: a batch that promotes another
+ * stop on the route is a real advance). This is the belt-and-braces sweep: if a
+ * route ever holds TWO flags, keep the one that matches reality and clear the
+ * rest. Winner order: a STARTED stop (en_route / in_transit) first, then the
+ * newest next_flag_owner claim, then the lowest stop_order.
+ *
+ * Returns the ids it cleared.
+ */
+export async function clearDuplicateNextFlags({
+  driverId,
+  deliveryDate,
+  deliveries = null,
+  skipServerWrite = false,
+} = {}) {
+  const cleared = [];
+  try {
+    if (!driverId || !deliveryDate) return cleared;
+    let list = Array.isArray(deliveries) ? deliveries : null;
+    if (!list) list = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const flagged = (list || []).filter(
+      (d) => d && d.id && d.isNextDelivery === true &&
+        d.driver_id === driverId && d.delivery_date === deliveryDate
+    );
+    if (flagged.length < 2) return cleared;
+
+    const rank = (d) => {
+      const started = ['en_route', 'in_transit'].includes(String(d.status || '').toLowerCase()) ? 1 : 0;
+      const claim = parseFlagOwner(d.next_flag_owner);
+      return { started, at: claim?.at || 0, order: orderOf(d) };
+    };
+    const sorted = [...flagged].sort((a, b) => {
+      const ra = rank(a); const rb = rank(b);
+      if (ra.started !== rb.started) return rb.started - ra.started; // started stop wins
+      if (ra.at !== rb.at) return rb.at - ra.at;                     // newest claim next
+      return ra.order - rb.order;                                    // then route order
+    });
+    const keep = sorted[0];
+    for (const d of sorted.slice(1)) {
+      await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+      cleared.push(d.id);
+      if (!skipServerWrite) {
+        try {
+          const { base44 } = await import('@/api/base44Client');
+          await base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null);
+        } catch (_) { /* offline — queued mutation carries it */ }
+      }
+    }
+    if (cleared.length > 0) {
+      console.warn(`[NextDeliveryGuard] ${flagged.length} stops held the next-delivery flag on ${driverId}/${deliveryDate} — kept ${keep.id}, cleared ${cleared.length}`);
+    }
+  } catch (err) {
+    console.warn('[NextDeliveryGuard] clearDuplicateNextFlags failed:', err?.message || err);
+  }
+  return cleared;
+}
+
 export async function ensureRouteHasNextStop({
   driverId,
   deliveryDate,
@@ -145,9 +209,13 @@ export async function ensureRouteHasNextStop({
     if (!driverId || !deliveryDate) return null;
     // Heal first: finished stops must never hold the flag (owner report Nov 2 2026).
     await clearTerminalNextFlags({ driverId, deliveryDate, deliveries, skipServerWrite });
+    // Then: a route may hold at most ONE next stop (owner report Nov 20 2026).
+    const _dupCleared = await clearDuplicateNextFlags({ driverId, deliveryDate, deliveries, skipServerWrite });
 
     let list = Array.isArray(deliveries) ? deliveries : null;
-    if (!list) {
+    // A duplicate sweep just changed flags — always re-read so the check below
+    // sees the healed route instead of the caller's stale snapshot.
+    if (!list || _dupCleared.length > 0) {
       list = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     }
     const route = (list || []).filter(

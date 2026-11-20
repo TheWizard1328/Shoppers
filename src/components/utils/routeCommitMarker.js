@@ -77,9 +77,34 @@ const _dropStartStomps = async (updates) => {
   if (suspects.length === 0) return updates;
   try {
     const { offlineDB } = await import('./offlineDatabase');
-    const records = await offlineDB.getByIds(offlineDB.STORES.DELIVERIES, suspects.map((u) => u.id)).catch(() => null);
+    // Read EVERY record in the batch, not only the suspects: a legitimate flag
+    // advance is recognised by the claimant that rides in the same payload.
+    const allIds = [...new Set(updates.map((u) => u?.id).filter(Boolean))];
+    const records = await offlineDB.getByIds(offlineDB.STORES.DELIVERIES, allIds).catch(() => null);
     if (!Array.isArray(records)) return updates; // fail open
     const byId = new Map(records.filter(Boolean).map((r) => [r.id, r]));
+    // ── LEGITIMATE ADVANCE EXEMPTION (owner report Nov 20 2026) ─────────────
+    // "I click Start on another stop and the previous stop that had the
+    // next-delivery flag doesn't get cleared — I end up with two stops marked
+    // as next even after a refresh or a full restart, until a background sync
+    // finally corrects it."
+    // The PREVIOUS flag holder has exactly the shape this guard treats as a
+    // stale pre-Start stomp: it is en_route / in_transit, it holds the flag and
+    // its updated_date is fresh — so its CLEAR was dropped here and never
+    // reached the server, while the newly started stop's SET went through. Two
+    // next flags, server-side, surviving every reload.
+    // A batch that PROMOTES another stop on the same route to next is a real
+    // advance, not a stale writer: the previous holder is meant to be cleared in
+    // that same payload. offlineDB._restoreStompedNextFlags already uses this
+    // rule, so the two gates now agree.
+    const claimantRoutes = new Set();
+    for (const u of updates) {
+      if (u?.data?.isNextDelivery !== true) continue;
+      const r = byId.get(u.id) || {};
+      const dId = String(r.driver_id || u?.data?.driver_id || '');
+      const dDate = String(r.delivery_date || u?.data?.delivery_date || '');
+      if (dId && dDate) claimantRoutes.add(`${dId}|${dDate}`);
+    }
     const now = Date.now();
     const staleIds = new Set();
     for (const u of suspects) {
@@ -88,7 +113,11 @@ const _dropStartStomps = async (updates) => {
       const isStarted = _STARTED_ACTIVE.includes(String(r.status || ''))
         && r.isNextDelivery === true;
       const fresh = r.updated_date && (now - Date.parse(r.updated_date)) < _START_PROTECT_MS;
-      if (isStarted && fresh) staleIds.add(u.id);
+      if (!isStarted || !fresh) continue;
+      // The flag moved to another stop on this route in this very batch → this
+      // clear is the advance, keep it.
+      if (claimantRoutes.has(`${r.driver_id || ''}|${r.delivery_date || ''}`)) continue;
+      staleIds.add(u.id);
     }
     if (staleIds.size === 0) return updates;
     const kept = updates.filter((u) => !staleIds.has(u.id));
