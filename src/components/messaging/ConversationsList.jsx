@@ -149,6 +149,23 @@ export default function ConversationsList({
     return user?.user_name || user?.full_name || null;
   };
 
+  // OWNER REPORT (Nov 19 2026): an unread badge stayed on a thread until the
+  // whole messages window was reopened, because the list only rebuilt its
+  // counts from a fresh read. ChatWindow now fires this event 10 seconds after
+  // a thread is opened (the read-stamp moment) and the badge clears at once.
+  const [readCleared, setReadCleared] = useState({});
+  useEffect(() => {
+    const onMarkedRead = (event) => {
+      const cid = event?.detail?.conversationId;
+      if (!cid) return;
+      setReadCleared((prev) => ({ ...prev, [cid]: (prev[cid] || 0) + 1 }));
+      // Group previews carry their own cached unread count.
+      try { clearGroupUnread(cid); } catch { /* noop */ }
+    };
+    window.addEventListener('messagesMarkedRead', onMarkedRead);
+    return () => window.removeEventListener('messagesMarkedRead', onMarkedRead);
+  }, []);
+
   // Build 1:1 conversations from messages (existing logic)
   const directConversations = useMemo(() => {
     const convMap = new Map();
@@ -187,11 +204,12 @@ export default function ConversationsList({
 
     return Array.from(convMap.values()).map(conv => ({
       ...conv,
+      unreadCount: readCleared[conv.id] ? 0 : conv.unreadCount,
       lastMessage: conv.messages.sort((a, b) =>
         (parseEntityTimestamp(b.created_date) || 0) - (parseEntityTimestamp(a.created_date) || 0)
       )[0]
     }));
-  }, [messages, currentUser?.id, users]);
+  }, [messages, currentUser?.id, users, readCleared]);
 
   // Build group conversations from previews
   const groupConversations = useMemo(() => {
@@ -208,12 +226,12 @@ export default function ConversationsList({
           presetType: group.preset_type,
           messages: lastMessage ? [lastMessage] : [],
           lastMessage,
-          unreadCount,
+          unreadCount: readCleared[group.id] ? 0 : unreadCount,
           otherUserId: null,
           otherUserName: group.name,
         };
       });
-  }, [groupPreviews, users]);
+  }, [groupPreviews, users, readCleared]);
 
   // Merge + sort
   const conversations = useMemo(() => {

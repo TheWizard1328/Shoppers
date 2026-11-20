@@ -293,6 +293,28 @@ function edmontonToday() {
   return fmt.format(new Date());
 }
 
+// ── LINE FORMATTING (owner spec Nov 19 2026) ────────────────────────────────
+// Every tender / store abbreviation is capitalised and centred in a 4-character
+// field so the columns line up: 'Cash', ' LD ', ' BD ', ' SC '. Debit and Credit
+// are no longer shown.
+function pad4(label) {
+  let s = String(label || '').trim();
+  if (!s) return '    ';
+  if (s === s.toLowerCase()) s = s.length <= 2 ? s.toUpperCase() : s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  if (s.length >= 4) return s.slice(0, 4);
+  const left = Math.floor((4 - s.length) / 2);
+  return ' '.repeat(left) + s + ' '.repeat(4 - s.length - left);
+}
+
+// '7 Collected:   $ 259.31' / '5 Outstanding: $  67.41' — count first, label
+// padded to the width of 'Outstanding:', amount right-aligned. A zero count
+// renders 'Collected: None' / 'Outstanding: None' instead.
+function countLine(count, label, amount, money) {
+  const head = String(count).padStart(1);
+  if (!count) return `${label}: None`;
+  return `${head} ${`${label}:`.padEnd(12)} ${money(amount)}`;
+}
+
 // ── BALANCES (est) lines — shared with the Square Balances page ─────────────
 // Owner report Nov 3 2026: "the Balances are way too high. Not sure where the
 // high amounts are coming from." The old inline tally added every CARD sale
@@ -340,6 +362,20 @@ async function buildBalanceLines(base44, opts = {}) {
 
   const byLoc = new Map((payload.byLocId || []).map(([id, v]) => [String(id), v]));
   const nameById = new Map(((payload?.config?.locations) || cfg.locations || []).map((l) => [String(l.location_id), String(l.name || l.location_id)]));
+  // Owner spec (Nov 19 2026): the BALANCES block labels each card line with the
+  // STORE ABBREVIATION (BD / CW / LD), not the long Square location name.
+  const abbrByLocId = new Map();
+  try {
+    const [storesRaw, cfgRows2] = await Promise.all([
+      base44.asServiceRole.entities.Store.list().catch(() => []),
+      base44.asServiceRole.entities.SquareLocationConfig.list().catch(() => []),
+    ]);
+    const locByCfg = new Map((cfgRows2 || []).map((c) => [String(c?.id || ''), String(c?.square_location_id || '')]));
+    for (const st of (storesRaw || [])) {
+      const loc = st?.square_location_config_id ? locByCfg.get(String(st.square_location_config_id)) : '';
+      if (loc && st?.abbreviation) abbrByLocId.set(loc, String(st.abbreviation).trim());
+    }
+  } catch (e) { console.log('[briefing] store abbr map failed:', e?.message || e); }
   let folderTotalC = Math.round(Number(cfg.folder_start || 0) * 100);
   for (const [, dc] of (payload?.deliveryCredits || [])) folderTotalC += Math.round(Number(dc?.folder || 0) * 100);
   let codOutC = 0;
@@ -352,10 +388,13 @@ async function buildBalanceLines(base44, opts = {}) {
   for (const loc of (cfg.locations || [])) {
     const v = byLoc.get(String(loc.location_id));
     if (!v) continue;
-    const name = nameById.get(String(loc.location_id)) || String(loc.name || loc.location_id);
+    const name = abbrByLocId.get(String(loc.location_id))
+      || String(loc.abbreviation || '').trim()
+      || nameById.get(String(loc.location_id))
+      || String(loc.name || loc.location_id);
     lines.push(`${name}: ${cmoney(v.cardEstimate)} Loan ${lmoney(v.loanRemaining)}`);
   }
-  lines.push(`Folder ${cmoney(folderTotalC / 100)} (2% since true-up)`);
+  lines.push(`Folder ${cmoney(folderTotalC / 100)}`);
   lines.push(`CODs out ${cmoney(codOutC / 100)} (not yet on the card)`);
   lines.push('');
   return { lines, source, note: '' };
@@ -558,26 +597,25 @@ async function handleBriefing(base44, params = {}) {
       // $ amount-<store abbr>-<patient name> for future/unfinished deliveries.
       // Older-than-today items keep the date as a suffix on the name.
       const outstandingItems = [
-        ...g.uncollected_today.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation}-${c.patient_name}` })),
-        ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation}-${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` })),
+        ...g.uncollected_today.items.map((c) => ({ amount: c.amount, type_label: c.store_abbreviation || g.store_abbreviation, label: c.patient_name })),
+        ...g.older_outstanding.items.map((c) => ({ amount: c.amount, type_label: c.store_abbreviation || g.store_abbreviation, label: `${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date || '')})`}` })),
       ];
       const outstandingCount = g.uncollected_today.count + g.older_outstanding.count;
       if (!hasCollected && outstandingCount === 0) continue; // worked today, zero COD activity — no push
-      const moneyStrs = [
-        ...g.collected_today.items.map((c) => c.amount.toFixed(2)),
-        ...outstandingItems.map((c) => c.amount.toFixed(2)),
-      ];
-      const biggestStr = Math.max(g.collected_today.amount, g.outstanding_total).toFixed(2);
-      const mw = Math.max(biggestStr.length, ...(moneyStrs.length ? moneyStrs.map((x) => x.length) : [0]));
+      // OWNER SPEC (Nov 19 2026) — driver copy:
+      //   2 Collected: $ 45.09
+      //   Nothing outstanding — clean slate.
+      // or
+      //   1 Outstanding: $ 17.48
+      //   $ 17.48- KW -Rhonda Courtoreille (Nov 14)
+      // Collected rows are counted only (no per-item lines); each outstanding row
+      // gets its own line with the tender/store code padded to 4 characters.
+      const driverMoney = (amt) => `$ ${(Number(amt) || 0).toFixed(2)}`;
       const lines = [];
-      if (hasCollected) {
-        lines.push(`Collected today: ${g.collected_today.count} COD${g.collected_today.count === 1 ? '' : 's'}, $ ${g.collected_today.amount.toFixed(2).padStart(mw)}`);
-        for (const c of g.collected_today.items) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.types.join('/')}-${c.patient_name}`);
-        lines.push('');
-      }
+      lines.push(countLine(g.collected_today.count, 'Collected', g.collected_today.amount, driverMoney));
       if (outstandingCount > 0) {
-        lines.push(`Still to collect: ${outstandingCount} COD${outstandingCount === 1 ? '' : 's'}, $ ${g.outstanding_total.toFixed(2).padStart(mw)}`);
-        for (const c of outstandingItems) lines.push(`$ ${c.amount.toFixed(2).padStart(mw)}-${c.label}`);
+        lines.push(countLine(outstandingCount, 'Outstanding', g.outstanding_total, driverMoney));
+        for (const c of outstandingItems) lines.push(`${driverMoney(c.amount)}-${pad4(c.type_label)}-${c.label}`);
       } else {
         lines.push('Nothing outstanding — clean slate.');
       }
@@ -635,9 +673,9 @@ async function handleBriefing(base44, params = {}) {
           // future/unfinished ones. Older-than-today items keep the date as a
           // suffix on the name so aging info isn't lost.
           const out = [
-            ...cash.map((c) => ({ amount: c.amount, label: `${manualType(c)} · ${c.patient_name}` })),
-            ...g.uncollected_today.items.filter((c) => c.confirmed !== true).map((c) => ({ amount: c.amount, label: `${c.store_abbreviation} · ${c.patient_name}` })),
-            ...g.older_outstanding.items.map((c) => ({ amount: c.amount, label: `${c.store_abbreviation} · ${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` })),
+            ...cash.map((c) => ({ amount: c.amount, type_label: manualType(c), label: c.patient_name })),
+            ...g.uncollected_today.items.filter((c) => c.confirmed !== true).map((c) => ({ amount: c.amount, type_label: c.store_abbreviation, label: c.patient_name })),
+            ...g.older_outstanding.items.map((c) => ({ amount: c.amount, type_label: c.store_abbreviation, label: `${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` })),
           ];
           sections.push({
             name: firstNameUpper(g.driver_name),
@@ -653,7 +691,7 @@ async function handleBriefing(base44, params = {}) {
         for (const [driverId, items] of olderByDriver.entries()) {
           if (workedIds2.has(driverId) || !items.length) continue;
           const drvName = driverNameById.get(driverId) || 'Unknown driver';
-          const out = items.map((c) => ({ amount: c.amount, label: `${c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—'} · ${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date)})`}` }));
+          const out = items.map((c) => ({ amount: c.amount, type_label: c.store_id ? (storeAbbrById.get(c.store_id) || '—') : '—', label: `${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date || '')})`}` }));
           noStopSections.push({ name: `${firstNameUpper(drvName)} (NO STOPS TODAY)`, out, outAmt: Math.round(out.reduce((acc, c) => acc + c.amount, 0) * 100) / 100 });
         }
         // Fleet totals across everything rendered.
@@ -669,24 +707,25 @@ async function handleBriefing(base44, params = {}) {
         amtStrs.push(cTotal.toFixed(2), oTotal.toFixed(2));
         const mw = Math.max(...amtStrs.map((x) => x.length), 5);
         const money = (amt) => `$ ${amt.toFixed(2).padStart(mw)}`;
+        // OWNER SPEC (Nov 19 2026): counts come first, and a zero count reads
+        // 'Collected: None' / 'Outstanding: None' rather than $0.00.
         const lines = [];
         lines.push('TOTAL:');
-        lines.push(`Collected ${money(cTotal)} (${cCount})`);
-        lines.push(`Outstanding ${money(oTotal)} (${oCount})`);
+        lines.push(countLine(cCount, 'Collected', cTotal, money));
+        lines.push(countLine(oCount, 'Outstanding', oTotal, money));
         lines.push('');
         for (const sec of sections) {
-          if (sec.noActivity) { lines.push(`${sec.name} — worked today (${sec.deliveries} stops), no COD activity`); lines.push(''); continue; }
-          lines.push(sec.name);
-          lines.push(`Collected: ${money(sec.sqAmt)} (${sec.sq.length})`);
-          for (const c of sec.sq) lines.push(`${money(c.amount)} · ${c.types.join('/')} · ${c.patient_name}`);
-          lines.push(`Outstanding: ${money(sec.outAmt)} (${sec.out.length})`);
-          for (const c of sec.out) lines.push(`${money(c.amount)} · ${c.label}`);
+          if (sec.noActivity) { lines.push(`${sec.name} - No COD today.`); lines.push(''); continue; }
+          lines.push(`${sec.name}:`);
+          lines.push(countLine(sec.sq.length, 'Collected', sec.sqAmt, money));
+          lines.push(countLine(sec.out.length, 'Outstanding', sec.outAmt, money));
+          for (const c of sec.out) lines.push(`${money(c.amount)} · ${pad4(c.type_label)} · ${c.label}`);
           lines.push('');
         }
         for (const sec of noStopSections) {
-          lines.push(sec.name);
-          lines.push(`Outstanding: ${money(sec.outAmt)} (${sec.out.length})`);
-          for (const c of sec.out) lines.push(`${money(c.amount)} · ${c.label}`);
+          lines.push(`${sec.name}:`);
+          lines.push(countLine(sec.out.length, 'Outstanding', sec.outAmt, money));
+          for (const c of sec.out) lines.push(`${money(c.amount)} · ${pad4(c.type_label)} · ${c.label}`);
           lines.push('');
         }
         // ── Card / Loan / Folder balance estimates (owner-only section) ──

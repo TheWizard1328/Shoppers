@@ -117,6 +117,26 @@ function ChatWindow({
     return () => {if (focusRestoreTimeoutRef.current) window.clearTimeout(focusRestoreTimeoutRef.current);};
   }, []);
 
+  // ── READ-STATE MODEL (owner spec Nov 19 2026) ─────────────────────────────
+  //   unread incoming row            → RED border
+  //   read before this open          → GREEN border
+  //   read during this open (10s in) → neutral/white border
+  //   reopen the thread later        → those rows now show GREEN
+  // The 10-second delay is what clears the unread badge on the thread panel.
+  const READ_DELAY_MS = 10000;
+  const [justReadIds, setJustReadIds] = useState(() => new Set());
+  useEffect(() => { setJustReadIds(new Set()); }, [conversationId]);
+
+  const isUnreadForMe = useCallback((m) => {
+    if (!m?.id) return false;
+    const mine = String(m.sender_id || '') === String(currentUser?.id || '')
+      && String(m.receiver_id || '') !== String(currentUser?.id || '');
+    if (mine) return false; // own outgoing rows are never "unread" for me
+    if (m.is_group) return !(Array.isArray(m.read_by) && m.read_by.includes(currentUser?.id));
+    return !m.read;
+  }, [currentUser?.id]);
+
+
   // Mark a single message as read by the current user (group → append read_by; 1:1 → read=true)
   const markMessageRead = useCallback(async (msg) => {
     if (!msg?.id || !currentUser?.id) return;
@@ -138,6 +158,43 @@ function ChatWindow({
       }
     } catch (_e) {/* non-critical */}
   }, [currentUser?.id]);
+
+  // OWNER SPEC (Nov 19 2026): 10 seconds after the thread is opened, every
+  // unread row in it is marked read, the unread badge on the thread panel is
+  // cleared, and the rows' borders go neutral. Rows read this way turn GREEN
+  // the next time the thread is opened.
+  useEffect(() => {
+    if (!conversationId) return undefined;
+    const unread = (messages || []).filter((m) => isUnreadForMe(m) && !justReadIds.has(String(m.id)));
+    if (unread.length === 0) return undefined;
+    const timer = window.setTimeout(async () => {
+      const ids = unread.map((m) => String(m.id));
+      setJustReadIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.add(id));
+        return next;
+      });
+      setMessages((prev) => (prev || []).map((m) => (ids.includes(String(m.id))
+        ? {
+            ...m,
+            read: true,
+            ...(m.is_group
+              ? { read_by: Array.from(new Set([...(m.read_by || []), currentUser?.id])) }
+              : {}),
+          }
+        : m)));
+      await Promise.allSettled(unread.map((m) => markMessageRead(m)));
+      if (onMessagesRead) onMessagesRead(unread.length);
+      // Tell the thread list to drop its badge for this conversation right now
+      // instead of waiting for the panel to be reopened.
+      try {
+        window.dispatchEvent(new CustomEvent('messagesMarkedRead', {
+          detail: { conversationId, count: unread.length },
+        }));
+      } catch { /* noop */ }
+    }, READ_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [conversationId, messages, justReadIds, isUnreadForMe, markMessageRead, onMessagesRead, currentUser?.id]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -161,28 +218,10 @@ function ChatWindow({
         );
         setMessages(mergeMessages([], visibleMessages));
 
-        // Mark unread messages as read
-        const unreadMessages = visibleMessages.filter(
-          (m) => !(m.is_group ?
-          Array.isArray(m.read_by) && m.read_by.includes(currentUser?.id) :
-          m.read) && (
-          m.is_group ? true : m.receiver_id === currentUser?.id) && (
-          // Own outgoing messages are skipped — EXCEPT self-messages
-          // (notes-to-self, sender==receiver), which must be marked read
-          // when the thread is opened.
-          m.sender_id !== currentUser?.id || m.receiver_id === currentUser?.id)
-        );
-        if (unreadMessages.length > 0) {
-          // BURST CAP (owner report Nov 6 2026): a thread with 50 unread rows
-          // fired 50 receipts at once. For a 1:1 thread only the newest unread
-          // message needs the flag; a group thread keeps per-message "Read by"
-          // for the 10 newest. Older rows are stamped by the next thread open.
-          const toMark = unreadMessages[0]?.is_group
-            ? unreadMessages.slice(0, 10)
-            : [unreadMessages[0]];
-          await Promise.allSettled(toMark.map((msg) => markMessageRead(msg)));
-          if (onMessagesRead) onMessagesRead(unreadMessages.length);
-        }
+        // OWNER SPEC (Nov 19 2026): opening a thread no longer stamps it read
+        // immediately. Unread rows keep a RED border while the thread is open
+        // and are marked read 10 seconds later (see the delayed-read effect
+        // below), which also clears the unread badge on the thread list.
       } catch (error) {
         console.error('Error fetching messages:', error);
       } finally {
@@ -209,7 +248,8 @@ function ChatWindow({
       if (event.type === 'create' || event.type === 'update') {
         cacheMessages([event.data]).catch(() => {});
         setMessages((prev) => mergeMessages(prev, [event.data]));
-        markMessageRead(event.data);
+        // The delayed-read effect picks this row up and stamps it after the
+        // 10-second rule, so it shows a red (unread) border first.
       }
     };
 
@@ -368,6 +408,13 @@ function ChatWindow({
     }
   };
 
+  // Reset the auto-grown composer height when the field is emptied by a send.
+  useEffect(() => {
+    if (newMessage !== '') return;
+    const el = inputRef.current;
+    if (el && el.tagName === 'TEXTAREA') el.style.height = 'auto';
+  }, [newMessage]);
+
   const canSend = !isSending && !isSystemUpdatesConversation && (newMessage.trim() || pendingImage);
 
   if (isLoading) {
@@ -451,6 +498,16 @@ function ChatWindow({
           const isStale = !!msg.created_date &&
             (Date.now() - parseEntityTimestamp(msg.created_date).getTime()) > 86400000;
           const isImage = msg.message_type === 'image' && msg.attachment_url;
+          // OWNER SPEC (Nov 19 2026): border = read state.
+          //   unread            -> red
+          //   read this session -> neutral (white)
+          //   read before open  -> green
+          const justReadHere = justReadIds.has(String(msg.id));
+          const incomingBorder = isOwnMessage
+            ? (isStale ? '2px solid #ef4444' : null)
+            : (isUnreadForMe(msg) && !justReadHere
+              ? '2px solid #ef4444'
+              : (justReadHere ? '2px solid transparent' : '2px solid #22c55e'));
           return (
             <div key={msg.id} className={`flex group ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
               {canDelete && isOwnMessage &&
@@ -473,7 +530,7 @@ function ChatWindow({
                 style={{
                   background: isOwnMessage ? '#10b981' : 'var(--bg-white)',
                   color: isOwnMessage ? '#ffffff' : 'var(--text-slate-900)',
-                  ...(isStale ? { border: '2px solid #ef4444' } : {})
+                  ...(incomingBorder ? { border: incomingBorder } : {})
                 }}>
                 
                   {isGroupMode && !isOwnMessage &&
@@ -541,12 +598,22 @@ function ChatWindow({
             
             {isSending && pendingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4 text-body-2" />}
           </Button>
-          <Input
+          {/* OWNER SPEC (Nov 19 2026): the composer grows downward as the text
+              reaches the end of the field instead of scrolling sideways. It
+              wraps at the field width, auto-sizes to the content, and only
+              scrolls once it hits the max height. */}
+          <textarea
             ref={inputRef}
+            rows={1}
             placeholder={isSystemUpdatesConversation ? "Replies are disabled for System Updates" : pendingImage ? "Add a caption (optional)..." : "Type a message..."}
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              const el = e.target;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+            }}
+            onKeyDown={handleKeyPress}
             onFocus={() => {shouldRestoreFocusRef.current = true;intentionalBlurRef.current = false;lastFocusAtRef.current = Date.now();}}
             onBlur={(e) => {
               if (intentionalBlurRef.current) {shouldRestoreFocusRef.current = false;intentionalBlurRef.current = false;return;}
@@ -556,7 +623,8 @@ function ChatWindow({
               if (recentlyFocused || isSending) {shouldRestoreFocusRef.current = true;restoreInputFocus(isMobileRef.current ? 80 : 0);} else
               {shouldRestoreFocusRef.current = false;}
             }}
-            className="flex-1"
+            className="flex-1 resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm leading-5 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ maxHeight: '140px', overflowY: 'auto', minHeight: '36px' }}
             disabled={isSending || isSystemUpdatesConversation} />
           
           <Button
