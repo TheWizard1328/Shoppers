@@ -2659,9 +2659,33 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     return Math.round(total * 100) / 100;
   }, [config, deliveryCredits]);
 
-  const startTrueUp = () => {
+  // FRESH SERVER READ FOR TRUE-UP (owner report Nov 20 2026: "in the past if I
+  // left a field blank it would update it to some older stale value"). The
+  // dialog and the save both used this device's in-memory config as the base,
+  // so a blank field wrote back whatever THIS device last loaded — an older
+  // value than the server's (another device's true-up, or the 60s settings
+  // cache). Read the AppSettings row fresh and use it as the base instead.
+  const readFreshBalanceConfig = useCallback(async () => {
+    try {
+      const rows = await getFreshAppSettingRows(SETTING_KEY);
+      const rec = (rows || []).filter(Boolean).
+      sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
+      const value = rec?.setting_value?.locations?.length ? rec.setting_value : null;
+      return { value, recordId: rec?.id || null };
+    } catch {
+      return { value: null, recordId: null };
+    }
+  }, []);
+
+  const startTrueUp = async () => {
+    const fresh = await readFreshBalanceConfig();
+    const base = fresh.value || config;
+    if (fresh.value) {
+      setConfig(fresh.value);
+      if (fresh.recordId) setConfigRecordId(fresh.recordId);
+    }
     const draft = {};
-    (config?.locations || []).forEach((loc) => {
+    (base?.locations || []).forEach((loc) => {
       // loan_rate stays blank in the dialog — the placeholder shows the
       // existing rate as a percent (17.25); blank keeps the stored fraction.
       draft[loc.location_id] = { card: '', loan: '', loan_rate: '' };
@@ -2693,22 +2717,27 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     if (!Number.isFinite(amt) || amt <= 0) {toast.error('Enter a transfer amount greater than 0');return;}
     if (!transferToLocId) {toast.error('Pick a destination card');return;}
     if (transferToLocId === transferFromLoc.location_id) {toast.error('Destination must be a different card');return;}
-    const locations = (config.locations || []).map((loc) => {
+    // FRESH BASE (owner report Nov 20 2026): a stale cached card_start must not
+    // be written back when moving money between cards.
+    const fresh = await readFreshBalanceConfig();
+    const base = fresh.value || config;
+    const targetRecordId = fresh.recordId || configRecordId;
+    const locations = (base.locations || []).map((loc) => {
       if (loc.location_id === transferFromLoc.location_id) return { ...loc, card_start: Number(loc.card_start || 0) - amt };
       if (loc.location_id === transferToLocId) return { ...loc, card_start: Number(loc.card_start || 0) + amt };
       return loc;
     });
     setIsSaving(true);
     try {
-      const newConfig = { ...config, locations };
-      if (configRecordId) {
-        await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
+      const newConfig = { ...base, locations };
+      if (targetRecordId) {
+        await base44.entities.AppSettings.update(targetRecordId, { setting_value: newConfig });
       } else {
         const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracker config' });
         setConfigRecordId(created?.id || null);
       }
       setConfig(newConfig);
-      const toName = (config.locations || []).find((l) => l.location_id === transferToLocId)?.name || transferToLocId;
+      const toName = (base.locations || []).find((l) => l.location_id === transferToLocId)?.name || transferToLocId;
       toast.success(`Transferred ${fmtMoney(amt)} from ${transferFromLoc.name || transferFromLoc.location_id} to ${toName}`);
       setTransferFromLoc(null);
     } catch (err) {
@@ -2729,26 +2758,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     if (!Number.isFinite(amt) || amt <= 0) {toast.error('Enter a transfer amount greater than 0');return;}
     if (!folderTransferToLocId) {toast.error('Pick a destination card');return;}
     if (amt > folderTotal + 0.001) {toast.error(`Amount exceeds the folder total (${fmtMoney(folderTotal)})`);return;}
-    const locations = (config.locations || []).map((loc) =>
+    // FRESH BASE (owner report Nov 20 2026): same stale-cache rule as the other
+    // money moves — only the two numbers this action touches change.
+    const fresh = await readFreshBalanceConfig();
+    const base = fresh.value || config;
+    const targetRecordId = fresh.recordId || configRecordId;
+    const locations = (base.locations || []).map((loc) =>
     loc.location_id === folderTransferToLocId ?
     { ...loc, card_start: Number(loc.card_start || 0) + amt } :
     loc
     );
     const newConfig = {
-      ...config,
-      folder_start: Number(config.folder_start || 0) - amt,
+      ...base,
+      folder_start: Number(base.folder_start || 0) - amt,
       locations
     };
     setIsSaving(true);
     try {
-      if (configRecordId) {
-        await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
+      if (targetRecordId) {
+        await base44.entities.AppSettings.update(targetRecordId, { setting_value: newConfig });
       } else {
         const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracker config' });
         setConfigRecordId(created?.id || null);
       }
       setConfig(newConfig);
-      const toName = (config.locations || []).find((l) => l.location_id === folderTransferToLocId)?.name || folderTransferToLocId;
+      const toName = (base.locations || []).find((l) => l.location_id === folderTransferToLocId)?.name || folderTransferToLocId;
       toast.success(`Transferred ${fmtMoney(amt)} from Folder to ${toName}`);
       setFolderTransferOpen(false);
     } catch (err) {
@@ -2837,9 +2871,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // NOT reset - this adds money, it is not a true-up.
   const saveTopUp = async () => {
     if (!config) return;
-    const folderRate = Number.isFinite(Number(config.folder_rate)) ? Number(config.folder_rate) : DEFAULT_FOLDER_RATE;
+    // FRESH BASE (owner report Nov 20 2026): never add to this device's cached
+    // copy — a stale card_start/loan_start rewound the balances.
+    const fresh = await readFreshBalanceConfig();
+    const base = fresh.value || config;
+    const targetRecordId = fresh.recordId || configRecordId;
+    const folderRate = Number.isFinite(Number(base.folder_rate)) ? Number(base.folder_rate) : DEFAULT_FOLDER_RATE;
     const totals = { grossC: 0, feeC: 0, loanC: 0, folderC: 0, netC: 0, deductedC: 0 };
-    const locations = (config.locations || []).map((loc) => {
+    const locations = (base.locations || []).map((loc) => {
       const typed = signedCentsValue(topUpDraft[loc.location_id]);
       const amtC = Math.round((Number(typed) || 0) * 100);
       if (!Number.isFinite(amtC) || amtC === 0) return loc;
@@ -2864,12 +2903,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         loan_start: nextLoan
       };
     });
-    const nextFolderStart = (Math.round(Number(config.folder_start || 0) * 100) + totals.folderC) / 100;
+    const nextFolderStart = (Math.round(Number(base.folder_start || 0) * 100) + totals.folderC) / 100;
     setIsSaving(true);
     try {
-      const newConfig = { ...config, folder_start: nextFolderStart, locations };
-      if (configRecordId) {
-        await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
+      const newConfig = { ...base, folder_start: nextFolderStart, locations };
+      if (targetRecordId) {
+        await base44.entities.AppSettings.update(targetRecordId, { setting_value: newConfig });
       } else {
         const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracking' });
         setConfigRecordId(created?.id || null);
@@ -2961,7 +3000,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
 
   const saveTrueUp = async () => {
     if (!config) return;
-    const locations = (config.locations || []).map((loc) => {
+    // ONLY ENTERED FIELDS CHANGE (owner rule Nov 20 2026): blank = keep the
+    // CURRENT server value, never this device's cached copy.
+    const fresh = await readFreshBalanceConfig();
+    const base = fresh.value || config;
+    const baseById = new Map((base?.locations || []).map((l) => [l.location_id, l]));
+    (config.locations || []).forEach((l) => {if (!baseById.has(l.location_id)) baseById.set(l.location_id, l);});
+    const locations = [...baseById.values()].map((loc) => {
       const d = trueUpDraft[loc.location_id] || {};
       const card = parseFloat(d.card);
       const loan = parseFloat(d.loan);
@@ -2976,6 +3021,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       };
     });
     const folderVal = parseFloat(trueUpDraft.__folder);
+    const baseFolderStart = Number(base?.folder_start ?? config.folder_start ?? 0);
     // FLAG PRE-EXISTING CODs AS "ALREADY COUNTED" (owner rule, Oct 8 2026): the
     // true-up value is the REAL card balance right now, so every COD already in
     // the system (pending / in_transit / en_route, plus completed charges still
@@ -2996,16 +3042,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       (rows || []).forEach((r) => {if (r?.delivery_id) countedIds.add(String(r.delivery_id));});
     }
     const newConfig = {
-      ...config,
+      ...base,
       locations,
-      folder_start: Number.isFinite(folderVal) ? folderVal : Number(config.folder_start || 0),
+      folder_start: Number.isFinite(folderVal) ? folderVal : baseFolderStart,
       trued_up_at: new Date().toISOString(),
       trued_up_counted_ids: Array.from(countedIds)
     };
+    const targetRecordId = fresh.recordId || configRecordId;
     setIsSaving(true);
     try {
-      if (configRecordId) {
-        await base44.entities.AppSettings.update(configRecordId, { setting_value: newConfig });
+      if (targetRecordId) {
+        await base44.entities.AppSettings.update(targetRecordId, { setting_value: newConfig });
       } else {
         const created = await base44.entities.AppSettings.create({ setting_key: SETTING_KEY, setting_value: newConfig, description: 'Square card/loan/folder balance tracker config' });
         setConfigRecordId(created?.id || null);
