@@ -1735,10 +1735,17 @@ export default function DeliveryFormView({
                                 <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={(c) => setFormData((p) => ({ ...p, no_charge: c }))} disabled={isSaving} tooltip="For when 2 or more deliveries are being delivered to the same exact address, excluding multiple deliveries to the same apartment building at different unit numbers. ie: Multiple family members at the same address." />
                               </div>
                             </div>
-                            <div className="min-w-0 flex flex-col justify-start">
-                              {formData.care_pros ?
-                              <>
-                                  
+                            {/* OWNER SPEC (Nov 20 2026): this column must occupy the
+                                Care Pro height in BOTH states. Both blocks are stacked in
+                                the same grid cell; the inactive one is visibility:hidden,
+                                which keeps its space but is not clickable. The cell is
+                                therefore always as tall as the taller block (the Care Pro
+                                one), so ticking/unticking Care Pro's never resizes the
+                                Delivery Options panel. */}
+                            <div className="min-w-0 grid">
+                              <div
+                                className={`col-start-1 row-start-1 space-y-3 ${formData.care_pros ? '' : 'invisible'}`}
+                                aria-hidden={!formData.care_pros}>
                                   <div className="space-y-3">
                                     <div className="space-y-1">
                                       <Label className="text-xs text-slate-500">Care Pro Name</Label>
@@ -1749,9 +1756,10 @@ export default function DeliveryFormView({
                                       <Input type="number" min="0" value={formData.cp_envelopes ?? 0} onChange={(e) => setFormData((p) => ({ ...p, cp_envelopes: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 }))} placeholder="0" className="h-9 text-sm" disabled={isSaving} data-hotkey-add="true" />
                                     </div>
                                   </div>
-                                </> :
-
-                              <>
+                              </div>
+                              <div
+                                className={`col-start-1 row-start-1 flex flex-col ${formData.care_pros ? 'invisible' : ''}`}
+                                aria-hidden={!!formData.care_pros}>
                                   <Label className="text-sm font-semibold text-body">COD</Label>
                                   <div className="space-y-3">
                                     <div className="flex items-center space-x-2">
@@ -1765,8 +1773,7 @@ export default function DeliveryFormView({
                                       </div>
                                   }
                                   </div>
-                                </>
-                              }
+                              </div>
                             </div>
                           </div>
                         </div>
