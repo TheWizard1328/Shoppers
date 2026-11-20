@@ -16,6 +16,7 @@ import {
   hasPendingCyclingLoop,
   unitNumberMicroSort as sharedUnitNumberMicroSort,
   pickPolylineOrigin,
+  polylineEndPoint,
   buildEtaChain as sharedBuildEtaChain,
   windowFloorMinutesOf as sharedWindowFloorMinutesOf,
   parseTimeToMinutes as sharedParseTimeToMinutes,
@@ -1296,14 +1297,33 @@ let _inheritedWindowCount = 0;
     // SHARED RULE (routeRules.js pickPolylineOrigin): highest finished stop_order,
     // then home, never the live GPS and never the first active stop. The server
     // engine calls the SAME function, so the two can never disagree.
+    // OWNER BUG (Nov 20 2026): the cycling start marker at stop 25 was pinned to
+    // the Callingwood pickup at stop 8 - a 32.6 km leg where the real one was 3 km
+    // from stop 24. Cause: a finished stop whose patient/store lookup missed was
+    // DROPPED from the candidates, so the pick fell back to the newest finished
+    // stop that still resolved. Every finished stop now stays in the race and its
+    // coordinates are repaired from its own stored polyline end.
+    const _originCoordsOf = (d) => {
+      if (!d) return null;
+      const patientMissing = !!d.patient_id && !patientMap?.get?.(d.patient_id);
+      const direct = patientMissing ? null : getDeliveryCoords(d, patientMap, storeMap);
+      if (direct) return direct;
+      const fromPoly = polylineEndPoint(d);
+      if (fromPoly) return fromPoly;
+      return getDeliveryCoords(d, patientMap, storeMap);
+    };
     const _sharedOriginPick = pickPolylineOrigin({
-      finishedWithCoords: (completedDeliveries || [])
-        .map((d) => {
-          const c = getDeliveryCoords(d, patientMap, storeMap);
-          return c ? { lat: Number(c.lat), lng: Number(c.lon ?? c.lng), stop_order: d.stop_order, record: d } : null;
-        })
-        .filter(Boolean),
+      finishedWithCoords: (completedDeliveries || []).map((d) => {
+        const c = _originCoordsOf(d);
+        return {
+          lat: c ? Number(c.lat) : null,
+          lng: c ? Number(c.lon ?? c.lng) : null,
+          stop_order: d.stop_order,
+          record: d,
+        };
+      }),
       home: resolvedHomePosition,
+      resolveMissingCoords: (rec) => polylineEndPoint(rec),
     });
     const _lastFinishedByOrder = _sharedOriginPick?.record ? { d: _sharedOriginPick.record } : null;
     const _homeCoords = resolvedHomePosition
@@ -1724,12 +1744,24 @@ let _inheritedWindowCount = 0;
         // has NO cycling-mode stops, which is the two-marker case that used to
         // generate nothing at all.
         if (_endAny instanceof Object && _endAny.delivery) {
-          const _finishedCycling = (Array.isArray(allDeliveries) ? allDeliveries : [])
+          // OWNER BUG (Nov 20 2026): a SECOND cycling loop of the day was anchored
+          // at the FIRST loop's finished cycling stop (Callingwood), so the new
+          // Londonderry marker drew a 32.6 km leg from the wrong side of the city.
+          // Only cycling stops belonging to THIS loop (between its own two markers
+          // in route order) may anchor it, and the loop always starts at its own
+          // start marker when one exists.
+          const _finishedCyclingAll = (Array.isArray(allDeliveries) ? allDeliveries : [])
             .filter((d) => d && String(d.driver_id) === String(driverId) && d.delivery_date === deliveryDate
               && _finishedStatuses.includes(String(d.status || ''))
-              && (d.is_cycling_marker || String(d.transport_mode || '').toLowerCase() === 'cycling'))
-            .sort((a, b) => String(b.actual_delivery_time || '').localeCompare(String(a.actual_delivery_time || '')));
-          const _loopStartRow = _finishedCycling[0] || _startAny || null;
+              && (d.is_cycling_marker || String(d.transport_mode || '').toLowerCase() === 'cycling'));
+          const _finishedCycling = (_startOrderNum != null && _endOrderNum != null && Number.isFinite(_startOrderNum) && Number.isFinite(_endOrderNum))
+            ? _finishedCyclingAll.filter((d) => {
+              const o = Number(d.stop_order);
+              return Number.isFinite(o) && o >= _startOrderNum && o <= _endOrderNum;
+            })
+            : _finishedCyclingAll;
+          _finishedCycling.sort((a, b) => String(b.actual_delivery_time || '').localeCompare(String(a.actual_delivery_time || '')));
+          const _loopStartRow = _startAny || _finishedCycling[0] || null;
           const _loopOrigin = _loopStartRow
             ? { lat: Number(_loopStartRow.lat ?? _loopStartRow.cycling_latitude ?? _loopStartRow.patient_latitude), lon: Number(_loopStartRow.lng ?? _loopStartRow.cycling_longitude ?? _loopStartRow.patient_longitude) }
             : null;

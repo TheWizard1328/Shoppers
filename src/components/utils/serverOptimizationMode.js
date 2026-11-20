@@ -23,7 +23,7 @@ import { getWinterModeSettings } from './winterModeSettings';
 import { base44 } from '@/api/base44Client';
 import { isAppOwner } from './userRoles';
 import { getDeliveryCoords, getLatestFinishedDelivery } from './clientRouteEngine';
-import { pickPolylineOrigin } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+import { pickPolylineOrigin, polylineEndPoint } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 
 const MODE_CACHE_TTL_MS = 60 * 1000;
 let _cachedMode = { mode: 'client', at: 0, checked: false };
@@ -396,14 +396,30 @@ export const buildServerOptimizeRequest = async ({
   // the driver's home when nothing has been finished yet. The old
   // getLatestFinishedDelivery() pick sorted by timestamps and could disagree
   // with the stop order the route is actually drawn in; it is gone from here.
+  // Same repair as the client engine (owner bug Nov 20 2026): a finished stop with
+  // an unresolvable patient/store lookup must NOT be dropped from the origin race -
+  // it is repaired from the end of its own stored polyline instead.
+  const _originCoordsOfSrv = (d) => {
+    if (!d) return null;
+    const patientMissing = !!d.patient_id && !patientMap?.get?.(d.patient_id);
+    const direct = patientMissing ? null : getDeliveryCoords(d, patientMap, storeMap);
+    if (direct) return direct;
+    const fromPoly = polylineEndPoint(d);
+    if (fromPoly) return fromPoly;
+    return getDeliveryCoords(d, patientMap, storeMap);
+  };
   const _sharedOrigin = pickPolylineOrigin({
-    finishedWithCoords: completed
-      .map((d) => {
-        const c = getDeliveryCoords(d, patientMap, storeMap);
-        return c ? { lat: Number(c.lat), lng: Number(c.lon ?? c.lng), stop_order: d.stop_order, record: d } : null;
-      })
-      .filter(Boolean),
+    finishedWithCoords: completed.map((d) => {
+      const c = _originCoordsOfSrv(d);
+      return {
+        lat: c ? Number(c.lat) : null,
+        lng: c ? Number(c.lon ?? c.lng) : null,
+        stop_order: d.stop_order,
+        record: d,
+      };
+    }),
     home,
+    resolveMissingCoords: (rec) => polylineEndPoint(rec),
   });
   let polylineOrigin = _sharedOrigin ? { lat: _sharedOrigin.lat, lng: _sharedOrigin.lng } : null;
   // HARD GUARD (owner report Nov 16 2026): an origin that IS the first active stop

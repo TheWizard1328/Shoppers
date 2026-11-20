@@ -742,13 +742,75 @@ export function normalizeAddressKey(address) {
 // HERE and both engines import it. Change it once, both sides inherit it.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── LAST-RESORT ORIGIN COORDS (owner bug, Nov 20 2026) ───────────────────────
+// "the cycling route start marker ... pinned the origin for the polyline all the
+// way back to the Callingwood pickup which was stop number eight and this cycling
+// route start marker is stop 25, should have been pinned to stop 24."
+//
+// A finished stop's coords are normally resolved from the patient / store records.
+// When those lookups miss (patients or stores not loaded in that run, a deleted
+// patient, a store with no coordinates) the stop was silently DROPPED from the
+// origin candidates, so the pick fell back to whatever older finished stop still
+// resolved - here the Callingwood cycling pickup at stop 8 - and a 32.6 km leg
+// was drawn where the real leg was 3 km.
+//
+// A finished stop ALWAYS knows where it ended: the last point of its own stored
+// polyline. Decoding that gives the origin coordinates with no patient or store
+// data at all, so a lookup miss can never push the origin backwards again.
+const _decodeLastPoint = (encoded) => {
+  if (typeof encoded !== 'string' || encoded.length < 4) return null;
+  let i = 0, lat = 0, lng = 0;
+  const readVal = () => {
+    let res = 0, shift = 0, b;
+    do {
+      if (i >= encoded.length) return null;
+      b = encoded.charCodeAt(i++) - 63;
+      res |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    return (res & 1) ? ~(res >> 1) : (res >> 1);
+  };
+  while (i < encoded.length) {
+    const dLat = readVal();
+    if (dLat === null) break;
+    const dLng = readVal();
+    if (dLng === null) break;
+    lat += dLat;
+    lng += dLng;
+  }
+  if (!lat && !lng) return null;
+  // 1e5 is the standard; breadcrumbs use 1e7. Pick the scale that lands in range.
+  for (const scale of [1e5, 1e7]) {
+    const la = lat / scale, ln = lng / scale;
+    if (Math.abs(la) <= 90 && Math.abs(ln) <= 180) return { lat: la, lng: ln };
+  }
+  return null;
+};
+
+export const polylineEndPoint = (delivery) => {
+  if (!delivery) return null;
+  const enc = delivery.encoded_polyline || delivery.finished_leg_encoded_polyline || null;
+  return _decodeLastPoint(enc);
+};
+
 // The chain origin: the finished stop with the HIGHEST stop_order (that is the
 // order everything downstream is drawn in), then the driver's home when nothing
 // has been finished. NEVER the live GPS and NEVER the first active stop - an
 // origin equal to the destination draws a closed loop.
-export const pickPolylineOrigin = ({ finishedWithCoords = [], home = null } = {}) => {
+export const pickPolylineOrigin = ({ finishedWithCoords = [], home = null, resolveMissingCoords = null } = {}) => {
   const _ok = (p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng ?? p.lon));
-  const _sorted = (finishedWithCoords || [])
+  // Fill coordinate gaps BEFORE sorting: a finished stop with no resolved coords
+  // is repaired from its own stored polyline end (or the caller's resolver) so it
+  // stays in the race for "highest finished stop_order". Dropping it is what sent
+  // the origin 16 stops backwards on Nov 20 2026.
+  const _filled = (finishedWithCoords || []).map((p) => {
+    if (!p) return p;
+    if (_ok(p)) return p;
+    const fb = (resolveMissingCoords ? resolveMissingCoords(p.record) : null) || polylineEndPoint(p.record);
+    if (!_ok(fb)) return p;
+    return { ...p, lat: Number(fb.lat), lng: Number(fb.lng ?? fb.lon), coordsFromPolyline: true };
+  });
+  const _sorted = _filled
     .filter(_ok)
     .sort((a, b) => (Number(b.stop_order) || 0) - (Number(a.stop_order) || 0));
   if (_sorted.length) {
