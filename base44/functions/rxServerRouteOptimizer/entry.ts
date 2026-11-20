@@ -1408,7 +1408,19 @@ Deno.serve(async (req) => {
       // every ACTIVE non-next stop at polyline generation/commit time —
       // parity with the client engine's pre-generation clear. The next
       // stop keeps its waypoints (live driven path of the current leg).
-      if (!isNextStop && !stop.isCyclingMarker
+      // PARITY + ADDRESS-EDIT PROTECTION (owner report Nov 19 2026):
+      //  • an in_transit / en_route stop IS the current target by definition, so
+      //    it keeps its vias exactly like the client engine's Nov 16 rule — the
+      //    old `!isNextStop` test alone wiped the stop the driver was driving to
+      //    whenever its next flag was momentarily unset;
+      //  • a caller can also name stops that must keep their vias outright
+      //    (correcting a patient's address on the active stop), passed as
+      //    options.preserveDeviationStopIds.
+      const _preserveVias: string[] = Array.isArray((options as any)?.preserveDeviationStopIds)
+        ? ((options as any).preserveDeviationStopIds as any[]).map(String)
+        : [];
+      const _inHandStop = ['in_transit', 'en_route'].includes(String(stop.status || ''));
+      if (!isNextStop && !_inHandStop && !_preserveVias.includes(String(stop.id)) && !stop.isCyclingMarker
         && ['pending', 'in_transit', 'en_route'].includes(String(stop.status || ''))
         && Array.isArray(stop.deviationWaypoints) && stop.deviationWaypoints.length > 0) {
         updateData.deviation_waypoints = [];

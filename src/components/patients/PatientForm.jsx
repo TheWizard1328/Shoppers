@@ -774,15 +774,26 @@ export default function PatientForm({
                   driver_id: selectedDriverId,
                   delivery_date: selectedDate
                 });
-                // Clear isNextDelivery and origin lat/lng on affected deliveries
-                await Promise.all(affectedDeliveries.map((d) =>
+                // OWNER REPORT (Nov 19 2026): correcting a patient's address on
+                // the stop the driver is ALREADY travelling to demoted that stop
+                // (isNextDelivery false, origin null) and the re-optimization then
+                // wiped its deviation points, so the driven path vanished and only
+                // one stale point came back. A stop that is in_transit / en_route
+                // (or is the current next stop) keeps its flag, its origin AND its
+                // deviation points through an address correction; only the stops
+                // that have not been started are reset.
+                const _inHandIds = affectedDeliveries
+                  .filter((d) => ['in_transit', 'en_route'].includes(String(d.status || '').toLowerCase()) || d.isNextDelivery === true)
+                  .map((d) => String(d.id));
+                const _resettable = affectedDeliveries.filter((d) => !_inHandIds.includes(String(d.id)));
+                await Promise.all(_resettable.map((d) =>
                 base44.entities.Delivery.update(d.id, {
                   isNextDelivery: false,
                   first_leg_origin_lat: null,
                   first_leg_origin_lng: null
                 }).catch(() => {})
                 ));
-                console.log(`  🧹 Cleared isNextDelivery + origin on ${affectedDeliveries.length} delivery/deliveries`);
+                console.log(`  🧹 Cleared isNextDelivery + origin on ${_resettable.length} delivery/deliveries (kept ${_inHandIds.length} in-hand stop(s) intact)`);
 
                 // Run route optimizer from driver's current GPS location
                 const driverAppUsers = await base44.entities.AppUser.filter({ user_id: selectedDriverId });
@@ -797,7 +808,10 @@ export default function PatientForm({
                   deliveryDate: selectedDate,
                   currentLocation,
                   bypassDriverStatus: true,
-                  source: 'patient_address_change'
+                  source: 'patient_address_change',
+                  // Keep the driven path on the stop(s) the driver is travelling
+                  // to — an address correction must never cost those points.
+                  preserveDeviationStopIds: _inHandIds
                 });
                 console.log('  ✅ Route re-optimized after patient location change:', optimizeResult?.optimizeData?.optimizedCount, 'stops');
 

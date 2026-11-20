@@ -78,6 +78,7 @@ async function _performRouteOptimizationInner({
   source = 'coordinator',
   bypassDriverStatus = true,
   preserveExistingOrder = false,
+  preserveDeviationStopIds = [],
   cyclingSegmentOnly = false,
   cyclingOrigin = null,
   cyclingDestination = null,
@@ -455,6 +456,10 @@ async function _performRouteOptimizationInner({
             forceRegenerate,
             clearNextDeliveryLock,
             startingStopOrder,
+            // ADDRESS-EDIT PROTECTION (owner report Nov 19 2026): a stop the
+            // driver is already travelling to keeps its deviation points even
+            // while the patient's address is being corrected underneath it.
+            preserveDeviationStopIds,
           });
           if (serverResult?.supported && serverResult?.success) {
             engineResult = serverResult;
@@ -502,6 +507,7 @@ async function _performRouteOptimizationInner({
         excludeStopIds,
         startingStopOrder,
         includePendingPolylines,
+        preserveDeviationStopIds,
       }).catch((err) => {
         // Full message + stack head — remoteLogger JSON-stringifies Error
         // objects to '{}' (message/stack are non-enumerable), hiding the real

@@ -267,6 +267,7 @@ export const buildServerOptimizeRequest = async ({
   driverId, deliveryDate, preserveExistingOrder = false,
   clearNextDeliveryLock = false, startingStopOrder = null,
   forceRegenerate = false,
+  preserveDeviationStopIds = [],
 }) => {
   const patientMap = new Map((patients || []).map(p => [p.id, p]));
   const storeMap = new Map((stores || []).map(s => [s.id, s]));
@@ -633,6 +634,12 @@ export const buildServerOptimizeRequest = async ({
         explicitNextDeliveryId: explicitNext?.id || null,
         clearNextDeliveryLock,
         routeInProgress,
+        // ADDRESS-EDIT PROTECTION (owner report Nov 19 2026): the server used
+        // to clear deviation_waypoints on every active stop that was not
+        // flagged next — including the stop the driver was already driving to.
+        // Correcting a patient's address demotes that flag for a moment, so the
+        // driven path was wiped. These ids keep their vias.
+        preserveDeviationStopIds: (Array.isArray(preserveDeviationStopIds) ? preserveDeviationStopIds : []).map(String),
       },
     },
   };

@@ -454,6 +454,11 @@ export async function optimizeRouteClientSide({
   polylineApiKey = null,
   clearNextDeliveryLock = false,
   includePendingPolylines = false,
+  // Stop ids whose deviation_waypoints must survive this run untouched (owner
+  // report Nov 19 2026: correcting a patient's address on the in-transit stop
+  // wiped the driven path). Callers pass the stops the driver is already
+  // travelling to; the pre-generation clear skips them.
+  preserveDeviationStopIds = [],
 }) {
   if (!driverId || !deliveryDate) {
     return { success: false, error: 'Missing driverId or deliveryDate' };
@@ -1509,9 +1514,14 @@ let _inheritedWindowCount = 0;
     try {
       const _clearedViaIds = [];
       let _keptInHandVia = null;
+      const _preserveVias = new Set((Array.isArray(preserveDeviationStopIds) ? preserveDeviationStopIds : []).map(String));
       for (const rs of routeStops) {
         const d = rs?.delivery;
         if (!d || d.isNextDelivery) continue; // next keeps its waypoints
+        // ADDRESS-EDIT PROTECTION (owner report Nov 19 2026): correcting a
+        // patient's address must never cost the driver the path already driven
+        // to that stop, so an explicitly preserved stop keeps its vias.
+        if (_preserveVias.has(String(d.id))) continue;
         if (d.is_cycling_marker) continue; // cycling markers carry no vias
         // OWNER MODEL (Nov 9 2026): deviation points exist ONLY on finished stops
         // and on the stop the driver is travelling to. Finished stops keep history;
