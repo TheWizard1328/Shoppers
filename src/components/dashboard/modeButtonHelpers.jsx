@@ -1,5 +1,6 @@
 import { normalizeTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { haversineKm } from '@/components/utils/geoUtils';
+import { getInterStoreStopName, getInterStoreKindOf, getInterStoreLocationForRecordSync } from '@/components/utils/interStoreDisplayName';
 
 function toRadians(value) {
   return (Number(value) * Math.PI) / 180;
@@ -49,6 +50,34 @@ export function getNearbyModeStops({ deliveries = [], patients = [], stores = []
     .map((delivery) => {
       const store = stores.find((item) => item?.id === delivery.store_id);
       const storeAbbreviation = store?.abbreviation || null;
+
+      // INTER-STORE STOPS NAME THEMSELVES LIKE THEIR STOP CARD (owner report
+      // Nov 20 2026: a Hamptons drop-off showed as "Hamptons" here but
+      // "InterStore DropOff" on its card). Checked BEFORE the patient branch
+      // because an inter-store row has no patient_id and used to fall through
+      // to the store-pickup branch, which printed the store's name.
+      const interStoreName = getInterStoreStopName(delivery);
+      if (interStoreName) {
+        const isd = getInterStoreKindOf(delivery) === 'ISD';
+        const loc = getInterStoreLocationForRecordSync(delivery);
+        const lat = Number(loc?.store_latitude || store?.latitude);
+        const lon = Number(loc?.store_longitude || store?.longitude);
+        const distanceKm = (distanceOrigin && Number.isFinite(lat) && Number.isFinite(lon) && lat && lon)
+          ? calculateDistanceKm(distanceOrigin, { latitude: lat, longitude: lon })
+          : null;
+        if (currentLocation && distanceKm !== null && distanceKm > radiusKm) return null;
+        return {
+          id: delivery.id,
+          label: interStoreName,
+          subtitle: loc?.store_address || '',
+          distanceKm,
+          storeAbbreviation,
+          storeColor: store?.color || null,
+          status: delivery.status,
+          stopType: isd ? 'interstore_dropoff' : 'interstore_pickup',
+          delivery
+        };
+      }
 
       if (delivery.patient_id) {
         const patient = patients.find((item) => item?.id === delivery.patient_id || item?.patient_id === delivery.patient_id);

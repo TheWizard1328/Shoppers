@@ -341,6 +341,22 @@ export async function resolveInterStoreLocationForRecord(delivery) {
   return resolveInterStoreLocation(delivery.delivery_id);
 }
 
+/**
+ * DISPLAY NAME FOR AN INTER-STORE STOP — the SAME string the stop card shows
+ * (owner report Nov 20 2026: the cycling selection panel listed a Hamptons
+ * inter-store drop-off as plain "Hamptons", while its stop card reads
+ * "InterStore DropOff"). Card parity lives in useDeliveryDisplayInfo:
+ *   ISD → 'InterStore DropOff'      ISP → '{Store Name}(ISP)'
+ * Use this anywhere a non-card list has to name an inter-store stop.
+ */
+export function getInterStoreStopName(delivery) {
+  const kind = getInterStoreKindOf(delivery);
+  if (!kind) return null;
+  if (kind === 'ISD') return 'InterStore DropOff';
+  const loc = getInterStoreLocationForRecordSync(delivery);
+  return loc?.store_name ? `${loc.store_name}(ISP)` : 'InterStore PickUp';
+}
+
 /** Sync variant used while building map markers: entity-id cache first, phone cache second. */
 export function getInterStoreLocationForRecordSync(delivery) {
   const kind = getInterStoreKindOf(delivery);
