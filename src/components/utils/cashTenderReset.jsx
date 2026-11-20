@@ -9,13 +9,15 @@
 // footer action and the Square COD/Balances tender edit all behave the same.
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
+import { isCashLikeType } from '@/components/utils/codPaymentTypes';
 
 const DIRECT_TYPES = ['debit', 'credit', 'cheque', 'check', 'card', 'archived'];
 
 /** true when the payment set is cash money and nothing was taken on a card/cheque. */
 export function isCashOnlyCollection(codPayments) {
   const list = Array.isArray(codPayments) ? codPayments : [];
-  const hasCash = list.some((p) => String(p?.type || '').toLowerCase() === 'cash' && Number(p?.amount || 0) > 0);
+  // Cash AND E-Transfer (owner spec Nov 20 2026) — neither is a card tender.
+  const hasCash = list.some((p) => isCashLikeType(p?.type) && Number(p?.amount || 0) > 0);
   const hasDirect = list.some((p) => DIRECT_TYPES.includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0);
   return hasCash && !hasDirect;
 }

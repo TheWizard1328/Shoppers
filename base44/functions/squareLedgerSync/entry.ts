@@ -2433,7 +2433,8 @@ Deno.serve(async (req) => {
           for (const d of list) {
             if (d?.status !== 'completed' || d?.cod_confirmed_collected || !isCounted(d)) continue;
             const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-            const cash = payments.filter((p: any) => String(p?.type || '').toLowerCase() === 'cash').reduce((s: number, p: any) => s + centsOf(p?.amount), 0);
+            // Cash AND E-Transfer (owner spec Nov 20 2026).
+            const cash = payments.filter((p: any) => ['cash', 'e-transfer', 'etransfer', 'e_transfer', 'e transfer'].includes(String(p?.type || '').trim().toLowerCase())).reduce((s: number, p: any) => s + centsOf(p?.amount), 0);
             if (cash <= 0) continue;
             const locId = storeToLoc.get(String(d?.store_id || ''));
             if (!locId) continue;

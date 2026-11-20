@@ -1,3 +1,5 @@
+import { normalizeCodType } from '@/components/utils/codPaymentTypes';
+
 export function matchesDeliveryCodFilter(delivery, selectedCodFilter) {
   if (selectedCodFilter === 'all_deliveries') return true;
 
@@ -7,16 +9,15 @@ export function matchesDeliveryCodFilter(delivery, selectedCodFilter) {
   // Normalize the money-type value to "cheque". The COD type was renamed from
   // "Check" to "Cheque"; legacy records may still carry "Check" in cod_payments
   // or the deprecated cod_payment_type field, so map the old spelling on read.
-  const normalizeType = (value) => {
-    const lower = String(value || '').toLowerCase();
-    return lower === 'check' ? 'cheque' : lower;
-  };
+  // 'Check' → 'cheque' (renamed) and every e-transfer spelling → 'e-transfer'
+  // (owner spec Nov 20 2026: E-Transfer is a first-class COD collection type).
+  const normalizeType = (value) => normalizeCodType(value);
   const paymentTypes = codPayments.map((payment) => normalizeType(payment?.type));
   const legacyType = normalizeType(delivery?.cod_payment_type);
 
   if (selectedCodFilter === 'all') {
-    const hasPaymentType = paymentTypes.some((type) => ['cash', 'debit', 'credit', 'cheque', 'archived'].includes(type));
-    const hasLegacyType = ['cash', 'debit', 'credit', 'cheque', 'archived'].includes(legacyType);
+    const hasPaymentType = paymentTypes.some((type) => ['cash', 'debit', 'credit', 'cheque', 'e-transfer', 'archived'].includes(type));
+    const hasLegacyType = ['cash', 'debit', 'credit', 'cheque', 'e-transfer', 'archived'].includes(legacyType);
     return codAmount > 0 || legacyAmount > 0 || hasPaymentType || hasLegacyType;
   }
 

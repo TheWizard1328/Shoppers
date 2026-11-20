@@ -57,6 +57,11 @@ export const getPaymentMethodBadge = (method) => {
   } else if (normalizedMethod.startsWith('check') || normalizedMethod.startsWith('cheque')) {
     displayMethod = 'Cheque';
     className = 'bg-amber-100 text-amber-800';
+  } else if (normalizedMethod.startsWith('e-transfer') || normalizedMethod.startsWith('etransfer') || normalizedMethod.startsWith('e_transfer') || normalizedMethod.startsWith('e transfer')) {
+    // E-Transfer (owner spec Nov 20 2026) — treated like cash everywhere, but
+    // labelled so the driver/dispatcher can see how it came in.
+    displayMethod = 'E-Transfer';
+    className = 'bg-emerald-100 text-emerald-800';
   } else if (normalizedMethod.startsWith('archived')) {
     displayMethod = 'Archived';
     className = 'bg-blue-100 text-blue-800';

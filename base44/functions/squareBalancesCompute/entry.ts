@@ -541,7 +541,8 @@ async function computeSummary(b44, userId) {
     const required = Number(d?.cod_total_amount_required || 0);
     if (required <= 0 || !isCountedDate(d)) continue;
     const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-    const hasCash = payments.some((p) => String(p?.type || '').toLowerCase() === 'cash');
+    // Cash AND E-Transfer (owner spec Nov 20 2026) both await the drawer.
+    const hasCash = payments.some((p) => ['cash', 'e-transfer', 'etransfer', 'e_transfer', 'e transfer'].includes(String(p?.type || '').trim().toLowerCase()));
     const hasCard = payments.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
     if (!hasCash || hasCard) continue;
     const locId = storeToLoc.get(String(d?.store_id || ''));

@@ -11,6 +11,7 @@ import { useAppData } from '../utils/AppDataContext';
 import { getPendingSquarePosLaunch, verifySquareTender, clearPendingSquarePosLaunch } from '../utils/squareTenderVerify';
 import { peekRecordedTender, findUnsavedSelections, VERIFIABLE_TYPES } from '../utils/codTenderPrecheck';
 import { toast } from 'sonner';
+import { COD_TYPE_OPTIONS } from '../utils/codPaymentTypes';
 
 export default function StopCardCODCollection({
   delivery,
@@ -236,11 +237,9 @@ export default function StopCardCODCollection({
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent position="item-aligned" side="bottom" onClick={(e) => e.stopPropagation()} className="z-[2147483647] relative">
-                    <SelectItem value="Cash">Cash</SelectItem>
-                    <SelectItem value="Debit">Debit</SelectItem>
-                    <SelectItem value="Credit">Credit</SelectItem>
-                    <SelectItem value="Cheque">Cheque</SelectItem>
-                    <SelectItem value="Archived">Archived</SelectItem>
+                    {COD_TYPE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 

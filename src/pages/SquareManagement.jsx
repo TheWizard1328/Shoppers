@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { isCashLikeType } from "@/components/utils/codPaymentTypes";
 import { invokeWithLongTimeout } from "@/components/utils/squareLongTimeout";
 import { useAppData } from "@/components/utils/AppDataContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -2754,7 +2755,7 @@ const finalDataHasCompleteTxMirror = (res, rows) =>
       // Only Cash payments belong in Reconcile — Debit/Credit/Check are collected
       // directly via card machine (or treated like card) and don't need a matching Square catalog item.
       const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-      const hasCash = codPayments.some((p) => p?.type === 'Cash');
+      const hasCash = codPayments.some((p) => isCashLikeType(p?.type));
       if (!hasCash) return false;
       return true;
     }).

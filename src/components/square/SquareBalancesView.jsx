@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from "@/api/base44Client";
+import { isCashLikeType } from "@/components/utils/codPaymentTypes";
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -333,7 +334,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                 title="Tap to set this failed COD to Debit, Credit or Refunded"
                 // No role="button" (same min-height CSS trap as the pills).
                 className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span> :
-              (r.collected || r.cashAwaitingSquare) && ['Cash', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ?
+              (r.collected || r.cashAwaitingSquare) && ['Cash', 'E-Transfer', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ?
               <span
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
@@ -1287,7 +1288,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const cashCollectedDeliveryIds = new Set();
         const cardPaidDeliveryIds = new Set();
         const resolvedIds = new Set();
-        const isCashCompleted = (d) => String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => String(p?.type).toLowerCase() === 'cash');
+        const isCashCompleted = (d) => String(d?.status) === 'completed' && (d?.cod_payments || []).some((p) => isCashLikeType(p?.type));
         // ANY Debit/Credit payment on the delivery = collected on the card
         // (covers completed flips AND the pending-item-in-a-combined-swipe
         // path in cashToCard, which creates card payments on uncollected
@@ -1607,6 +1608,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const label = types.includes('debit') ? 'Debit' :
         types.includes('credit') ? 'Credit' :
         types.includes('cheque') ? 'Cheque' :
+        types.some((t) => t.startsWith('e-transfer') || t.startsWith('etransfer') || t.startsWith('e_transfer') || t.startsWith('e transfer')) ? 'E-Transfer' :
         'Cash';
         // OWNER RULE (Oct 8 2026, late): a CASH (or cheque) collection is
         // UNCOLLECTED, period — it never appears in "Collected today", even

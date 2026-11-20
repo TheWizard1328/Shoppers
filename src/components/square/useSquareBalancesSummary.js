@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from '@/api/base44Client';
+import { isCashLikeType } from '@/components/utils/codPaymentTypes';
 import { edmontonBusinessDayKey, edmontonWallString } from '@/components/utils/albertaTime';
 import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary, saveLedgerWindows, getLedgerWindows } from '@/components/square/squareBalancesOfflineManager';
 import { buildSummaryPayload, publishSharedSnapshot, fetchLatestSharedSnapshot, subscribeSharedSnapshot } from '@/components/square/squareBalancesSharedSnapshot';
@@ -1485,7 +1486,7 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       if (!_orphanRefund) continue;
     }
     const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
-    const hasCash = payments.some((p) => String(p?.type || '').toLowerCase() === 'cash');
+    const hasCash = payments.some((p) => isCashLikeType(p?.type));
     const hasCard = payments.some((p) => ['debit', 'credit'].includes(String(p?.type || '').toLowerCase()));
     if (!hasCash || hasCard) continue;
     const locId = storeToLoc.get(String(d?.store_id || ''));

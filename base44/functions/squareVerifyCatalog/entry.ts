@@ -145,7 +145,7 @@ async function deleteCatalogObjects(objectIds, accessToken) {
 const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'Cheque', 'Check', 'debit', 'credit', 'cheque', 'check', 'card', 'Card', 'Archived', 'archived']);
 const deliveryHasRecordedCollectedPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => Number(p?.amount || 0) > 0 && COLLECTED_PAYMENT_TYPES.has(String(p?.type || '')));
 const isCompletedCashCod = (d) => d?.status === 'completed' && Number(d?.cod_total_amount_required || 0) > 0 &&
-  (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => String(p?.type || '').toLowerCase() === 'cash' && Number(p?.amount || 0) > 0);
+  (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash', 'e-transfer', 'etransfer', 'e_transfer', 'e transfer'].includes(String(p?.type || '').trim().toLowerCase()) && Number(p?.amount || 0) > 0);
 
 Deno.serve(async (req) => {
   const t0 = Date.now();

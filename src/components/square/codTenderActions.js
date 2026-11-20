@@ -84,7 +84,9 @@ export async function changeCodTender({ deliveryId, toType, combineIds = [], con
     const cfg = config || await loadBalancesConfig();
     // Cash -> Debit/Credit converts cash payments; Debit/Credit -> Cash
     // (owner rule Oct 9 2026) converts card payments back to drawer cash.
-    const convertible = target === 'cash' ? ['debit', 'credit'] : ['cash'];
+    // E-Transfer is cash-like (owner spec Nov 20 2026): it converts to a card
+    // tender exactly like cash does.
+    const convertible = target === 'cash' ? ['debit', 'credit'] : ['cash', 'e-transfer', 'etransfer', 'e_transfer', 'e transfer'];
     const allRecs = [d, ...otherRecs];
     const plan = allRecs.map((rec) => {
       const recPayments = Array.isArray(rec.cod_payments) ? rec.cod_payments : [];

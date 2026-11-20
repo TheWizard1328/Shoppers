@@ -178,7 +178,10 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const monthDay = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}` : (iso || ''); };
 // v2 wrap-up classification (owner spec, Sep 28 2026): cash collected is NOT
 // yet processed through Square — it renders under Outstanding until processed.
-const isCashItem = (c) => (c.types || []).some((t) => String(t).toLowerCase() === 'cash');
+// E-Transfer is CASH-LIKE (owner spec Nov 20 2026): it awaits the drawer /
+// deposit exactly like cash, so it rides the same Outstanding bucket.
+const CASH_LIKE_TYPES = ['cash', 'e-transfer', 'etransfer', 'e_transfer', 'e transfer'];
+const isCashItem = (c) => (c.types || []).some((t) => CASH_LIKE_TYPES.includes(String(t).trim().toLowerCase()));
 // Cash is only "awaiting Square processing" while it is NOT confirmed-collected.
 // A sync-stamped cash COD (cod_confirmed_collected) has already been rung
 // through the register — it counts as Collected like any Square tender.

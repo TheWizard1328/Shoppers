@@ -30,6 +30,7 @@ import { getStoreColor, hexToRgba } from "../utils/colorGenerator";
 import { getDriverDisplayName } from "../utils/driverUtils";
 import { shouldShowStoreBadges } from "../utils/userRoles";
 import { isInterStoreDeliveryId } from "../utils/deliveryTypeUtils";
+import { COD_TYPE_OPTIONS_ACTIVE } from "../utils/codPaymentTypes";
 
 function DeliveryCard({
   delivery,
@@ -401,10 +402,9 @@ function DeliveryCard({
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="No Payment">No COD/DOD</SelectItem>
-                        <SelectItem value="Cash">Cash</SelectItem>
-                        <SelectItem value="Debit">Debit</SelectItem>
-                        <SelectItem value="Credit">Credit</SelectItem>
-                        <SelectItem value="Cheque">Cheque</SelectItem>
+                        {COD_TYPE_OPTIONS_ACTIVE.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
 
