@@ -52,6 +52,9 @@ export const DEVIATION_REGEN_LOG_PURPOSE = 'Route Deviation (Google Directions) 
 const DEVIATION_WAYPOINT_CAP = 3;      // keep the 3 most recent points per leg
 const DEVIATION_DEDUPE_KM = 0.1;       // skip points within 100m of an existing one
 
+const gpsPointLat = (gps) => Number(gps.latitude);
+const gpsPointLon = (gps) => Number(gps.longitude);
+
 function buildUpdatedDeviationWaypoints(existingWaypoints, gps, exitPoint = null) {
   const existing = (Array.isArray(existingWaypoints) ? existingWaypoints : [])
     .filter((p) => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
@@ -74,9 +77,6 @@ function buildUpdatedDeviationWaypoints(existingWaypoints, gps, exitPoint = null
   }
   return next.slice(-DEVIATION_WAYPOINT_CAP);
 }
-
-const gpsPointLat = (gps) => Number(gps.latitude);
-const gpsPointLon = (gps) => Number(gps.longitude);
 
 // ── Edmonton wall-clock helpers (mirror clientRouteEngine's parse/format) ──
 const parseTimeToMinutes = (t) => {

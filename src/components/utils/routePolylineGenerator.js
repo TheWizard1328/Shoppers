@@ -803,6 +803,21 @@ export async function generateRoutePolylines({
       // that leg. Fall back to the section that actually ENDS at this stop:
       // geometry is matched by position, so a missing section can no longer
       // blank a leg. Same one provider call, no extra request.
+      // ── CLUSTER GUARD INPUTS — MUST BE DECLARED BEFORE THE RECOVERY BLOCK ──
+      // OWNER RULE (Nov 20 2026): a stop whose inbound leg is co-located with the
+      // stop before it is a SECOND (or later) stop at the same location — it keeps
+      // NO polyline. Only the first stop there paints the arrival, and the last
+      // one there is the origin of the next leg. Every geometry-recovery path
+      // below is skipped for these stops.
+      // BUG (w263-w267, found Nov 20 2026): these two consts were declared ~85
+      // lines BELOW the recovery block that reads _coLocatedInbound, so every
+      // polyline generation threw "Cannot access '_coLocatedInbound' before
+      // initialization" (temporal dead zone). Full optimizations silently fell
+      // back and every route-deviation regen failed, so a deviated current leg
+      // never redrew. Declared here, before their first read.
+      const _sameLeg = liveViaOnThisLeg ? null : sameAnchorLeg(points[stopIdx - 1], points[stopIdx]);
+      const _coLocatedInbound = !!_sameLeg || sections[stopIdx - 1]?.degenerate_leg === true;
+
       const _usableEncoded = (enc) => {
         if (typeof enc !== 'string' || enc.length <= 10) return false;
         try {
@@ -886,18 +901,11 @@ export async function generateRoutePolylines({
         return;
       }
 
-      const _sameLeg = liveViaOnThisLeg ? null : sameAnchorLeg(points[stopIdx - 1], points[stopIdx]);
       if (_sameLeg) {
         encoded = _sameLeg.encoded;
         metricDuration = _sameLeg.durationMinutes;
         metricDistance = _sameLeg.distanceKm;
       }
-      // CLUSTERED LOCATION (owner rule Nov 20 2026): a stop whose inbound leg is
-      // co-located with the stop before it is a SECOND (or later) stop at the same
-      // location — it keeps NO polyline. Only the first stop there paints the
-      // arrival, and the last one there is the origin of the next leg. Every
-      // geometry-recovery path below is skipped for these stops.
-      const _coLocatedInbound = !!_sameLeg || sections[stopIdx - 1]?.degenerate_leg === true;
       if (_coLocatedInbound) {
         encoded = null;
         metricDuration = 0;
