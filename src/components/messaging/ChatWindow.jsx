@@ -70,6 +70,11 @@ function ChatWindow({
   const [resolvedGroup, setResolvedGroup] = useState(group || null);
   const [showMembersSheet, setShowMembersSheet] = useState(false);
   const messagesEndRef = useRef(null);
+  // OWNER SPEC (Nov 19 2026): opening a thread lands on the FIRST UNREAD
+  // message; when everything is already read it lands on the last message.
+  // After that first landing, new messages keep pulling the view to the bottom.
+  const messageListRef = useRef(null);
+  const initialScrollDoneRef = useRef(false);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const focusRestoreTimeoutRef = useRef(null);
@@ -261,7 +266,35 @@ function ChatWindow({
     };
   }, [conversationId, currentUser?.id, onMessagesRead, markMessageRead]);
 
-  useEffect(() => {scrollToBottom();}, [messages, scrollToBottom]);
+  // New thread opened → forget the previous landing point.
+  useEffect(() => {
+    initialScrollDoneRef.current = false;
+  }, [conversationId]);
+
+  // First landing of a freshly opened thread: first unread, else the last message.
+  useEffect(() => {
+    if (isLoading || initialScrollDoneRef.current || !messages.length) return;
+    const firstUnread = messages.find((m) => isUnreadForMe(m));
+    const targetId = firstUnread?.id || null;
+    requestAnimationFrame(() => {
+      let landed = false;
+      if (targetId && messageListRef.current) {
+        const el = messageListRef.current.querySelector(`[data-message-id="${String(targetId)}"]`);
+        if (el) {
+          el.scrollIntoView({ block: 'center', behavior: 'auto' });
+          landed = true;
+        }
+      }
+      if (!landed) messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+      initialScrollDoneRef.current = true;
+    });
+  }, [isLoading, messages, isUnreadForMe]);
+
+  // Later arrivals still snap to the newest message (only after the first landing).
+  useEffect(() => {
+    if (!initialScrollDoneRef.current) return;
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     if (!autoFocus || isSystemUpdatesConversation || isLoading) return;
@@ -484,7 +517,7 @@ function ChatWindow({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: 'var(--bg-slate-50)' }}>
+      <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: 'var(--bg-slate-50)' }}>
         {messages.length === 0 &&
         <div className="text-center py-8 text-soft">
             <p>{isGroupMode ? 'No messages yet — start the group conversation!' : 'No messages yet. Start the conversation!'}</p>
@@ -509,7 +542,7 @@ function ChatWindow({
               ? '2px solid #ef4444'
               : (justReadHere ? '2px solid transparent' : '2px solid #22c55e'));
           return (
-            <div key={msg.id} className={`flex group ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+            <div key={msg.id} data-message-id={msg.id} className={`flex group ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
               {canDelete && isOwnMessage &&
               <button
                 onClick={() => handleDeleteMessage(msg.id)}
