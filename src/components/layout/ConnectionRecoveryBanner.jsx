@@ -5,6 +5,16 @@ import { remoteLogger } from '../utils/remoteLogger';
 
 const GPS_ACQUISITION_TIMEOUT_MS = 15000;
 
+// MOMENTARY BLIPS ARE NOISE (owner report Nov 19 2026): the radio and the GPS
+// drop for a second or two when the screen wakes, under a bridge, or on a cold
+// start, and the old code painted a "Weak Connection" / "Weak GPS Lock" pill and
+// wrote a warn row to RemoteLogEntry for every single one — which then filled
+// the hourly digest with noise. A weak state must now PERSIST this long before
+// it is shown or logged; anything shorter is dropped silently. Offline and
+// no-lock are still reported immediately (they are real, and GPS already waits
+// out its own acquisition timeout).
+const WEAK_PERSIST_MS = 20000;
+
 const connectionState = (health) => {
   if (!health?.isOnline || health?.quality === 'offline') return 'offline';
   if (health?.quality !== 'good') return 'weak';
@@ -24,9 +34,16 @@ const eventForGpsState = (state) =>
 export default function ConnectionRecoveryBanner({ currentUser = null }) {
   const [health, setHealth] = useState(() => connectionMonitor.getQuality());
   const [gpsHealth, setGpsHealth] = useState({ status: 'disabled', accuracy: null, error: null });
-  const connectionRef = useRef({ state: null, since: Date.now() });
+  // Committed (displayed) states — only advanced once a weak blip has proven
+  // itself, so a 2-second dip never reaches the pill.
+  const [netState, setNetState] = useState(() => connectionState(connectionMonitor.getQuality()));
+  const connectionRef = useRef({ state: connectionState(connectionMonitor.getQuality()), since: Date.now() });
   const gpsRef = useRef({ state: 'disabled', since: Date.now() });
   const acquisitionTimerRef = useRef(null);
+  const pendingNetworkRef = useRef(null);
+  const pendingGpsRef = useRef(null);
+  const weakNetworkTimerRef = useRef(null);
+  const weakGpsTimerRef = useRef(null);
 
   const isDriver = Array.isArray(currentUser?.app_roles) && currentUser.app_roles.includes('driver');
 
@@ -36,9 +53,7 @@ export default function ConnectionRecoveryBanner({ currentUser = null }) {
   // another permanent listener to connectionMonitor; over a shift the listener
   // set grew into the hundreds and every network state change ran all of them.
   useEffect(() => {
-  const _unsub = connectionMonitor.subscribe((nextHealth) => {
-    setHealth(nextHealth);
-    const nextState = connectionState(nextHealth);
+  const commitNetworkState = (nextState, nextHealth) => {
     const now = Date.now();
     const previous = connectionRef.current;
     if (previous.state === nextState) return;
@@ -66,8 +81,40 @@ export default function ConnectionRecoveryBanner({ currentUser = null }) {
       );
     }
     connectionRef.current = { state: nextState, since: now };
+    setNetState(nextState);
+  };
+
+  const _unsub = connectionMonitor.subscribe((nextHealth) => {
+    setHealth(nextHealth);
+    const nextState = connectionState(nextHealth);
+
+    if (nextState === 'weak') {
+      // Hold the blip: arm one timer, keep the newest reading, and commit only
+      // if the connection is STILL weak when it fires.
+      pendingNetworkRef.current = nextHealth;
+      if (!weakNetworkTimerRef.current) {
+        weakNetworkTimerRef.current = setTimeout(() => {
+          weakNetworkTimerRef.current = null;
+          const pendingHealth = pendingNetworkRef.current;
+          if (!pendingHealth) return;
+          commitNetworkState('weak', pendingHealth);
+        }, WEAK_PERSIST_MS);
+      }
+      return;
+    }
+
+    if (weakNetworkTimerRef.current) {
+      clearTimeout(weakNetworkTimerRef.current);
+      weakNetworkTimerRef.current = null;
+    }
+    pendingNetworkRef.current = null;
+    commitNetworkState(nextState, nextHealth);
   });
-  return () => { _unsub(); };
+  return () => {
+    _unsub();
+    if (weakNetworkTimerRef.current) clearTimeout(weakNetworkTimerRef.current);
+    weakNetworkTimerRef.current = null;
+  };
   }, []);
 
   useEffect(() => {
@@ -76,7 +123,7 @@ export default function ConnectionRecoveryBanner({ currentUser = null }) {
       acquisitionTimerRef.current = null;
     };
 
-    const applyGpsState = (next, detail = {}) => {
+    const commitGpsState = (next, detail = {}) => {
       const now = Date.now();
       const previous = gpsRef.current;
       setGpsHealth({ status: next, accuracy: detail.accuracy ?? null, error: detail.error || null });
@@ -109,6 +156,31 @@ export default function ConnectionRecoveryBanner({ currentUser = null }) {
       gpsRef.current = { state: next, since: now };
     };
 
+    // A momentary weak lock (screen wake, underpass, cold start) is held back
+    // until it has lasted WEAK_PERSIST_MS, so neither the pill nor the log sees it.
+    const applyGpsState = (next, detail = {}) => {
+      const now = Date.now();
+      if (next === 'weak') {
+        pendingGpsRef.current = detail;
+        if (!weakGpsTimerRef.current) {
+          weakGpsTimerRef.current = setTimeout(() => {
+            weakGpsTimerRef.current = null;
+            const pendingDetail = pendingGpsRef.current;
+            if (!pendingDetail) return;
+            commitGpsState('weak', pendingDetail);
+          }, WEAK_PERSIST_MS);
+        }
+        return;
+      }
+      if (weakGpsTimerRef.current) {
+        clearTimeout(weakGpsTimerRef.current);
+        weakGpsTimerRef.current = null;
+      }
+      pendingGpsRef.current = null;
+      void now;
+      commitGpsState(next, detail);
+    };
+
     const onGpsHealth = (event) => {
       const detail = event?.detail || {};
       if (detail.status === 'searching') {
@@ -128,11 +200,13 @@ export default function ConnectionRecoveryBanner({ currentUser = null }) {
     window.addEventListener('gpsHealthChanged', onGpsHealth);
     return () => {
       clearAcquisitionTimer();
+      if (weakGpsTimerRef.current) clearTimeout(weakGpsTimerRef.current);
+      weakGpsTimerRef.current = null;
       window.removeEventListener('gpsHealthChanged', onGpsHealth);
     };
   }, []);
 
-  const networkState = connectionState(health);
+  const networkState = netState;
   const gpsState = isDriver ? gpsHealth.status : 'disabled';
   const networkIssue = networkState !== 'good';
   const gpsIssue = gpsState === 'weak' || gpsState === 'lost';
