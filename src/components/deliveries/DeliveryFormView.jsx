@@ -1111,7 +1111,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-none flex' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[67.5rem] h-[min(95vh,1108px)] max-h-[1108px]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
+        className={`w-full min-w-0 ${useMobileLayout && isMobileDevice ? 'h-full max-h-none flex' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[67.5rem] h-[min(95vh,1120px)] max-h-[1120px]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
         >
         <Card
           onKeyDown={handleGlobalKeyDown}
@@ -1724,7 +1724,7 @@ export default function DeliveryFormView({
                             spread out to fill that height. min-h-[9.5rem] is taller
                             than the Care Pro Name + Envelope Count column, so the
                             floor holds in both states. */}
-                        <div className="px-3 rounded-lg space-y-2 border py-2.5 border-surface flex flex-col min-h-[9.6rem]" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="px-3 rounded-lg space-y-2 border py-2.5 border-surface flex flex-col min-h-[9.7rem]" style={{ background: 'var(--bg-slate-50)' }}>
                           <div className="grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.9fr)] gap-3 items-stretch flex-1 min-h-0">
                             <div className="min-w-0 flex flex-col">
                               <Label className="text-sm font-semibold text-body shrink-0">Delivery Options</Label>
@@ -1735,17 +1735,10 @@ export default function DeliveryFormView({
                                 <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={(c) => setFormData((p) => ({ ...p, no_charge: c }))} disabled={isSaving} tooltip="For when 2 or more deliveries are being delivered to the same exact address, excluding multiple deliveries to the same apartment building at different unit numbers. ie: Multiple family members at the same address." />
                               </div>
                             </div>
-                            {/* OWNER SPEC (Nov 20 2026): this column must occupy the
-                                Care Pro height in BOTH states. Both blocks are stacked in
-                                the same grid cell; the inactive one is visibility:hidden,
-                                which keeps its space but is not clickable. The cell is
-                                therefore always as tall as the taller block (the Care Pro
-                                one), so ticking/unticking Care Pro's never resizes the
-                                Delivery Options panel. */}
-                            <div className="min-w-0 grid">
-                              <div
-                                className={`col-start-1 row-start-1 space-y-3 ${formData.care_pros ? '' : 'invisible'}`}
-                                aria-hidden={!formData.care_pros}>
+                            <div className="min-w-0 flex flex-col justify-start">
+                              {formData.care_pros ?
+                              <>
+                                  
                                   <div className="space-y-3">
                                     <div className="space-y-1">
                                       <Label className="text-xs text-slate-500">Care Pro Name</Label>
@@ -1756,10 +1749,9 @@ export default function DeliveryFormView({
                                       <Input type="number" min="0" value={formData.cp_envelopes ?? 0} onChange={(e) => setFormData((p) => ({ ...p, cp_envelopes: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 }))} placeholder="0" className="h-9 text-sm" disabled={isSaving} data-hotkey-add="true" />
                                     </div>
                                   </div>
-                              </div>
-                              <div
-                                className={`col-start-1 row-start-1 flex flex-col ${formData.care_pros ? 'invisible' : ''}`}
-                                aria-hidden={!!formData.care_pros}>
+                                </> :
+
+                              <>
                                   <Label className="text-sm font-semibold text-body">COD</Label>
                                   <div className="space-y-3">
                                     <div className="flex items-center space-x-2">
@@ -1773,7 +1765,8 @@ export default function DeliveryFormView({
                                       </div>
                                   }
                                   </div>
-                              </div>
+                                </>
+                              }
                             </div>
                           </div>
                         </div>
