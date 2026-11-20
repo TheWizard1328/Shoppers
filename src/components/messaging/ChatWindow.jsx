@@ -281,7 +281,10 @@ function ChatWindow({
       if (targetId && messageListRef.current) {
         const el = messageListRef.current.querySelector(`[data-message-id="${String(targetId)}"]`);
         if (el) {
-          el.scrollIntoView({ block: 'center', behavior: 'auto' });
+          // OWNER SPEC (Nov 19 2026): align the first unread message to the TOP
+          // of the thread window, so a long message or a run of unread rows is
+          // read from its start instead of being centred mid-screen.
+          el.scrollIntoView({ block: 'start', behavior: 'auto' });
           landed = true;
         }
       }
@@ -524,8 +527,21 @@ function ChatWindow({
           </div>
         }
 
-        {messages.map((msg) => {
+        {messages.map((msg, msgIndex) => {
           const isOwnMessage = msg.sender_id === currentUser?.id;
+          // OWNER SPEC (Nov 19 2026): a date divider heads the first message of
+          // every day so long threads are sectioned off by date.
+          const msgDate = msg.created_date ? parseEntityTimestamp(msg.created_date) : null;
+          const prevMsg = msgIndex > 0 ? messages[msgIndex - 1] : null;
+          const prevDate = prevMsg?.created_date ? parseEntityTimestamp(prevMsg.created_date) : null;
+          const dayKey = msgDate ? format(msgDate, 'yyyy-MM-dd') : null;
+          const prevDayKey = prevDate ? format(prevDate, 'yyyy-MM-dd') : null;
+          const showDateDivider = !!msgDate && dayKey !== prevDayKey;
+          const today = new Date();
+          const dividerLabel = !msgDate ? '' :
+            dayKey === format(today, 'yyyy-MM-dd') ? 'Today' :
+            dayKey === format(new Date(today.getTime() - 86400000), 'yyyy-MM-dd') ? 'Yesterday' :
+            format(msgDate, 'EEE, MMM d, yyyy');
           // Stale (owner spec Oct 7 2026): messages older than 1 day render
           // with a red accent so drivers/dispatchers instantly see old info.
           const isStale = !!msg.created_date &&
@@ -542,7 +558,15 @@ function ChatWindow({
               ? '2px solid #ef4444'
               : (justReadHere ? '2px solid transparent' : '2px solid #22c55e'));
           return (
-            <div key={msg.id} data-message-id={msg.id} className={`flex group ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+            <React.Fragment key={msg.id}>
+            {showDateDivider &&
+            <div className="flex items-center gap-2 pt-2 pb-1" data-date-divider={dayKey}>
+              <div className="flex-1 h-px" style={{ background: 'var(--border-slate-200)' }} />
+              <span className="text-[11px] font-semibold uppercase tracking-wide px-1" style={{ color: 'var(--text-slate-500)' }}>{dividerLabel}</span>
+              <div className="flex-1 h-px" style={{ background: 'var(--border-slate-200)' }} />
+            </div>
+            }
+            <div data-message-id={msg.id} style={{ scrollMarginTop: '6px' }} className={`flex group ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
               {canDelete && isOwnMessage &&
               <button
                 onClick={() => handleDeleteMessage(msg.id)}
@@ -587,7 +611,8 @@ function ChatWindow({
                   <Trash2 className="w-3.5 h-3.5 text-red-400" />
                 </button>
               }
-            </div>);
+            </div>
+            </React.Fragment>);
 
         })}
         <div ref={messagesEndRef} />
