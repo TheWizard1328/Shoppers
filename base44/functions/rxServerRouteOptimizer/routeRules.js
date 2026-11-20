@@ -107,6 +107,81 @@ export function formatMinutesToTime(totalMinutes) {
 }
 
 // Crow-flies distance in km (pure math, shared by both engines).
+// ── RULE: degenerate (zero-length) legs — SHARED, both engines ───────────────
+// OWNER REPORT (Nov 20 2026): "there's an interstore with a store pickup directly
+// after it at the same location and it's just drawing a straight line for the
+// isNextDelivery stop, which happens to be an interstore drop off."
+// Both providers collapse consecutive duplicate waypoints: HERE Router v8 (and
+// Google Directions) return FEWER sections/legs than were requested, so every
+// section after the duplicate is read at the wrong index. The section that ends
+// up with no data is filled with a crow-flies straight line, which is exactly the
+// symptom. Fix: never SEND a duplicate waypoint, and expand the response back to
+// one section per original leg with a zero-length section for the collapsed pair.
+// Every downstream consumer keeps its 1:1 leg/section index math.
+export const DEGENERATE_LEG_KM = 0.05;
+
+const _encodeCoords = (coords) => {
+  let lastLat = 0, lastLng = 0, out = '';
+  const enc = (value) => {
+    let v = value < 0 ? (-value * 2 - 1) : (value * 2);
+    let str = '';
+    while (v >= 0x20) { str += String.fromCharCode((0x20 + (v % 0x20)) + 63); v = Math.floor(v / 0x20); }
+    return str + String.fromCharCode(v + 63);
+  };
+  for (const [lat, lng] of coords) {
+    const latE5 = Math.round(Number(lat) * 1e5);
+    const lngE5 = Math.round(Number(lng) * 1e5);
+    out += enc(latE5 - lastLat) + enc(lngE5 - lastLng);
+    lastLat = latE5;
+    lastLng = lngE5;
+  }
+  return out;
+};
+
+/**
+ * Splits a waypoint list into the points to actually request and a per-leg flag
+ * marking legs whose two ends sit on top of each other.
+ *   points[i] -> points[i+1] is degenerate when degenerate[i] === true.
+ */
+export function splitDegenerateLegs(points = []) {
+  const pts = (points || []).map((p) => ({ lat: Number(p?.lat), lon: Number(p?.lon) }));
+  const degenerate = [];
+  const requestPoints = [];
+  for (let i = 0; i < pts.length; i += 1) {
+    if (i > 0) {
+      const d = crowFliesKm(pts[i - 1], pts[i]);
+      degenerate.push(Number.isFinite(d) && d <= DEGENERATE_LEG_KM);
+    }
+    if (i === 0 || degenerate[i - 1] === false) requestPoints.push(pts[i]);
+  }
+  return { requestPoints, degenerate };
+}
+
+/**
+ * Expands provider sections (one per REQUESTED leg) back to one entry per ORIGINAL
+ * leg. Collapsed legs get a zero-length section so indexes stay aligned.
+ */
+export function expandDegenerateSections({ points = [], degenerate = [], sections = [], transportMode = 'driving' }) {
+  const out = [];
+  let cursor = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    if (degenerate[i]) {
+      const a = points[i], b = points[i + 1];
+      out.push({
+        encoded_polyline: _encodeCoords([[a.lat, a.lon], [b.lat, b.lon]]),
+        estimated_distance_km: 0,
+        estimated_duration_minutes: 0,
+        transport_mode: transportMode,
+        degenerate_leg: true,
+      });
+    } else {
+      out.push(sections[cursor] ?? null);
+      cursor += 1;
+    }
+  }
+  return out;
+}
+
 export function crowFliesKm(a, b) {
   if (!a || !b) return Infinity;
   const R = 6371;

@@ -47,6 +47,8 @@ import {
   buildEtaChain as sharedBuildEtaChain,
   legTravelMinutesFrom as sharedLegTravelMinutesFrom,
   windowFloorMinutesOf as sharedWindowFloorMinutesOf,
+  splitDegenerateLegs as sharedSplitDegenerateLegs,
+  expandDegenerateSections as sharedExpandDegenerateSections,
 } from './routeRules.js';
 
 const TIME_ZONE = 'America/Edmonton';
@@ -381,19 +383,25 @@ async function getMultiStopRouteSectionsGoogle(points, transportMode, googleKey)
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
 
+  // SHARED RULE: Google also collapses duplicate consecutive waypoints (it drops
+  // the zero-length leg), so the same collapse-then-expand guard the HERE builder
+  // uses is applied here. Index math downstream stays one section per real leg.
+  const { requestPoints: _reqPoints, degenerate: _degenerateLegs } = sharedSplitDegenerateLegs(validPoints);
+  const _googlePoints = _reqPoints.length >= 2 ? _reqPoints : validPoints;
+
   const travelMode = transportMode === 'bicycle' || transportMode === 'cycling' ? 'bicycling'
     : transportMode === 'pedestrian' ? 'walking' : 'driving';
 
   const MAX_POINTS = 25;
   const chunks = [];
-  if (validPoints.length <= MAX_POINTS) {
-    chunks.push(validPoints);
+  if (_googlePoints.length <= MAX_POINTS) {
+    chunks.push(_googlePoints);
   } else {
     let idx = 0;
-    while (idx < validPoints.length - 1) {
-      const end = Math.min(idx + MAX_POINTS, validPoints.length);
-      chunks.push(validPoints.slice(idx, end));
-      if (end >= validPoints.length) break;
+    while (idx < _googlePoints.length - 1) {
+      const end = Math.min(idx + MAX_POINTS, _googlePoints.length);
+      chunks.push(_googlePoints.slice(idx, end));
+      if (end >= _googlePoints.length) break;
       idx = end - 1; // overlap last point as next chunk origin
     }
   }
@@ -458,7 +466,17 @@ async function getMultiStopRouteSectionsGoogle(points, transportMode, googleKey)
       });
     }
   }
-  return { sections: allSections, usedFallbackPolyline: anyFallback };
+  return {
+    sections: _degenerateLegs.some(Boolean)
+      ? sharedExpandDegenerateSections({
+          points: validPoints,
+          degenerate: _degenerateLegs,
+          sections: allSections,
+          transportMode: transportMode || 'driving',
+        })
+      : allSections,
+    usedFallbackPolyline: anyFallback,
+  };
 }
 
 // Google key resolution (mirrors getGoogleDirectionsPolyline): the
@@ -476,13 +494,26 @@ async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') 
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
 
+  // SHARED RULE (routeRules splitDegenerateLegs / expandDegenerateSections — same
+  // fix as the client): a duplicate waypoint pair (interstore drop-off followed by
+  // a store pickup at the same location) is collapsed by HERE, shifting every
+  // later section index and turning one leg into a crow-flies straight line.
+  const { requestPoints: _reqPoints, degenerate: _degenerateLegs } = sharedSplitDegenerateLegs(validPoints);
+  if (_reqPoints.length < 2) {
+    return {
+      sections: sharedExpandDegenerateSections({ points: validPoints, degenerate: _degenerateLegs, sections: [], transportMode }),
+      usedFallbackPolyline: false,
+    };
+  }
+  const _routePoints = _reqPoints;
+
   const params = new URLSearchParams();
   params.set('apiKey', apiKey);
   params.set('transportMode', transportMode === 'bicycle' ? 'bicycle' : 'car');
-  params.set('origin', `${validPoints[0].lat},${validPoints[0].lon}`);
-  params.set('destination', `${validPoints[validPoints.length - 1].lat},${validPoints[validPoints.length - 1].lon}`);
+  params.set('origin', `${_routePoints[0].lat},${_routePoints[0].lon}`);
+  params.set('destination', `${_routePoints[_routePoints.length - 1].lat},${_routePoints[_routePoints.length - 1].lon}`);
   params.set('return', 'polyline,summary');
-  validPoints.slice(1, -1).forEach((p) => params.append('via', `${p.lat},${p.lon}`));
+  _routePoints.slice(1, -1).forEach((p) => params.append('via', `${p.lat},${p.lon}`));
 
   const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
     signal: AbortSignal.timeout(25000)
@@ -501,7 +532,7 @@ async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') 
   }
 
   let anySegmentFellBack = false;
-  const builtSections = validPoints.slice(0, -1).map((fromPoint, index) => {
+  const builtSections = _routePoints.slice(0, -1).map((fromPoint, index) => {
     const section = routeSections[index] || {};
     let polyline = null;
     if (typeof section?.polyline === 'string' && section.polyline) {
@@ -509,7 +540,7 @@ async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') 
       if (coords.length > 1) polyline = encodeGooglePolyline(coords);
     }
     if (!polyline) {
-      const toPoint = validPoints[index + 1];
+      const toPoint = _routePoints[index + 1];
       polyline = encodeGooglePolyline([[fromPoint.lat, fromPoint.lon], [toPoint.lat, toPoint.lon]]);
       anySegmentFellBack = true;
     }
@@ -524,7 +555,15 @@ async function getMultiStopRouteSections(points, apiKey, transportMode = 'car') 
   if (builtSections.length > 0 && builtSections.every((sec) => !sec.encoded_polyline)) {
     throw new Error('HERE router v8 returned sections with no polylines');
   }
-  return { sections: builtSections, usedFallbackPolyline: anySegmentFellBack };
+  return {
+    sections: sharedExpandDegenerateSections({
+      points: validPoints,
+      degenerate: _degenerateLegs,
+      sections: builtSections,
+      transportMode,
+    }),
+    usedFallbackPolyline: anySegmentFellBack,
+  };
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────

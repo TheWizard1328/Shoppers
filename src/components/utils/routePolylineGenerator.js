@@ -15,7 +15,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { guardLegGeometry } from './polylineOriginRules';
-import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias, isCoLocatedStop } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias, isCoLocatedStop } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js, splitDegenerateLegs, expandDegenerateSections';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
@@ -190,6 +190,21 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
 
+  // OWNER REPORT (Nov 20 2026): an interstore drop-off followed by a store pickup
+  // at the SAME location made HERE collapse the zero-length leg, so every later
+  // section was read one index off and one leg came back as a crow-flies straight
+  // line. Duplicate waypoints are never sent now, and the response is expanded
+  // back to one section per original leg (shared routeRules rule, same as the
+  // server engine).
+  const { requestPoints: _reqPoints, degenerate: _degenerateLegs } = splitDegenerateLegs(validPoints);
+  if (_reqPoints.length < 2) {
+    return {
+      sections: expandDegenerateSections({ points: validPoints, degenerate: _degenerateLegs, sections: [], transportMode: transportMode || 'driving' }),
+      usedFallbackPolyline: false,
+    };
+  }
+  const _routePoints = _reqPoints;
+
   const hereTransportMode = transportMode === 'cycling' ? 'bicycle' : transportMode === 'pedestrian' ? 'pedestrian' : 'car';
 
   const prefs = getPolylineRoutePrefs();
@@ -204,11 +219,11 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
     params.set('routingMode', prefs.routePreference === 'shortest' ? 'short' : 'fast');
     if (prefs.trafficAware) params.set('departureTime', 'any');
   }
-  params.set('origin', `${validPoints[0].lat},${validPoints[0].lon}`);
-  params.set('destination', `${validPoints[validPoints.length - 1].lat},${validPoints[validPoints.length - 1].lon}`);
+  params.set('origin', `${_routePoints[0].lat},${_routePoints[0].lon}`);
+  params.set('destination', `${_routePoints[_routePoints.length - 1].lat},${_routePoints[_routePoints.length - 1].lon}`);
   params.set('return', 'polyline,summary');
 
-  const viaPoints = validPoints.slice(1, -1);
+  const viaPoints = _routePoints.slice(1, -1);
   viaPoints.forEach((p) => params.append('via', `${p.lat},${p.lon}`));
 
   const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
@@ -226,7 +241,7 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
   }
 
   let anySegmentFellBack = false;
-  const builtSections = validPoints.slice(0, -1).map((fromPoint, index) => {
+  const builtSections = _routePoints.slice(0, -1).map((fromPoint, index) => {
     const section = routeSections[index] || {};
     let polyline = null;
     if (typeof section?.polyline === 'string' && section.polyline) {
@@ -237,7 +252,7 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
       polyline = section.encoded_polyline;
     }
     if (!polyline) {
-      const toPoint = validPoints[index + 1];
+      const toPoint = _routePoints[index + 1];
       polyline = encodeGooglePolyline([[fromPoint.lat, fromPoint.lon], [toPoint.lat, toPoint.lon]]);
       anySegmentFellBack = true;
     }
@@ -250,7 +265,15 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
     };
   });
 
-  return { sections: builtSections, usedFallbackPolyline: anySegmentFellBack };
+  return {
+    sections: expandDegenerateSections({
+      points: validPoints,
+      degenerate: _degenerateLegs,
+      sections: builtSections,
+      transportMode: transportMode || 'driving',
+    }),
+    usedFallbackPolyline: anySegmentFellBack,
+  };
 }
 
 // Crow-flies straight-line sections — used when the HERE Router v8 fetch THROWS
@@ -709,15 +732,33 @@ export async function generateRoutePolylines({
       }
     }
     const viaTotal = stopViaCounts.reduce((s, n) => s + n, 0) + (liveViaIdx !== -1 ? 1 : 0);
-    const result = useGooglePoly
-      ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName, purpose: logPurpose, ...getPolylineRoutePrefs() }).catch((err) => {
+    // SHARED RULE (routeRules splitDegenerateLegs/expandDegenerateSections): a leg
+    // whose two ends share coordinates is never sent as a duplicate waypoint, and
+    // the provider's sections are expanded back to one per original leg so the
+    // index math below stays 1:1 (owner report Nov 20 2026 — interstore drop-off
+    // + store pickup at the same location drew a straight line on the next stop).
+    const _legSplit = splitDegenerateLegs(points);
+    const _providerPoints = _legSplit.requestPoints.length >= 2 ? _legSplit.requestPoints : points;
+    const _rawResult = useGooglePoly
+      ? await getMultiStopRouteGoogle(_providerPoints, group.mode, polylineApiKey, { driverId, userName, purpose: logPurpose, ...getPolylineRoutePrefs() }).catch((err) => {
           console.error(`[routePolylineGenerator] ${source} — Google Directions THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
-          return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
+          return { sections: crowFliesSections(_providerPoints, group.mode), usedFallbackPolyline: true };
         })
-      : await getMultiStopRouteHere(points, group.mode, hereApiKey, { driverId, userName, logPurpose }).catch((err) => {
+      : await getMultiStopRouteHere(_providerPoints, group.mode, hereApiKey, { driverId, userName, logPurpose }).catch((err) => {
           console.error(`[routePolylineGenerator] ${source} — HERE Router v8 THREW (mode=${group.mode}), degrading to crow-flies:`, err?.message || err);
-          return { sections: crowFliesSections(points, group.mode), usedFallbackPolyline: true };
+          return { sections: crowFliesSections(_providerPoints, group.mode), usedFallbackPolyline: true };
         });
+    const result = _legSplit.degenerate.some(Boolean)
+      ? {
+          ..._rawResult,
+          sections: expandDegenerateSections({
+            points,
+            degenerate: _legSplit.degenerate,
+            sections: _rawResult.sections || [],
+            transportMode: group.mode,
+          }),
+        }
+      : _rawResult;
     console.log(`[routePolylineGenerator] ${source} — ${useGooglePoly ? 'Google' : 'HERE'} ${group.mode} returned ${result.sections.length} sections for ${points.length} points${useVia ? ' (incl. live-GPS via)' : ''}${viaTotal ? ` (incl. ${viaTotal} via point(s))` : ''}`);
     return { group, sections: result.sections || [], useVia, liveViaIdx, stopIdxs, stopViaCounts, points };
   }));
