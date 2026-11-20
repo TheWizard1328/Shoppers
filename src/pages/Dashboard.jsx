@@ -51,6 +51,7 @@ import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboar
 import { handleStatusUpdate as _handleStatusUpdateImpl } from '@/components/dashboard/handleStatusUpdate';
 import { useFabControlEventHandler } from '@/components/dashboard/useFabControlEventHandler';
 import { remoteLogger } from '@/components/utils/remoteLogger';
+import { restartStatusForDelivery } from '@/components/utils/deliveryTypeUtils';
 import { startPortalWatcherPolling } from '../components/utils/portalWatchers';
 import { useStopCardsBaseHeight } from '@/components/dashboard/useStopCardsBaseHeight';
 import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';import { useKittOptimizationMessages } from '@/components/dashboard/useKittOptimizationMessages';import { runAddDelay } from '@/components/dashboard/handleAddDelay';import { runDualDriverOptimization } from '@/components/dashboard/handleDualDriverOptimization';import { usePullToSyncDataReadyEffect } from '@/components/dashboard/usePullToSyncDataReadyEffect';import { useDataSourceChangedEffect } from '@/components/dashboard/useDataSourceChangedEffect';import { COMPLETED_ROUTE_RADIUS_KM, getCityRadiusBounds, resolveCompletedRouteCity } from '@/components/dashboard/completedRouteView';import { useDispatcherAutoPhaseController } from '@/components/dashboard/useDispatcherAutoPhaseController';
@@ -2854,7 +2855,24 @@ function Dashboard() {
       await new Promise((r) => setTimeout(r, 100));
       const d = deliveriesWithStopOrder.find((x) => x && x.id === deliveryId);
       if (!d) throw new Error('Delivery not found');
-      await updateDeliveryLocal(deliveryId, { status: !d.patient_id ? 'en_route' : 'in_transit', actual_delivery_time: null, delivery_notes: '' });
+      // OWNER BUG (Nov 20 2026): this path decided the status with
+      // `!patient_id ? 'en_route' : 'in_transit'`, so restarting an INTER-STORE
+      // stop (no patient_id) wrote 'en_route' — a status ISD/ISP never carry.
+      // restartStatusForDelivery keeps en_route for a real store pickup only.
+      // It also never re-flagged the restarted stop, so the stop came back
+      // active but NOT next and could not be acted on: the restart is only
+      // complete when this stop holds the flag and every other stop lost it.
+      const _restartOthers = (deliveriesWithStopOrder || []).filter((x) =>
+        x && x.id !== deliveryId && x.driver_id === d.driver_id &&
+        x.delivery_date === d.delivery_date && x.isNextDelivery === true);
+      await updateDeliveryLocal(deliveryId, {
+        status: restartStatusForDelivery(d),
+        isNextDelivery: true,
+        actual_delivery_time: null,
+        delivery_notes: '',
+      });
+      await Promise.all(_restartOthers.map((x) =>
+        updateDeliveryLocal(x.id, { isNextDelivery: false }, { skipSmartRefresh: true }).catch(() => null)));
       notifyDriverRetry({ driver: currentUser, patientName: d?.patient_name || 'Unknown', delivery: d, store: stores.find((s) => s?.id === d?.store_id), appUsers }).catch((e) => console.warn('⚠️ notify failed:', e));
       await recalculateStopOrders(d.driver_id, d.delivery_date);
       invalidate('Delivery');

@@ -11,6 +11,7 @@
  *     in useStopCardActions.
  */
 import { useCallback } from "react";
+import { restartStatusForDelivery } from '@/components/utils/deliveryTypeUtils';
 import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } from './pendingBreadcrumbsStubs';
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
@@ -181,7 +182,11 @@ export function useStopCardStartActions({
 
           const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
           const isInterStoreStop = !!(restartDelivery._interstore_source_id || restartDelivery._interstore_dest_id);
-          const newStatus = (isPickup && !isInterStoreStop) ? 'en_route' : 'in_transit';
+          // SHARED RULE (restartStatusForDelivery): only a real store pickup is
+          // en_route; an inter-store stop (no patient_id) is in_transit. The old
+          // inline test wrote 'en_route' for ISD/ISP restarts, leaving the stop in
+          // a status its own Start path never produces.
+          const newStatus = restartStatusForDelivery(restartDelivery);
           // ── OWNER DIRECTIVE (Oct 15 2026): MINIMAL restart for the MOST RECENT
           // finished stop (applies to regular AND retro timing). When the driver
           // restarts the stop they just finished, the route order, legs, and
@@ -363,7 +368,14 @@ export function useStopCardStartActions({
           // OWNER DIRECTIVE (Oct 15 2026): skip the optimizer entirely for a
           // most-recent-finished restart — flag + status writes above are the
           // whole action; legs, stop_order, and ETAs are already correct.
-          if (!_isMostRecentFinished) {
+          // INTER-STORE RESTART (owner report Nov 20 2026): never hand an inter-store
+          // restart to the optimizer. The engine's next-stop rules deliberately
+          // prefer a NON-inter-store stop, so the run took the flag straight back
+          // off the ISD we just restarted and pointed it at a patient stop further
+          // down the route - the stop came back "restarted" but could not be acted
+          // on. Order, legs and ETAs are already correct for a restart, so the
+          // minimal path (status + flag write, done above) is the whole action.
+          if (!_isMostRecentFinished && !isInterStoreStop) {
             try {
               const optimizationResult = await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, fallbackNextDeliveryId: delivery.id, runOptimization: true });
               restartOptimizeData = optimizationResult?.optimizeData || null;

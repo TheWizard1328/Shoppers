@@ -298,9 +298,13 @@ export const sameAnchorLeg = (anchorPoint, stopPoint) => {
   if (![a.lat, a.lon, b.lat, b.lon].every(Number.isFinite)) return null;
   const km = haversineKm(a.lat, a.lon, b.lat, b.lon);
   if (!(km < 0.05)) return null;
+  // OWNER RULE (Nov 20 2026): the FIRST stop at a clustered location owns the
+  // arriving polyline; every other stop at that location draws NOTHING. A
+  // co-located inbound leg therefore resolves to no geometry (null) instead of
+  // the old 2-point stub, and callers skip their straight-line recovery.
   return {
-    encoded: encodeGooglePolyline([[a.lat, a.lon], [b.lat, b.lon]]),
-    durationMinutes: SAME_ANCHOR_TRAVEL_MINUTES,
+    encoded: null,
+    durationMinutes: 0,
     distanceKm: Number(km.toFixed(3)),
   };
 };
@@ -807,7 +811,7 @@ export async function generateRoutePolylines({
           return new Set(pts.map((pt) => `${Number(pt?.[0]).toFixed(5)},${Number(pt?.[1]).toFixed(5)}`)).size >= 2;
         } catch (_) { return false; }
       };
-      if (!_usableEncoded(encoded) && sections.length > 0) {
+      if (!_coLocatedInbound && !_usableEncoded(encoded) && sections.length > 0) {
         let _bestIdx = -1;
         let _bestKm = Infinity;
         sections.forEach((sec, i) => {
@@ -888,6 +892,17 @@ export async function generateRoutePolylines({
         metricDuration = _sameLeg.durationMinutes;
         metricDistance = _sameLeg.distanceKm;
       }
+      // CLUSTERED LOCATION (owner rule Nov 20 2026): a stop whose inbound leg is
+      // co-located with the stop before it is a SECOND (or later) stop at the same
+      // location — it keeps NO polyline. Only the first stop there paints the
+      // arrival, and the last one there is the origin of the next leg. Every
+      // geometry-recovery path below is skipped for these stops.
+      const _coLocatedInbound = !!_sameLeg || sections[stopIdx - 1]?.degenerate_leg === true;
+      if (_coLocatedInbound) {
+        encoded = null;
+        metricDuration = 0;
+        metricDistance = 0;
+      }
 
       // OWNER FIX (Oct 23 2026 — Quick Route Adjustments polyline deletion):
       // a full regeneration must leave EVERY remaining stop with a painted
@@ -898,7 +913,7 @@ export async function generateRoutePolylines({
       // ("deleting polylines"). Synthesize a straight-line leg from the
       // chain's inbound anchor to the stop instead — the next healthy
       // optimization replaces it with the true road shape.
-      if (encoded == null) {
+      if (!_coLocatedInbound && encoded == null) {
         // OWNER FIX Oct 30 2026: on the CURRENT leg the inbound anchor is the
         // leg ORIGIN (last finished stop / home) — never the live-GPS via, which
         // sits next to the destination and produced a 12-char stub "leg".
@@ -919,7 +934,7 @@ export async function generateRoutePolylines({
       // while its length dwarfs the anchor->stop distance is the "routes back
       // to the current stop" shape; substitute a straight anchor->stop line so
       // the loop can never be painted or persisted again.
-      if (encoded != null) {
+      if (!_coLocatedInbound && encoded != null) {
         const _gateAnchor = points[liveViaOnThisLeg ? 0 : Math.max(0, stopIdx - 1 - viaCount)];
         const _gated = guardLegGeometry({
           encoded,

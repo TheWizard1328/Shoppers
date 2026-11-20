@@ -166,9 +166,14 @@ export function expandDegenerateSections({ points = [], degenerate = [], section
   let cursor = 0;
   for (let i = 0; i < points.length - 1; i += 1) {
     if (degenerate[i]) {
-      const a = points[i], b = points[i + 1];
+      // OWNER RULE (Nov 20 2026): at a CLUSTERED location the FIRST stop in the
+      // order owns the polyline that arrives at the cluster; every other stop at
+      // that location gets NO polyline; the last one there is the origin of the
+      // next leg. So a collapsed leg carries no geometry at all (null, never a
+      // 2-point stub) and is flagged degenerate_leg so both generators skip
+      // their straight-line recovery for it.
       out.push({
-        encoded_polyline: _encodeCoords([[a.lat, a.lon], [b.lat, b.lon]]),
+        encoded_polyline: null,
         estimated_distance_km: 0,
         estimated_duration_minutes: 0,
         transport_mode: transportMode,

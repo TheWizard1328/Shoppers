@@ -1262,9 +1262,15 @@ Deno.serve(async (req) => {
             // lastFinished/home -> driven path -> GPS -> stop chain must stay.
             if (_anchorPt && !liveOnLeg) {
               const _km = codecCrowFliesKm(_anchorPt.lat, _anchorPt.lon, _stopPt.lat, _stopPt.lon);
+              // OWNER RULE (Nov 20 2026): at a CLUSTERED location the FIRST stop in
+              // the order owns the arriving polyline, every other stop there draws
+              // NOTHING, and the last one there is the origin of the next leg. The
+              // old 2-point stub is gone: the field is written as null (present and
+              // empty, so a stale leg still cannot survive) and the generators skip
+              // their straight-line recovery for it.
               if (Number.isFinite(_km) && _km < 0.05) {
-                encoded = encodeGooglePolyline([[Number(_anchorPt.lat), Number(_anchorPt.lon)], [_stopPt.lat, _stopPt.lon]]);
-                metricDuration = 2;
+                encoded = null;
+                metricDuration = 0;
                 metricDistance = Number(_km.toFixed(3));
                 stubbed = true;
               } else if (encoded == null) {

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react"; // useMemo already imported
 import { useDevice } from '@/components/utils/DeviceContext';
+import { restartStatusForDelivery } from '@/components/utils/deliveryTypeUtils';
 import { PencilLine, Trash2, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -166,8 +167,11 @@ export default function DashboardBulkEditControls({
 
         // Status is per-delivery (pickup vs delivery determines en_route vs in_transit)
         if (values.statusChoice !== "unchanged") {
+          // SHARED RULE (restartStatusForDelivery): only a genuine store pickup
+          // becomes en_route. An inter-store stop has no patient_id but must be
+          // in_transit (owner bug Nov 20 2026 — restarting an ISD wrote en_route).
           payload.status = values.statusChoice === "in_transit_or_en_route" ?
-          !delivery?.patient_id ? "en_route" : "in_transit" :
+          restartStatusForDelivery(delivery) :
           values.statusChoice;
         }
 

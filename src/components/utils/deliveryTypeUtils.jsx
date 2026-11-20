@@ -113,6 +113,22 @@ export function getDeliveryTypeFlags(delivery) {
 }
 
 /**
+ * Status a stop must carry when it is RESTARTED.
+ *
+ * OWNER BUG (Nov 20 2026): "it's not allowing me to restart the interstore drop
+ * off". Restart paths decided the status with `!delivery.patient_id ? 'en_route'
+ * : 'in_transit'`. An inter-store stop has NO patient_id, so restarting an ISD
+ * wrote 'en_route' — a status inter-store stops never use (their Start path is
+ * in_transit) — and the stop came back unusable. Only a genuine STORE PICKUP is
+ * en_route; everything else (patient delivery, ISP, ISD, cycling marker) is
+ * in_transit. Use this everywhere a restart/retry flips a stop back to active.
+ */
+export function restartStatusForDelivery(delivery) {
+  const { isPickup } = getDeliveryTypeFlags(delivery);
+  return isPickup ? 'en_route' : 'in_transit';
+}
+
+/**
  * Resolves the stop location for a delivery from already-loaded data.
  *
  * @param {object} delivery
