@@ -15,7 +15,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { guardLegGeometry } from './polylineOriginRules';
-import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias, isCoLocatedStop } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js, splitDegenerateLegs, expandDegenerateSections';
+import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias, isCoLocatedStop, splitDegenerateLegs, expandDegenerateSections } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';

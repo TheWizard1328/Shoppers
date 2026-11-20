@@ -448,6 +448,52 @@ class LocationTracker {
   }
 
   /**
+   * Breadcrumb GPS fix with consecutive-failure backoff (owner report Nov 20 2026).
+   * Erin's iPhone logged 37 "Fresh GPS fix failed" rows plus 12 watchdog gap
+   * warnings in one hour: the 5s collector AND the 3s watchdog both asked the
+   * antenna for a zero-age fix, and on a device whose lock keeps dropping every
+   * request burned its full 4s timeout and logged a row. Repeated timeouts are
+   * one hardware condition, not a new error every 3 seconds.
+   * After 3 consecutive failures the fresh antenna grab pauses for 30s and the
+   * OS is asked for a recent cached fix instead (maximumAge 60s) so crumbs keep
+   * flowing, and logging drops to one row per cooldown.
+   * @returns {Promise<Object|null>} position or null when nothing usable
+   */
+  async _breadcrumbFixWithBackoff() {
+    const now = Date.now();
+    if (now < Number(this._breadcrumbFixCooldownUntil || 0)) {
+      try {
+        return await this._requestSharedFix({
+          enableHighAccuracy: false,
+          timeout: 2500,
+          maximumAge: 60000,
+          requestPermissions: false,
+        });
+      } catch {
+        return null;
+      }
+    }
+    try {
+      const pos = await this._requestSharedFix({
+        enableHighAccuracy: true,
+        timeout: 4000,
+        maximumAge: 0,
+        requestPermissions: false,
+      });
+      this._breadcrumbFixFailures = 0;
+      return pos;
+    } catch (e) {
+      this._breadcrumbFixFailures = Number(this._breadcrumbFixFailures || 0) + 1;
+      if (this._breadcrumbFixFailures >= 3) {
+        this._breadcrumbFixCooldownUntil = Date.now() + 30000;
+        this._breadcrumbFixFailures = 0;
+        console.warn('🍞 [Breadcrumb] GPS lock unstable — 3 consecutive fix timeouts. Pausing fresh antenna grabs for 30s and using recent cached fixes.');
+      }
+      return null;
+    }
+  }
+
+  /**
    * Slow down breadcrumb collection to 60s when driver is at a delivery stop.
    * Called by arrivalTimeDetector after confirming arrival at isNextDelivery stop.
    */
@@ -1607,12 +1653,12 @@ class LocationTracker {
         this.breadcrumbInterval = setInterval(async () => {
           if (!this.isTracking || !this._isBreadcrumbStatusActive()) return;
           try {
-            const freshPos = await this._requestSharedFix({
-              enableHighAccuracy: true,
-              timeout: 4000,
-              maximumAge: 0, // Always fresh from antenna
-              requestPermissions: false
-            });
+            // Backoff-aware: a dropped lock no longer logs a row every 5s.
+            const freshPos = await this._breadcrumbFixWithBackoff();
+            if (!freshPos?.coords) {
+              this._emitGpsHealth('lost', { error: 'GPS fix unavailable' });
+              return;
+            }
             // Keep lastPosition in sync so watchPosition callbacks have a recent baseline
             this.lastPosition = {
               latitude: freshPos.coords.latitude,
@@ -1627,7 +1673,7 @@ class LocationTracker {
             );
           } catch (e) {
             console.warn('⚠️ [Breadcrumb Timer] Fresh GPS fix failed:', e?.message);
-        this._emitGpsHealth('lost', { error: e?.message || 'GPS fix unavailable' });
+            this._emitGpsHealth('lost', { error: e?.message || 'GPS fix unavailable' });
           }
         }, this.breadcrumbSaveInterval);
 
@@ -1649,14 +1695,18 @@ class LocationTracker {
           const now = Date.now();
           const timeSinceLastCrumb = now - (this.lastBreadcrumbTickAt || this.lastBreadcrumbSavedAt || 0);
           if (timeSinceLastCrumb > 7000) {
-            console.warn(`🍞 [Breadcrumb Watchdog] Gap detected — ${Math.round(timeSinceLastCrumb / 1000)}s since last breadcrumb. Forcing fresh GPS fix.`);
+            // While the lock is known to be down, the gap warning is the same
+            // condition the collector already reported once — stay quiet.
+            const _lockDown = Date.now() < Number(this._breadcrumbFixCooldownUntil || 0);
+            if (!_lockDown) {
+              console.warn(`🍞 [Breadcrumb Watchdog] Gap detected — ${Math.round(timeSinceLastCrumb / 1000)}s since last breadcrumb. Forcing fresh GPS fix.`);
+            }
             try {
-              const freshPos = await this._requestSharedFix({
-                enableHighAccuracy: true,
-                timeout: 4000,
-                maximumAge: 0,
-                requestPermissions: false
-              });
+              const freshPos = await this._breadcrumbFixWithBackoff();
+              if (!freshPos?.coords) {
+                this._emitGpsHealth('lost', { error: 'GPS fix unavailable' });
+                return;
+              }
               this.lastPosition = {
                 latitude: freshPos.coords.latitude,
                 longitude: freshPos.coords.longitude,
