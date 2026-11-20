@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import ConversationsList from './ConversationsList';
 import ChatWindow from './ChatWindow';
@@ -9,10 +9,23 @@ import { isAppOwner } from '@/components/utils/userRoles';
 import { useDevice } from '@/components/utils/DeviceContext';
 import useMobileChromeHeights from '@/components/utils/useMobileChromeHeights';
 import { useChrome } from '@/components/utils/appChrome';
+import { useLocation } from 'react-router-dom';
 import { hideSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
 
 function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange, pendingBlinkConversationId, onClearBlink }) {
+  // OWNER SPEC (Nov 19 2026): Messages must behave like every other page. It is
+  // still mounted as a full-screen page layer, so navigating from the sidebar
+  // used to render the new page BEHIND it. Any route change now closes the panel
+  // (the path it was opened on is remembered; query-only deep links such as
+  // ?openChat= do not count as navigation).
+  const location = useLocation();
+  const openedOnPathRef = useRef(location.pathname);
+  useEffect(() => {
+    if (location.pathname === openedOnPathRef.current) return;
+    openedOnPathRef.current = location.pathname;
+    onClose();
+  }, [location.pathname, onClose]);
   // OWNER SPEC (Nov 17 2026): "make the in-app messaging panel on mobile full screen
   // like the edit route form, adhering to the APK header and footer gap that's required
   // for the APK but ignoring it when not in the APK." Same rules as DeliveryFormView:
