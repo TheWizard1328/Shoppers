@@ -636,6 +636,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const [weeklyCodAvgByLoc, setWeeklyCodAvgByLoc] = useState({}); // 7-day avg daily CODs per card (excl. today)
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  // SNAPSHOT PROVENANCE (owner report Nov 20 2026: three devices, three different
+  // balances). The page shows WHERE the numbers on screen were computed, so a
+  // divergent device is visible instead of silently trusted.
+  const [snapshotMeta, setSnapshotMeta] = useState(null);
+  // Timestamp of this device's own last local compute. A shared snapshot older
+  // than this must never repaint over fresher local math.
+  const lastLocalComputeAtRef = useRef(0);
   // SYNC STATUS (owner request Oct 9 2026 night): live text shown just left of
   // the Refresh Square button — "Syncing Catalog Items. (Adding/Deleting
   // [name - $amount])" then "Syncing Square Balances."
@@ -1950,12 +1957,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     } catch {/* rows are best-effort — the live compute below still lands */}
   }, [currentUser?.id]);
 
-  const paintLatestSharedSnapshot = useCallback(async () => {
+  const paintLatestSharedSnapshot = useCallback(async (opts = {}) => {
     try {
       const rec = await fetchLatestSharedSnapshot().catch(() => null);
+      // NEVER paint an older publish over this device's own fresher compute.
+      const minVersion = Number(opts.minVersion || 0);
+      if (minVersion && Number(rec?.version || 0) <= minVersion) return false;
       if (rec?.payload) {
         const data = deserializeSummary(rec.payload);
         if (!data) return false;
+        setSnapshotMeta({
+          at: rec?.computed_at || rec?.savedAt || null,
+          device: rec?.computed_by_device || null,
+          by: rec?.computed_by_name || null,
+          version: Number(rec?.version || 0) || null,
+        });
         // CONFIG IS NEVER TAKEN FROM THE CACHE WHEN A REAL ONE IS LOADED
         // (owner report Oct 28 2026: Bonnie Doon loan fees stayed at 17.25%
         // after the rate was corrected to 16.5% in AppSettings). The shared
@@ -1986,11 +2002,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       let cfg = config;
       if (opts.reloadConfig || !cfg) cfg = await loadConfig();
       await loadSales(cfg);
-      // Non-host devices: the Editor's published numbers are authoritative —
-      // repaint LAST so stale local mirrors can't keep the old values on screen.
-      if (!(await resolveIsEditorHost())) {
-        await paintLatestSharedSnapshot();
-      }
+      lastLocalComputeAtRef.current = Date.now();
+      // EVERY device repaints the NEWEST publish, host included (owner report
+      // Nov 20 2026: the desktop kept its own math while a phone's publish owned
+      // the shared snapshot, so the three devices never converged). The
+      // minVersion gate keeps this from ever showing numbers older than the
+      // local compute that just ran.
+      await paintLatestSharedSnapshot({ minVersion: lastLocalComputeAtRef.current });
     } finally {
       setIsLoading(false);
     }
@@ -2006,10 +2024,14 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     let pending = null;
     let cancelled = false;
     (async () => {
-      if (await resolveIsEditorHost()) return; // host computes locally — no self-echo repaint
+      // HOST INCLUDED (owner report Nov 20 2026): the desktop used to ignore
+      // every remote publish ("host computes locally"), so a corrected publish
+      // from another device never reached it and the devices stayed split.
+      // paintLatestSharedSnapshot() refuses anything older than the local
+      // compute, so this can never roll the host backwards.
       unsub = subscribeSharedSnapshot(() => {
         clearTimeout(pending);
-        pending = setTimeout(() => {if (!cancelled) void paintLatestSharedSnapshot();}, 2000);
+        pending = setTimeout(() => {if (!cancelled) void paintLatestSharedSnapshot({ minVersion: lastLocalComputeAtRef.current });}, 2000);
       });
     })();
     return () => {cancelled = true;clearTimeout(pending);unsub?.();};
@@ -2274,6 +2296,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // local event so the sidebar badge force-reloads with fresh numbers on
       // the SAME device that clicked Refresh.
       invalidateLedgerWindows();
+      lastLocalComputeAtRef.current = Date.now();
       window.dispatchEvent(new CustomEvent('squareBalancesRefreshed'));
       toast.success(codSyncNote ? `${codSyncNote}, delivery data refreshed` : 'Delivery data refreshed');
     } catch (err) {
@@ -3107,6 +3130,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           }
         </div>
       </div>
+
+      {/* PROVENANCE (owner report Nov 20 2026: three devices, three balances).
+          Says which device's compute is on screen and when it ran, so a device
+          showing different money is identifiable instead of invisible. */}
+      {snapshotMeta?.at &&
+      <div data-square-snapshot-provenance className="text-[11px] text-slate-500 dark:text-slate-400 -mt-1">
+          Balances computed {new Date(snapshotMeta.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          {snapshotMeta.device ? ` on ${snapshotMeta.device}` : ''}
+          {snapshotMeta.by ? ` by ${snapshotMeta.by}` : ''}
+        </div>
+      }
 
       {/* Single combined Folder total — owner/admin view only (spans all cards) */}
       {!restricted &&
