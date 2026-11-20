@@ -406,6 +406,13 @@ async function handleBriefing(base44, params = {}) {
   // individual in-app message would say and return it, without creating any
   // Message rows and without sending a single push.
   const previewOnly = !!params?.preview_only;
+  // OWNER REQUEST (Nov 19 2026): "resend me the full COD briefing in the new
+  // format as an in-app message". Builds the owner copy, writes it to the COD
+  // Briefing thread, and sends NO push and NO driver messages.
+  const ownerInAppOnly = !!params?.owner_in_app_only;
+  // OWNER REQUEST (Nov 19 2026): deliver each driver's own copy to the owner as
+  // an in-app message too, so he can see exactly what every driver received.
+  const driverCopiesToOwner = !!params?.driver_copies_to_owner;
   const testDriverId = params?.test_driver_id || null;
   const ownerOnly = !!params?.owner_only;
   const correctionTag = params?.correction_tag || ''; // e.g. 'CORRECTION — ' prepended to every push title
@@ -586,13 +593,14 @@ async function handleBriefing(base44, params = {}) {
   // Resolve the App Owner once — used both to skip his individual driver
   // briefing (he gets the All Drivers copy instead) and to deliver it.
   let ownerUser = null;
-  if (!dryRun) ownerUser = await findOwner(base44);
+  if (!dryRun || ownerInAppOnly) ownerUser = await findOwner(base44);
 
   // 6. Driver pushes (skip in dry-run / owner_only) — only drivers with
   // something to report (collected, uncollected, or older outstanding).
   const pushes = [];
   const driverPreviews = [];
-  if (previewOnly || (!dryRun && !ownerOnly)) {
+  const driverCopies = [];
+  if (previewOnly || (ownerInAppOnly && driverCopiesToOwner) || (!ownerInAppOnly && !dryRun && !ownerOnly)) {
     for (const g of driverBriefings) {
       // The App Owner does NOT get an individual driver briefing on days he
       // drives — the All Drivers owner copy already covers him.
@@ -637,6 +645,10 @@ async function handleBriefing(base44, params = {}) {
         driverPreviews.push({ driver_id: g.driver_id, driver_name: g.driver_name, skipped: false, body });
         continue; // preview only — nothing is written or sent
       }
+      if (ownerInAppOnly && driverCopiesToOwner) {
+        driverCopies.push({ driver_id: g.driver_id, driver_name: g.driver_name, body });
+        continue; // owner gets a copy below — the driver is not messaged
+      }
       // In-app Message copy in the same system 'COD Briefing' thread shape.
       let inAppMessageId = null;
       try {
@@ -664,7 +676,8 @@ async function handleBriefing(base44, params = {}) {
 
   // ── App Owner copy: full per-driver breakdown of the day's COD wrap-up ──
   let ownerPush = null;
-  if (!dryRun && !previewOnly) {
+  let ownerBodyOut = null;
+  if ((!dryRun && !previewOnly) || ownerInAppOnly) {
     try {
       const owner = ownerUser;
       if (owner?.id) {
@@ -757,7 +770,7 @@ async function handleBriefing(base44, params = {}) {
         }
         if (unassigned.length) lines.push(`Unassigned: ${unassigned.length} COD${unassigned.length === 1 ? '' : 's'} (no driver on delivery)`, '');
         lines.push('Pushes:');
-        lines.push(pushes.map((pr) => {
+        lines.push(ownerInAppOnly ? 'not sent (in-app only).' : pushes.map((pr) => {
           const nm = firstNameUpper(pr.driver_name);
           if (pr.sent > 0) return `${nm} ${pr.sent} sent`;
           const why = pr.errors && pr.errors.length ? String(pr.errors[0]).slice(0, 40) : 'no active subscription';
@@ -765,6 +778,7 @@ async function handleBriefing(base44, params = {}) {
         }).join(', ') + '.');
         const title = `${ownerOnly ? 'TEST — ' : ''}${correctionTag}COD WRAP-UP: ${monthDay(today)}`;
         const ownerBody = [title, '', ...lines].join('\n');
+        ownerBodyOut = ownerBody;
         let ownerMessageId = null;
         try {
           const created = await base44.asServiceRole.entities.Message.create({
@@ -781,10 +795,40 @@ async function handleBriefing(base44, params = {}) {
         } catch (err) {
           console.log('[briefing] owner Message.create failed:', err?.message || String(err));
         }
-        const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
-        const result = await sendPushToUser(base44, owner.id, title, ownerBody, chatUrl, `cod-briefing-owner-${today}`);
-        ownerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: ownerMessageId, ...result };
-        console.log('[briefing] owner push result:', JSON.stringify(result));
+        // OWNER REQUEST (Nov 19 2026): each driver's own copy is posted into the
+        // owner's COD Briefing thread too, headed by the driver's name, so the
+        // owner sees exactly what that driver was sent. No driver is messaged
+        // and no push is sent in this mode.
+        const driverCopyIds = [];
+        if (ownerInAppOnly && driverCopies.length) {
+          for (const dc of driverCopies) {
+            try {
+              const created = await base44.asServiceRole.entities.Message.create({
+                sender_id: 'cod_briefing',
+                sender_name: 'COD Briefing',
+                receiver_id: owner.id,
+                receiver_name: ownerName,
+                conversation_id: ['cod_briefing', owner.id].sort().join('_'),
+                content: `Driver copy — ${firstNameUpper(dc.driver_name)}\n\n${dc.body}`,
+                read: false,
+                message_type: 'text',
+              });
+              if (created?.id) driverCopyIds.push({ driver_name: dc.driver_name, message_id: created.id });
+            } catch (err) {
+              console.log('[briefing] driver copy message failed:', dc.driver_name, err?.message || String(err));
+            }
+            await sleep(150);
+          }
+        }
+        if (ownerInAppOnly) {
+          ownerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: ownerMessageId, driver_copies: driverCopyIds, push: 'skipped (in-app only)' };
+          console.log('[briefing] owner in-app only — message', ownerMessageId, '— no push sent');
+        } else {
+          const chatUrl = `/?openChat=cod_briefing&openChatName=${encodeURIComponent('COD Briefing')}`;
+          const result = await sendPushToUser(base44, owner.id, title, ownerBody, chatUrl, `cod-briefing-owner-${today}`);
+          ownerPush = { owner_id: owner.id, owner_name: ownerName, in_app_message_id: ownerMessageId, ...result };
+          console.log('[briefing] owner push result:', JSON.stringify(result));
+        }
       } else {
         console.log('[briefing] No App Owner found (platform role admin) — owner push skipped.');
         ownerPush = { skipped: true, reason: 'No platform user with role=admin found' };
@@ -819,6 +863,9 @@ async function handleBriefing(base44, params = {}) {
     success: true,
     dry_run: dryRun,
     preview_only: previewOnly,
+    owner_in_app_only: ownerInAppOnly,
+    owner_body: ownerBodyOut,
+    driver_copies: driverCopies.map((dc) => ({ driver_name: dc.driver_name, body: dc.body })),
     owner_only: ownerOnly,
     driver_previews: driverPreviews,
     briefing_date: today,

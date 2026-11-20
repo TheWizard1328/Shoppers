@@ -157,12 +157,21 @@ export async function notifyDriverAcceptedStops({
     return name;
   };
 
+  // OWNER SPEC (Nov 19 2026): the oversight copy of an accepted-stops event goes
+  // to the App Owner as a SYSTEM MESSAGE. Before this it was written with the
+  // driver as the sender, so the same message id showed up in the driver's own
+  // thread with the owner and read like the owner had messaged them. A system
+  // sender gives it its own thread that only the owner can see.
+  const SYSTEM_SENDER_ID = 'system_message';
+  const SYSTEM_SENDER_NAME = 'System Message';
+
   const sendInApp = async (userId, message, eventName, rule) => {
     const label = rule?.rule_label || getNotificationLabel(eventName);
     const content = label ? `[${label}]\n${message}` : message;
+    const isOversightCopy = String(userId) !== String(driverId);
     await sendDeliveryMessage({
-      senderId: driverId,
-      senderName: driverName,
+      senderId: isOversightCopy ? SYSTEM_SENDER_ID : driverId,
+      senderName: isOversightCopy ? SYSTEM_SENDER_NAME : driverName,
       receiverId: userId,
       receiverName: await resolveReceiverName(userId),
       content,
@@ -172,9 +181,10 @@ export async function notifyDriverAcceptedStops({
   const sendPush = async (userId, message, eventName, rule) => {
     const ruleActions = (rule?.actions && rule.actions.length > 0) ? rule.actions :
       (deliveryIds.length > 0 ? [{ action: 'acknowledge', title: 'Acknowledge' }] : undefined);
+    const isOversightCopy = String(userId) !== String(driverId);
     await sendPushForNotification({
       receiverId: userId,
-      senderName: driverName,
+      senderName: isOversightCopy ? SYSTEM_SENDER_NAME : driverName,
       content: message,
       event: eventName,
       titleOverride: rule?.rule_label,
