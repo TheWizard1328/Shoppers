@@ -1381,6 +1381,25 @@ export function useStopCardCompletionActions({
         if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded(status === 'failed' ? 'Failed' : 'Cancelled');
         dispatchStopCardActionCollapse();
         onClick?.(null);
+        // OWNER RULE (Nov 20 2026): a delivery failed for "Incorrect Address"
+        // means the address on file is wrong, so the patient is taken out of
+        // the rotation — status flips to inactive. Fire-and-forget so the fail
+        // action keeps its fast critical path; re-reads the patient right
+        // before writing so a newer status set elsewhere is never stomped.
+        if (status === 'failed' && /^incorrect address/i.test(String(reason || '').trim()) && delivery?.patient_id) {
+          (async () => {
+            try {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, delivery.patient_id).catch(() => null);
+              if (!existingPatient || existingPatient.status === 'inactive') return;
+              const { updatePatientLocal } = await import('../utils/offlineMutations');
+              await updatePatientLocal(delivery.patient_id, { status: 'inactive' });
+              toast.info(`${existingPatient.full_name || 'Patient'} set to inactive (incorrect address)`);
+            } catch (err) {
+              console.warn('[Fail] patient deactivation failed (non-fatal):', err?.message || err);
+            }
+          })();
+        }
         // Fire-and-forget: breadcrumb consolidation and notifications are background work
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, deliveryId: delivery.id }).catch(() => {});
         if (userHasRole(currentUser, 'driver')) {

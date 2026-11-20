@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import AppBottomSheet from '@/components/common/AppBottomSheet';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -31,12 +31,15 @@ export default function FailureReasonDialog({
     'Items Not Ready',
     'Store Requested Cancellation'
   ] : [
-    'Customer Unavailable',
+    // OWNER (Nov 20 2026): RxDeliver moves patients, not customers — the fail
+    // dialog says Patient. The stored reason string is what lands in
+    // delivery_notes, so keep the wording identical everywhere it is read.
+    'Patient Unavailable',
     'Address Not Found',
-    'Refused by Customer',
+    'Refused by Patient',
     'Access Denied (Building/Gate)',
     'Incorrect Address',
-    'Customer Requested Reschedule'
+    'Patient Requested Reschedule'
   ];
 
   const handleConfirm = () => {
@@ -62,22 +65,23 @@ export default function FailureReasonDialog({
     onClose();
   };
 
+  // OWNER (Nov 20 2026): this is a slide-up sheet now, same one the Bulk Edit
+  // panel uses (AppBottomSheet): slides from the bottom, floats above the nav,
+  // fade covers only the header-to-nav band, no dead padding under the buttons.
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md z-[10020] border bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} onOpenAutoFocus={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-red-600">
+    <AppBottomSheet open={isOpen} onOpenChange={(v) => { if (!v) handleClose(); }} zIndex={10020} className="border-t" style={{ borderColor: 'var(--border-slate-300)' }}>
+      <div className="flex flex-col min-h-0">
+        <div className="px-4 pt-4 pb-2 flex-shrink-0">
+          <h2 className="flex items-center gap-2 text-red-600 text-body font-semibold">
             <AlertCircle className="w-5 h-5" />
-            <span className="text-body">
-              {statusType === 'cancelled' ? 'Cancel' : 'Mark as Failed'} - {isPickup ? 'Pickup' : 'Delivery'}
-            </span>
-          </DialogTitle>
-          <DialogDescription className="text-label">
+            <span>{statusType === 'cancelled' ? 'Cancel' : 'Mark as Failed'} - {isPickup ? 'Pickup' : 'Delivery'}</span>
+          </h2>
+          <p className="text-label mt-1">
             Please select a reason for marking this {isPickup ? 'pickup' : 'delivery'} as {statusType}.
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 px-4 pb-4 overflow-y-auto min-h-0 flex-1">
           <div className="rounded-lg p-3 border border-surface" style={{ background: 'var(--bg-slate-100)' }}>
             <p className="text-sm font-semibold text-body">{deliveryName}</p>
           </div>
@@ -111,25 +115,27 @@ export default function FailureReasonDialog({
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
-            <Button
- variant="outline"
- className="flex-1 text-body bg-surface"
- onClick={handleClose}
- style={{ borderColor: 'var(--border-slate-300)' }}
- >
-              Cancel
-            </Button>
-            <Button
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-              onClick={handleConfirm}
-              disabled={!selectedReason}
-            >
-              Confirm {statusType === 'cancelled' ? 'Cancellation' : 'Failure'}
-            </Button>
-          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {/* Buttons live outside the scroll area so they are always reachable. */}
+        <div className="flex gap-3 px-4 pt-2 pb-3 flex-shrink-0 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+          <Button
+            variant="outline"
+            className="flex-1 text-body bg-surface"
+            onClick={handleClose}
+            style={{ borderColor: 'var(--border-slate-300)' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+            onClick={handleConfirm}
+            disabled={!selectedReason}
+          >
+            Confirm {statusType === 'cancelled' ? 'Cancellation' : 'Failure'}
+          </Button>
+        </div>
+      </div>
+    </AppBottomSheet>
   );
 }

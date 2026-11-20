@@ -588,8 +588,20 @@ export default function Patients() {
     }).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
   }, [stores, selectedCityId, allPatients, currentUser]);
 
+  // OWNER BUG (Nov 20 2026): tapping a store card sometimes opened a DIFFERENT
+  // store's patient database. Cause: the store shown is decided by two writers
+  // (the `store` URL param and the `storeFilter` state) and a URL-sync run that
+  // still holds the previous search can write the old store back over the one
+  // just tapped. `storeSelectionRef` stamps the explicit choice, and the sync
+  // effect below refuses to adopt a stale param while that stamp is fresh.
+  const storeSelectionRef = useRef({ id: null, at: 0 });
+  const markStoreSelection = useCallback((storeId) => {
+    storeSelectionRef.current = { id: storeId, at: Date.now() };
+  }, []);
+
   const handleStoreOverviewClick = useCallback((storeId) => {
     console.log(`[Patients] handleStoreOverviewClick called with storeId: ${storeId}`);
+    markStoreSelection(storeId);
     setStoreFilter(storeId);
 
     // Auto-select the store's city
@@ -598,12 +610,15 @@ export default function Patients() {
       setSelectedCityId(selectedStore.city_id);
     }
 
-    const urlParams = new URLSearchParams(location.search);
+    // Build from the REAL address bar, not the router's location: other code
+    // (Layout's replaceState path) can change the query without the router
+    // knowing, and a stale base re-injects an older store.
+    const urlParams = new URLSearchParams(window.location.search);
     urlParams.set('store', storeId);
     const newUrl = `${location.pathname}?${urlParams.toString()}`;
     console.log(`[Patients] Navigating to: ${newUrl}`);
     navigate(newUrl, { replace: true });
-  }, [navigate, location.pathname, location.search, stores]);
+  }, [navigate, location.pathname, stores, markStoreSelection]);
 
   const getStoreName = useCallback((storeId) => {
     const store = stores.find((s) => s.id === storeId);
@@ -767,8 +782,24 @@ export default function Patients() {
     const urlParams = new URLSearchParams(location.search);
     const storeIdFromQuery = urlParams.get('store');
 
+    // A stale run must never undo a store the user just picked. While the stamp
+    // is fresh, rewrite the URL to the chosen store instead of adopting it.
+    const stamped = storeSelectionRef.current;
+    if (stamped.id && Date.now() - stamped.at < 3000 && storeIdFromQuery !== stamped.id) {
+      const p = new URLSearchParams(window.location.search);
+      p.set('store', stamped.id);
+      navigate(`${location.pathname}?${p.toString()}`, { replace: true });
+      return;
+    }
+
     if (storeIdFromQuery && storeFilter !== storeIdFromQuery) {
       setStoreFilter(storeIdFromQuery);
+      // Keep the city filter in step with the store filter so the two can never
+      // disagree and show a mix of stores.
+      if (storeIdFromQuery !== 'all') {
+        const s = stores.find((st) => st.id === storeIdFromQuery);
+        if (s?.city_id && s.city_id !== selectedCityId) setSelectedCityId(s.city_id);
+      }
     } else if (!storeIdFromQuery && storeFilter !== "all") {
       setStoreFilter("all");
     }
@@ -784,7 +815,7 @@ export default function Patients() {
         navigate(`${location.pathname}?${newParams.toString()}`, { replace: true });
       }
     }
-  }, [location.search, currentUser]);
+  }, [location.search, currentUser, stores, selectedCityId, navigate, location.pathname]);
 
   // New useEffect to handle auto-selection of city once data is loaded
   useEffect(() => {

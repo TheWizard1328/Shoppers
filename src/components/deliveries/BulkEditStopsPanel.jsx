@@ -1,16 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerOverlay } from "@/components/ui/drawer";
+import { DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { buildPickupRecordOptions } from "./pickupSelectionHelpers";
 import { userHasRole } from "@/components/utils/userRoles";
 import { useAppData } from "@/components/utils/AppDataContext";
-import { useChrome } from "@/components/utils/appChrome";
+import AppBottomSheet from "@/components/common/AppBottomSheet";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { X, Car, Bike, Check, Minus } from "lucide-react";
 import { resolveAfterHoursCheckboxState } from "./bulkEditAfterHoursHelpers";
@@ -500,9 +499,6 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     if (!appUsers) return [];
     return appUsers.filter((au) => au && au.app_roles?.includes('driver') && au.status !== 'inactive' && au.user_name);
   }, [drivers, appUsers]);
-  // Live chrome geometry: the fade and the sheet both live inside the app's real
-  // vertical band (header bottom -> nav top).
-  const chrome = useChrome();
   // Read the sidebar width directly from the DOM so the modal centers over the map area only
   const [sidebarWidth, setSidebarWidth] = useState(0);
   useEffect(() => {
@@ -600,57 +596,19 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   // footer buttons. Capacitor resizes the WebView for the keyboard itself
   // (adjustResize), so vaul's repositioning isn't needed; disabling it also
   // stops vaul clobbering our custom `bottom` lift above the native nav.
-  // The fade must cover the app's real vertical band only — from the bottom of
-  // the mobile header to the top of the bottom nav (owner report Nov 20 2026:
-  // it was stretching past the header and over the nav icons). readBand() is
-  // the single source for that geometry and is already visualViewport-clamped.
-  const band = chrome.band;
-  const overlayStyle = band
-    ? { top: band.top, bottom: Math.max(0, chrome.viewportH - band.bottom), left: 0, right: 0 }
-    : { top: 'var(--app-inset-top)', bottom: 'calc(var(--actual-bottom-nav-height,0px) + var(--app-inset-bottom))', left: 0, right: 0 };
-
   if (isMobile) {
+    // Shared slide-up sheet (AppBottomSheet): band-limited fade, panel lifted
+    // above the nav, no dead padding under Cancel/Apply.
     return (
-      <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
-        {/* Our own band-limited backdrop; the primitive's inset-0 overlay is
-            suppressed with hideOverlay so it can't dim the header or the nav.
-            It MUST be gated on `open` and portalled to body: vaul keeps its
-            root mounted, and a bare fixed div inside the dashboard painted a
-            permanent grey sheet over the map (owner report Nov 20 2026). */}
-        {open && createPortal(
-          <div className="fixed z-[11000] bg-black/70" style={overlayStyle} onClick={() => onOpenChange(false)} />,
-          document.body
-        )}
-        <DrawerContent
-          hideOverlay
-          // The base DrawerContent primitive (src/components/ui/drawer.jsx) bakes
-          // in its own `pb-[max(0px,var(--app-inset-bottom))]` class. Our
-          // `bottom` style below already lifts the WHOLE panel above the nav bar
-          // AND the safe-area inset, so that baked-in bottom padding is now
-          // redundant and shows as extra empty space under Cancel/Apply. `pb-0`
-          // overrides it via tailwind-merge (cn() in drawer.jsx uses twMerge, so
-          // the later pb-0 here wins over the primitive's default pb- class).
-          data-lifted-sheet="true"
-          hideHandle
-          className="z-[11001] pb-0 bg-surface" style={{
-            bottom: band ? Math.max(0, chrome.viewportH - band.bottom) : "calc(var(--actual-bottom-nav-height, 0px) + var(--app-inset-bottom))",
-            // Never taller than the band between the header and the nav, so the
-            // form scrolls inside the panel instead of running past the chrome.
-            maxHeight: band ? Math.max(240, band.height - 12) : undefined,
-          }}>
-          
-          {/* The panel floats inside the band, so the safe-area inset is not
-              needed above the title — it was a dead strip at the top. */}
-          <DrawerHeader style={{ paddingTop: "1rem" }}>
-            <DrawerTitle className="text-body">Bulk Edit Stops</DrawerTitle>
-            <DrawerDescription className="text-soft">
-              Update the basic route info for the selected stops.
-            </DrawerDescription>
-          </DrawerHeader>
-          {content}
-        </DrawerContent>
-      </Drawer>);
-
+      <AppBottomSheet open={open} onOpenChange={onOpenChange}>
+        <DrawerHeader style={{ paddingTop: "1rem" }}>
+          <DrawerTitle className="text-body">Bulk Edit Stops</DrawerTitle>
+          <DrawerDescription className="text-soft">
+            Update the basic route info for the selected stops.
+          </DrawerDescription>
+        </DrawerHeader>
+        {content}
+      </AppBottomSheet>);
   }
 
   return (
