@@ -19,9 +19,18 @@ import { isCurrentDevicePrimary } from '@/components/utils/deviceManager';
  *    section's badge follows. On the PC or a secondary device no T appears and a
  *    hold does nothing, so the button never promises something it cannot do.
  *
- * The hold must never let the tel: link fire, so the click that follows the long
- * press is swallowed once. Context menu / callout is suppressed while a text
- * capable button is held (a long press would otherwise open the link menu).
+ * The hold must never let the call fire, so the click that follows the long
+ * press is swallowed once.
+ *
+ * OWNER BUG (Nov 20 2026): "tapping and holding the call buttons both of them
+ * isn't doing the texting of the patient". This used to be an <a href="tel:">.
+ * A long press on a LINK makes Android show the native "open / copy link" menu,
+ * which cancels the pointer stream (pointercancel) BEFORE the 1.5s timer fires,
+ * so the hold was cleared and nothing happened. It is now a plain <button> with
+ * no href: nothing native can hijack the press, the timer survives, and both
+ * actions are driven in JS exactly the way the working text badge does it
+ * (window.location.href = 'tel:' / 'sms:'). A scroll gesture still cancels the
+ * hold via movement detection instead of pointercancel.
  */
 const HOLD_MS = 1500;
 
@@ -43,6 +52,7 @@ export default function CallButtonWithText({
 
   const timerRef = useRef(null);
   const heldRef = useRef(false);
+  const originRef = useRef(null);
 
   const firstName = String(patient?.full_name || patientName || '').trim().split(/\s+/)[0] || '';
 
@@ -52,6 +62,12 @@ export default function CallButtonWithText({
     const body = encodeURIComponent(`Hello ${firstName},\n`);
     window.location.href = `sms:${digits}?body=${body}`;
   }, [phone, firstName]);
+
+  const openTel = useCallback(() => {
+    const digits = String(phone || '').replace(/[^0-9+]/g, '');
+    if (!digits) return;
+    window.location.href = `tel:${digits}`;
+  }, [phone]);
 
   const clearHold = useCallback(() => {
     if (timerRef.current) {
@@ -64,6 +80,7 @@ export default function CallButtonWithText({
     if (!showTextBadge) return;
     e.stopPropagation();
     heldRef.current = false;
+    originRef.current = { x: e.clientX ?? 0, y: e.clientY ?? 0 };
     clearHold();
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
@@ -72,24 +89,36 @@ export default function CallButtonWithText({
     }, HOLD_MS);
   }, [showTextBadge, clearHold, openSms]);
 
+  // A scroll starting on the button must cancel the hold. Movement does that;
+  // pointercancel is deliberately NOT the signal (on a link it fired from the
+  // native long-press menu and killed the hold before it could fire).
+  const handlePointerMove = useCallback((e) => {
+    if (!timerRef.current || !originRef.current) return;
+    const dx = (e.clientX ?? 0) - originRef.current.x;
+    const dy = (e.clientY ?? 0) - originRef.current.y;
+    if (Math.hypot(dx, dy) > 12) clearHold();
+  }, [clearHold]);
+
   const handleClick = useCallback((e) => {
     e.stopPropagation();
+    e.preventDefault?.();
     if (heldRef.current) {
       // The long press already opened the texting app — do not also dial.
-      e.preventDefault();
       heldRef.current = false;
       return;
     }
     onBeforeCall?.();
-  }, [onBeforeCall]);
+    openTel();
+  }, [onBeforeCall, openTel]);
 
   const isCompact = size === 'compact';
 
   return (
-    <a
-      href={`tel:${String(phone || '').replace(/\D/g, '')}`}
+    <button
+      type="button"
       onClick={handleClick}
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
       onPointerUp={clearHold}
       onPointerLeave={clearHold}
       onPointerCancel={clearHold}
@@ -108,6 +137,6 @@ export default function CallButtonWithText({
           T
         </span>
       )}
-    </a>
+    </button>
   );
 }
