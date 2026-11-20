@@ -198,6 +198,38 @@ export async function clearDuplicateNextFlags({
   return cleared;
 }
 
+/**
+ * DUTY-STATUS SUPPRESSION (owner report Nov 20 2026).
+ *
+ * "I just put myself on break and the next-delivery flag for my next stop
+ * looked like it was cleared, but then after a refresh or switching pages and
+ * coming back to the dashboard that stop is marked next again even though I'm
+ * still on break."
+ *
+ * Going on break / off duty clears the flag ON PURPOSE (DriverStatusToggle +
+ * setDriverStatus). The guard only ever looked at the route, so an empty flag
+ * read as damage and it put the flag straight back on the next refresh. While
+ * the driver's own duty status is on_break or off_duty, an empty next flag is
+ * CORRECT: leave it alone. Coming back on duty re-arms the flag itself in
+ * DriverStatusToggle, so nothing is lost by staying quiet here.
+ */
+async function routeIsDutySuppressed(driverId) {
+  try {
+    const rec = await offlineDB.getById(offlineDB.STORES.APP_USERS, driverId).catch(() => null);
+    const status = String(rec?.driver_status || '').toLowerCase();
+    if (status !== 'on_break' && status !== 'off_duty') return false;
+    // Safety valve: a stale local copy must not disable the heal forever. A
+    // real break is stamped by the toggle, so anything older than 12h is
+    // treated as unknown rather than as a live break.
+    const stamp = rec?.driver_status_updated_at || rec?.updated_date || '';
+    const at = Date.parse(stamp);
+    if (Number.isFinite(at) && Date.now() - at > 12 * 60 * 60 * 1000) return false;
+    return true;
+  } catch (_) {
+    return false; // never block the heal on a read error
+  }
+}
+
 export async function ensureRouteHasNextStop({
   driverId,
   deliveryDate,
@@ -224,6 +256,10 @@ export async function ensureRouteHasNextStop({
     if (route.length === 0) return null;
     // Already flagged (any stop, including one the optimizer just promoted).
     if (route.some((d) => d?.isNextDelivery === true)) return null;
+
+    // On break / off duty an EMPTY flag is deliberate — never restore it
+    // (owner report Nov 20 2026).
+    if (await routeIsDutySuppressed(driverId)) return null;
 
     // OWNER DIRECTION (Nov 12 2026): the device that SET the flag owns it.
     // Dispatchers/admins take ownership the moment they change it themselves;

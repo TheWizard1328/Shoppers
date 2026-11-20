@@ -291,6 +291,18 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           body.is-native-apk [role="dialog"][data-vaul-drawer][data-lifted-sheet="true"] {
             padding-bottom: 0 !important;
           }
+          /* VAUL'S FILLER BAND (owner report Nov 20 2026 - the real cause of the
+             Bulk Edit dead gap, on web as well as APK). Vaul paints a
+             ::after pseudo-element below every bottom sheet — top:100%,
+             height:200%, background:inherit — to hide the page during a
+             drag-dismiss. A sheet that LIFTS itself above the nav bar (Bulk Edit
+             Stops sets bottom: calc(nav + inset)) therefore has that filler
+             painted as a solid band the height of the nav + safe area between
+             Cancel/Apply and the nav: it looks exactly like leftover APK
+             padding, and no Tailwind pb-0 can remove it because it is not
+             padding at all. Opted out by attribute. */
+          body [data-vaul-drawer][data-lifted-sheet="true"]::after,
+          body [data-vaul-drawer][data-lifted-sheet="true"]::before { display: none !important; }
 
           /* Shadcn Sheet overlay */
           body.is-native-apk .fixed.inset-0[data-state="open"]:not([role="dialog"]):not([role="alertdialog"]) {
