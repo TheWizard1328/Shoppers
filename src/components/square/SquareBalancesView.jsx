@@ -2998,6 +2998,19 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     setTrueUpDraft((d) => ({ ...d, [locId]: { ...(d[locId] || {}), [field]: trueUpCentsValue(raw) } }));
   };
 
+  // DIM PLACEHOLDERS = THE CURRENT TRACKED NUMBERS (owner report Nov 20 2026:
+  // "the values that are dimmed aren't matching the current values ... they are
+  // a lot of times stale"). They used to show the stored true-up BASELINE
+  // (card_start / loan_start from the last true-up), which drifts away from the
+  // live card estimate within a day. Now they show what the cards show.
+  const trueUpCurrentValue = useCallback((locationId, field) => {
+    const live = (perLocation || []).find((l) => l.location_id === locationId);
+    const stored = (config?.locations || []).find((l) => l.location_id === locationId);
+    if (field === 'card') return Number(live?.cardEstimate ?? stored?.card_start ?? 0);
+    if (field === 'loan') return Number(live?.loanRemaining ?? stored?.loan_start ?? 0);
+    return 0;
+  }, [perLocation, config]);
+
   const saveTrueUp = async () => {
     if (!config) return;
     // ONLY ENTERED FIELDS CHANGE (owner rule Nov 20 2026): blank = keep the
@@ -3835,20 +3848,20 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         }}>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">True-Up: enter the CURRENT real numbers from each Square dashboard</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Blank fields keep the existing value. This resets the tracking window to now. Enter saves.</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Dimmed numbers are what the cards show right now. Blank fields keep the existing value. This resets the tracking window to now. Enter saves.</div>
             </div>
             {(config.locations || []).map((loc, li) =>
           <div key={loc.location_id} className="space-y-1.5">
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-50">{loc.name || loc.location_id}</div>
                 <div className="grid grid-cols-3 gap-1.5 items-end">
                   <label className="text-[10px] text-slate-500 dark:text-slate-400">Card balance
-                    <Input type="text" inputMode="decimal" tabIndex={li + 1} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft[loc.location_id]?.card)} placeholder={fmtMoney(loc.card_start)}
+                    <Input type="text" inputMode="decimal" tabIndex={li + 1} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft[loc.location_id]?.card)} placeholder={fmtMoney(trueUpCurrentValue(loc.location_id, 'card'))}
                 value={fmtTrueUpField(trueUpDraft[loc.location_id]?.card)}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => setTrueUpCentsField(loc.location_id, 'card', e.target.value)} />
                   </label>
                   <label className="text-[10px] text-slate-500 dark:text-slate-400">Loan remaining
-                    <Input type="text" inputMode="decimal" tabIndex={(config.locations || []).length + 2 + li} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft[loc.location_id]?.loan)} placeholder={fmtMoney(loc.loan_start)}
+                    <Input type="text" inputMode="decimal" tabIndex={(config.locations || []).length + 2 + li} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft[loc.location_id]?.loan)} placeholder={fmtMoney(trueUpCurrentValue(loc.location_id, 'loan'))}
                 value={fmtTrueUpField(trueUpDraft[loc.location_id]?.loan)}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => setTrueUpCentsField(loc.location_id, 'loan', e.target.value)} />
@@ -3866,7 +3879,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
               <div className="text-sm font-medium text-slate-900 dark:text-slate-50">Folder (combined)</div>
               <div className="grid grid-cols-3 gap-1.5 items-end">
                 <label className="text-[10px] text-slate-500 dark:text-slate-400">Folder balance
-                  <Input type="text" inputMode="decimal" tabIndex={(config.locations || []).length + 1} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft.__folder)} placeholder={fmtMoney(config.folder_start || 0)}
+                  <Input type="text" inputMode="decimal" tabIndex={(config.locations || []).length + 1} className={"mt-0.5 px-2 text-xs" + trueUpEditedCls(trueUpDraft.__folder)} placeholder={fmtMoney(folderTotal)}
                 value={fmtTrueUpField(trueUpDraft.__folder)}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => setTrueUpDraft((d) => ({ ...d, __folder: trueUpCentsValue(e.target.value) }))} />
