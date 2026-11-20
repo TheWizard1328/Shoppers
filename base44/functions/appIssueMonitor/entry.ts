@@ -475,8 +475,9 @@ Deno.serve(async (req) => {
       const firstName = String(u.user_name || 'User').trim().split(/\s+/)[0];
       const primaryDevice = deviceLabel ? deviceLabel.split(' (')[0].split(',')[0].trim() : null;
       const countForType = alert.type === 'app_restarts' ? u.appStarts : alert.type === 'rate_limit' ? u.rateLimits : u.errors;
-      const shortType = alert.type === 'app_restarts' ? 'restarts' : alert.type === 'rate_limit' ? 'rate limits' : 'errors';
-      const who = primaryDevice ? `${isOwner ? 'Your device' : firstName} (${primaryDevice})` : (isOwner ? 'Your device' : firstName);
+      // OWNER SPEC (Nov 19 2026): issue labels are capitalised in the push.
+      const shortType = alert.type === 'app_restarts' ? 'Restarts' : alert.type === 'rate_limit' ? 'Rate limits' : 'Errors';
+      const who = primaryDevice ? `${isOwner ? 'Your Device' : firstName} (${primaryDevice})` : (isOwner ? 'Your Device' : firstName);
       pushItems.push(`${who}: ${shortType} ${countForType}`);
       if (!pushUrlBest && ownerMessage?.id) pushUrlBest = `/?app_issue_message=${ownerMessage.id}`;
       const push = null;
@@ -498,9 +499,13 @@ Deno.serve(async (req) => {
     if (!dryRun && pushItems.length > 0) {
       const shown = pushItems.slice(0, 4);
       const extra = pushItems.length > shown.length ? ` +${pushItems.length - shown.length} more` : '';
-      const title = pushItems.length === 1
-        ? `App Issue — ${shown[0].split(':')[0]}`
-        : `App Issues — ${pushItems.length} devices`;
+      // OWNER SPEC (Nov 19 2026): the header is ALWAYS just "App Issue" — the
+      // device name already appears in each body line, so repeating it in the
+      // title was duplicated information. Body lists device + issue per line:
+      //   App Issue
+      //   Sharuk (Android Mobile): Restarts 4
+      //   Your Device (The-Desktop(Editor)): Errors 22
+      const title = 'App Issue';
       // One device/issue per line so the notification reads as a list.
       const body = shown.join('\n') + extra;
       // Same tag on every run: a new batch REPLACES the previous batch on the
