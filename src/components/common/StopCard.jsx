@@ -225,7 +225,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     () => getDeliveryTypeFlags(delivery),
     [delivery?.patient_id, delivery?.delivery_id]
   );
-  const interStoreLocation = useInterStoreLocation(delivery?.delivery_id);
+  // Pass the record as well: a DID-prefixed inter-store stop has no phone segment
+  // in its id, so the prefix lookup alone leaves interStoreLocation null and the
+  // card's Update GPS then refuses to run (owner report Nov 20 2026).
+  const interStoreLocation = useInterStoreLocation(delivery?.delivery_id, delivery);
 
   useEffect(() => {
     // If already cached, sync to state immediately

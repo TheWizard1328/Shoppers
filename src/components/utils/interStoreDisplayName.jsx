@@ -18,7 +18,17 @@ let allLocationsPromise = null;
 
 const entityIdCache = new Map();   // InterStoreLocation record id -> record
 
+// Bumped every time the cache is re-indexed. The map's marker memo reads this so
+// a GPS update actually REDRAWS the marker (owner report Nov 20 2026: "even if it
+// is updating the coordinates it's not updating the map marker" — the marker memo
+// only depended on deliveries/stores/patients, so a cache write never reached it).
+let cacheVersion = 0;
+export function getInterStoreCacheVersion() {
+  return cacheVersion;
+}
+
 function indexLocations(locs) {
+  cacheVersion += 1;
   (locs || []).forEach((loc) => {
     if (loc?.store_phone && loc?.store_name) {
       const digits = String(loc.store_phone).replace(/\D/g, '');
@@ -43,6 +53,7 @@ export function resetInterStoreLocationsCache() {
  * Exported so interStoreGeocode can update the in-memory cache after saving coords.
  */
 export function indexInterStoreLocation(loc) {
+  cacheVersion += 1;
   if (loc?.id) entityIdCache.set(loc.id, loc);
   if (!loc?.store_phone || !loc?.store_name) return;
   const digits = String(loc.store_phone).replace(/\D/g, '');
@@ -251,21 +262,35 @@ export function useInterStoreDisplayName(delivery_id) {
  * Returns null if not an ISP/ISD delivery or while loading.
  * Uses shared in-memory cache — safe to call in many StopCard instances.
  */
-export function useInterStoreLocation(delivery_id) {
+export function useInterStoreLocation(delivery_id, delivery = null) {
+  // OWNER BUG (Nov 20 2026): an inter-store stop recreated with a plain DID- id
+  // has no phone segment, so the prefix-only lookup returned null and Update GPS
+  // refused with "InterStore location not resolved yet". The delivery record is
+  // now passed in as a second argument so the entity-id path can resolve it.
   const [location, setLocation] = useState(() => {
     const fromPhone = extractFromPhoneFromDeliveryId(delivery_id);
-    if (!fromPhone) return null;
-    return locationCache.get(fromPhone) || null;
+    if (fromPhone && locationCache.get(fromPhone)) return locationCache.get(fromPhone);
+    return (delivery && getInterStoreLocationForRecordSync(delivery)) || null;
   });
 
   useEffect(() => {
-    if (!isInterStoreDelivery(delivery_id)) { setLocation(null); return; }
+    const kind = delivery ? getInterStoreKindOf(delivery) : null;
+    if (!isInterStoreDelivery(delivery_id) && !kind) { setLocation(null); return; }
     let cancelled = false;
-    resolveInterStoreLocation(delivery_id).then((loc) => {
+    const load = async () => {
+      const byPhone = await resolveInterStoreLocation(delivery_id).catch(() => null);
+      if (byPhone) return byPhone;
+      if (delivery) {
+        const byRecord = await resolveInterStoreLocationForRecord(delivery).catch(() => null);
+        if (byRecord) return byRecord;
+      }
+      return getInterStoreLocationForRecordSync(delivery) || null;
+    };
+    load().then((loc) => {
       if (!cancelled) setLocation(loc || null);
     });
     return () => { cancelled = true; };
-  }, [delivery_id]);
+  }, [delivery_id, delivery?._interstore_dest_id, delivery?._interstore_source_id, delivery?.patient_id]);
 
   // OWNER FEATURE (Oct 22 2026): live GPS updates for InterStore stops — when
   // the driver updates the location's coords (StopCard Update GPS),

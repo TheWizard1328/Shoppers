@@ -309,7 +309,20 @@ export const updateInterStoreGPS = async ({ interStoreLocation, mapCrosshairCoor
     const { nextLatitude, nextLongitude, updateSource } = await resolveUpdateCoords({
       mapCrosshairCoords, preferCrosshair, currentCoords,
     });
-    await updateInterStoreLocationLocal(recordId, { store_latitude: nextLatitude, store_longitude: nextLongitude });
+    // Write through IDB first (offline safe). If the InterStoreLocation row is
+    // not in the local store yet — fresh install, or a record created after the
+    // last sync — the local write throws "not found in local database" and the
+    // whole update used to abort with a failure toast. Fall back to a direct
+    // server write so the coords still save (owner report Nov 20 2026).
+    try {
+      await updateInterStoreLocationLocal(recordId, { store_latitude: nextLatitude, store_longitude: nextLongitude });
+    } catch (localErr) {
+      console.warn('[patientGPSUpdater] InterStore local write failed, saving to server:', localErr?.message);
+      await base44.entities.InterStoreLocation.update(recordId, {
+        store_latitude: nextLatitude,
+        store_longitude: nextLongitude,
+      });
+    }
     // Re-index the shared in-memory location cache so navigation, route
     // optimization and markers resolve the NEW coords immediately (no wait
     // for the next full location fetch).

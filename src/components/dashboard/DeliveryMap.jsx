@@ -290,6 +290,22 @@ function DeliveryMap({
   // dots are checked at their ACTUAL painted positions.
   const sharedVisibleDriversRef = useRef([]);
   const [sharedLocationMarkersTick, setSharedLocationMarkersTick] = useState(0);
+
+  // OWNER BUG (Nov 20 2026): Update GPS on an InterStore stop saved the new
+  // coords but the map marker never moved. The marker memo below reads the
+  // InterStoreLocation cache synchronously, and nothing in its dependency list
+  // changed when that cache was re-indexed, so the old coords were reused.
+  // This tick is bumped by the update events and added to the memo deps.
+  const [interStoreGpsTick, setInterStoreGpsTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setInterStoreGpsTick((v) => v + 1);
+    window.addEventListener('interStoreGpsUpdated', bump);
+    window.addEventListener('storeGpsUpdated', bump);
+    return () => {
+      window.removeEventListener('interStoreGpsUpdated', bump);
+      window.removeEventListener('storeGpsUpdated', bump);
+    };
+  }, []);
   const handleVisibleDriversChange = useCallback((list) => {
     sharedVisibleDriversRef.current = Array.isArray(list) ? list : [];
     setSharedLocationMarkersTick((v) => v + 1);
@@ -824,7 +840,7 @@ function DeliveryMap({
     });
 
     return { rawPickupMarkers: pickups, rawDeliveryMarkers: deliveriesOut, hasIncompleteStops: hasIncomplete };
-  }, [deliveriesToShow, safeStores, safePatients, patientById, storeById, driverLookupMap, selectedDriverId, currentUser, showOtherDriverDeliveries, isAllDriversMode]);
+  }, [deliveriesToShow, safeStores, safePatients, patientById, storeById, driverLookupMap, selectedDriverId, currentUser, showOtherDriverDeliveries, isAllDriversMode, interStoreGpsTick]);
 
   // Step 2: Apply zoom-dependent duplicate counts and grouping maps separately.
   // Zoom changes only recompute counts/groups — the stable marker objects from Step 1 are reused.
