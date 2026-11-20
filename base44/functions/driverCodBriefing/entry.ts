@@ -402,6 +402,10 @@ async function buildBalanceLines(base44, opts = {}) {
 
 async function handleBriefing(base44, params = {}) {
   const dryRun = !!params?.dry_run;
+  // PREVIEW ONLY (owner request Nov 19 2026): build exactly what each driver's
+  // individual in-app message would say and return it, without creating any
+  // Message rows and without sending a single push.
+  const previewOnly = !!params?.preview_only;
   const testDriverId = params?.test_driver_id || null;
   const ownerOnly = !!params?.owner_only;
   const correctionTag = params?.correction_tag || ''; // e.g. 'CORRECTION — ' prepended to every push title
@@ -587,7 +591,8 @@ async function handleBriefing(base44, params = {}) {
   // 6. Driver pushes (skip in dry-run / owner_only) — only drivers with
   // something to report (collected, uncollected, or older outstanding).
   const pushes = [];
-  if (!dryRun && !ownerOnly) {
+  const driverPreviews = [];
+  if (previewOnly || (!dryRun && !ownerOnly)) {
     for (const g of driverBriefings) {
       // The App Owner does NOT get an individual driver briefing on days he
       // drives — the All Drivers owner copy already covers him.
@@ -601,7 +606,10 @@ async function handleBriefing(base44, params = {}) {
         ...g.older_outstanding.items.map((c) => ({ amount: c.amount, type_label: c.store_abbreviation || g.store_abbreviation, label: `${c.patient_name}${String(c.delivery_date || '') === today ? '' : ` (${shortDate(c.delivery_date || '')})`}` })),
       ];
       const outstandingCount = g.uncollected_today.count + g.older_outstanding.count;
-      if (!hasCollected && outstandingCount === 0) continue; // worked today, zero COD activity — no push
+      if (!hasCollected && outstandingCount === 0) {
+        if (previewOnly) driverPreviews.push({ driver_id: g.driver_id, driver_name: g.driver_name, skipped: true, body: '(no message — no COD activity today)' });
+        continue; // worked today, zero COD activity — no push
+      }
       // OWNER SPEC (Nov 19 2026) — driver copy:
       //   2 Collected: $ 45.09
       //   Nothing outstanding — clean slate.
@@ -625,6 +633,10 @@ async function handleBriefing(base44, params = {}) {
         ...lines,
       ].join('\n');
       const title = `${testDriverId ? 'TEST — ' : ''}${correctionTag}COD Wrap-Up: ${shortDate(today)}`;
+      if (previewOnly) {
+        driverPreviews.push({ driver_id: g.driver_id, driver_name: g.driver_name, skipped: false, body });
+        continue; // preview only — nothing is written or sent
+      }
       // In-app Message copy in the same system 'COD Briefing' thread shape.
       let inAppMessageId = null;
       try {
@@ -652,7 +664,7 @@ async function handleBriefing(base44, params = {}) {
 
   // ── App Owner copy: full per-driver breakdown of the day's COD wrap-up ──
   let ownerPush = null;
-  if (!dryRun) {
+  if (!dryRun && !previewOnly) {
     try {
       const owner = ownerUser;
       if (owner?.id) {
@@ -806,7 +818,9 @@ async function handleBriefing(base44, params = {}) {
   return {
     success: true,
     dry_run: dryRun,
+    preview_only: previewOnly,
     owner_only: ownerOnly,
+    driver_previews: driverPreviews,
     briefing_date: today,
     generated_at: new Date().toISOString(),
     totals,
