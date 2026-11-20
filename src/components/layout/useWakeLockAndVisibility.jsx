@@ -298,7 +298,11 @@ export function useWakeLockAndVisibility({
       // holding the screen so a sleeping device can be diagnosed from logs.
       if (wakeTick % 15 === 0) {
         try {
-          remoteLogger.warn('[KEEP_AWAKE] state', {
+          // INFO, not WARN (owner Nov 19 2026): this heartbeat fires every 5
+          // minutes on every device and was a third of the hourly warning
+          // noise. It is still recorded for diagnosis, just no longer counted
+          // as a warning.
+          remoteLogger.info('[KEEP_AWAKE] state', {
             lock: wakeLockRef.current ? (wakeLockRef.current.released ? 'released' : 'held') : 'none',
             video: keepAwakeVideoRef.current ? (keepAwakeVideoRef.current.paused ? 'paused' : 'playing') : 'absent',
             ios: isIOSDeviceRef.current,
