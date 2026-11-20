@@ -673,7 +673,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   // falling back to currentDriverAppUser prop (which may be slightly stale between refreshes).
   const driverLat = Number(liveDriverLocationRef.current?.lat ?? currentDriverAppUser?.current_latitude ?? currentUser?.current_latitude);
   const driverLon = Number(liveDriverLocationRef.current?.lon ?? currentDriverAppUser?.current_longitude ?? currentUser?.current_longitude);
-  const isWithinActiveStopRange = Number.isFinite(driverLat) && Number.isFinite(driverLon) && !!navigationHref && calculateHaversineDistance(driverLat, driverLon, stopLat, stopLon) <= 100;
+  const driverDistanceToStopM = (Number.isFinite(driverLat) && Number.isFinite(driverLon) && !!navigationHref)
+    ? calculateHaversineDistance(driverLat, driverLon, stopLat, stopLon)
+    : null;
+  const isWithinActiveStopRange = driverDistanceToStopM != null && driverDistanceToStopM <= 100;
+  // OWNER (Nov 20 2026): a site gate is often further out than 100 m, so the
+  // gate/security code pop-up fires from a wider radius (+50 m). Arrival and the
+  // multi-arrival panel keep the strict 100 m rule — only the code dialog moved.
+  const ACCESS_CODE_POP_RANGE_M = 150;
+  const isWithinAccessCodeRange = driverDistanceToStopM != null && driverDistanceToStopM <= ACCESS_CODE_POP_RANGE_M;
 
   // Show multi-delivery arrival dialog when driver arrives at a location with
   // multiple active deliveries at the same address.
@@ -778,9 +786,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   // ── ACCESS CODE POP-UP (owner spec Oct 23 2026) ────────────────────────────
   // Parse ONLY the patient's notes (never driver notes / unit numbers / buzzer —
   // buzzers already render on cards) for door/lock/elevator/gate codes and pop
-  // the AccessCodeDialog the moment the driver is physically within 100m of the
-  // stop. Fires once per visit (10-min cooldown per patient), on the driver's
-  // primary device only.
+  // the AccessCodeDialog the moment the driver is physically within 150m of the
+  // stop (owner raised it from 100m so gates further out still pop). Fires once
+  // per visit (10-min cooldown per patient), on the driver's primary device only.
   const accessCodes = useMemo(() => {
     if (!patient?.notes || !delivery?.patient_id) return [];
     return parseAllAccessCodes(patient.notes)
@@ -793,14 +801,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     const isActiveUser = delivery?.driver_id === currentUser?.id;
     if (!accessCodes.length || !isActiveUser || !isPrimaryDevice) return;
     // Same live-proximity gate as the multi-arrival dialog (never re-pops from a
-    // stale arrival_time after app restart — driver must be within 100m NOW).
-    if (!isActivePatientStop || !isWithinActiveStopRange || !accessCodeKey) return;
+    // stale arrival_time after app restart — driver must be within range NOW),
+    // but with the wider 150 m gate-code radius so gates further out still pop.
+    if (!isActivePatientStop || !isWithinAccessCodeRange || !accessCodeKey) return;
     const lastShown = _accessCodeShownAt.get(accessCodeKey) || 0;
     if (Date.now() - lastShown < ACCESS_CODE_REPOP_COOLDOWN_MS) return;
     _accessCodeShownAt.set(accessCodeKey, Date.now());
     setShowAccessCodeDialog(true);
     console.log(`🔐 [AccessCode] arrival pop-up for ${accessCodes[0].patientName || 'patient'} (${accessCodes.length} code(s))`);
-  }, [accessCodes, isActivePatientStop, isWithinActiveStopRange, delivery?.driver_id, currentUser?.id, isPrimaryDevice, accessCodeKey]);
+  }, [accessCodes, isActivePatientStop, isWithinAccessCodeRange, delivery?.driver_id, currentUser?.id, isPrimaryDevice, accessCodeKey]);
 
 
 
