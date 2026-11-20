@@ -125,10 +125,10 @@ function ChatWindow({
   // ── READ-STATE MODEL (owner spec Nov 19 2026) ─────────────────────────────
   //   unread incoming row            → RED border
   //   read before this open          → GREEN border
-  //   read during this open (10s in) → neutral/white border
+  //   read during this open (3s in) → neutral/white border
   //   reopen the thread later        → those rows now show GREEN
-  // The 10-second delay is what clears the unread badge on the thread panel.
-  const READ_DELAY_MS = 10000;
+  // The 3-second delay is what clears the unread badge on the thread panel.
+  const READ_DELAY_MS = 3000;
   const [justReadIds, setJustReadIds] = useState(() => new Set());
   useEffect(() => { setJustReadIds(new Set()); }, [conversationId]);
 
@@ -164,7 +164,7 @@ function ChatWindow({
     } catch (_e) {/* non-critical */}
   }, [currentUser?.id]);
 
-  // OWNER SPEC (Nov 19 2026): 10 seconds after the thread is opened, every
+  // OWNER SPEC (Nov 19 2026, shortened to 3s): 3 seconds after the thread is opened, every
   // unread row in it is marked read, the unread badge on the thread panel is
   // cleared, and the rows' borders go neutral. Rows read this way turn GREEN
   // the next time the thread is opened.
@@ -613,7 +613,10 @@ function ChatWindow({
           borderTop: '1px solid var(--border-slate-200)',
           ...(composerSafeBottom ? { paddingBottom: `calc(${composerSafeBottom} + 0.75rem)` } : { paddingBottom: '0.75rem' }),
         }}>
-        <div className="flex gap-2">
+        {/* OWNER SPEC (Nov 19 2026): as the composer grows taller the attach and
+            send buttons stay pinned to the bottom edge of the footer instead of
+            floating up with the text. */}
+        <div className="flex items-end gap-2">
           <input
             ref={fileInputRef}
             type="file"
