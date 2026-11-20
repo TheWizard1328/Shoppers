@@ -1697,10 +1697,10 @@ export default function DeliveryFormView({
 
               {/* Main scrollable body */}
               <div className={`flex gap-3 w-full items-stretch ${!delivery && !useMobileLayout && !isPickupMode ? 'flex-1 min-h-0 overflow-hidden' : useMobileLayout && !delivery && !isPickupMode ? 'flex-1 min-h-0 overflow-hidden' : ''}`} style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
-                <div className={`flex flex-col gap-3 min-w-0 flex-1 min-h-0 overflow-y-auto pr-1 ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                <div className={`flex flex-col gap-3 min-w-0 flex-1 min-h-0 overflow-y-auto ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?
-                    <div className={`${useMobileLayout && !delivery ? 'space-y-3' : useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 min-h-full items-stretch'}`}>
+                    <div className={`${useMobileLayout && !delivery ? 'space-y-3' : useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.9fr)_minmax(15rem,0.64fr)] gap-3 min-h-full items-stretch'}`}>
                       <div className="min-w-0 space-y-3">
 
                         {/* Notes */}
