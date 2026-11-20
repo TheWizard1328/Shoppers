@@ -1224,7 +1224,7 @@ const MobileDriverGroup = React.memo(function MobileDriverGroup({ driverId, driv
           <PopoverTrigger asChild>
             <div className="cursor-pointer">{header}</div>
           </PopoverTrigger>
-          <PopoverContent className="w-44 p-1" align="end">
+          <PopoverContent className="w-52 p-1" align="end">
             <div className="text-[10px] font-semibold px-2 py-1 text-soft">
               {format(date, 'EEE, MMM d')}
             </div>
@@ -1238,6 +1238,28 @@ const MobileDriverGroup = React.memo(function MobileDriverGroup({ driverId, driv
             }}>
               🚫 Book Off Entire Day
             </button>
+            <div className="border-t my-1" />
+            <div className="text-[10px] font-semibold px-2 py-1 text-soft">
+              Move entire shift to…
+            </div>
+            <div className="max-h-52 overflow-y-auto">
+              {drivers.filter((d) => (d.user_id || d.id) !== driverId).map((d) =>
+            <button
+              key={d.user_id || d.id}
+              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-amber-400 hover:text-black"
+              style={{ color: 'var(--text-slate-700)' }}
+              onClick={() => {
+                setBookOffOpen(false);
+                const targetId = d.user_id || d.id;
+                scheduledEntries.forEach(({ store, slotKey }) => {
+                  onDriverChange(date, slotKey, store, targetId);
+                });
+                toast(`Moving entire shift to ${d.user_name}`);
+              }}>
+              {d.user_name}
+            </button>
+            )}
+            </div>
           </PopoverContent>
         </Popover> :
       header}
@@ -1401,7 +1423,7 @@ const DriverGroupDraggable = React.memo(function DriverGroupDraggable({ driverId
                 {headerContent}
               </div>
             </PopoverTrigger>
-            <PopoverContent className="w-44 p-1" align="end">
+            <PopoverContent className="w-52 p-1" align="end">
               <div className="text-[10px] font-semibold px-2 py-1 text-soft">
                 {format(date, 'EEE, MMM d')}
               </div>
@@ -1415,6 +1437,28 @@ const DriverGroupDraggable = React.memo(function DriverGroupDraggable({ driverId
               }}>
                 🚫 Book Off Entire Day
               </button>
+              <div className="border-t my-1" />
+              <div className="text-[10px] font-semibold px-2 py-1 text-soft">
+                Move entire shift to…
+              </div>
+              <div className="max-h-52 overflow-y-auto">
+                {drivers.filter((d) => (d.user_id || d.id) !== driverId).map((d) =>
+              <button
+                key={d.user_id || d.id}
+                className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-amber-400 hover:text-black"
+                style={{ color: 'var(--text-slate-700)' }}
+                onClick={() => {
+                  setBookOffOpen(false);
+                  const targetId = d.user_id || d.id;
+                  scheduledEntries.forEach(({ store, slotKey }) => {
+                    onDriverChange(date, slotKey, store, targetId);
+                  });
+                  toast(`Moving entire shift to ${d.user_name}`);
+                }}>
+                {d.user_name}
+              </button>
+              )}
+              </div>
             </PopoverContent>
           </Popover> :
 
