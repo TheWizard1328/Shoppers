@@ -195,11 +195,11 @@ function deriveCycle(cycle, startStr, endStr) {
   const e = new Date(`${endStr}T00:00:00Z`);
   const span = Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
   if (!Number.isFinite(span) || span <= 0) return key || 'semimonthly';
+  if (span >= 26) return 'monthly';   // full month wins even when it starts on the 1st
   if (span <= 8) return 'weekly';
   const startDay = Number(String(startStr).slice(8, 10));
   if (startDay === 1 || startDay === 16) return 'semimonthly';
   if (span <= 15) return 'biweekly';
-  if (span >= 26) return 'monthly';
   return key || 'semimonthly';
 }
 
@@ -348,6 +348,7 @@ Deno.serve(async (req) => {
 
     const plan = {
       checked_at: new Date().toISOString(),
+      code_version: 'cycle-from-span-1',
       today,
       dry_run: dryRun,
       owed,
