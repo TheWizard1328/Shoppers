@@ -800,8 +800,16 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     // Batch writes and weak/offline connections are replayed by the ordered
     // reconnect processor. Never wait on a doomed network request.
     if (!isBatchOperation && connectionMonitor.canAttemptNetwork()) {
+      // CRITICAL (owner report Nov 20 2026: "3 of my 5 completed Beverly deliveries
+      // are suddenly incomplete and Pending"). This used to push the WHOLE merged
+      // local record (updatedDelivery) to the server. Any device holding a stale
+      // IndexedDB copy — typically a store dashboard that never saw the completion —
+      // then reverted real work: a flag-only guard write shipped its old copy and
+      // the stop went back to 'pending' with actual_delivery_time, arrival_time and
+      // the POD signature wiped. Send ONLY the diff this write actually intends.
+      const serverPatch = { ...meaningfulUpdates, updated_date: updatedDelivery.updated_date };
       import('@/api/base44Client').then(({ base44 }) => {
-        base44.entities.Delivery.update(deliveryId, updatedDelivery)
+        base44.entities.Delivery.update(deliveryId, serverPatch)
           .then(async () => {
             await offlineDB.removePendingMutation(pendingMutationId);
             if (!(await hasPendingEntityMutation('Delivery', deliveryId))) {
