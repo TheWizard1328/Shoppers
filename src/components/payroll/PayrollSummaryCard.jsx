@@ -138,6 +138,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const [adminMetricsFeeTotals, setAdminMetricsFeeTotals] = useState(null);
   const [activeInputField, setActiveInputField] = useState(null);
   const [paidDrafts, setPaidDrafts] = useState({});
+  // OWING-ONLY FILTER (owner request Nov 21 2026): show just the drivers who
+  // still have money owing this period. Pure view filter over the same rows.
+  const [owingOnly, setOwingOnly] = useState(false);
   const [bonusDraftValue, setBonusDraftValue] = useState('');
   const paidRefreshPauseRef = useRef({});
   const [deductionDraftName, setDeductionDraftName] = useState('');
@@ -1300,7 +1303,43 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
 
   // Guard clause AFTER all hooks
   if (payrollData.length === 0) {
-    return (
+    // ── OWING-ONLY VIEW (owner request Nov 21 2026) ──────────────────────────
+  // The payroll page already carries every number the arrears reminder needs:
+  // per-driver net (the same formula the row displays) and the paid amount in
+  // the Paid box. So the arrears list is a filter here, not a second screen.
+  // A blank Paid box defaults to the full net (paid in full), which is why
+  // drivers who never entered an amount are correctly left out.
+  const netForPayrollRow = useCallback((data) => {
+    if (!data?.driver?.id) return 0;
+    const edit = driverEdits[data.driver.id] || {};
+    return (data.grandTotal || 0) + (data.taxAmount || 0)
+      - sumDeductionAmounts(edit.deductions || data.deductionsArray || [])
+      + (Number(edit.bonusPay) || 0)
+      + (isPeriodEndOfMonth ? (edit.appFeeAmount || calculateAppFeeAmount(data.driver.id, edit.appFeePercent || 0)) : 0);
+  }, [driverEdits, isPeriodEndOfMonth, calculateAppFeeAmount]);
+
+  const payrollRowsWithDeliveries = useMemo(
+    () => payrollData.filter((data) => data.graphDeliveryCount > 0),
+    [payrollData]
+  );
+
+  const owedByDriverId = useMemo(() => {
+    const map = new Map();
+    for (const data of payrollRowsWithDeliveries) {
+      const net = netForPayrollRow(data);
+      const paid = parsePaidAmount(driverEdits[data.driver.id]?.paidAmount, net);
+      const owed = net - paid;
+      if (owed > 0.005) map.set(data.driver.id, owed);
+    }
+    return map;
+  }, [payrollRowsWithDeliveries, driverEdits, netForPayrollRow]);
+
+  const visiblePayrollRows = useMemo(
+    () => (owingOnly ? payrollRowsWithDeliveries.filter((d) => owedByDriverId.has(d.driver.id)) : payrollRowsWithDeliveries),
+    [owingOnly, payrollRowsWithDeliveries, owedByDriverId]
+  );
+
+  return (
       <Card className="mt-4 bg-surface border-surface">
         <CardContent className="p-6 text-center text-soft">
           No payroll data available for this period. 
@@ -1911,7 +1950,20 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
 
       <CardContent ref={contentRef} className="px-1 py-1">
         <div className="space-y-2">
-          {payrollData.filter((data) => data.graphDeliveryCount > 0).map((data, idx) => {
+          {/* OWING-ONLY TOGGLE (owner request Nov 21 2026): the arrears view is
+              this list filtered to drivers whose Paid box is below their net. */}
+          {isAdmin && (
+            <div className="flex items-center justify-end gap-2 px-1">
+              <button
+                type="button"
+                aria-pressed={owingOnly}
+                onClick={() => setOwingOnly((v) => !v)}
+                className={`text-xs rounded-md border px-2 py-1 transition-colors ${owingOnly ? 'bg-amber-500 text-white border-amber-500' : 'bg-surface text-label border-surface'}`}>
+                {owingOnly ? `Owing only (${owedByDriverId.size})` : 'Show owing only'}
+              </button>
+            </div>
+          )}
+          {visiblePayrollRows.map((data, idx) => {
               const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
               const driverPayrollRecord = getDriverPayrollRecord(data.driver.id);
               const driverHasConfirmed = driverPayrollRecord?.status === 'driver_finalized' ||
