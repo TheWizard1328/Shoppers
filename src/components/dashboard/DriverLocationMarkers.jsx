@@ -226,6 +226,24 @@ const mergeDriversWithCache = (current = [], incoming = [], cacheMap = new Map()
 
 const MARKER_CACHE_TTL_MS = 3 * 60 * 1000;
 
+// ── RENDER LOOP GUARD (owner report Nov 21 2026) ────────────────────────────
+// "Maximum update depth exceeded" inside DriverLocationMarkers. The users-prop
+// effect below calls setVisibleDrivers on every run, and the merge/dedupe always
+// returned a NEW array — so any dep that changes identity each pass (a parent
+// re-creating `users`/`deliveries`, a fresh currentUser object) produced
+// setState -> re-render -> setState with no end. Comparing a stable fingerprint
+// of the resulting marker set lets the updater return the PREVIOUS array, and
+// React bails out instead of re-rendering.
+const visibleDriverFingerprint = (list) => (list || [])
+  .map((d) => {
+    const key = getDriverIdentityKey(d) || d.id || '';
+    const la = Number(d.current_latitude);
+    const lng = Number(d.current_longitude);
+    return `${key}:${Number.isFinite(la) ? la.toFixed(5) : '-'}:${Number.isFinite(lng) ? lng.toFixed(5) : '-'}:${d.driver_status || ''}:${d.location_updated_at || ''}:${d.isNextDelivery ? 1 : 0}`;
+  })
+  .sort()
+  .join('|');
+
 const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null, selectedDriverId = null, showOtherDriverDeliveries = false, overlayDriverId = null, onVisibleDriversChange = null }) => {
   const { isMobile } = useDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
@@ -581,8 +599,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // Uses a functional updater (never reads stale closure) so there's no race between the
     // WS event path and the prop path — whichever wrote fresher coords wins and is kept.
     setVisibleDrivers((prev) => {
+      const prevList = Array.isArray(prev) ? prev : [];
       // Merge: incoming advances existing if newer, existing wins if fresher (no regression)
-      const merged = mergeVisibleDriversByFreshness(prev || [], incomingDrivers);
+      const merged = mergeVisibleDriversByFreshness(prevList, incomingDrivers);
 
       // Sync semantics: drop drivers no longer in the prop, UNLESS they have a very recent
       // timestamp that suggests a WS event updated them after this prop snapshot was taken.
@@ -595,7 +614,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return (Date.now() - ts < WS_GRACE_MS) && shouldShowMarker(d) && passesDriverSelectionFilter(d);
       });
 
-      return dedupeVisibleDrivers(result);
+      const nextList = dedupeVisibleDrivers(result);
+      // LOOP GUARD: identical marker set -> keep the previous array reference so
+      // React bails out. This is what stops "Maximum update depth exceeded".
+      if (visibleDriverFingerprint(nextList) === visibleDriverFingerprint(prevList)) return prev;
+      return nextList;
     });
 
     prevVisibleIdsRef.current = incomingKeys;
