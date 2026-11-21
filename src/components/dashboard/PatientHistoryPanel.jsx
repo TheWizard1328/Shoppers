@@ -9,6 +9,7 @@ import { createPageUrl } from "@/utils";
 import { userHasRole } from "@/components/utils/userRoles";
 import SpecialSymbolsBadges from "@/components/utils/SpecialSymbolsBadges";
 import { formatPhoneNumber } from "@/components/utils/phoneFormatter";
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 const dayAbbreviations = {
   'Monday': 'Mon', 'Tuesday': 'Tue', 'Wednesday': 'Wed',
@@ -357,7 +358,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                                     it was missing while finished cards showed their COD. */}
                                 {Number(delivery.cod_total_amount_required || 0) > 0 &&
                               delivery.status !== 'completed' &&
-                              String(delivery.delivery_date || '').slice(0, 10) === new Date().toISOString().slice(0, 10) &&
+                              String(delivery.delivery_date || '').slice(0, 10) === edmontonTodayKey().slice(0, 10) &&
                               <Badge className="text-xs font-semibold" style={{ background: 'rgba(217,119,6,0.15)', color: '#b45309', border: '1px solid rgba(217,119,6,0.3)' }}>
                                     COD ${Number(delivery.cod_total_amount_required).toFixed(2)}
                                   </Badge>

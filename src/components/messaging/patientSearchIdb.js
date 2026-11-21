@@ -1,6 +1,7 @@
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { globalFilters } from '@/components/utils/globalFilters';
 import { staffStoreIds, staffSeesAllStores } from './patientThreads';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 /**
  * PATIENT SEARCH FROM THE LOCAL DATABASE (owner request Nov 3 2026).
@@ -62,7 +63,7 @@ export async function driverRouteIsActive(driverId, dateStr) {
  * @returns {Promise<{patients: Array, scope: string, routeActive: boolean, reason?: string}>}
  */
 export async function searchPatientsIdb({ user, query, dateStr, mode, driverId, limit = MAX_RESULTS }) {
-  const searchDate = dateStr || globalFilters.getSelectedDate?.() || new Date().toISOString().slice(0, 10);
+  const searchDate = dateStr || globalFilters.getSelectedDate?.() || edmontonTodayKey();
   const rows = [];
   const push = (patient, extra) => {
     const id = String(patient?.id || extra?.patient_id || '');

@@ -14,6 +14,7 @@ import { Thermometer, Eye } from "lucide-react";
 import { useIsPatientWatching } from "../utils/portalWatchers";
 import { computeFridgeAvgTemp } from "../utils/fridgeTempAverage";
 import { offlineDB } from "../utils/offlineDatabase";
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 // Fridge safe zone — defaults match AppSettings; overridden on first render
 let _scTempMin = 2;
 let _scTempMax = 6;
@@ -371,7 +372,7 @@ export default function StopCardHeader({
                 if (avg != null) return avg;
               }
               // Active stop on today's date: fall back to live BLE/WS reading
-              const today = new Date().toISOString().slice(0, 10);
+              const today = edmontonTodayKey();
               const isToday = delivery?.delivery_date === today;
               if (!isFinished && isToday) {
                 return liveTemp?.temperature_celsius ?? getLatestTempReading(delivery)?.temperature_celsius ?? null;
@@ -385,7 +386,7 @@ export default function StopCardHeader({
               STATIC blue-green fridge-item indicator only — no live/stored temps. */}
           {delivery?.fridge_item && !TEMP_MONITORING_DISABLED && !isPickup && !(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !((currentUser?.store_ids || []).includes(delivery?.store_id))) && (() => {
             const deliveryTemp = getLatestTempReading(delivery);
-            const today = new Date().toISOString().slice(0, 10);
+            const today = edmontonTodayKey();
             const isToday = delivery?.delivery_date === today;
             // Only use live temp for today's deliveries; past dates use stored readings only
             const reading = (isToday ? liveTemp : null) || deliveryTemp;

@@ -56,6 +56,7 @@ const inTransitTransitionAt = new Map();
 const IN_TRANSIT_RATCHET_WINDOW_MS = 60 * 1000;
 
 import { emitGatedEvent } from './uiGate';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export const pauseRealtimeSync = () => {
   _realtimePaused = true;
@@ -1741,7 +1742,7 @@ export const connect = () => {
           };
 
           const { offlineDB } = await import('./offlineDatabase');
-          const allDeliveries = await offlineDB.getDeliveriesByDateRange(new Date().toISOString().slice(0, 10), '9999-12-31');
+          const allDeliveries = await offlineDB.getDeliveriesByDateRange(edmontonTodayKey(), '9999-12-31');
           const activeStatuses = new Set(['pending','en_route','in_transit']);
           const toUpdate = (allDeliveries || []).filter(d => d?.patient_id === data.id && activeStatuses.has(d?.status || 'pending') && d?.delivery_date >= new Date().toISOString().slice(0, 10));
 

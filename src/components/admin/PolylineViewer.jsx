@@ -27,6 +27,7 @@ import { broadcastMutation } from '@/components/utils/realtimeSync';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { isAppDarkTheme } from '@/lib/utils';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -640,7 +641,7 @@ export default function PolylineViewer({ users = [] }) {
     });
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = edmontonTodayKey();
 
   const matchesDateRange = (itemDate) => {
     if (!dateFrom && !dateTo) return true;

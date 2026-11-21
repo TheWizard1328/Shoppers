@@ -1,4 +1,5 @@
 import { getVisiblePickupSlotsForDate } from '../utils/ampmUtils';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export const resolveDefaultDriverForNewDelivery = ({
   currentUser,
@@ -41,7 +42,7 @@ export const resolveDefaultDriverForNewDelivery = ({
     const relevantStoreIds = (currentUser.store_ids || []);
     if (relevantStoreIds.length === 0) return { driverId: '', driverName: '' };
 
-    const selectedDate = new Date((deliveryDate || new Date().toISOString().slice(0, 10)) + 'T00:00:00');
+    const selectedDate = new Date((deliveryDate || edmontonTodayKey()) + 'T00:00:00');
     const dayOfWeek = selectedDate.getDay();
     const prefix = dayOfWeek === 6 ? 'saturday' : dayOfWeek === 0 ? 'sunday' : 'weekday';
 

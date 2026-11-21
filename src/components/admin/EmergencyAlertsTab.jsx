@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RefreshCw, Loader2, Download } from 'lucide-react';
 import { formatCoords, buildMapUrl } from '@/components/utils/reverseGeocode';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ALERTS HISTORY (owner request Nov 14 2026)
@@ -134,7 +135,7 @@ export default function EmergencyAlertsTab() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `rxdeliver-alerts-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `rxdeliver-alerts-${edmontonTodayKey()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };

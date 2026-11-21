@@ -13,6 +13,7 @@ import { computeRouteStarted, persistRouteStarted, readPersistedRouteStarted } f
 import { filterDeleted } from './deletedDeliveryRegistry';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 import { isLocationOnlyAppUserChange } from './realtimeSync';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 const AppDataContext = createContext(null);
 
@@ -820,7 +821,7 @@ export const AppDataProvider = ({ children, value }) => {
           offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
           offlineDB.getCacheValidation('Delivery', {
             scopeKey: deliveryScopeKey,
-            maxAgeMs: selectedDate === new Date().toISOString().split('T')[0] ? 60 * 1000 : 10 * 60 * 1000,
+            maxAgeMs: selectedDate === edmontonTodayKey() ? 60 * 1000 : 10 * 60 * 1000,
             allowEmpty: true
           }),
           offlineDB.getCacheValidation('AppUser', {

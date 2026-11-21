@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/components/utils/currencyFormat';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, Share2, Cale
 import { jsPDF } from 'jspdf';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 const MONTH_NAMES = [
 'January', 'February', 'March', 'April', 'May', 'June',
@@ -25,7 +27,7 @@ const getPreviousDate = (dateStr) => {
   const date = new Date(`${String(dateStr).slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return null;
   date.setDate(date.getDate() - 1);
-  return date.toISOString().split('T')[0];
+  return edmontonTodayKey(date);
 };
 
 // Safe date formatter for fee-period values. `app_fee_history.effective_date`
@@ -191,12 +193,8 @@ export default function StoreMetricsPanel() {
     loadMetrics();
   }, [loadMetrics]);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount || 0);
-  };
+  // Shared CAD formatter (scan item 4, Nov 21 2026): this used to format USD.
+  const formatCurrencyLocal = formatCurrency;
 
   const metrics = useMemo(() => {
     const adminMetrics = metricsResponse?.adminMetrics;
@@ -275,8 +273,8 @@ export default function StoreMetricsPanel() {
     const summaryY = 38;
     doc.text(`Stores Paying Fees: ${metrics.totals.stores_paying_fees} / ${metrics.totals.total_stores}`, margin, summaryY);
     doc.text(`Billable Deliveries: ${metrics.totals.total_billable_while_paying}`, margin + 80, summaryY);
-    doc.text(`Fee Rate: ${formatCurrency(metrics.totals.app_fee_rate)}`, margin + 160, summaryY);
-    doc.text(`Total Fees Owed: ${formatCurrency(metrics.totals.total_fees_owed)}`, margin + 220, summaryY);
+    doc.text(`Fee Rate: ${formatCurrencyLocal(metrics.totals.app_fee_rate)}`, margin + 160, summaryY);
+    doc.text(`Total Fees Owed: ${formatCurrencyLocal(metrics.totals.total_fees_owed)}`, margin + 220, summaryY);
 
     const headers = ['Store', 'Status', 'Fee Period', 'Total', 'Billable', 'Billable (Paying)', 'Fees Owed'];
     const colWidths = [55, 30, 60, 25, 25, 40, 35];
@@ -333,7 +331,7 @@ export default function StoreMetricsPanel() {
       startX += colWidths[5];
 
       doc.setFont('helvetica', 'bold');
-      doc.text(formatCurrency(store.total_fees_owed), startX, y);
+      doc.text(formatCurrencyLocal(store.total_fees_owed), startX, y);
       doc.setFont('helvetica', 'normal');
 
       y += 8;
@@ -355,7 +353,7 @@ export default function StoreMetricsPanel() {
     doc.text(String(metrics.totals.total_billable_while_paying || 0), startX, y);
     startX += colWidths[5];
     doc.setTextColor(5, 150, 105);
-    doc.text(formatCurrency(metrics.totals.total_fees_owed), startX, y);
+    doc.text(formatCurrencyLocal(metrics.totals.total_fees_owed), startX, y);
 
     doc.save(`store_metrics_${selectedYear}_${selectedMonth}.pdf`);
   };
@@ -415,7 +413,7 @@ export default function StoreMetricsPanel() {
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Fee Rate</p>
                 <p className="text-lg md:text-2xl font-bold text-slate-900 dark:text-slate-100">
-                  {formatCurrency(metrics?.totals?.app_fee_rate || 0)}
+                  {formatCurrencyLocal(metrics?.totals?.app_fee_rate || 0)}
                 </p>
               </div>
             </div>
@@ -431,7 +429,7 @@ export default function StoreMetricsPanel() {
               <div>
                 <p className="text-sm text-emerald-700 dark:text-emerald-300">Total Fees Owed</p>
                 <p className="text-lg md:text-2xl font-bold text-emerald-900 dark:text-emerald-50">
-                  {formatCurrency(metrics?.totals?.total_fees_owed || 0)}
+                  {formatCurrencyLocal(metrics?.totals?.total_fees_owed || 0)}
                 </p>
               </div>
             </div>
@@ -555,7 +553,7 @@ export default function StoreMetricsPanel() {
                         <TableCell className="text-right font-mono">{store.billable_deliveries}</TableCell>
                         <TableCell className="text-right font-mono font-semibold">{store.billable_while_paying}</TableCell>
                         <TableCell className="text-right font-mono font-semibold text-emerald-700 dark:text-emerald-300">
-                          {formatCurrency(store.total_fees_owed)}
+                          {formatCurrencyLocal(store.total_fees_owed)}
                         </TableCell>
                       </TableRow>
                   )}
@@ -569,7 +567,7 @@ export default function StoreMetricsPanel() {
                       <TableCell className="text-right font-mono">{metrics.totals.total_billable_deliveries}</TableCell>
                       <TableCell className="text-right font-mono">{metrics.totals.total_billable_while_paying}</TableCell>
                       <TableCell className="text-right font-mono text-emerald-700 dark:text-emerald-300 text-lg">
-                        {formatCurrency(metrics.totals.total_fees_owed)}
+                        {formatCurrencyLocal(metrics.totals.total_fees_owed)}
                       </TableCell>
                     </TableRow>
                   </TableBody>

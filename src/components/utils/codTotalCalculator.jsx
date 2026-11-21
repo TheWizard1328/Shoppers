@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { userHasRole } from '@/components/utils/userRoles';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 /**
  * Calculate total COD amount remaining to collect based on user role and city
@@ -76,7 +77,7 @@ export const calculateRouteCodBalance = (deliveries = [], driverId, dateStr) => 
     relevant = relevant.filter(d => d.driver_id === driverId);
   }
   if (dateStr) {
-    const date = typeof dateStr === 'string' ? dateStr : (dateStr instanceof Date ? dateStr.toISOString().slice(0, 10) : null);
+    const date = typeof dateStr === 'string' ? dateStr : (dateStr instanceof Date ? edmontonTodayKey(dateStr) : null);
     if (date) relevant = relevant.filter(d => d.delivery_date === date);
   }
 

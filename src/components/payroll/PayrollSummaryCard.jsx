@@ -1,3 +1,4 @@
+import { formatCurrency as formatCurrencyCAD, formatPayrollAmount as formatPayrollAmountShared } from '@/components/utils/currencyFormat';
 import { getDeliveryTypeFlags } from '@/components/utils/deliveryTypeUtils';
 import React, { useMemo, useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
@@ -923,8 +924,10 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     exportPdf: () => handleExport(stores || [])
   }), [handleExport, stores]);
 
-  const formatCurrency = (amount, decimals = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
-  const formatPayrollAmount = (amount) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount) || 0);
+  // Currency comes from the shared CAD formatter (scan item 4, Nov 21 2026):
+  // this card used to format en-US/USD while the mobile summary used CAD.
+  const formatCurrency = formatCurrencyCAD;
+  const formatPayrollAmount = formatPayrollAmountShared;
   const getPaidDraftValue = (driverId, fallback) => {
     if (Object.prototype.hasOwnProperty.call(paidDrafts, driverId)) return paidDrafts[driverId];
     return fallback.toFixed(2);

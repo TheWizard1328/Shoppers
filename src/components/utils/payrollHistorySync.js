@@ -12,6 +12,7 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { EDITOR_HOST_DEVICE_NAME, getCurrentDevice } from '@/components/utils/deviceManager';
 import { isAppOwner } from '@/components/utils/userRoles';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export const PAYROLL_HISTORY_MARKER_PREFIX = 'payroll_history_marker';
 const PWA_FALLBACK_HOST_DEVICE_NAME = 'THE-DESKTOP(PWA)';
@@ -184,7 +185,7 @@ export const armPayrollHistoryMarkerListener = (getUser) => {
 const deepPassStampKey = (year, cityId) => `rx_payroll_history_deep_${year}_${cityId}`;
 const shouldRunDeepPass = (year, cityId) => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = edmontonTodayKey();
     const k = deepPassStampKey(year, cityId);
     if (localStorage.getItem(k) === today) return false;
     localStorage.setItem(k, today);

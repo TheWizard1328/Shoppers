@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Truck, Clock, AlertCircle, CheckCircle2, Radio, X, XCircle, Loader2, ChevronUp } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { userHasRole } from '@/components/utils/userRoles';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 /**
  * DriverAvailabilityPanel
@@ -95,7 +96,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
     setGuardLoading(true);
     try {
       // Check locally first — faster than backend call
-      const today = new Date().toISOString().split('T')[0];
+      const today = edmontonTodayKey();
       const TERMINAL = ['completed', 'failed', 'cancelled'];
       const todayDeliveries = (deliveriesRef.current || []).filter((d) =>
       d?.delivery_date === today &&
@@ -195,7 +196,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
   // (conservative) — re-enabling the button is owned by the full backend check.
   useEffect(() => {
     if (!canUse || dispatcherStoreIds.length === 0) return;
-    const today = new Date().toISOString().split('T')[0];
+    const today = edmontonTodayKey();
     const TERMINAL = ['completed', 'failed', 'cancelled'];
     const blocking = (deliveries || []).filter((d) =>
     d?.delivery_date === today &&

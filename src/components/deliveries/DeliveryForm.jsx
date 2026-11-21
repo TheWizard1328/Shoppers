@@ -73,6 +73,7 @@ import DeliveryFormView from './DeliveryFormView';
 import { isAdminUser } from '@/components/utils/pastDateAddGuard';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
 import { calculateDistanceKmSafe as calculateDistance } from '@/components/utils/geoUtils';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={!!checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400 dark:text-slate-400' : ''}`}>{label}</Label></div>);
 
@@ -295,7 +296,7 @@ export default function DeliveryForm({
       try {
         const horizon = new Date(`${poolDate}T12:00:00`);
         horizon.setDate(horizon.getDate() + 60);
-        const toDate = horizon.toISOString().split('T')[0];
+        const toDate = edmontonTodayKey(horizon);
         const cached = await offlineDB.getDeliveriesByDateRange(poolDate, toDate);
         if (alive && Array.isArray(cached) && cached.length) setCachedDeliveryPool(cached);
       } catch { /* cache unavailable */ }

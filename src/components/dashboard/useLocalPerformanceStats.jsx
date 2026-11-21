@@ -7,6 +7,7 @@ import { calculateDeliveryPay } from '@/components/utils/payCalculator';
 import { parseAnyTimestamp } from '@/components/utils/albertaTime';
 import { totalOnDutyMinutes as sharedTotalOnDutyMinutes, hasOpenSegment, segmentsLookIncoherent } from '@/components/utils/driverDutyTime';
 import { fetchDriverDailyActivityCached, invalidateDriverDailyActivityCache } from '@/components/utils/driverDailyActivityCache';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 // Polyline-derived leg km cache — key id:polylineSignature so a re-render
 // (or a value the server healed) never re-decodes the same leg twice.
@@ -405,7 +406,7 @@ export function useLocalPerformanceStats({
       const segDriverId = stats._singleDriverId;
       const segDate = (() => {
         const anyDelivery = (filteredDeliveries || []).find(d => d?.driver_id === segDriverId && d?.delivery_date);
-        return anyDelivery?.delivery_date || new Date().toISOString().split('T')[0];
+        return anyDelivery?.delivery_date || edmontonTodayKey();
       })();
 
       (async () => {

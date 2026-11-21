@@ -1,3 +1,4 @@
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 /**
  * patientQueryHandler.js — Natural-language patient info lookup for GuideAssistant.
  *
@@ -120,7 +121,7 @@ export function findPatientByName(query, patients) {
  */
 export function findCurrentDeliveryPatient(currentUser, deliveries, patients, selectedDate, selectedDriverId) {
   if (!deliveries || deliveries.length === 0) return null;
-  const today = selectedDate || new Date().toISOString().slice(0, 10);
+  const today = selectedDate || edmontonTodayKey();
 
   const roles = currentUser?.app_roles || [];
   const isAdmin = roles.includes('admin');

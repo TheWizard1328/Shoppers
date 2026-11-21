@@ -51,6 +51,7 @@ import PickupLocationMultiSelect from './PickupLocationMultiSelect';
 import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper';
 import InterStoreFormContent from './InterStoreFormContent';
 import CyclingLocationSearch from './CyclingLocationSearch';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 
 const CheckboxField = ({ id, label, checked, onChange, disabled, tooltip }) =>
@@ -2400,7 +2401,7 @@ export default function DeliveryFormView({
                     // Driver sees the dialog while DB writes happen in the background.
                     handleCancelClick();
                     if (isStart) {
-                      const _today = new Date().toISOString().split('T')[0];
+                      const _today = edmontonTodayKey();
                       const _isHistorical = formData.delivery_date && formData.delivery_date < _today;
                       if (!_isHistorical) {
                         setTimeout(() => {

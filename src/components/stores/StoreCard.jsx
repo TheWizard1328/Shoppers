@@ -28,6 +28,7 @@ import { formatPhoneNumber } from "../utils/formatters";
 import { userHasRole } from "../utils/userRoles";
 import { updateStoreLocal } from "@/components/utils/offlineMutations";
 import StoreStatHolidayRow from "./StoreStatHolidayRow";
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected, isLimitedView, hideEditDelete, isDispatcherOtherStore, dispatcherSummary }) {
   const [editingColor, setEditingColor] = useState(false);
@@ -324,7 +325,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       checked={store.pays_app_fees || false}
                       onCheckedChange={async (checked) => {
                         try {
-                          const today = new Date().toISOString().split('T')[0];
+                          const today = edmontonTodayKey();
                           const historyEntry = {
                             effective_date: today,
                             pays_app_fees: checked,

@@ -1,3 +1,4 @@
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 /**
  * Utility functions for generating unique IDs for patients and deliveries
  */
@@ -84,7 +85,7 @@ export const generateBikDeliveryId = (existingIds = []) => {
  */
 export const generateStopId = (allDeliveries = [], deliveryDate = '') => {
   if (!deliveryDate) {
-    deliveryDate = new Date().toISOString().split('T')[0];
+    deliveryDate = edmontonTodayKey();
   }
   
   // Get existing stop IDs for this date

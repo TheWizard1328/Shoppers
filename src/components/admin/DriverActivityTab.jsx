@@ -132,8 +132,8 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
               <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{name}</span>
               <span className="text-[10px] text-slate-400 dark:text-slate-400">{formatDuration(totalMin)}</span>
               <div className="ml-auto flex gap-1">
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Edit activity record" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" aria-label="Delete activity record" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -193,8 +193,8 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
               </div>
               {/* Desktop: edit/delete buttons on right */}
               <div className="hidden sm:flex gap-1 flex-shrink-0">
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Edit activity record" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" aria-label="Delete activity record" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
               </div>
             </div>
           </div>);
@@ -221,8 +221,8 @@ function CardGridView({ records, driverNames, onEdit, onDelete }) {
                   <p className="text-xs text-slate-500 dark:text-slate-400">{totalMin > 0 ? `Total: ${formatDuration(totalMin)}` : 'No segments'}</p>
                 </div>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Edit activity record" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" aria-label="Delete activity record" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
                 </div>
               </div>
             </CardHeader>
@@ -285,8 +285,8 @@ function TableView({ records, driverNames, onEdit, onDelete }) {
                 <td className="px-3 py-2 text-right font-medium text-slate-800 dark:text-slate-200">{formatDuration(totalMin)}</td>
                 <td className="px-3 py-2">
                   <div className="flex gap-1 justify-end">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Edit activity record" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" aria-label="Delete activity record" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </td>
               </tr>);
@@ -357,7 +357,7 @@ function SegmentDialog({ record, onSave, onClose }) {
           <div key={i} className="border border-surface rounded-lg p-3 space-y-2 bg-surface-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-label">Segment {i + 1}</span>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => removeSegment(i)}><Trash2 className="w-3 h-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" aria-label={`Remove segment ${i + 1}`} onClick={() => removeSegment(i)}><Trash2 className="w-3 h-3" /></Button>
               </div>
               <div className="grid grid-cols-2 gap-2 items-end">
                 <div>
@@ -751,6 +751,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
                       <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Segment {i + 1}</span>
                       {newSegments.length > 1 &&
                   <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500"
+                  aria-label={`Remove segment ${i + 1}`}
                   onClick={() => setNewSegments((prev) => prev.filter((_, idx) => idx !== i))}>
                           <Trash2 className="w-3 h-3" />
                         </Button>

@@ -1,3 +1,4 @@
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 /**
  * Deduction date-range helpers.
  *
@@ -18,7 +19,7 @@ const normalizeDate = (value) => {
 
 export const isDeductionActiveOn = (deduction, referenceDateStr = null) => {
   if (!deduction) return false;
-  const ref = normalizeDate(referenceDateStr) || new Date().toISOString().slice(0, 10);
+  const ref = normalizeDate(referenceDateStr) || edmontonTodayKey();
   const start = normalizeDate(deduction.start_date);
   const end = normalizeDate(deduction.end_date);
   if (start && ref < start) return false;
@@ -59,7 +60,7 @@ export const getActiveDeductionsForPeriod = (deductions, periodStartStr, periodE
   });
 };
 
-export const getTodayDateStr = () => new Date().toISOString().slice(0, 10);
+export const getTodayDateStr = () => edmontonTodayKey();
 
 const formatCompactDate = (dateStr) => {
   if (!dateStr) return '';

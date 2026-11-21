@@ -1,5 +1,6 @@
 import useImmersiveMode from '@/components/dashboard/useImmersiveMode';
 import { useDevice } from '@/components/utils/DeviceContext';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export function useDashboardViewModel(props) {
   const { deviceType } = useDevice();
@@ -17,7 +18,7 @@ export function useDashboardViewModel(props) {
 
   return {
     ...props,
-    selectedDateStr: props.selectedDateStr || (props.selectedDate ? new Date(props.selectedDate).toISOString().slice(0, 10) : ''),
+    selectedDateStr: props.selectedDateStr || (props.selectedDate ? edmontonTodayKey(new Date(props.selectedDate)).slice(0, 10) : ''),
     isAllDriversMode: props.isAllDriversMode ?? props.selectedDriverId === 'all',
     immersiveHidden: immersive.immersiveHidden,
     isDriverMoving: immersive.isDriverMoving,

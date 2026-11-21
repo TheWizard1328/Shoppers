@@ -11,6 +11,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { motion } from 'framer-motion';
 import { useAppData } from '../utils/AppDataContext';
 import { base44 } from '@/api/base44Client';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export default function StoreForm({ store, cities = [], drivers = [], allUsers = [], onSave, onCancel }) {
   // Safely get context - may not be available if rendered outside AppDataProvider
@@ -599,7 +600,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
               variant="outline"
               onClick={() => {
                 const newEntry = {
-                  effective_date: new Date().toISOString().split('T')[0],
+                  effective_date: edmontonTodayKey(),
                   pays_app_fees: formData.pays_app_fees || false,
                   changed_by: 'Admin'
                 };

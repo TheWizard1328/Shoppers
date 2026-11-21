@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/components/utils/currencyFormat';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { globalFilters } from '../components/utils/globalFilters';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -552,12 +553,8 @@ export default function AdminMetrics() {
     return driverData.filter((d) => d.driverId === selectedDriverId);
   }, [selectedDriverId]);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount || 0);
-  };
+  // Shared CAD formatter (scan item 4, Nov 21 2026): this used to format USD.
+  const formatCurrencyLocal = formatCurrency;
 
   const displayMetricsData = metricsData || EMPTY_METRICS_DATA;
   const showNoDataMessage = !!selectedCityId && !isLoading && !error && !metricsData;
@@ -1058,7 +1055,7 @@ export default function AdminMetrics() {
                   <DollarSign className="w-5 h-5 text-label" />
                 </div>
                 <p className="text-2xl font-bold text-body">
-                  {formatCurrency(feeTotals?.app_fee_rate || 0)}
+                  {formatCurrencyLocal(feeTotals?.app_fee_rate || 0)}
                 </p>
               </div>
             </CardContent>
@@ -1072,7 +1069,7 @@ export default function AdminMetrics() {
                   <DollarSign className="w-5 h-5" style={{ color: 'white' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: '#78350f' }}>
-                  {formatCurrency(
+                  {formatCurrencyLocal(
                     selectedMonth ?
                     feeTotals?.monthly_fees?.[selectedMonth - 1] ?? feeTotals?.monthlyFees?.[selectedMonth - 1] ?? 0 :
                     feeTotals?.total_fees_owed ?? feeTotals?.totalFeesOwed ?? 0

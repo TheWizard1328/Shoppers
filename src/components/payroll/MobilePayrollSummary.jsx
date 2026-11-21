@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/components/utils/currencyFormat';
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -5,7 +6,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 export default function MobilePayrollSummary({ periodLabel, totalNetPay, totalDeliveries, onPrev, onNext }) {
   const net = Number(totalNetPay || 0);
   const deliveries = Number(totalDeliveries || 0);
-  const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'CAD', maximumFractionDigits: 2 }).format(net);
+  // Shared CAD formatter (scan item 4): this screen said CAD while the desktop
+  // payroll card said USD, so the same money looked different per screen.
+  const money = formatCurrency(net, 2);
 
   return (
     <div className="bg-white/95 mb-3 px-3 py-1 rounded-xl lg:hidden sticky top-16 z-10 dark:bg-slate-900/85 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm">

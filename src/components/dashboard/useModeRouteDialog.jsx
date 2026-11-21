@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { lockDeliveryFields } from '@/components/utils/completionLockout';
 import { haversineKm as geoHaversineKm } from '@/components/utils/geoUtils';
 import { format } from 'date-fns';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 // ── Haversine crow-flies distance (km) ────────────────────────────────────────
 // Consolidated into geoUtils — identical math, single source of truth.
@@ -101,7 +102,7 @@ export default function useModeRouteDialog({
     const handler = (e) => {
       const deliveryDate = e?.detail?.deliveryDate;
       if (deliveryDate) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = edmontonTodayKey();
         if (deliveryDate < today) return; // past date — bypass stop-select dialog
       }
       fromAcceptAllRef.current = !!e?.detail?.fromAcceptAll;

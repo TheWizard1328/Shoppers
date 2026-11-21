@@ -1,4 +1,5 @@
 import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoActive, hasDegradedRecords, resetDecryptFailCounters } from './idbCrypto';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 /**
  * Offline Database Manager using IndexedDB
  * Stores Patient and Delivery entities locally for offline access
@@ -2169,7 +2170,7 @@ const pruneOldDeliveries = async () => {
     // 1-year retention window — matches the historical sync backfill range
     const now = new Date();
     const cutoffDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-    const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+    const cutoffDateStr = edmontonTodayKey(cutoffDate);
 
     // SCOPED ENUMERATION (owner report Nov 10 2026): the old version decrypted the
     // WHOLE deliveries store just to find the expired rows, which timed out on a

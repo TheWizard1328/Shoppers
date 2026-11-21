@@ -18,6 +18,7 @@ import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { decodeGooglePolyline } from '../utils/dynamicPolylineManager';
 import { createLiveMarkerInterpolator } from '../utils/liveMarkerInterpolator';
 import { generateDriverColor, getContrastColor } from '../utils/colorGenerator';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 // Create driver/dispatcher icon with border ring based on delivery status
 // Marker fill color rules:
@@ -466,7 +467,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const selectedDateStr = selectedDate instanceof Date 
-          ? selectedDate.toISOString().split('T')[0]
+          ? edmontonTodayKey(selectedDate)
           : selectedDate;
         if (selectedDateStr < todayStr) {
           return;
@@ -567,7 +568,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       if (!user || !user.current_latitude || !user.current_longitude) return false;
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const selectedDateStr = selectedDate instanceof Date ? selectedDate.toISOString().split('T')[0] : selectedDate;
+        const selectedDateStr = selectedDate instanceof Date ? edmontonTodayKey(selectedDate) : selectedDate;
         if (selectedDateStr < todayStr) return false;
       }
       return shouldShowMarker(user) && passesDriverSelectionFilter(user);

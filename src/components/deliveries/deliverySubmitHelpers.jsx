@@ -1,5 +1,6 @@
 import { edmontonNowHHmm } from '../utils/albertaTime';
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export { shouldInheritSlotFromPickup } from './pickupSlotOwnership.jsx';
 
@@ -8,7 +9,7 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
   // Edmonton wall clock (the device tz engine can be an hour off in this fleet).
   const currentLocalTime = edmontonNowHHmm(now);
   const isHistoricalDelivery = Boolean(
-    delivery?.delivery_date && delivery.delivery_date < new Date().toISOString().split('T')[0]
+    delivery?.delivery_date && delivery.delivery_date < edmontonTodayKey()
   );
   const {
     patient_name,

@@ -3,6 +3,7 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { globalFilters } from '@/components/utils/globalFilters';
 import { userHasRole } from '@/components/utils/userRoles';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 /**
  * Hook that resolves the gross_pay badge amount for the selected driver
@@ -35,7 +36,7 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
       }
 
       // Use the dashboard's selected date (not today) to find the correct pay period
-      const selectedDate = globalFilters.getSelectedDate() || new Date().toISOString().slice(0, 10);
+      const selectedDate = globalFilters.getSelectedDate() || edmontonTodayKey();
 
       try {
         if (!forceFresh) {
