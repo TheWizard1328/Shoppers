@@ -100,7 +100,8 @@ class DriverLocationPoller {
 
    // Use provided appUsers directly, but guard against stale offline overwrites by preferring newest timestamps
    // CRITICAL: Filter out junk records from offline DB (records with undefined/missing user_id or user_name)
-   let usersData = (appUsers?.slice?.() || []).filter(u => u && u.id && u.user_id && u.user_id !== 'undefined' && u.user_name && u.user_name !== 'undefined');
+   const isUsableAppUser = (u) => !!(u && u.id && u.user_id && u.user_id !== 'undefined' && u.user_name && u.user_name !== 'undefined');
+   let usersData = (appUsers?.slice?.() || []).filter(isUsableAppUser);
 
    if (usersData.length < (appUsers?.length || 0)) {
      // SELF-HEAL (Oct 19 2026): junk AppUser rows (missing user_id/user_name)
@@ -108,20 +109,39 @@ class DriverLocationPoller {
      // re-read and re-warned about them forever (a store PC logged this every
      // minute for hours). Purge them from the local DB once; the server copy
      // is authoritative and only valid records get re-synced.
-     const junkIds = (appUsers || []).filter(u => !(u && u.id && u.user_id && u.user_id !== 'undefined' && u.user_name && u.user_name !== 'undefined')).map(u => u?.id).filter(Boolean);
-     const rejected = (appUsers?.length || 0) - usersData.length;
+     // JUNK vs UNREADABLE (Nov 21 2026): a row with NO id is real junk from a
+     // partial write. A row WITH a valid id but no user_id/user_name is an
+     // UNREADABLE PHI shell - the whole roster came back undecrypted (28 of 28
+     // on Kingsway PC). Deleting those wiped the good local roster and the next
+     // sync rewrote it, so the warning repeated forever. Only true junk is
+     // purged now; unreadable rows trigger a server mirror repair instead.
+     const rejectedRows = (appUsers || []).filter((u) => !isUsableAppUser(u));
+     const junkIds = rejectedRows.filter((u) => !u?.id).map((u) => u?.id).filter(Boolean);
+     const unreadableIds = rejectedRows.filter((u) => !!u?.id).map((u) => u.id);
+     if (unreadableIds.length) {
+       try {
+         const nowMs = Date.now();
+         if (!window.__appUserUnreadableAt || nowMs - window.__appUserUnreadableAt > 10 * 60 * 1000) {
+           window.__appUserUnreadableAt = nowMs;
+           console.warn('[DriverLocationPoller] ' + unreadableIds.length + ' AppUser rows unreadable (PHI decrypt) - running mirror repair, not deleting them');
+           import('./appUserMirror').then((m) => m.runAppUserMirror({ reason: 'unreadable-appusers' })).catch(() => {});
+         }
+       } catch (_) {}
+     }
+     // Count only TRUE junk here; unreadable shells were reported above.
+    const rejected = junkIds.length;
      // SPAM FIX (owner report Nov 9 2026): londonderry.shoppers logged this line
      // every single minute for hours. Only warn when the shape of the rejection
      // actually changes (count + which records), so a device stuck with the same
      // junk rows stops filling the remote log while a NEW problem still shows up.
      try {
        const sig = `${rejected}:${(appUsers || []).map((u) => (u && (u.user_id || '-')) || '∅').join('|')}`;
-       if (window.__junkAppUserWarnSig !== sig) {
+       if (rejected > 0 && window.__junkAppUserWarnSig !== sig) {
          window.__junkAppUserWarnSig = sig;
-         console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (missing user_id/user_name)`);
+         if (rejected > 0) console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (no id)`);
        }
      } catch (_) {
-       console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (missing user_id/user_name)`);
+       if (rejected > 0) console.warn(`⚠️ [DriverLocationPoller] Rejected ${rejected} junk AppUser records (no id)`);
      }
      // PERF (Oct 22 2026, owner report: 5s+ map gesture stalls): the local
      // app_users IDB store carries THOUSANDS of junk rows (missing
