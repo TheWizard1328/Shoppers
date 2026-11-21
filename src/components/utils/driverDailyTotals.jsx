@@ -53,15 +53,17 @@ export const buildTotalsFromDeliveries = (deliveries, year, driverId) => {
  */
 export async function getDriverDailyTotals({ driverId, year, localDeliveries = [], forceRefresh = false } = {}) {
   const y = Number(year) || new Date().getFullYear();
-  if (!driverId) {
-    return { days: buildTotalsFromDeliveries(localDeliveries, y, null), bestDate: null, bestStops: 0, source: 'local_no_driver' };
-  }
-  const key = `${driverId}:${y}`;
+  // OWNER REQUEST (Nov 20 2026): "All drivers" / "Show all" must compare against
+  // the fleet's real best day for the year, not just today's in-memory stops.
+  // No driverId now means the backend aggregates every driver (cached under the
+  // '__ALL__' pseudo-driver) instead of silently returning local-only data.
+  const scopeId = driverId || '__ALL__';
+  const key = `${scopeId}:${y}`;
 
   if (!forceRefresh) {
     const hit = memo.get(key);
     if (hit && Date.now() - hit.fetchedAt < MEM_TTL_MS) return hit;
-    const local = readLocal(driverId, y);
+    const local = readLocal(scopeId, y);
     if (local?.days?.length && Date.now() - (local.fetchedAt || 0) < MEM_TTL_MS) {
       memo.set(key, local);
       return local;
@@ -73,7 +75,7 @@ export async function getDriverDailyTotals({ driverId, year, localDeliveries = [
   const req = (async () => {
     try {
       const { base44 } = await import('@/api/base44Client');
-      const res = await base44.functions.invoke('getDriverDailyTotals', { driverId, year: y, forceRefresh });
+      const res = await base44.functions.invoke('getDriverDailyTotals', { driverId: scopeId, year: y, forceRefresh });
       const data = res?.data || res;
       if (Array.isArray(data?.days)) {
         let bestDate = data.bestDate || null;
@@ -81,9 +83,9 @@ export async function getDriverDailyTotals({ driverId, year, localDeliveries = [
         if (!bestDate) {
           for (const d of data.days) if (d.stops > bestStops) { bestStops = d.stops; bestDate = d.date; }
         }
-        const payload = { days: data.days, bestDate, bestStops, fetchedAt: Date.now(), source: data.fromCache ? 'server_cache' : 'server' };
+        const payload = { days: data.days, bestDate, bestStops, scope: data.scope || (driverId ? 'driver' : 'all'), fetchedAt: Date.now(), source: data.fromCache ? 'server_cache' : 'server' };
         memo.set(key, payload);
-        writeLocal(driverId, y, payload);
+        writeLocal(scopeId, y, payload);
         return payload;
       }
       throw new Error('unexpected payload');
@@ -91,12 +93,13 @@ export async function getDriverDailyTotals({ driverId, year, localDeliveries = [
       // Fall back to local history (IDB-visible deliveries) — never leave the
       // panel without a comparison, and never invalidate the dialog.
       console.warn('[driverDailyTotals] history fetch failed, using local deliveries:', err?.message || err);
-      const days = buildTotalsFromDeliveries(localDeliveries, y, driverId);
+      const days = buildTotalsFromDeliveries(localDeliveries, y, driverId || null);
       let bestDate = null; let bestStops = 0;
       for (const d of days) if (d.stops > bestStops) { bestStops = d.stops; bestDate = d.date; }
-      const payload = { days, bestDate, bestStops, fetchedAt: Date.now(), source: 'local' };
-      memo.set(key, payload);
-      return payload;
+      // OWNER REPORT (Nov 20 2026): the fallback used to be memoised for an hour,
+      // so ONE failed fetch pinned the panel to today-only history for the rest of
+      // the session. A fallback is never cached now: the next open retries.
+      return { days, bestDate, bestStops, scope: driverId ? 'driver' : 'all', fetchedAt: Date.now(), source: 'local' };
     } finally {
       inflight.delete(key);
     }

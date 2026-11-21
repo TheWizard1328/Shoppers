@@ -24,10 +24,15 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const driverId = body?.driverId;
+    const rawDriverId = body?.driverId;
     const year = Number(body?.year) || new Date().getFullYear();
     const forceRefresh = body?.forceRefresh === true;
-    if (!driverId) return Response.json({ error: 'driverId required' }, { status: 400 });
+    // OWNER REQUEST (Nov 20 2026): with "All drivers" / "Show all" selected the
+    // panel must compare against EVERY driver's best day, not just today. No
+    // driverId (or the explicit '__ALL__' sentinel) means fleet-wide aggregation,
+    // cached under the '__ALL__' pseudo-driver so it costs one scan per 6 hours.
+    const allDrivers = !rawDriverId || rawDriverId === '__ALL__' || rawDriverId === 'all';
+    const driverId = allDrivers ? '__ALL__' : rawDriverId;
 
     const cacheFilter = { driver_id: driverId, year };
     if (!forceRefresh) {
@@ -39,7 +44,7 @@ Deno.serve(async (req) => {
           const maxAgeMs = year === new Date().getFullYear() ? 6 * 3600 * 1000 : 24 * 3600 * 1000;
           if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < maxAgeMs) {
             return Response.json({
-              driverId, year,
+              driverId, year, scope: allDrivers ? 'all' : 'driver',
               days: cached.days,
               bestDate: cached.best_date || null,
               bestStops: cached.best_stops || 0,
@@ -58,22 +63,29 @@ Deno.serve(async (req) => {
     const to = `${year}-12-31`;
     const counts = new Map<string, number>();
     let skip = 0;
+    let attempt = 0;
 
     while (true) {
       let rows: any[] = [];
+      const query = allDrivers
+        ? { delivery_date: { $gte: from, $lte: to } }
+        : { driver_id: driverId, delivery_date: { $gte: from, $lte: to } };
       try {
-        rows = await base44.asServiceRole.entities.Delivery.filter(
-          { driver_id: driverId, delivery_date: { $gte: from, $lte: to } },
-          '-delivery_date',
-          PAGE,
-          skip,
-        );
+        rows = await base44.asServiceRole.entities.Delivery.filter(query, '-delivery_date', PAGE, skip);
       } catch (err) {
         if (isRateLimit(err)) {
+          // Fleet-wide scans are long: back off and retry the same page a few
+          // times instead of failing the whole panel.
+          if (attempt < 4) {
+            attempt += 1;
+            await new Promise((r) => setTimeout(r, 400 * attempt));
+            continue;
+          }
           return Response.json({ error: 'rate_limited', retryAfter: 30 }, { status: 429 });
         }
         throw err;
       }
+      attempt = 0;
       if (!rows || rows.length === 0) break;
       for (const d of rows) {
         if (!d?.delivery_date || !d?.patient_id) continue; // patient stops only, matches Total Stops
@@ -81,7 +93,7 @@ Deno.serve(async (req) => {
       }
       if (rows.length < PAGE) break;
       skip += PAGE;
-      if (skip > 40000) break; // hard stop
+      if (skip > (allDrivers ? 200000 : 40000)) break; // hard stop
     }
 
     const days = Array.from(counts.entries())
@@ -98,7 +110,7 @@ Deno.serve(async (req) => {
 
     const payload = {
       driver_id: driverId,
-      driver_name: body?.driverName || '',
+      driver_name: allDrivers ? 'All drivers' : (body?.driverName || ''),
       year,
       days,
       best_date: bestDate,
@@ -118,7 +130,7 @@ Deno.serve(async (req) => {
     } catch (_) { /* cache write is best-effort — always return the fresh data */ }
 
     return Response.json({
-      driverId, year, days,
+      driverId, year, days, scope: allDrivers ? 'all' : 'driver',
       bestDate, bestStops,
       daysWorked: days.length,
       totalStops,

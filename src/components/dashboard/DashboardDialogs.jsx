@@ -95,6 +95,7 @@ export default function DashboardDialogs({
   // opens. Declared at the top of the component (before any return) so the hook
   // order is stable.
   const [eodDailyTotals, setEodDailyTotals] = useState(null);
+  const [eodBestDayScope, setEodBestDayScope] = useState('driver');
   const eodDriverId = useMemo(() => {
     if (!selectedDriverId || selectedDriverId === 'all') return null;
     const d = endOfDayDriver
@@ -110,14 +111,23 @@ export default function DashboardDialogs({
     if (!showEndOfDayStats) return undefined;
     let alive = true;
     setEodDailyTotals(null);
+    // Scope is known from the selection alone, so set it before the await: the
+    // today-override guard in the dialog must not run against fleet history.
+    setEodBestDayScope(eodDriverId ? 'driver' : 'all');
+    // OWNER REQUEST (Nov 20 2026): with "All drivers" / "Show all" selected the
+    // panel compares against the FLEET's best day of the year. eodDriverId is
+    // null there, which the helper now turns into the fleet-wide aggregate.
     getDriverDailyTotals({ driverId: eodDriverId, year: eodYear, localDeliveries: deliveries || [] })
       .then((res) => {
         if (!alive) return;
         const days = Array.isArray(res?.days) ? res.days : buildTotalsFromDeliveries(deliveries || [], eodYear, eodDriverId);
         setEodDailyTotals(days);
+        setEodBestDayScope(res?.scope || (eodDriverId ? 'driver' : 'all'));
       })
       .catch(() => {
-        if (alive) setEodDailyTotals(buildTotalsFromDeliveries(deliveries || [], eodYear, eodDriverId));
+        if (!alive) return;
+        setEodDailyTotals(buildTotalsFromDeliveries(deliveries || [], eodYear, eodDriverId));
+        setEodBestDayScope(eodDriverId ? 'driver' : 'all');
       });
     return () => { alive = false; };
   }, [showEndOfDayStats, eodDriverId, eodYear]);
@@ -199,6 +209,7 @@ export default function DashboardDialogs({
               deliveries={filteredDeliveries}
               allYearDeliveries={deliveries || []}
               dailyTotals={eodDailyTotals}
+              bestDayScope={eodBestDayScope}
               driver={selectedDriver}
               deliveryDate={format(selectedDate, 'yyyy-MM-dd')}
               isProcessing={isEntityUpdating}

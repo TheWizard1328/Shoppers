@@ -63,6 +63,7 @@ export default function EndOfDayStatsDialog({
   deliveries = [],
   allYearDeliveries = [],
   dailyTotals = null,
+  bestDayScope = 'driver',
   driver,
   deliveryDate,
   isProcessing = false,
@@ -73,11 +74,13 @@ export default function EndOfDayStatsDialog({
   const [stats, setStats] = useState(null);
   const encouragementRef = useRef(null);
   const messageLockedRef = useRef(false);
+  const confettiFiredRef = useRef(false);
 
   // Reset lock when dialog closes so next open gets a fresh message
   useEffect(() => {
     if (!isOpen) {
       messageLockedRef.current = false;
+      confettiFiredRef.current = false;
       encouragementRef.current = null;
     }
   }, [isOpen]);
@@ -206,7 +209,11 @@ export default function EndOfDayStatsDialog({
     // Override today's entry with the live Total Stops card value so the
     // best-day record reflects the exact same count shown in the dialog.
     // (allYearDeliveries can lag behind the freshly-computed card total.)
-    if (deliveryDate && String(deliveryDate).startsWith(yearStr) && total > 0) {
+    // Only for a SINGLE driver: `total` is this driver's card count, so folding it
+    // into a fleet-wide history would compare one driver's day against every
+    // driver's day (owner report Nov 20 2026 — "all drivers" must show the fleet
+    // best day, not today's single-driver count).
+    if (bestDayScope !== 'all' && deliveryDate && String(deliveryDate).startsWith(yearStr) && total > 0) {
       dayMap.set(deliveryDate, { stops: total, pay: 0 });
     }
 
@@ -241,6 +248,7 @@ export default function EndOfDayStatsDialog({
       priorBestStops,
       isNewStopsRecord,
       bestDaySource: Array.isArray(dailyTotals) && dailyTotals.length > 0 ? 'history' : 'fallback',
+      bestDayScope,
     };
     // Pick a random message only once per open session
     if (!messageLockedRef.current) {
@@ -257,8 +265,10 @@ export default function EndOfDayStatsDialog({
     }
     setStats(newStats);
 
-    // Only fire confetti when the route is fully complete
-    if (routeActuallyComplete) {
+    // Only fire confetti when the route is fully complete, and only ONCE per open
+    // (this effect now re-runs when the year history arrives).
+    if (routeActuallyComplete && !confettiFiredRef.current) {
+      confettiFiredRef.current = true;
       confetti({
         particleCount: 100,
         spread: 70,
@@ -266,7 +276,13 @@ export default function EndOfDayStatsDialog({
         zIndex: 60100,
       });
     }
-  }, [isOpen, performanceStats, localStats]);
+    // ROOT CAUSE (owner report Nov 20 2026: "the best day for the year is still
+    // constantly only showing today's date"). The per-date year history loads
+    // ASYNCHRONOUSLY, but this effect only depended on performanceStats/localStats,
+    // so the stats were computed once from the today-only fallback and never
+    // recomputed when dailyTotals arrived. Depend on the history inputs so the
+    // best-day line updates as soon as the real year data lands.
+  }, [isOpen, performanceStats, localStats, dailyTotals, bestDayScope, deliveryDate, driver, allYearDeliveries]);
 
   // VISIBLE FREE BAND (owner spec Nov 18 2026, tenth pass). Two things were wrong:
   //  1. The APK lays the app out taller than the visible screen, so the bottom nav's rect can
@@ -539,13 +555,16 @@ export default function EndOfDayStatsDialog({
             // "New record" only when today strictly BEAT the previous best from
             // real history. Never claim a record off the local-only fallback —
             // that is what made every route look like a record day.
-            const isNewRecord = stats?.bestDaySource === 'history' && !!stats?.isNewStopsRecord;
+            const isNewRecord = stats?.bestDaySource === 'history'
+              && stats?.bestDayScope !== 'all'
+              && !!stats?.isNewStopsRecord;
+            const bestDayPrefix = stats?.bestDayScope === 'all' ? 'Best Day (all drivers): ' : 'Best Day: ';
             return (
               <div className="text-center py-3 px-4 rounded-lg border" style={{ background: bgVar, borderColor: borderVar }}>
                 <p className={`text-sm font-medium ${textClass}`}>{emoji} {text}</p>
                 {bestDay && (
                   <p className="text-xs mt-1.5 opacity-70" style={{ color: color === 'emerald' ? 'var(--text-emerald-700)' : 'var(--text-blue-700)' }}>
-                    {isNewRecord ? '🏆 New record! ' : ''}Best Day: {bestDayLabel} — {bestDay.stops} Stop{bestDay.stops !== 1 ? 's' : ''}
+                    {isNewRecord ? '🏆 New record! ' : ''}{bestDayPrefix}{bestDayLabel} — {bestDay.stops} Stop{bestDay.stops !== 1 ? 's' : ''}
                   </p>
                 )}
               </div>
