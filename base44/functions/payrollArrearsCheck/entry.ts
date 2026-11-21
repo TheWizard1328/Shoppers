@@ -79,12 +79,28 @@ Deno.serve(async (req) => {
 
     const today = edmontonTodayKey();
 
-    // Most recent FINISHED cycle per driver (pay_period_end already passed).
+    // ── SCOPE: the current arrears window only ────────────────────────────
+    // Owner correction (Nov 21 2026): chasing must look at the CURRENT period
+    // (Nov 1-15), not each driver's own last finished cycle — that reached back
+    // to May/June and flagged former drivers as arrears. So: take the newest
+    // finished period end across the whole table, then keep only records that
+    // ended within 7 days of it. Older history is never arrears.
+    const finishedEnds = payrolls
+      .map((r) => dayOnly(r?.pay_period_end))
+      .filter((e) => !!e && e < today)
+      .sort();
+    const maxEnd = finishedEnds.length ? finishedEnds[finishedEnds.length - 1] : null;
+    const windowStart = maxEnd
+      ? new Date(new Date(`${maxEnd}T00:00:00Z`).getTime() - 7 * 86400000).toISOString().slice(0, 10)
+      : null;
+
+    // Most recent finished cycle per driver INSIDE that window.
     const latest = new Map();
     for (const r of payrolls) {
       const driverId = r?.driver_id;
       const end = dayOnly(r?.pay_period_end);
-      if (!driverId || !end || end >= today) continue; // unfinished cycles never count
+      if (!driverId || !end || end >= today) continue;   // unfinished cycles never count
+      if (windowStart && end < windowStart) continue;    // stale cycles are not arrears
       const cur = latest.get(driverId);
       if (!cur || end > dayOnly(cur.pay_period_end)) latest.set(driverId, r);
     }

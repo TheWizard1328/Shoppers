@@ -219,12 +219,28 @@ Deno.serve(async (req) => {
 
     const today = edmontonTodayKey();
 
-    // Most recent FINISHED cycle per driver.
+    // ── SCOPE: the current arrears window only ────────────────────────────
+    // Owner correction (Nov 21 2026): chasing must look at the CURRENT period
+    // (Nov 1-15), not each driver's own last finished cycle — that reached back
+    // to May/June and flagged former drivers as arrears. So: take the newest
+    // finished period end across the whole table, then keep only records that
+    // ended within 7 days of it. Older history is never arrears.
+    const finishedEnds = payrolls
+      .map((r) => dayOnly(r?.pay_period_end))
+      .filter((e) => !!e && e < today)
+      .sort();
+    const maxEnd = finishedEnds.length ? finishedEnds[finishedEnds.length - 1] : null;
+    const windowStart = maxEnd
+      ? new Date(new Date(`${maxEnd}T00:00:00Z`).getTime() - 7 * 86400000).toISOString().slice(0, 10)
+      : null;
+
+    // Most recent finished cycle per driver INSIDE that window.
     const latest = new Map();
     for (const r of payrolls) {
       const driverId = r?.driver_id;
       const end = dayOnly(r?.pay_period_end);
-      if (!driverId || !end || end >= today) continue;
+      if (!driverId || !end || end >= today) continue;   // unfinished cycles never count
+      if (windowStart && end < windowStart) continue;    // stale cycles are not arrears
       const cur = latest.get(driverId);
       if (!cur || end > dayOnly(cur.pay_period_end)) latest.set(driverId, r);
     }
@@ -248,10 +264,15 @@ Deno.serve(async (req) => {
       if (stillOwed <= 0.005) continue;
 
       const ws = windowState(cycle);
+      // UNPAID = nothing entered at all for this cycle. OWING = a partial payment
+      // was recorded and the rest is short. The owner wants the two counted
+      // separately ("2 owing, 1 unpaid").
+      const isUnpaid = paid <= 0.005;
       owed.push({
         driver_id: driverId, driver_name: name, cycle,
         period_start: dayOnly(r.pay_period_start), period_end: dayOnly(r.pay_period_end),
         net_owed: net, paid, owed: stillOwed,
+        unpaid: isUnpaid, owing: !isUnpaid,
         in_window: ws.inWindow, last_call: ws.lastCall, window: ws.window,
       });
       totalOwed = round2(totalOwed + stillOwed);
@@ -273,12 +294,18 @@ Deno.serve(async (req) => {
         tag: `payroll-owed-${d.period_end}`,
       }));
 
+    const owingCount = owed.filter((d) => d.owing).length;
+    const unpaidCount = owed.filter((d) => d.unpaid).length;
+    const parts = [];
+    if (owingCount) parts.push(`${owingCount} owing`);
+    if (unpaidCount) parts.push(`${unpaidCount} unpaid`);
+
     const riyazTitle = owed.length
-      ? `${owed.length} driver${owed.length === 1 ? '' : 's'} still owed ${money(totalOwed)}`
+      ? `Payroll ${owed[0].period_start} to ${owed[0].period_end}: ${parts.join(', ')} (${money(totalOwed)})`
       : 'Payroll: nobody owes money';
     const riyazBody = owed.length
-      ? owed.map((d) => `${d.driver_name} ${money(d.owed)}`).join(', ')
-      : 'Every driver on their last finished cycle is paid in full.';
+      ? owed.map((d) => `${d.driver_name} ${d.unpaid ? 'unpaid' : 'owing'} ${money(d.owed)}`).join(', ')
+      : 'Every driver in this period is paid in full.';
 
     // Owner gets the rollover push on the last-call day only.
     const rollover = owed.filter((d) => d.last_call);
@@ -305,6 +332,8 @@ Deno.serve(async (req) => {
       owed,
       blank_paid: blankPaid,
       count: owed.length,
+      owing_count: owingCount,
+      unpaid_count: unpaidCount,
       total_owed: totalOwed,
       driver_messages: driverMessages,
       riyaz: { user_id: riyazUserId, title: riyazTitle, body: riyazBody, url: '/payroll' },
