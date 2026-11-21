@@ -183,6 +183,26 @@ const WINDOWS = {
 };
 const WEEKLY_LIKE = new Set(['weekly', 'biweekly', 'bi-weekly', 'bi_weekly']);
 
+/** Derive the real cycle from the period itself.
+ *  Owner report Nov 21 2026: Sharuk's Nov 1-15 row is stored as 'weekly', so the
+ *  Mon-Thu gate silently gave him NO nudge while the smaller balances got one.
+ *  A 15-day period starting on the 1st or 16th is semi-monthly whatever the
+ *  stored type says. Span wins for short periods; the stored type is only a
+ *  fallback when the span is unusable. */
+function deriveCycle(cycle, startStr, endStr) {
+  const key = String(cycle || '').toLowerCase().replace(/[-\s_]/g, '');
+  const s = new Date(`${startStr}T00:00:00Z`);
+  const e = new Date(`${endStr}T00:00:00Z`);
+  const span = Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
+  if (!Number.isFinite(span) || span <= 0) return key || 'semimonthly';
+  if (span <= 8) return 'weekly';
+  const startDay = Number(String(startStr).slice(8, 10));
+  if (startDay === 1 || startDay === 16) return 'semimonthly';
+  if (span <= 15) return 'biweekly';
+  if (span >= 26) return 'monthly';
+  return key || 'semimonthly';
+}
+
 /** Where are we in the reminder window for this cycle? */
 function windowState(cycle, now = new Date()) {
   const key = String(cycle || '').toLowerCase().replace(/[-\s]/g, '');
@@ -253,7 +273,8 @@ Deno.serve(async (req) => {
       const net = round2(r.gross_pay);      // SWAPPED: gross_pay IS the true net
       const u = userByUserId.get(String(driverId));
       const name = r.driver_name || u?.user_name || 'Driver';
-      const cycle = r.pay_period_type || 'semimonthly';
+      // Cycle comes from the PERIOD SPAN, not the stored label (see deriveCycle).
+      const cycle = deriveCycle(r.pay_period_type, dayOnly(r.pay_period_start), dayOnly(r.pay_period_end));
 
       if (isBlank(r.paid_amount)) {
         blankPaid.push({ driver_id: driverId, driver_name: name, net_owed: net, period_end: dayOnly(r.pay_period_end) });
