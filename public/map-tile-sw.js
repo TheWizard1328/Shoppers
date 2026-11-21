@@ -15,7 +15,7 @@
  *                         navigating to `data.url` if provided (deep link)
  */
 
-const SW_VERSION = 'v17';
+const SW_VERSION = 'v18';
 const CACHE_PREFIX = 'here-tiles';
 const DEFAULT_CACHE = `${CACHE_PREFIX}-default-${SW_VERSION}`;
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -133,6 +133,14 @@ self.addEventListener('activate', (event) => {
           console.log(`[TileSW ${SW_VERSION}] Purging cache: ${n}`);
           return caches.delete(n);
         }));
+      // v18: drop every older app-shell cache — it holds stale dev/preview
+      // module JS that must never be served again.
+      await Promise.all(names
+        .filter((n) => n.startsWith('rxdeliver-shell') && n !== SHELL_CACHE)
+        .map((n) => {
+          console.log(`[TileSW ${SW_VERSION}] Purging stale shell cache: ${n}`);
+          return caches.delete(n);
+        }));
     } catch (_) {}
     await self.clients.claim();
   })());
@@ -148,13 +156,24 @@ self.addEventListener('activate', (event) => {
 // deploy the new chunk names are not cached, the module script fetch fails, and
 // React never mounts - a white page with no error. The shell cache below makes
 // a cold start work with no network at all.
-const SHELL_CACHE = 'rxdeliver-shell-v1';
+// v18: new cache name so the entries the old worker stored are never read again.
+const SHELL_CACHE = 'rxdeliver-shell-v2';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/favicon-32.png'];
+// v18 (owner report Nov 21 2026): cache-first on DEV/preview module requests
+// served two React copies into one page ("Cannot read properties of null
+// (reading 'useEffect')" — the dispatcher was null because useEffect came from
+// a stale chunk and the renderer from a fresh one). Vite serves source and
+// optimized deps from /src, /node_modules/.vite/deps, /@vite, /@react-refresh,
+// /@fs with ?v=/?t= cache-busters; a cached copy of those must never be handed
+// back. Only real hashed production build output (/assets/*) is shell-cached.
 const isShellAsset = (url) => {
   try {
     const u = new URL(url);
     if (u.origin !== self.location.origin) return false;
-    return /\/(assets|src)\/.+\.(js|mjs|css|woff2?|ttf|svg|png|jpe?g|webp)$/i.test(u.pathname);
+    if (/^\/(src|node_modules|@vite|@react-refresh|@fs)\//.test(u.pathname)) return false;
+    if (u.searchParams.has('v') || u.searchParams.has('t')) return false;
+    if (/\.(jsx?|tsx?)$/i.test(u.pathname) && !u.pathname.startsWith('/assets/')) return false;
+    return /^\/assets\/.+\.(js|mjs|css|woff2?|ttf|svg|png|jpe?g|webp)$/i.test(u.pathname);
   } catch (_) { return false; }
 };
 

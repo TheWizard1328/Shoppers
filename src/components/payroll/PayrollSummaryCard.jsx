@@ -5,7 +5,7 @@ import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save, Share2, Loader2, Pencil, Check, Lock } from 'lucide-react';
+import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, X, Loader2, Pencil, Check, Lock } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
 import ScreenshotShareModal from '../common/ScreenshotShareModal';
@@ -32,7 +32,7 @@ import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts, roundCurrency } from './payrollSummaryCalculations';
 import { applyStillOwedToNotes } from './stillOwedNote';
 import { toDateOnlyStr } from '@/components/utils/dateOnly';
-import { isAfterHours, isAfterHoursPickupStop, isAfterHoursDeliveryStop } from './payrollDeliveryUnits';
+import { isAfterHoursPickupStop, isAfterHoursDeliveryStop } from './payrollDeliveryUnits';
 import { getActiveDeductionsForPeriod, formatDeductionDateRange, normalizeDate, recurringDeductionKey, applyRecurringOverrides } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
@@ -1301,9 +1301,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     });
   }, [payrollData, payrollRecords, periodStartStr, periodEndStr, forceFinalizedSyncToken]);
 
-  // Guard clause AFTER all hooks
-  if (payrollData.length === 0) {
-    // ── OWING-ONLY VIEW (owner request Nov 21 2026) ──────────────────────────
+  // ── OWING-ONLY VIEW (owner request Nov 21 2026) ──────────────────────────
   // The payroll page already carries every number the arrears reminder needs:
   // per-driver net (the same formula the row displays) and the paid amount in
   // the Paid box. So the arrears list is a filter here, not a second screen.
@@ -1339,7 +1337,9 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     [owingOnly, payrollRowsWithDeliveries, owedByDriverId]
   );
 
-  return (
+  // Guard clause AFTER all hooks
+  if (payrollData.length === 0) {
+    return (
       <Card className="mt-4 bg-surface border-surface">
         <CardContent className="p-6 text-center text-soft">
           No payroll data available for this period. 

@@ -15,6 +15,8 @@
  * the active city, and listens to 'globalFiltersChanged' for city switches.
  */
 
+import { isEditorPreview } from '@/lib/utils';
+
 // ─── Lazy imports ────────────────────────────────────────────────────────────
 // tileCoverageManager is imported lazily to avoid circular deps at module init
 let _tileCoverageManager = null;
@@ -75,6 +77,24 @@ export async function initTileCacheManager(cityId) {
     }
 
     try {
+      // PREVIEW / DEV GUARD (Nov 21 2026): the tile SW must never run on a
+      // preview or dev host. It cache-serves the app's JS (/src, Vite dep
+      // chunks), so a cached module plus a fresh one loaded two React copies
+      // into the same page and crashed it with "Cannot read properties of null
+      // (reading 'useEffect')". Unregister anything an earlier build left here
+      // and drop its shell cache so the host heals itself.
+      if (isEditorPreview || import.meta.env.DEV) {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister().catch(() => {})));
+          const names = await caches.keys();
+          await Promise.all(
+            names.filter((n) => n.startsWith('rxdeliver-shell')).map((n) => caches.delete(n))
+          );
+        } catch (_) {}
+        return false;
+      }
+
       // Register (or get existing) SW registration.
       // updateViaCache 'none' + the update() call below make every launch
       // re-fetch the SW script (bypassing the browser's 24h update check),

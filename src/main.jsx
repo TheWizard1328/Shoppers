@@ -141,7 +141,28 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 // push and prunes the old hashed chunks, so a preview SW plus a stale index is a
 // guaranteed 404 on the next lazy import. Push notifications and tile caching are
 // production/native concerns only.
-if ('serviceWorker' in navigator && !isEditorPreview) {
+// PREVIEW / DEV GUARD (Nov 21 2026): a service worker on a host that rebuilds
+// on every push cache-serves the app's own module JS. A cached module plus a
+// fresh one put two React copies in one page, which crashed with "Cannot read
+// properties of null (reading 'useEffect')" (hooks read a null dispatcher).
+// Registering is production-only; on preview/dev we unregister whatever an
+// earlier build left behind and drop its app-shell cache so the host heals.
+const swDisabled = isEditorPreview || import.meta.env.DEV;
+
+if ('serviceWorker' in navigator && swDisabled) {
+  window.addEventListener('load', async () => {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister().catch(() => {})));
+      const names = await caches.keys();
+      await Promise.all(
+        names.filter((n) => n.startsWith('rxdeliver-shell')).map((n) => caches.delete(n))
+      );
+    } catch (_) { /* non-critical */ }
+  });
+}
+
+if ('serviceWorker' in navigator && !swDisabled) {
   window.__hereTileSwMessageQueue = window.__hereTileSwMessageQueue || [];
 
   navigator.serviceWorker.addEventListener('message', (event) => {
