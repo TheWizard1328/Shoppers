@@ -116,13 +116,13 @@ export async function clearTerminalNextFlags({
         TERMINAL.includes(String(d.status || '').toLowerCase())
     );
     for (const d of stale) {
-      await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+      await updateDeliveryLocal(d.id, { isNextDelivery: false, next_flag_owner: null }, { skipSmartRefresh: true });
       cleared.push(d.id);
     }
     if (cleared.length > 0 && !skipServerWrite) {
       const { base44 } = await import('@/api/base44Client');
       for (const id of cleared) {
-        base44.entities.Delivery.update(id, { isNextDelivery: false }).catch(() => {});
+        base44.entities.Delivery.update(id, { isNextDelivery: false, next_flag_owner: null }).catch(() => {});
       }
     }
     if (cleared.length > 0) {
@@ -180,12 +180,16 @@ export async function clearDuplicateNextFlags({
     });
     const keep = sorted[0];
     for (const d of sorted.slice(1)) {
-      await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+      // RELEASE THE CLAIM TOO (owner report Nov 22 2026): clearing only the flag
+      // left next_flag_owner on the record, so newestRouteFlagOwner kept seeing a
+      // stale claim from a finished stop and every OTHER device refused to
+      // restore - the route sat with no next stop and the guard churned.
+      await updateDeliveryLocal(d.id, { isNextDelivery: false, next_flag_owner: null }, { skipSmartRefresh: true });
       cleared.push(d.id);
       if (!skipServerWrite) {
         try {
           const { base44 } = await import('@/api/base44Client');
-          await base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null);
+          await base44.entities.Delivery.update(d.id, { isNextDelivery: false, next_flag_owner: null }).catch(() => null);
         } catch (_) { /* offline — queued mutation carries it */ }
       }
     }
