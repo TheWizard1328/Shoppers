@@ -306,11 +306,19 @@ Deno.serve(async (req) => {
       .map((d) => ({
         driver_id: d.driver_id,
         driver_name: d.driver_name,
-        title: d.paid <= 0.005 ? `Payroll: ${money(d.owed)} still owing` : `Payroll: ${money(d.owed)} still owing`,
-        body: `${d.period_start} to ${d.period_end}: you were paid ${money(d.paid)} of ${money(d.net_owed)}.`
-          + (d.last_call
-            ? ` If ${money(d.paid)} is correct, the remaining ${money(d.owed)} moves to your next pay period tomorrow.`
-            : ' Update the Paid amount in the app if this is wrong.'),
+        // A driver with nothing recorded is UNPAID, not "still owing" — say so.
+        title: d.unpaid
+          ? `Payroll: ${money(d.owed)} unpaid`
+          : `Payroll: ${money(d.owed)} still owing`,
+        body: d.unpaid
+          ? `${d.period_start} to ${d.period_end}: no payment recorded yet for ${money(d.net_owed)}.`
+            + (d.last_call
+              ? ` If that is correct, the full ${money(d.owed)} moves to your next pay period tomorrow.`
+              : ' Enter the Paid amount in the app if you were paid.')
+          : `${d.period_start} to ${d.period_end}: you were paid ${money(d.paid)} of ${money(d.net_owed)}.`
+            + (d.last_call
+              ? ` If ${money(d.paid)} is correct, the remaining ${money(d.owed)} moves to your next pay period tomorrow.`
+              : ' Update the Paid amount in the app if this is wrong.'),
         url: '/payroll',
         tag: `payroll-owed-${d.period_end}`,
       }));
@@ -348,7 +356,7 @@ Deno.serve(async (req) => {
 
     const plan = {
       checked_at: new Date().toISOString(),
-      code_version: 'cycle-from-span-1',
+      code_version: 'unpaid-wording-2',
       today,
       dry_run: dryRun,
       owed,
