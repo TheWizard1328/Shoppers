@@ -161,6 +161,25 @@ export default function DashboardBulkEditControls({
         }
       }
 
+      // BULK NEXT-STOP CLAIM (owner Nov 22 2026): carrying the flag forward only
+      // helps when something in the batch already had it. On a route that had NO
+      // next stop, a bulk In Transit / En Route flip carried nothing, so
+      // nextDeliveryGuard restored a flag over and over (16+ restores in one
+      // hour across devices). The edit now claims the flag on the first affected
+      // stop (lowest stop_order) in the SAME write, so the guard has nothing to
+      // repair.
+      const bulkSetsActiveStatus = values.statusChoice === "in_transit_or_en_route"
+        || values.statusChoice === "in_transit"
+        || values.statusChoice === "en_route";
+      const batchHasNextStop = selectedDeliveries.some((d) => d?.isNextDelivery === true);
+      let claimedNextId = null;
+      if (bulkSetsActiveStatus && !batchHasNextStop) {
+        const orderedForClaim = [...selectedDeliveries].sort(
+          (a, b) => (Number(a?.stop_order) || 9999) - (Number(b?.stop_order) || 9999)
+        );
+        claimedNextId = orderedForClaim[0]?.id || null;
+      }
+
       // STEP 1: Build per-delivery payloads
       const perDeliveryPayloads = selectedDeliveries.map((delivery) => {
         const payload = { ...sharedUpdates };
@@ -195,6 +214,11 @@ export default function DashboardBulkEditControls({
         // in one hour. Carrying the current value on the batch itself means the
         // flag survives the write instead of being repaired afterwards.
         if (delivery?.isNextDelivery === true) {
+          payload.isNextDelivery = true;
+        }
+
+        // No stop in the batch carried the flag — claim it here (see above).
+        if (claimedNextId && delivery?.id === claimedNextId && payload.isNextDelivery !== true) {
           payload.isNextDelivery = true;
         }
 

@@ -307,6 +307,22 @@ export async function applyBulkEditStops({
   const { enterBatchSilentMode } = await import("../utils/entityMutations");
   enterBatchSilentMode();
 
+  // NEXT-STOP FLAG (owner Nov 22 2026): a bulk "In Transit / En Route" edit
+  // changed status but never claimed isNextDelivery, so every dashboard's
+  // next-stop guard kept restoring a flag the edit never set — the route
+  // ping-ponged between devices for half an hour. The edit now claims the flag
+  // on the first affected stop (lowest stop_order) and releases it on the rest,
+  // in the same write.
+  const bulkSetsActiveStatus = values.statusChoice === 'in_transit_or_en_route'
+    || values.statusChoice === 'in_transit'
+    || values.statusChoice === 'en_route';
+  let nextStopIdForBulk = null;
+  if (bulkSetsActiveStatus) {
+    const pool = (deliveries || allDeliveries || []).filter((d) => allIdsToUpdate.includes(d.id));
+    pool.sort((a, b) => (Number(a.stop_order) || 9999) - (Number(b.stop_order) || 9999));
+    nextStopIdForBulk = pool[0]?.id || null;
+  }
+
   return Promise.all(
     allIdsToUpdate.map(async (deliveryId) => {
       const selectedDelivery = (deliveries || allDeliveries || []).find((delivery) => delivery.id === deliveryId);
@@ -323,6 +339,10 @@ export async function applyBulkEditStops({
             selectedStoreOption,
             allDeliveries
           });
+
+      if (bulkSetsActiveStatus && !isLinked) {
+        nextUpdates.isNextDelivery = deliveryId === nextStopIdForBulk;
+      }
 
       const transfer = placementById.get(deliveryId) || null;
       if (transfer) {
@@ -368,6 +388,14 @@ export async function applyBulkEditStops({
           })
         };
       });
+
+      if (bulkSetsActiveStatus && nextStopIdForBulk) {
+        freshDeliveries.forEach((d) => {
+          if (allIdsToUpdate.includes(d.id) && !linkedPendingDeliveryIds.has(d.id)) {
+            d.isNextDelivery = d.id === nextStopIdForBulk;
+          }
+        });
+      }
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
