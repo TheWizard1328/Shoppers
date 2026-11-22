@@ -55,10 +55,10 @@ const getInnerSymbolColor = (status, isPickup = false) => {
   }
 };
 
-export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false, isFaded = false, isHighlightedFinished = false, storeColor = null, isDriverOnDuty = true, isPatientWatching = false) => {
+export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false, isFaded = false, isHighlightedFinished = false, storeColor = null, isDriverOnDuty = true, isPatientWatching = false, isInterStore = false) => {
   const isMobile = isMobileDevice();
   const zBucket = bucketZoom(zoomLevel);
-  const cacheKey = `${status}_${number}_${zBucket}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}_${isHighlightedFinished}_${storeColor || ''}_${isDriverOnDuty}_${isPatientWatching}`;
+  const cacheKey = `${status}_${number}_${zBucket}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}_${isHighlightedFinished}_${storeColor || ''}_${isDriverOnDuty}_${isInterStore}_${isPatientWatching}`;
 
   if (simpleCircleIconCache.has(cacheKey)) {
     return simpleCircleIconCache.get(cacheKey);
@@ -73,7 +73,12 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
     'cancelled': '#EF4444'
   };
 
-  const statusColor = statusColors[status] || '#94A3B8';
+  // INTERSTORE IN-TRANSIT = PURPLE (owner Nov 22 2026): the pin variant already
+  // forces #A78BFA for ISP/ISD in transit, but the simple-circle variant had no
+  // InterStore slot at all, so an InterStore stop drawn as a circle kept its
+  // regular status hue. Same rule here; next-delivery yellow still wins.
+  const isInterStoreInTransit = isInterStore && (status === 'in_transit' || status === 'en_route') && !isNextDelivery;
+  const statusColor = isInterStoreInTransit ? '#A78BFA' : (statusColors[status] || '#94A3B8');
   const driverColor = isNextDelivery ? '#ffff00ff' : borderColor;
 
   const outerRingColor = isOtherDriver ? '#FFFFFF' : statusColor;

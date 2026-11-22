@@ -402,7 +402,7 @@ function DeliveryMarkers({
       : false;
     const showWatchHalo = isPatientWatching && !isFanned;
     const icon = delivery.useSimpleCircle || delivery.isOtherDriver
-      ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, delivery.pinColor, true, 0, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, markerStoreColor, delivery.isDriverOnDuty, showWatchHalo)
+      ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, delivery.pinColor, true, 0, delivery.isNextInLine, isDeliveryFaded || isDeliveryInProgressFade, isDeliveryHighlightedFinished, markerStoreColor, delivery.isDriverOnDuty, showWatchHalo, isInterStoreRecord(delivery))
       : createDeliveryIcon(
           delivery.status, delivery.pinColor, isFanned,
           delivery.status === 'pending' ? null : delivery.number,
@@ -410,7 +410,7 @@ function DeliveryMarkers({
           hasIncompleteStops, delivery.ampm_deliveries === 'PM', delivery.isOtherDriver,
           delivery.isReturn, isDeliveryFaded || isDeliveryInProgressFade,
           isDeliveryHighlightedFinished, delivery.fridge_item === true,
-          delivery.isDriverOnDuty, showWatchHalo, undefined,
+          delivery.isDriverOnDuty, showWatchHalo, isInterStoreRecord(delivery),
           // "$" moved OUT of the pin icon on Nov 7 2026 — see the standalone
           // codBadgePane marker below: inside the icon it was painted under any
           // neighbouring pin that Leaflet stacked higher.
