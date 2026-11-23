@@ -280,11 +280,13 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               // Not Tapped"). No role="button" - same 44px min-height trap.
               <span
                 onClick={() => onMarkSpend(r.delivery_id)}
-                title={r.notTapped ? 'Mark this COD as tapped in your Square app (Card Spend)' : 'Mark this collected COD as Not Tapped in your Square app'}
-                className={r.notTapped ?
+                title="Tap to cycle: Card Spend > Not Tapped > Driver Tapped"
+                className={r.driverTapped ?
+                "cursor-pointer rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none min-w-[80px]" :
+                r.notTapped ?
                 "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]" :
                 "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]"}>
-                    {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
+                    {r.driverTapped ? 'Driver Tapped' : r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
               r.hasCardSpend ?
               <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span> :
               r.manualCardSpend ?
@@ -311,15 +313,19 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               canMarkSpend && !!r.delivery_id && onMarkSpend ?
               <span
                 onClick={() => onMarkSpend(r.delivery_id)}
-                className={r.notTapped ?
+                className={r.driverTapped ?
+                "cursor-pointer rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none px-2 py-1 min-w-[80px]" :
+                r.notTapped ?
                 "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none px-2 py-1 min-w-[80px]" :
                 "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none px-2 py-1 min-w-[80px]"}>
-                    {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
+                    {r.driverTapped ? 'Driver Tapped' : r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
 
-              <span className={r.notTapped ?
+              <span className={r.driverTapped ?
+              'rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none min-w-[80px]' :
+              r.notTapped ?
               'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]' :
               'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]'}>
-                    {r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>;
+                    {r.driverTapped ? 'Driver Tapped' : r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>;
               const statusBadge =
               r.failed && !r.collected && canMarkSpend && !!r.delivery_id && onMarkRefunded ?
               <span
@@ -837,8 +843,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     const value = {};
     for (const [k, v] of Object.entries(raw)) {
       if (!v || typeof v !== 'object') continue;
-      if (v.notTappedAt) value[k] = { notTapped: true, touchedAt: v.notTappedAt, by: v.by };else
-      if (v.touchedAt) value[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt, by: v.by };
+      // Nov 22 2026: three-way spend state, mode = card | not_tapped |
+      // driver_tapped. notTapped stays the derived "never deducts" flag so
+      // every existing balance rule keeps working; Driver Tapped sets it true
+      // too (no deduction) but is labelled and coloured apart.
+      const mode = v.mode || (v.notTapped === true ? 'not_tapped' : 'card');
+      if (v.notTappedAt) value[k] = { mode: 'not_tapped', notTapped: true, touchedAt: v.notTappedAt, by: v.by };else
+      if (v.touchedAt || v.mode) value[k] = { mode, notTapped: mode !== 'card', touchedAt: v.touchedAt, by: v.by };
     }
     spendMarksRecordIdRef.current = rec?.id || null;
     setManualSpendMarks(value);
@@ -1016,14 +1027,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     if (!currentUser || !deliveryId) return;
     const prev = manualSpendMarksRef.current || {};
     const key = String(deliveryId);
-    const togglingBack = !!prev?.[key]?.notTapped;
     const nowIso = new Date().toISOString();
+    // THREE-WAY CYCLE (owner spec Nov 22 2026): Card Spend -> Not Tapped ->
+    // Driver Tapped -> Card Spend. Driver Tapped never deducts from the card
+    // (like Not Tapped) but settles like a real tap once collected, and its
+    // collected row clears once the collected date has passed, so it gets its
+    // own colour instead of borrowing violet.
+    const SPEND_MODES = ['card', 'not_tapped', 'driver_tapped'];
+    const currentMode = prev?.[key]?.mode || (prev?.[key]?.notTapped ? 'not_tapped' : 'card');
+    const nextMode = SPEND_MODES[(SPEND_MODES.indexOf(currentMode) + 1) % SPEND_MODES.length];
+    const togglingBack = nextMode === 'card';
     // Oct 7 2026: ALWAYS keep a record with the fresh touchedAt — never
     // delete the key when toggling back to Card Spend. The deduction rule
     // treats a pre-True-Up COD as neutral until it has been explicitly
     // clicked since True-Up; deleting the key on toggle-back would erase
     // that "I clicked this" evidence and silently revert it to neutral.
-    const next = { ...prev, [key]: { notTapped: !togglingBack, touchedAt: nowIso, by: currentUser?.id || null } };
+    const next = { ...prev, [key]: { mode: nextMode, notTapped: nextMode !== 'card', touchedAt: nowIso, by: currentUser?.id || null } };
     // Optimistic: flip the badge instantly.
     setManualSpendMarks(next);
     manualSpendMarksRef.current = next;
@@ -1035,7 +1054,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const created = await base44.entities.AppSettings.create({ setting_key: SPEND_MARKS_KEY, setting_value: next, description: 'Card Spend toggle state — {notTapped, touchedAt} per delivery; touchedAt proves an explicit owner click since the last True-Up' });
         spendMarksRecordIdRef.current = created?.id || null;
       }
-      toast.success(togglingBack ? 'Card Spend' : 'Not Tapped');
+      toast.success(nextMode === 'driver_tapped' ? 'Driver Tapped' : nextMode === 'not_tapped' ? 'Not Tapped' : 'Card Spend');
     } catch (e) {
       console.error('markCardSpend failed:', e);
       toast.error('Could not save the toggle');
@@ -1659,6 +1678,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           // collected, only the POS-tap claim is disputed. A mark is stale
           // (ignored) when the card was charged AFTER it was made, the same
           // superseded test the balance math uses.
+          driverTapped: mark?.mode === 'driver_tapped',
           notTapped: (() => {
             if (mark?.notTapped !== true) return false;
             const markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
@@ -2352,8 +2372,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const value = {};
           for (const [k, v] of Object.entries(raw)) {
             if (!v || typeof v !== 'object') continue;
-            if (v.notTappedAt) value[k] = { notTapped: true, touchedAt: v.notTappedAt, by: v.by };else
-            if (v.touchedAt) value[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt, by: v.by };
+            // Nov 22 2026: three-way spend state, mode = card | not_tapped |
+            // driver_tapped. notTapped stays the derived "never deducts" flag so
+            // every existing balance rule keeps working; Driver Tapped sets it true
+            // too (no deduction) but is labelled and coloured apart.
+            const mode = v.mode || (v.notTapped === true ? 'not_tapped' : 'card');
+            if (v.notTappedAt) value[k] = { mode: 'not_tapped', notTapped: true, touchedAt: v.notTappedAt, by: v.by };else
+            if (v.touchedAt || v.mode) value[k] = { mode, notTapped: mode !== 'card', touchedAt: v.touchedAt, by: v.by };
           }
           if (event?.data?.id) spendMarksRecordIdRef.current = event.data.id;
           if (seq !== spendMarksSeq.current) return;
@@ -3453,6 +3478,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   const coveredRetryIds = new Set();
                   for (const it of outItems) (it?.covers_retry_ids || []).forEach((cid) => coveredRetryIds.add(String(cid)));
                   const notTapped = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)]?.notTapped;
+                  const driverTappedMark = (id) => manualSpendMarksRef.current?.[String(id)]?.mode === 'driver_tapped';
                   const manualMark = (id) => !!id && !!manualSpendMarksRef.current?.[String(id)];
                   // Delivery-derived active CODs (pendingPickup flag for
                   // pending status)…
@@ -3476,7 +3502,8 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     pendingPickup: it.status === 'pending',
                     inTransit: it.status === 'in_transit',
                     failed: it.status === 'failed',
-                    notTapped: notTapped(it.delivery_id)
+                    notTapped: notTapped(it.delivery_id),
+                    driverTapped: driverTappedMark(it.delivery_id)
                   })), ...cashItems.map((it) => ({
                     key: `c-${it.delivery_id}`,
                     delivery_id: it.delivery_id,
@@ -3491,6 +3518,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     inTransit: false,
                     failed: false,
                     notTapped: notTapped(it.delivery_id),
+                    driverTapped: driverTappedMark(it.delivery_id),
                     cashAwaitingSquare: true
                   }))];
                   // …MERGED with the SquareCatalogItems still ACTIVE in the
@@ -3514,6 +3542,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     date: it.date || null,
                     pendingPickup: false,
                     notTapped: notTapped(it.delivery_id),
+                    driverTapped: driverTappedMark(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
                   // DRIVER SCOPE (owner rule Oct 9 2026): drivers only see
@@ -3557,6 +3586,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     hasCardSpend: false,
                     manualCardSpend: manualMark(it.delivery_id),
                     notTapped: notTapped(it.delivery_id),
+                    driverTapped: driverTappedMark(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
                   const uncollectedTodayRows = combinedSrc.filter((it) => (!it.date || it.date === todayStr) && !isAwaitingPickupRow(it)).map((it) => ({
@@ -3577,6 +3607,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
                     manualCardSpend: manualMark(it.delivery_id),
                     notTapped: notTapped(it.delivery_id),
+                    driverTapped: driverTappedMark(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
                   // Future-dated rows now live in the Awaiting Pickup section
@@ -3599,6 +3630,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     hasCardSpend: false, // Square-evidence swipe scan retired Oct 7 2026 — delivery data only
                     manualCardSpend: manualMark(it.delivery_id),
                     notTapped: notTapped(it.delivery_id),
+                    driverTapped: driverTappedMark(it.delivery_id),
                     cashAwaitingSquare: !!it.cashAwaitingSquare
                   }));
                   // OWNER RULE (Nov 3 2026): a completed COD marked Not Tapped
