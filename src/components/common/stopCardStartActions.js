@@ -1108,6 +1108,21 @@ export function useStopCardStartActions({
             const _refreshPolyCount = Array.isArray(refreshedList) ? refreshedList.filter(d => d?.encoded_polyline).length : 0;
             console.log(`[Start bg] optimizer returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
 
+            // ── START DIAGNOSTIC (owner report Nov 23 2026) ──────────────
+            // "I click Start, that stop moves to next, and the rest of the route
+            // is just repolyfilled in the same order; then a manual optimize
+            // gives the order I expected." console.log is stripped from release
+            // builds, so the whole Start decision was invisible. These are
+            // console.warn so they reach RemoteLogEntry; they are temporary and
+            // get removed once the cause is confirmed.
+            try {
+              const _diagOrder = (list) => (Array.isArray(list) ? list : [])
+                .filter(d => d && !['completed', 'failed', 'cancelled'].includes(String(d.status || '')))
+                .sort((a, b) => (Number(a?.stop_order) || 9999) - (Number(b?.stop_order) || 9999))
+                .map(d => Number(d?.stop_order) || 0);
+              console.warn(`[StartDiag] source=start_button next=${delivery.id} lockedNextIn=${(_startFullDeliveries || []).filter(d => d?.isNextDelivery === true).map(d => d.id).join(',') || 'none'} inCount=${(_startFullDeliveries || []).filter(d => !['completed','failed','cancelled'].includes(String(d?.status||''))).length} inOrder=[${_diagOrder(_startFullDeliveries).join(' ')}] outOrder=[${_diagOrder(refreshedList).join(' ')}] writeBatch=${_startWriteBatch.length} routeChanged=${coordResult?.optimizeData?.routeChanged} fallback=${coordResult?.usedFallbackOrdering} success=${coordResult?.success} degraded=${coordResult?.isDegraded}`);
+            } catch (_diagErr) { /* diagnostics must never break Start */ }
+
             // Diagnostic: log stop_order before and after optimization
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
               const _before = _startFullDeliveries.filter(d => d?.status !== 'completed' && d?.status !== 'failed' && d?.status !== 'cancelled').sort((a, b) => (Number(a?.stop_order) || 999) - (Number(b?.stop_order) || 999)).map(d => `${d?.stop_order || '?'}:${d?.patient_id ? 'del' : 'pup'}`);
