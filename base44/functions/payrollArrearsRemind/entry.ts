@@ -7,6 +7,8 @@
 // Owner spec (Nov 21 2026):
 //   1. Driver is told FIRST, so they can fix a wrong paid_amount themselves.
 //   2. Riyaz gets the remainder-unpaid list (including drivers who ignored it).
+//   Deep links use '/DriverPayroll' — routes are generated from Pages as
+//   `/<PageName>`, so '/payroll' landed on the 404 page (owner report Nov 23 2026).
 //   3. The app owner (Robert) gets the "70% of the period passed, remaining is
 //      rolling over" push, and a confirmation of whether Riyaz's push landed.
 //   4. Blank paid_amount is ignored until the cutoff has passed.
@@ -319,7 +321,7 @@ Deno.serve(async (req) => {
             + (d.last_call
               ? ` If ${money(d.paid)} is correct, the remaining ${money(d.owed)} moves to your next pay period tomorrow.`
               : ' Update the Paid amount in the app if this is wrong.'),
-        url: '/payroll',
+        url: '/DriverPayroll',
         tag: `payroll-owed-${d.period_end}`,
       }));
 
@@ -366,8 +368,8 @@ Deno.serve(async (req) => {
       unpaid_count: unpaidCount,
       total_owed: totalOwed,
       driver_messages: driverMessages,
-      riyaz: { user_id: riyazUserId, title: riyazTitle, body: riyazBody, url: '/payroll' },
-      owner: { user_id: ownerUserId, title: ownerTitle, body: ownerBody, url: '/payroll' },
+      riyaz: { user_id: riyazUserId, title: riyazTitle, body: riyazBody, url: '/DriverPayroll' },
+      owner: { user_id: ownerUserId, title: ownerTitle, body: ownerBody, url: '/DriverPayroll' },
       sends: [],
     };
 
@@ -381,7 +383,7 @@ Deno.serve(async (req) => {
 
     let riyazResult = null;
     if (riyazUserId && owed.length) {
-      riyazResult = await sendPushToUser(b44, riyazUserId, riyazTitle, riyazBody, '/payroll', 'payroll-owed-list');
+      riyazResult = await sendPushToUser(b44, riyazUserId, riyazTitle, riyazBody, '/DriverPayroll', 'payroll-owed-list');
       plan.sends.push({ kind: 'riyaz', user_id: riyazUserId, ...riyazResult });
     }
 
@@ -396,12 +398,12 @@ Deno.serve(async (req) => {
           ? `Riyaz was sent the list of ${owed.length} unpaid driver${owed.length === 1 ? '' : 's'} (${riyazResult.sent} device${riyazResult.sent === 1 ? '' : 's'}).`
           : `Riyaz's reminder did NOT go out${riyazResult?.subscribed === false ? ' (no push subscription on his account)' : ''}.`)
         : 'No arrears today, nothing sent to Riyaz.';
-      const ownerRes = await sendPushToUser(b44, ownerUserId, confirmTitle, confirmBody, '/payroll', 'payroll-reminder-status');
+      const ownerRes = await sendPushToUser(b44, ownerUserId, confirmTitle, confirmBody, '/DriverPayroll', 'payroll-reminder-status');
       plan.sends.push({ kind: 'owner_status', user_id: ownerUserId, ...ownerRes });
     }
 
     if (ownerUserId && ownerTitle) {
-      const rolloverRes = await sendPushToUser(b44, ownerUserId, ownerTitle, ownerBody, '/payroll', 'payroll-rollover');
+      const rolloverRes = await sendPushToUser(b44, ownerUserId, ownerTitle, ownerBody, '/DriverPayroll', 'payroll-rollover');
       plan.sends.push({ kind: 'owner_rollover', user_id: ownerUserId, ...rolloverRes });
     }
 
