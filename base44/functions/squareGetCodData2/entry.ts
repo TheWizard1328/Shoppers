@@ -1260,7 +1260,11 @@ mark('after_db_cleanup');
   // and the backfill stops resurrecting it.
   let registerStamped = 0;
   for (const did of registerPaidDeliveryIds) {
-    const row = stampRowById.get(String(did));
+    // The delivery may sit OUTSIDE this run's sync window (Oct 28 was: the wide
+    // scan only looked back to Nov 17), so fetch it by id instead of requiring it
+    // to be in stampRowById — otherwise the stamp silently never happens.
+    const row = stampRowById.get(String(did))
+      || await base44.asServiceRole.entities.Delivery.get(did).catch(() => null);
     if (!row || row.cod_confirmed_collected) continue;
     const at = registerPaidAt.get(String(did)) || new Date().toISOString();
     await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: true, cod_confirmed_collected_at: at })
