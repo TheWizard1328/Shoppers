@@ -337,6 +337,41 @@ export function getInterStoreKindOf(delivery) {
   return null;
 }
 
+/**
+ * INTER-STORE TAG IN THE PATIENT NAME (owner request Nov 23 2026): some stops are
+ * typed in with the tag inside the patient name itself — "(ISP) Pick up from
+ * Kingsway", "(ISD) Drop off at Meadows" — and carry a real patient_id. Those
+ * rows are not inter-store RECORDS (no ISD-/ISP- id, no notes, no pointers), so
+ * every detector missed them and their map marker stayed a plain patient pin
+ * while every other inter-store stop got the purple highlight. This reads the
+ * tag off whichever name field the record carries.
+ *
+ * Returns 'ISD' | 'ISP' | null.
+ */
+export function interStoreKindFromPatientName(record) {
+  if (!record) return null;
+  const candidates = [
+    record.patient_name,
+    record.patientName,
+    record.patient?.full_name,
+    record.patient?.name,
+    record.full_name,
+    record.name
+  ];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const text = String(raw);
+    if (/\(\s*ISD\s*\)/i.test(text)) return 'ISD';
+    if (/\(\s*ISP\s*\)/i.test(text)) return 'ISP';
+  }
+  return null;
+}
+
+/** True when the record is inter-store either by identity OR by a name tag. */
+export function isInterStoreStopForMap(record) {
+  return isInterStoreRecord(record) || !!interStoreKindFromPatientName(record);
+}
+
 export function isInterStoreRecord(delivery) {
   return !!getInterStoreKindOf(delivery);
 }

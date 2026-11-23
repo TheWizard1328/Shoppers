@@ -38,6 +38,7 @@ import MapBreadcrumbs from "./MapBreadcrumbs";
 import { createLiveLocationDot, bucketZoom } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
 import { getInterStoreLocationSync, getInterStoreLocationForRecordSync, getInterStoreKindOf, isInterStoreDelivery, parseInterStoreDeliveryId } from "../utils/interStoreDisplayName";
+import { interStoreKindFromPatientName } from '../utils/interStoreDisplayName';
 import { countLegendStops } from "./legendStopCounter";
 import { getCurrentDevice } from "../utils/deviceManager";
 
@@ -790,7 +791,13 @@ function DeliveryMap({
           markerType: "delivery",
           useSimpleCircle: (showOtherDriverDeliveries && isOtherDriver) || useDispatcherPlaceholder,
           isOtherDriver: isOtherDriver || useDispatcherPlaceholder,
-          isReturn: `${patient?.full_name || delivery.patient_name || ""}`.toLowerCase().includes("return")
+          isReturn: `${patient?.full_name || delivery.patient_name || ""}`.toLowerCase().includes("return"),
+          // OWNER REQUEST (Nov 23 2026): a stop typed in with (ISP)/(ISD) inside
+          // the patient name is still a patient row (real coords, real
+          // patient_id) but it must be highlighted like every other inter-store
+          // stop. The tag rides on the marker; coords and record type are
+          // untouched, so map bounds and routing behave exactly as before.
+          interStoreNameTag: interStoreKindFromPatientName({ patient, delivery })
         });
         return;
       }
