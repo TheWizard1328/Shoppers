@@ -3631,7 +3631,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                     type="button"
                     title="Log a card swipe that has no delivery yet"
                     onClick={(e) => { e.stopPropagation(); setLogSwipeCard({ location_id: loc.location_id, label: loc.name || loc.location_id }); }}
-                    className="shrink-0 rounded-full px-2 py-[3px] text-[11px] font-medium text-center bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600">
+                    className="shrink-0 inline-flex items-center justify-center rounded-full px-2 py-[3px] text-[11px] font-medium text-center min-w-[96px] bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 active:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700">
                     + Log
                   </button>
                   }
