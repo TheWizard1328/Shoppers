@@ -163,7 +163,10 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
   // ADMIN NOTES (owner request Nov 3 2026): a pen on every delivery item card
   // opens a note dialog that saves to that balance item, and a note-paper icon
   // appears when the DRIVER left a note on the delivery (tapping shows it).
-  canEditNotes = false, balanceNotesById = {}, driverNotesById = {}, onEditNote = null, onViewDriverNote = null }) {
+  canEditNotes = false, balanceNotesById = {}, driverNotesById = {}, onEditNote = null, onViewDriverNote = null,
+  // PENDING SWIPES SECTION (owner request Nov 23 2026): sits directly above
+  // Collected with the same header + card styling as the other sections.
+  pendingSwipes = null, onDismissSwipe = null }) {
   // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
   // uncollected cash-awaiting-square row is clickable — the owner can
   // correct the recorded tender to Debit or Credit (which re-does the
@@ -174,7 +177,8 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
   // with the three states instead of cycling through them on each tap.
   const [spendPick, setSpendPick] = useState(null); // { row, x, y, anchorBottom }
   const [cashPickBusy, setCashPickBusy] = useState(false);
-  const hasRows = !!(sections && sections.some((s) => s.rows.length > 0));
+  const swipeRows = pendingSwipes?.rows || [];
+  const hasRows = swipeRows.length > 0 || !!(sections && sections.some((s) => s.rows.length > 0));
   // Loading placeholder: show the three section headers (Collected today /
   // Uncollected / Past uncollected) with a spinner while the delivery + COD
   // data is still being fetched, so the user knows more data is coming shortly.
@@ -198,6 +202,41 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
   if (!hasRows) return null;
   return (
     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+      {swipeRows.length > 0 &&
+      <div className="space-y-0.5">
+          <div className="flex items-center justify-between gap-2 font-medium text-[13px]">
+            <span className="shrink-0" style={{ color: '#0284c7' }}>Pending Swipes</span>
+            <span className="text-slate-400 tabular-nums shrink-0">{swipeRows.length} · {fmtMoney(pendingSwipes.total)}</span>
+          </div>
+          {swipeRows.map((r) =>
+        <div key={r.key} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 my-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate">
+                    {r.storeName || 'Store ?'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {r.dateLabel}{r.note ? ` · ${r.note}` : ''}
+                  </div>
+                </div>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <div className="text-[13px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(r.amount)}</div>
+                  {r.manualId && onDismissSwipe ?
+              <span
+                onClick={(e) => {e.stopPropagation();onDismissSwipe(r.manualId);}}
+                title="Remove this logged swipe"
+                className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 w-[96px] text-center">
+                      Dismiss
+                    </span> :
+              <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 w-[96px] text-center">
+                      Swiped
+                    </span>}
+                </div>
+              </div>
+            </div>
+        )}
+        </div>
+      }
       {sections.map((sec) => {
         // DAY FEES (owner spec Nov 10 2026): the section header carries the
         // day's total fees, centred between the section label and the
@@ -614,71 +653,6 @@ function usePendingSwipes(locationIds, enabled) {
     return () => clearInterval(t);
   }, [enabled, idsKey, load]);
   return { byLocation, loading, reload: load };
-}
-
-/**
- * PendingSwipesPanel — the strip that sits at the top of a location card.
- * Amount and time only: that is all Square knows before the cart is rung up.
- * A "Store ?" pill flips to the store name the moment the line item carries
- * its prefix (CW/HS/SC/MD...), which is exactly when the delivery gets typed in.
- */
-function PendingSwipesPanel({ rows, manualRows, onDismiss }) {
-  const manual = manualRows || [];
-  const sq = rows || [];
-  // Nothing to show: the strip disappears entirely. The "+ Log" entry point now
-  // lives as a badge beside the Card total (owner request Nov 22 2026).
-  if (!sq.length && !manual.length) return null;
-  const cents = sq.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0)
-    + manual.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0);
-  const fmtTime = (iso) => {
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
-    } catch { return ''; }
-  };
-  return (
-    <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
-      <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
-        Pending swipes <span className="font-normal text-slate-500 dark:text-slate-400">({sq.length + manual.length} · {fmtMoney(cents / 100)})</span>
-      </div>
-      <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">Swiped on the card, no delivery entered yet · already taken off the Card balance</div>
-      <div className="space-y-0.5">
-        {manual.map((r) => (
-          <div key={`m-${r.id}`} className="flex items-center gap-2 py-1 border-t border-slate-100 dark:border-slate-800 first:border-t-0">
-            <div className="w-[62px] shrink-0 text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(Number(r.amount_cents || 0) / 100)}</div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
-                {r.swipe_date ? `${r.swipe_date.slice(5, 7)}/${r.swipe_date.slice(8, 10)}` : fmtTime(r.swiped_at)} · logged{r.note ? ` · ${r.note}` : ''}
-              </div>
-            </div>
-            {onDismiss && (
-              <button type="button" title="Dismiss" aria-label="Dismiss this logged swipe" onClick={(e) => { e.stopPropagation(); onDismiss(r.id); }}
-                className="shrink-0 w-5 h-5 rounded text-slate-400 hover:text-slate-600 flex items-center justify-center text-[13px] leading-none">×</button>
-            )}
-          </div>
-        ))}
-        {sq.slice(0, 6).map((r) => (
-          <div key={r.key} className="flex items-center gap-2 py-1 border-t border-slate-100 dark:border-slate-800 first:border-t-0">
-            <div className="w-[62px] shrink-0 text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(Number(r.amount_cents || 0) / 100)}</div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
-                {fmtTime(r.created_at)}{r.item_name ? ` · ${r.item_name}` : ''}
-              </div>
-            </div>
-            <div
-              className={`shrink-0 rounded-full px-2 py-[3px] text-[11px] font-medium text-center min-w-[96px] ${r.store_name
-                ? 'bg-sky-50 border border-sky-300 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700'
-                : 'bg-slate-100 border border-slate-300 text-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600'}`}>
-              {r.store_name || 'Store ?'}
-            </div>
-          </div>
-        ))}
-        {sq.length > 6 && (
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">+{sq.length - 6} more</div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 export default function SquareBalancesView({ currentUser, visibleLocationIds = null }) {
@@ -3607,23 +3581,17 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   }
               </div>
             </div>
-            <PendingSwipesPanel
-              rows={pendingSwipesByLoc?.[loc.location_id] || []}
-              manualRows={(manualSwipes.rows || []).filter((r) => String(r.location_id || '') === String(loc.location_id))}
-              onDismiss={ownerCanEdit ? (id) => manualSwipes.close(id, 'dismissed') : null}
-            />
             <div className="py-2 px-2 space-y-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Wallet className="w-3.5 h-3.5" /> Card</div>
                 <div className="flex items-center gap-2">
                   {ownerCanEdit &&
-                  <button
-                    type="button"
+                  <span
                     title="Log a card swipe that has no delivery yet"
                     onClick={(e) => { e.stopPropagation(); setLogSwipeCard({ location_id: loc.location_id, label: loc.name || loc.location_id }); }}
-                    className="shrink-0 inline-flex items-center justify-center rounded-full px-2 py-[3px] text-[11px] font-medium text-center min-w-[96px] bg-slate-100 border border-slate-300 text-slate-600 hover:bg-slate-200 active:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700">
+                    className="cursor-pointer shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 w-[96px] text-center">
                     + Log
-                  </button>
+                  </span>
                   }
                   <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(loc.cardEstimate)}</div>
                 </div>
@@ -3967,6 +3935,30 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       onMarkRefunded={markFailedRefunded}
                       onCashToCard={cashToCard}
                       onRefundCod={refundCod}
+                      pendingSwipes={(() => {
+                        const fmtDay = (iso) => {try {return new Date(iso).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });} catch {return '';}};
+                        const man = (manualSwipes.rows || []).
+                        filter((r) => String(r.location_id || '') === String(loc.location_id)).
+                        map((r) => ({
+                          key: `m-${r.id}`,
+                          manualId: r.id,
+                          amount: Number(r.amount_cents || 0) / 100,
+                          storeName: 'Logged swipe',
+                          dateLabel: r.swipe_date ? `${r.swipe_date.slice(5, 7)}/${r.swipe_date.slice(8, 10)}` : fmtDay(r.swiped_at),
+                          note: r.note || ''
+                        }));
+                        const sqr = (pendingSwipesByLoc?.[loc.location_id] || []).map((r) => ({
+                          key: r.key,
+                          manualId: null,
+                          amount: Number(r.amount_cents || 0) / 100,
+                          storeName: r.store_name || 'Store ?',
+                          dateLabel: fmtDay(r.created_at),
+                          note: r.item_name || ''
+                        }));
+                        const rows = [...man, ...sqr];
+                        return { rows, total: rows.reduce((a, r) => a + r.amount, 0) };
+                      })()}
+                      onDismissSwipe={ownerCanEdit ? (id) => manualSwipes.close(id, 'dismissed') : null}
                       loading={isLoading || localOutstanding === null || catalogUncollectedByLoc === undefined}
                       sections={[
                       { label: 'Collected', color: '#059669', rows: collectedTodayRows, total: sumOf(collectedTodayRows) },
