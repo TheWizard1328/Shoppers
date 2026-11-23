@@ -289,15 +289,15 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
                 }}
                 title="Tap to cycle: Card Spend > Not Tapped > Driver Tapped"
                 className={r.driverTapped ?
-                "cursor-pointer rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none min-w-[80px]" :
+                "cursor-pointer rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none min-w-[96px]" :
                 r.notTapped ?
-                "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]" :
-                "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]"}>
+                "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[96px]" :
+                "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[96px]"}>
                     {r.driverTapped ? 'Driver Tapped' : r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
               r.hasCardSpend ?
-              <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span> :
+              <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[96px]">Card Spend</span> :
               r.manualCardSpend ?
-              <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]">Card Spend</span> :
+              <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[96px]">Card Spend</span> :
               canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend ?
               <span
                 onClick={(e) => {
@@ -313,7 +313,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
                 // badge on the row. Plain onClick on a bare span keeps it
                 // visually identical to the Pending/Collected/Card Spend
                 // pills (same classes), just clickable.
-                className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center leading-none min-w-[60px]">
+                className="cursor-pointer rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 text-center leading-none min-w-[96px]">
                     Mark Spend</span> :
               null :
               // UNCOLLECTED rows (owner spec Oct 6 2026): the pill is a
@@ -329,17 +329,17 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
                   setSpendPick({ row: r, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
                 }}
                 className={r.driverTapped ?
-                "cursor-pointer rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none px-2 py-1 min-w-[80px]" :
+                "cursor-pointer rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none px-2 py-1 min-w-[96px]" :
                 r.notTapped ?
-                "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none px-2 py-1 min-w-[80px]" :
-                "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none px-2 py-1 min-w-[80px]"}>
+                "cursor-pointer rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none px-2 py-1 min-w-[96px]" :
+                "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none px-2 py-1 min-w-[96px]"}>
                     {r.driverTapped ? 'Driver Tapped' : r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
 
               <span className={r.driverTapped ?
-              'rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none min-w-[80px]' :
+              'rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none min-w-[96px]' :
               r.notTapped ?
-              'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]' :
-              'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]'}>
+              'rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[96px]' :
+              'rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[96px]'}>
                     {r.driverTapped ? 'Driver Tapped' : r.notTapped ? 'Not Tapped' : 'Card Spend'}</span>;
               const statusBadge =
               r.failed && !r.collected && canMarkSpend && !!r.delivery_id && onMarkRefunded ?
@@ -354,7 +354,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
                 }}
                 title="Tap to set this failed COD to Debit, Credit or Refunded"
                 // No role="button" (same min-height CSS trap as the pills).
-                className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span> :
+                className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[96px] py-1 ${statusColorCls} ring-1 ring-red-400/60 dark:ring-red-500/50`}>{statusLabel}</span> :
               (r.collected || r.cashAwaitingSquare) && ['Cash', 'E-Transfer', 'Debit', 'Credit'].includes(statusLabel) && canMarkSpend && !!r.delivery_id && onCashToCard ?
               <span
                 onClick={(e) => {
@@ -381,9 +381,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
                 }}
                 title="Tap to change this tender (Debit / Credit / Cash)"
                 // No role="button" (same min-height CSS trap as the pills).
-                className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls} ring-1 ${statusLabel === 'Cash' ? 'ring-emerald-400/60 dark:ring-emerald-500/50' : 'ring-sky-400/60 dark:ring-sky-500/50'}`}>{statusLabel}</span> :
+                className={`cursor-pointer rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[96px] py-1 ${statusColorCls} ring-1 ${statusLabel === 'Cash' ? 'ring-emerald-400/60 dark:ring-emerald-500/50' : 'ring-sky-400/60 dark:ring-sky-500/50'}`}>{statusLabel}</span> :
 
-              <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[80px] py-1 ${statusColorCls}`}>{statusLabel}</span>;
+              <span className={`rounded-full border px-2 font-medium text-[11px] text-center leading-none min-w-[96px] py-1 ${statusColorCls}`}>{statusLabel}</span>;
               return (
                 <div key={r.key} className="flex flex-col gap-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1">
               {rowItems.map((it, iIdx) =>
@@ -413,7 +413,7 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
                       }
                   <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmtMoney(it.amount)}</span>
                   {combinedList ?
-                      <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[80px]">Card Spend</span> :
+                      <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[96px]">Card Spend</span> :
                       spendPill}
                 </div>
               </div>
