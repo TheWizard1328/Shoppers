@@ -1,3 +1,4 @@
+import { openNavigationTo } from '../utils/mapHelpers';
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
 import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
@@ -1195,7 +1196,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   if (isNative) {
                     window.open(navigationHref, '_system');
                   } else {
-                    window.open(navigationHref, '_blank');
+                    // iOS PWA (owner report Nov 23 2026): opening the raw Google
+                    // web URL threw drivers into the App Store to "install or
+                    // update Google Maps". The shared helper tries the Maps app
+                    // and falls back to Apple Maps, never the web page.
+                    openNavigationTo({ lat: rawStopLatitude, lon: rawStopLongitude });
                   }
                   }}
                   className="relative inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-[#00A3FF] text-white hover:bg-[#0090E0]">

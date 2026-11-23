@@ -15,41 +15,81 @@ export const getMapsUrl = (address) => {
 };
 
 /**
- * Opens navigation for the given address.
- * On iOS (PWA): tries Google Maps app first, then Apple Maps app, then falls back to opening
- * Google Maps in a new Safari tab (outside the PWA webview) using a universal link.
- * On other platforms: opens Google Maps in a new tab.
+ * NAVIGATION (owner report Nov 23 2026): on iPhones running the installed PWA,
+ * tapping Navigate threw the drivers into the App Store asking them to install
+ * or update Google Maps, even though it was already installed.
+ *
+ * Why: iOS standalone PWAs do not reliably hand off `comgooglemaps://`, so the
+ * old 300ms visibility probe always "failed" and the code fell through to the
+ * Google Maps WEB page — which is what shows the "get the app" / App Store
+ * interstitial. The Apple Maps scheme was probed the same way and could be
+ * skipped for the same reason.
+ *
+ * New rule:
+ *   iOS  → try the Google Maps app scheme once; if the app did not take over,
+ *          open the Apple Maps UNIVERSAL LINK (https://maps.apple.com/...),
+ *          which iOS always resolves to the Maps app. The Google web page is
+ *          never used on iOS, so the store nag cannot happen.
+ *   other→ Google Maps directions URL (Android resolves it into the app).
  */
-export const openInMaps = (address) => {
-  if (!address) return;
-  const encoded = encodeURIComponent(address);
+const NAV_PREF_KEY = 'rxdeliver_nav_app';
+
+/** 'google' | 'apple' | 'auto' (default: Google first, Apple second on iOS) */
+export const getNavigationAppPreference = () => {
+  try { return localStorage.getItem(NAV_PREF_KEY) || 'auto'; } catch { return 'auto'; }
+};
+
+export const setNavigationAppPreference = (value) => {
+  try { localStorage.setItem(NAV_PREF_KEY, value || 'auto'); } catch { /* private mode */ }
+};
+
+/** "lat,lon" when coordinates are usable, otherwise the address. */
+const navDestination = ({ address, lat, lon } = {}) => {
+  const la = Number(lat);
+  const lo = Number(lon);
+  if (Number.isFinite(la) && Number.isFinite(lo) && (la !== 0 || lo !== 0)) return `${la},${lo}`;
+  return address ? String(address) : null;
+};
+
+/**
+ * Open turn-by-turn navigation to an address and/or coordinates.
+ * Accepts either a string (address) or { address, lat, lon }.
+ */
+export const openInMaps = (target) => {
+  const opts = typeof target === 'string' ? { address: target } : (target || {});
+  const dest = navDestination(opts);
+  if (!dest) return;
+  const enc = encodeURIComponent(dest);
+  const pref = getNavigationAppPreference();
 
   if (isIOS()) {
-    // Try Google Maps native app first via its URL scheme
-    const googleMapsApp = `comgooglemaps://?daddr=${encoded}&directionsmode=driving`;
-    // Apple Maps native app scheme
-    const appleMapsApp = `maps://?daddr=${encoded}`;
-    // Final fallback: open Google Maps in Safari (new tab, outside PWA webview)
-    const googleMapsWeb = `https://www.google.com/maps/dir/?api=1&destination=${encoded}`;
+    const appleUniversal = `https://maps.apple.com/?daddr=${enc}&dirflg=d`;
+    const googleScheme = `comgooglemaps://?daddr=${enc}&directionsmode=driving`;
 
-    // Attempt Google Maps app; if the page is still visible after 300ms it didn't open
-    window.location.href = googleMapsApp;
+    if (pref === 'apple') {
+      window.location.href = appleUniversal;
+      return;
+    }
 
+    // Google first (scheme), Apple as the guaranteed fallback. Never the Google
+    // web page: that is what produced the App Store interstitial.
+    window.location.href = googleScheme;
     setTimeout(() => {
-      if (document.visibilityState !== 'visible') return; // Google Maps app opened
-      // Try Apple Maps app
-      window.location.href = appleMapsApp;
-
-      setTimeout(() => {
-        if (document.visibilityState !== 'visible') return; // Apple Maps app opened
-        // Neither app installed — open in a new Safari tab
-        window.open(googleMapsWeb, '_blank');
-      }, 300);
-    }, 300);
-  } else {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank');
+      if (document.visibilityState !== 'visible') return; // Maps app opened
+      window.location.href = appleUniversal;
+    }, 500);
+    return;
   }
+
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${enc}`, '_blank');
 };
+
+/**
+ * Same as openInMaps but for a marker/stop that has coordinates.
+ * Kept as a named helper so call sites read clearly.
+ */
+export const openNavigationTo = ({ address = null, lat = null, lon = null } = {}) =>
+  openInMaps({ address, lat, lon });
 
 export const calculateFannedPosition = (originalLat, originalLng, markerIndex, totalMarkers, stopOrder, currentZoom) => {
   if (currentZoom < 11 || currentZoom > 18) {

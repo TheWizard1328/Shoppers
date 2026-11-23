@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { openNavigationTo } from '../utils/mapHelpers';
 import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2, Navigation } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -341,10 +342,13 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             const lng = delivery?.cycling_longitude;
             if (lat == null || lng == null) return null;
             const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${Number(lat)},${Number(lng)}`;
+            // iOS PWA: go through the shared helper so Apple Maps is the
+            // fallback instead of the Google web page (store nag).
+            const openNav = () => openNavigationTo({ lat, lon: lng });
             return (
               <button
                 onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(navUrl, '_blank'); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); openNav(); }}
                 className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold"
                 style={{ backgroundColor: accentColor + '22', color: accentColor, border: `1px solid ${accentColor}55`, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <Navigation size={12} />

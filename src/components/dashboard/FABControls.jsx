@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { openNavigationTo } from '../utils/mapHelpers';
 import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
 import { AnimatePresence } from 'framer-motion';
 import { useDevice } from '@/components/utils/DeviceContext';
@@ -132,11 +133,10 @@ export default function FABControls({
   })();
 
   const handleImmersiveNavigate = () => {
-    if (immersiveNavLat && immersiveNavLon) {
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${immersiveNavLat},${immersiveNavLon}`, '_blank');
-    } else if (immersiveNavAddress) {
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(immersiveNavAddress)}`, '_blank');
-    }
+    // Routed through the shared helper (owner report Nov 23 2026): the raw
+    // Google web URL opened the App Store / "update Google Maps" interstitial
+    // on iPhones running the installed PWA.
+    openNavigationTo({ address: immersiveNavAddress || null, lat: immersiveNavLat, lon: immersiveNavLon });
   };
 
   return (
