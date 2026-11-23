@@ -24,6 +24,25 @@
  *      back to the previous primary-device rule, so healing is never lost.
  */
 
+// ── WHO MAY SET THE FLAG (owner rule, Nov 23 2026) ──────────────────────────
+// "The isNextDelivery flags should only be getting set via the driver's devices
+// or an admin device. Never a dispatcher's device. Unless it's setting it via
+// the creating default pickups when the driver's route is empty."
+// Layout registers the signed-in user's app_roles here; the single write funnel
+// (updateDeliveryLocal) consults it. Unknown roles allow the write, so a driver
+// whose roles have not loaded yet is never blocked.
+let currentWriterRoles = null;
+
+export function setFlagWriterRoles(roles) {
+  currentWriterRoles = Array.isArray(roles) ? roles.slice() : null;
+}
+
+export function maySetNextFlag({ allowDefaultPickup = false } = {}) {
+  if (allowDefaultPickup) return true;
+  if (!Array.isArray(currentWriterRoles)) return true;
+  return currentWriterRoles.includes('driver') || currentWriterRoles.includes('admin');
+}
+
 const STORAGE_KEY = 'rx_flag_owner_device_id';
 let cachedId = null;
 

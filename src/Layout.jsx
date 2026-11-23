@@ -157,6 +157,15 @@ export default function Layout({ children, currentPageName }) {
   // Layout's INTERNAL logic (boot sync, payroll, user merges) keeps the real
   // Owner; only the outward-facing context + sidebar/nav props get the overlay.
   const effectiveCurrentUser = useMemo(() => applyTestModeOverlay(currentUser), [currentUser]);
+  // OWNER RULE (Nov 23 2026): only a driver's device or an admin device may set
+  // isNextDelivery. Register the signed-in roles so the write funnel can refuse
+  // a dispatcher (store) dashboard. Uses the effective user so test mode follows
+  // the impersonated roles.
+  useEffect(() => {
+    import('@/components/utils/nextFlagOwnership')
+      .then(({ setFlagWriterRoles }) => setFlagWriterRoles(effectiveCurrentUser?.app_roles || null))
+      .catch(() => {});
+  }, [effectiveCurrentUser?.app_roles]);
   const [collapsed, setCollapsed] = useState(false);
   const [isLoadingLayout, setIsLoadingLayout] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);

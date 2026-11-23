@@ -438,6 +438,9 @@ function Dashboard() {
       ? selectedDriverId
       : currentUser?.id;
     if (!_targetDriver || !Array.isArray(deliveries) || deliveries.length === 0) return;
+    // OWNER RULE (Nov 23 2026): a dispatcher (store) device never sets the next
+    // stop, so it must not run the restoring guard either — that was the churn.
+    if (!((currentUser?.app_roles || []).includes('driver') || (currentUser?.app_roles || []).includes('admin'))) return;
     const _guardDate = format(selectedDate, 'yyyy-MM-dd');
     const _guardKey = `${_targetDriver}:${_guardDate}`;
     const _lastRun = _nextGuardRef.current.get(_guardKey) || 0;
@@ -451,7 +454,7 @@ function Dashboard() {
         source: 'dashboard',
       }))
       .catch(() => {});
-  }, [deliveries, selectedDate, selectedDriverId, currentUser?.id]);
+  }, [deliveries, selectedDate, selectedDriverId, currentUser?.id, currentUser?.app_roles]);
 
   // Sort-key fingerprint cache — only re-sort when sort-relevant fields change.
   const _dwsoSortKeyRef   = useRef('');

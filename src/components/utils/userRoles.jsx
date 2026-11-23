@@ -9,6 +9,22 @@
  * Check if user has a specific role in their app_roles array
  * CRITICAL: Only checks app_roles array from AppUser entity
  */
+/**
+ * WHO MAY SET isNextDelivery (owner rule, Nov 23 2026):
+ * "The isNextDelivery flags should only be getting set via the driver's devices
+ * or an admin device. Never a dispatcher's device. Unless it's setting it via
+ * the creating default pickups when the driver's route is empty."
+ *
+ * Dispatcher (store) dashboards were restoring the flag over and over, which is
+ * what the hourly digests kept reporting as next-stop churn. They may still
+ * CLEAR a flag and read it; they may never SET it, except through the default
+ * pickup creation when the driver has no route yet.
+ */
+export const canSetNextDeliveryFlag = (user, { allowDefaultPickup = false } = {}) => {
+  if (allowDefaultPickup) return true;
+  return userHasRole(user, 'driver') || userHasRole(user, 'admin');
+};
+
 export const userHasRole = (user, role) => {
   if (!user || !role) return false;
   // STRICTLY check the app_roles array only - no fallback to User.role

@@ -564,8 +564,19 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
   // through, so the claim travels with the flag to every other device.
   if (updates && updates.isNextDelivery === true) {
     try {
-      const { stampNextFlagOwner } = await import('./nextFlagOwnership');
-      updates = stampNextFlagOwner(updates);
+      const { stampNextFlagOwner, maySetNextFlag } = await import('./nextFlagOwnership');
+      // OWNER RULE (Nov 23 2026): only a driver's device or an admin device may
+      // SET the flag. A dispatcher (store) dashboard may read and clear it, but
+      // never set it — that is what kept restoring stale next stops. The one
+      // exception is creating the default pickups on an empty driver route,
+      // which passes allowDefaultPickup.
+      if (!maySetNextFlag({ allowDefaultPickup: options.allowDefaultPickup === true })) {
+        const { isNextDelivery, next_flag_owner, ...rest } = updates;
+        console.warn('[OfflineMutations] isNextDelivery set blocked — dispatcher device may not set the flag', { deliveryId });
+        updates = rest;
+      } else {
+        updates = stampNextFlagOwner(updates);
+      }
     } catch (_) { /* stamping is best-effort; the flag write still goes out */ }
   }
   console.warn('[OfflineMutations][updateDeliveryLocal] incoming', { deliveryId, updates, options });
