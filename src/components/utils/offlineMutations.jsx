@@ -818,7 +818,16 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
               }));
             }
           })
-          .catch(error => {
+          .catch(async (error) => {
+            // 404 "Entity Delivery ... not found" is terminal, not transient: the
+            // record is gone, so retaining the mutation retried a dead write
+            // forever (owner report Nov 22 2026). Drop it and the local row.
+            const { isEntityNotFoundError, dropDeadEntityMutation, clearEntityDead } = await import('./deadEntityGuard');
+            if (isEntityNotFoundError(error)) {
+              await dropDeadEntityMutation({ entity: 'Delivery', id: deliveryId, mutationId: pendingMutationId });
+              return;
+            }
+            clearEntityDead(deliveryId);
             console.warn('[Sync] Background sync failed; durable mutation retained:', error.message);
           });
       }).catch(() => {});

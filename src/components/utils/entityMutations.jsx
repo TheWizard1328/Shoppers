@@ -778,7 +778,15 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
           notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: deliveryToStore });
           broadcastMutation('Delivery', 'update', deliveryId, deliveryToStore);
         })
-        .catch((error) => {
+        .catch(async (error) => {
+          // Same rule as the background path: a 404 means the record no longer
+          // exists, so stop retrying it (owner report Nov 22 2026).
+          const { isEntityNotFoundError, dropDeadEntityMutation, clearEntityDead } = await import('./deadEntityGuard');
+          if (isEntityNotFoundError(error)) {
+            await dropDeadEntityMutation({ entity: 'Delivery', id: deliveryId });
+            return;
+          }
+          clearEntityDead(deliveryId);
           console.warn('⚠️ [EntityMutations] Delivery upload failed; durable mutation retained:', error.message);
         });
     }

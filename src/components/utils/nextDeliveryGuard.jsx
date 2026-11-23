@@ -24,6 +24,7 @@
 import { offlineDB } from './offlineDatabase';
 import { updateDeliveryLocal } from './offlineMutations';
 import { canThisDeviceRestoreNextFlag, stampNextFlagOwner, parseFlagOwner } from './nextFlagOwnership';
+import { isEntityDead, markEntityDead } from './deadEntityGuard';
 
 const TERMINAL = ['completed', 'failed', 'cancelled'];
 const isInterStoreId = (id) => String(id || '').startsWith('ISP') || String(id || '').startsWith('ISD');
@@ -68,8 +69,10 @@ const recentlyRestored = (key) => {
 };
 
 export function pickNextStopCandidate(routeDeliveries = []) {
+  // A stop whose server record 404'd can never be the next stop: promoting it
+  // just re-queues a dead write (owner report Nov 22 2026).
   const active = routeDeliveries.filter(
-    (d) => d && d.id && !TERMINAL.includes(String(d.status || '').toLowerCase())
+    (d) => d && d.id && !TERMINAL.includes(String(d.status || '').toLowerCase()) && !isEntityDead(d.id)
   );
   if (active.length === 0) return null;
   const nonInterStore = active.filter((d) => !isInterStoreId(d.delivery_id));
@@ -259,7 +262,9 @@ export async function ensureRouteHasNextStop({
     );
     if (route.length === 0) return null;
     // Already flagged (any stop, including one the optimizer just promoted).
-    if (route.some((d) => d?.isNextDelivery === true)) return null;
+    // A flag sitting on a record the server deleted is not a real next stop —
+    // otherwise the route looks healthy while every write for it 404s.
+    if (route.some((d) => d?.isNextDelivery === true && !isEntityDead(d.id))) return null;
 
     // On break / off duty an EMPTY flag is deliberate — never restore it
     // (owner report Nov 20 2026).
@@ -287,7 +292,10 @@ export async function ensureRouteHasNextStop({
     if (!skipServerWrite) {
       try {
         const { base44 } = await import('@/api/base44Client');
-        await base44.entities.Delivery.update(target.id, restorePayload).catch(() => null);
+        await base44.entities.Delivery.update(target.id, restorePayload).catch(async (err) => {
+          const { isEntityNotFoundError } = await import('./deadEntityGuard');
+          if (isEntityNotFoundError(err)) markEntityDead(target.id);
+        });
       } catch (_) { /* offline — IDB + queued mutation carry it */ }
     }
 
