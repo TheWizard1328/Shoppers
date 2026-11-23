@@ -279,6 +279,28 @@ async function handleGetCodData(base44, payload={}) {
   const safeConfigs = safeAllConfigs.filter((c) => c?.status === 'active');
   const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
   const existingTransactions = (Array.isArray(existingTransactionsRaw) ? existingTransactionsRaw : []).map(unwrapEntityRecord).filter(Boolean);
+  // ── REGISTER-PAID DELIVERY GUARD (owner report Nov 23 2026) ───────────────
+  // Amanda Klymchuk's Oct 28 $10.64 COD kept vanishing from the balance page,
+  // the COD page AND Square's catalog. Cause: the delivery never holds
+  // cod_confirmed_collected (it reads Cash, unstamped) while a COMPLETED
+  // collection SquareTransaction for it carries a real square_payment_id. So the
+  // backfill in deliveryNeedsCatalogItem saw "no catalog item, not confirmed" and
+  // re-created the item, the match then cancelled/deleted it, and the next run
+  // re-created it again — a permanent ping-pong (two tx rows, catalog objects
+  // 5SOIOE2A43KGBPN7IZWED53B then OAE66LGH3L5TEEVIXSY7FECT).
+  // A completed collection tx WITH a payment id means the register already has
+  // the money, so the item must never be re-created for that delivery even when
+  // the delivery's own stamp is missing or was reverted by a stale device.
+  const registerPaidDeliveryIds = new Set();
+  for (const t of existingTransactions) {
+    const did = t?.delivery_id ? String(t.delivery_id) : '';
+    if (!did) continue;
+    if (String(t?.status || '').toLowerCase() !== 'completed') continue;
+    if (String(t?.type || '').toLowerCase() !== 'collection') continue;
+    if (!t?.square_payment_id) continue;
+    registerPaidDeliveryIds.add(did);
+  }
+
   const activeConfigById = new Map(safeConfigs.map((c) => [c.id, c]));
   const storesByLocationId = buildStoresByLocationId(safeStores, activeConfigById);
   const locationIds = Array.from(new Set(safeAllConfigs.map((c) => c?.square_location_id).filter(Boolean)));
@@ -1304,6 +1326,9 @@ mark('after_collected_purge');
     if (isBackfillRun) return false;
     if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
     if (d?.cod_confirmed_collected) return false; // confirmed collected at the register — never re-create
+    // The register already holds a completed payment for this COD (see
+    // registerPaidDeliveryIds) — re-creating the item is what made it vanish.
+    if (registerPaidDeliveryIds.has(String(d.id))) return false;
     if (['failed', 'cancelled', 'pending'].includes(d?.status)) return false;
     if (d?.delivery_date && d.delivery_date > formatLocalDate(new Date())) return false;
 
