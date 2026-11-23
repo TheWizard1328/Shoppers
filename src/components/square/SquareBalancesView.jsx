@@ -169,7 +169,7 @@ function splitSwipeCents(total, weights) {
   return base;
 }
 
-function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCashToCard, onRefundCod, loading, isOwner = true, combineCandidates = null, locationOrder = [], cardLocId = null,
+function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMarkRefunded, onCashToCard, onRefundCod, loading, isOwner = true, combineCandidates = null, locationOrder = [], cardLocId = null,
   // ADMIN NOTES (owner request Nov 3 2026): a pen on every delivery item card
   // opens a note dialog that saves to that balance item, and a note-paper icon
   // appears when the DRIVER left a note on the delivery (tapping shows it).
@@ -180,6 +180,9 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
   // fee/settled math and appends the "Paid Via Drivers [Debit/Credit]
   // card." note).
   const [cashPick, setCashPick] = useState(null); // { row, x, y, anchorBottom }
+  // SPEND PICK (owner spec Nov 22 2026): the Card Spend badge opens a dropdown
+  // with the three states instead of cycling through them on each tap.
+  const [spendPick, setSpendPick] = useState(null); // { row, x, y, anchorBottom }
   const [cashPickBusy, setCashPickBusy] = useState(false);
   const hasRows = !!(sections && sections.some((s) => s.rows.length > 0));
   // Loading placeholder: show the three section headers (Collected today /
@@ -279,7 +282,11 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               // Spend badges for Collected Today items to change them to
               // Not Tapped"). No role="button" - same 44px min-height trap.
               <span
-                onClick={() => onMarkSpend(r.delivery_id)}
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const below = window.innerHeight - rect.bottom > 170;
+                  setSpendPick({ row: r, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                }}
                 title="Tap to cycle: Card Spend > Not Tapped > Driver Tapped"
                 className={r.driverTapped ?
                 "cursor-pointer rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none min-w-[80px]" :
@@ -293,7 +300,11 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[80px]">Card Spend</span> :
               canMarkSpend && !!r.delivery_id && !(r.collected && statusLabel === 'Cash') && onMarkSpend ?
               <span
-                onClick={() => onMarkSpend(r.delivery_id)}
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const below = window.innerHeight - rect.bottom > 170;
+                  setSpendPick({ row: r, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                }}
                 title="Mark this COD as having a Card Spend in your Square app"
                 // NOTE (Oct 6 2026): deliberately NO role="button" here —
                 // src/index.css has a global accessibility rule,
@@ -312,7 +323,11 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
               // drivers see the static state.
               canMarkSpend && !!r.delivery_id && onMarkSpend ?
               <span
-                onClick={() => onMarkSpend(r.delivery_id)}
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const below = window.innerHeight - rect.bottom > 170;
+                  setSpendPick({ row: r, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                }}
                 className={r.driverTapped ?
                 "cursor-pointer rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-[11px] font-medium text-amber-700 dark:text-amber-300 text-center leading-none px-2 py-1 min-w-[80px]" :
                 r.notTapped ?
@@ -441,6 +456,43 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onMarkRefunded, onCa
                Cash badge opens the Debit / Credit choice as a small button menu
                right at the badge — below it when there's room, above when it sits
                near the bottom of the screen. Tap anywhere else to dismiss. */}
+      {/* SPEND PICK (owner spec Nov 22 2026): same anchored popup as Set tender,
+          but listing the three spend states so the badge is a dropdown instead of
+          a cycle. Current state is disabled/highlighted. */}
+      {spendPick &&
+      <>
+        <div className="fixed inset-0 z-40" onClick={() => setSpendPick(null)} />
+        <div
+          className="fixed z-50 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-2 space-y-1 w-[190px]"
+          style={{
+            left: Math.max(8, Math.min(spendPick.x, window.innerWidth - 198)),
+            top: spendPick.anchorBottom ? undefined : spendPick.y,
+            bottom: spendPick.anchorBottom ? Math.max(8, window.innerHeight - spendPick.y + 6) : undefined
+          }}>
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 text-center">Set spend</div>
+          {[
+            { mode: 'card', label: 'Card Spend', cls: 'bg-sky-600 hover:bg-sky-700 text-white' },
+            { mode: 'not_tapped', label: 'Not Tapped', cls: 'bg-violet-600 hover:bg-violet-700 text-white' },
+            { mode: 'driver_tapped', label: 'Driver Tapped', cls: 'bg-amber-500 hover:bg-amber-600 text-white' }
+          ].map((opt) => {
+            const current = spendPick.row?.driverTapped ? 'driver_tapped' : spendPick.row?.notTapped ? 'not_tapped' : 'card';
+            return (
+              <Button
+                key={opt.mode}
+                size="sm"
+                className={`w-full h-9 px-0 ${opt.cls}`}
+                variant="default"
+                disabled={current === opt.mode || !onSetSpendMode}
+                onClick={async () => {
+                  const id = spendPick.row?.delivery_id;
+                  setSpendPick(null);
+                  if (id) await onSetSpendMode(id, opt.mode);
+                }}>
+                {opt.label}
+              </Button>);
+          })}
+        </div>
+      </>}
       {cashPick &&
       <>
         <div className="fixed inset-0 z-40" onClick={() => !cashPickBusy && setCashPick(null)} />
@@ -1022,6 +1074,34 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       setDiscrepancyBusy(false);
     }
   }, [currentUser, discrepancyBusy]);
+
+  // Explicit setter used by the dropdown (owner spec Nov 22 2026). Kept next to
+  // markCardSpend so both share one persistence path and one rollback.
+  const setCardSpendMode = useCallback(async (deliveryId, mode) => {
+    if (!currentUser || !deliveryId) return;
+    const prev = manualSpendMarksRef.current || {};
+    const key = String(deliveryId);
+    const nextMode = ['card', 'not_tapped', 'driver_tapped'].includes(mode) ? mode : 'card';
+    const nowIso = new Date().toISOString();
+    const next = { ...prev, [key]: { mode: nextMode, notTapped: nextMode !== 'card', touchedAt: nowIso, by: currentUser?.id || null } };
+    setManualSpendMarks(next);
+    manualSpendMarksRef.current = next;
+    computeCodCollectedTodayRef.current?.();
+    try {
+      if (spendMarksRecordIdRef.current) {
+        await base44.entities.AppSettings.update(spendMarksRecordIdRef.current, { setting_value: next });
+      } else {
+        const created = await base44.entities.AppSettings.create({ setting_key: SPEND_MARKS_KEY, setting_value: next, description: 'Card Spend toggle state — {mode, notTapped, touchedAt, by}' });
+        spendMarksRecordIdRef.current = created?.id || null;
+      }
+      toast.success(nextMode === 'driver_tapped' ? 'Driver Tapped' : nextMode === 'not_tapped' ? 'Not Tapped' : 'Card Spend');
+    } catch (e) {
+      console.error('setCardSpendMode failed:', e);
+      toast.error('Could not save the spend state');
+      setManualSpendMarks(prev);
+      manualSpendMarksRef.current = prev;
+    }
+  }, [currentUser]);
 
   const markCardSpend = useCallback(async (deliveryId) => {
     if (!currentUser || !deliveryId) return;
@@ -3710,6 +3790,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       onViewDriverNote={(row, note) => setDriverNoteView({ patientName: row?.patientName || null, sub: row?.sub || null, amount: row?.amount, note })}
                       combineCandidates={combineCandidates} locationOrder={(config?.locations || []).map((l) => l.location_id)} cardLocId={loc.location_id}
                       onMarkSpend={markCardSpend}
+                      onSetSpendMode={setCardSpendMode}
                       onMarkRefunded={markFailedRefunded}
                       onCashToCard={cashToCard}
                       onRefundCod={refundCod}
