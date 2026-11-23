@@ -62,6 +62,18 @@ const STILL_BAND_RAW = 2.5;    // same idea when the browser omits gravity
 const CRASH_QUIET_MS = 15000;  // stillness required after the impact
 const CRASH_GIVEUP_MS = 60000; // a stale spike with no stillness is a bumpy ride
 const CRASH_COOLDOWN_MS = 120000;
+// FALSE-POSITIVE GUARDS (owner report Nov 23 2026): "many times I just tapped
+// the screen to move the map or pinch to zoom and it partly activated the impact
+// detection — the red bars started scrolling." A single sample over the
+// threshold used to open the stillness window, so any tap, pinch or map drag
+// started the bar (and then never completed). Two guards now apply:
+//   1. a spike within TOUCH_QUIET_MS of a real touch is ignored — a finger on
+//      the glass is not a crash;
+//   2. a spike must be corroborated by a second sample inside
+//      CRASH_CONFIRM_MS, unless it is far over the threshold (a real hit).
+const TOUCH_QUIET_MS = 1200;
+const CRASH_CONFIRM_MS = 320;
+const CRASH_HARD_FACTOR = 1.35;
 
 const ALERT_LABELS = {
   accident: 'Accident',
@@ -210,6 +222,10 @@ const EmergencyController = ({ currentUser }) => {
   // Live progress of the impact-detection window. Drives the red bar that shows
   // BEFORE the confirm screen, so the driver can see a hard hit registered.
   const [impactProgress, setImpactProgress] = useState(0);
+  // Timestamp of the last real touch (tap / pinch / drag) and the last
+  // uncorroborated spike, both used to reject false impacts.
+  const touchAtRef = useRef(0);
+  const pendingSpikeRef = useRef(null);
   const [impactPeak, setImpactPeak] = useState(0);
   // 0 → 1 progress of the 5-second map hold. Feeds the same progressive red
   // fill on the driver legend (owner request Nov 14 2026).
@@ -443,9 +459,17 @@ const EmergencyController = ({ currentUser }) => {
     if (!enabled || !emergencySettings.crash_enabled) return;
     let permissionAsked = false;
 
+    // Any deliberate finger contact (tap, pinch, map drag) stamps a time so the
+    // sensor can ignore the jolt that contact itself produces.
+    const stampTouch = () => { touchAtRef.current = Date.now(); };
+
     const attach = () => {
       try {
         window.addEventListener('devicemotion', handleMotion, { passive: true });
+        window.addEventListener('pointerdown', stampTouch, { passive: true, capture: true });
+        window.addEventListener('touchstart', stampTouch, { passive: true, capture: true });
+        window.addEventListener('gesturestart', stampTouch, { passive: true, capture: true });
+        window.addEventListener('wheel', stampTouch, { passive: true, capture: true });
         setCrashArmed(true);
       } catch { /* non-fatal */ }
     };
@@ -486,6 +510,23 @@ const EmergencyController = ({ currentUser }) => {
 
       const bigSample = magnitude >= spikeThreshold;
       if (bigSample && now - (state.firedAt || 0) > CRASH_COOLDOWN_MS) {
+        // GUARD 1 — a finger on the screen is not a crash. Taps, pinches and map
+        // drags all produce a jolt; ignore any spike that lands within
+        // TOUCH_QUIET_MS of real touch input.
+        if (now - (touchAtRef.current || 0) < TOUCH_QUIET_MS) {
+          pendingSpikeRef.current = null;
+          return;
+        }
+        const hardHit = magnitude >= spikeThreshold * CRASH_HARD_FACTOR;
+        const pending = pendingSpikeRef.current;
+        const corroborated = hardHit || (pending && now - pending.at <= CRASH_CONFIRM_MS);
+        if (!corroborated) {
+          // GUARD 2 — one lonely sample is a bump, not an impact. Wait for a
+          // second sample before the stillness window (and the red bar) opens.
+          pendingSpikeRef.current = { at: now, mag: magnitude };
+          return;
+        }
+        pendingSpikeRef.current = null;
         // (Re)start the stillness window on every fresh impact.
         state.spikeAt = now;
         state.quietSince = now;
@@ -552,6 +593,10 @@ const EmergencyController = ({ currentUser }) => {
     return () => {
       window.removeEventListener('pointerdown', askPermission);
       window.removeEventListener('devicemotion', handleMotion);
+      window.removeEventListener('pointerdown', stampTouch, { capture: true });
+      window.removeEventListener('touchstart', stampTouch, { capture: true });
+      window.removeEventListener('gesturestart', stampTouch, { capture: true });
+      window.removeEventListener('wheel', stampTouch, { capture: true });
       setCrashArmed(false);
     };
   }, [enabled, openConfirm, emergencySettings.crash_enabled, emergencySettings.crash_threshold]);
