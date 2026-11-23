@@ -84,10 +84,16 @@ Deno.serve(async (req) => {
     if (!locationIds.length) return Response.json({ success: true, by_location: {}, total: 0 });
 
     const byLocation = {};
+    const diagnostics = {};
     let total = 0;
 
     for (const locationId of locationIds) {
       const rows = new Map(); // key = order_id || payment_id
+      // DIAGNOSTICS (owner doubt Nov 22 2026: "does this actually find
+      // anything?"): count every payment status Square returns, so an empty
+      // panel can be told apart from a broken panel.
+      const statusCounts = {};
+      const sample = [];
 
       // 1. Payments swiped but not captured ──────────────────────────────────
       let cursor = null;
@@ -98,6 +104,10 @@ Deno.serve(async (req) => {
         const json = await squareFetch(`/v2/payments?${qs.toString()}`, 'GET', token);
         for (const p of json?.payments || []) {
           const status = String(p?.status || '').toUpperCase();
+          const cs = String(p?.card_details?.status || '').toUpperCase();
+          const sk = `${status || '?'}/${cs || '?'}`;
+          statusCounts[sk] = (statusCounts[sk] || 0) + 1;
+          if (sample.length < 6) sample.push({ at: p?.created_at || null, cents: Number(p?.amount_money?.amount || 0), status: sk });
           const cardStatus = String(p?.card_details?.status || '').toUpperCase();
           const live = status === 'APPROVED' || status === 'PENDING' || cardStatus === 'AUTHORIZED';
           if (!live) continue;
@@ -199,6 +209,13 @@ Deno.serve(async (req) => {
         byLocation[locationId] = list;
         total += list.length;
       }
+      diagnostics[locationId] = {
+        payments_seen: Object.values(statusCounts).reduce((a, b) => a + b, 0),
+        payment_status_counts: statusCounts,
+        open_orders_seen: openOrders.length,
+        pending_rows: list.length,
+        sample_payments: sample
+      };
     }
 
     // Which stores share each location — the reason attribution is needed.
@@ -214,6 +231,7 @@ Deno.serve(async (req) => {
       generated_at: new Date().toISOString(),
       total,
       by_location: byLocation,
+      diagnostics,
       shared_locations: shared
     });
   } catch (e) {
