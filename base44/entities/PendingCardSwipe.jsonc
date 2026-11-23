@@ -18,6 +18,10 @@
       "type": "number",
       "description": "Swipe amount in cents"
     },
+    "swipe_date": {
+      "type": "string",
+      "description": "Date the card was swiped (yyyy-MM-dd) — Square's app shows no time, so only the date is captured"
+    },
     "swiped_at": {
       "type": "string",
       "format": "date-time",

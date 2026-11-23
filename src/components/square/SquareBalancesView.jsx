@@ -692,7 +692,7 @@ function PendingSwipesPanel({ rows, manualRows, loading, onReload, onDismiss, on
             <div className="w-[62px] shrink-0 text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(Number(r.amount_cents || 0) / 100)}</div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
-                {fmtTime(r.swiped_at)} · logged{r.note ? ` · ${r.note}` : ''}
+                {r.swipe_date ? `${r.swipe_date.slice(5, 7)}/${r.swipe_date.slice(8, 10)}` : fmtTime(r.swiped_at)} · logged{r.note ? ` · ${r.note}` : ''}
               </div>
             </div>
             <div className="shrink-0 rounded-full px-2 py-[3px] text-[11px] font-medium text-center min-w-[96px] bg-amber-50 border border-amber-300 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700 truncate">
@@ -783,71 +783,46 @@ function useManualSwipes(enabled) {
  * LogSwipeDialog — the manual fallback form. Full-screen overlay (fixed inset-0)
  * like every other edit form in the app. Owner only.
  */
-function LogSwipeDialog({ open, onClose, onSave, defaultLocationId, currentUserName }) {
-  const [stores, setStores] = useState([]);
-  const [locByConfig, setLocByConfig] = useState({});
-  const [storeId, setStoreId] = useState('');
+function LogSwipeDialog({ open, onClose, onSave, defaultLocationId, cardOptions, currentUserName }) {
+  const [cardLocId, setCardLocId] = useState('');
   const [amount, setAmount] = useState('');
-  const [when, setWhen] = useState('');
+  const [date, setDate] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const [st, cfgs] = await Promise.all([
-          base44.entities.Store.list('name', 500),
-          base44.entities.SquareLocationConfig.list('-updated_date', 200)
-        ]);
-        if (cancelled) return;
-        const map = {};
-        for (const c of cfgs || []) if (c?.square_location_id) map[String(c.id)] = String(c.square_location_id);
-        setLocByConfig(map);
-        setStores((st || []).filter((x) => x?.square_location_config_id));
-      } catch (e) {
-        console.warn('[LogSwipe] load failed:', e?.message || e);
-      }
-    })();
+    setCardLocId(defaultLocationId || '');
+    // Square's app shows the swipe with no time, so the form asks for the date
+    // only (owner correction Nov 22 2026).
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
-    setWhen(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`);
-    return () => { cancelled = true; };
-  }, [open]);
-
-  const options = useMemo(() => {
-    const all = stores.map((x) => ({
-      id: x.id,
-      label: `${x.name}${x.abbreviation ? ` (${x.abbreviation})` : ''}`,
-      location_id: locByConfig[String(x.square_location_config_id)] || null
-    }));
-    if (!defaultLocationId) return all;
-    const here = all.filter((o) => o.location_id === defaultLocationId);
-    return here.length ? here : all;
-  }, [stores, locByConfig, defaultLocationId]);
+    setDate(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
+  }, [open, defaultLocationId]);
 
   if (!open) return null;
 
+  const cards = cardOptions || [];
   const submit = async () => {
     const cents = Math.round(Number(String(amount).replace(/[^0-9.]/g, '')) * 100);
-    const store = options.find((o) => o.id === storeId);
-    if (!(cents > 0) || !store) {
-      toast.error('Enter an amount and pick the store');
+    if (!(cents > 0) || !cardLocId) {
+      toast.error('Enter an amount and pick the card');
       return;
     }
     setSaving(true);
     try {
       await onSave({
-        store_id: store.id,
-        store_name: store.label,
-        location_id: store.location_id || defaultLocationId || null,
+        store_id: null,
+        store_name: null,
+        location_id: cardLocId,
         amount_cents: cents,
-        swiped_at: when ? new Date(when).toISOString() : new Date().toISOString(),
+        swipe_date: date || null,
+        swiped_at: date ? new Date(`${date}T12:00:00`).toISOString() : new Date().toISOString(),
         note: note.trim() || null,
         created_by_name: currentUserName || null
       });
-      setAmount(''); setNote(''); setStoreId('');
+      setAmount('');
+      setNote('');
       onClose();
     } catch (e) {
       toast.error(e?.message || 'Could not log the swipe');
@@ -857,40 +832,45 @@ function LogSwipeDialog({ open, onClose, onSave, defaultLocationId, currentUserN
   };
 
   return (
-    <div className="fixed inset-0 z-[10050] bg-white dark:bg-slate-900 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-        <div>
-          <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Log a missing card swipe</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">It shows on that card until a collected delivery matches it</div>
+    <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4 bg-slate-900/40" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Log a missing card swipe</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">Stays on that card until a collected delivery matches it</div>
+          </div>
+          <button type="button" onClick={onClose} className="shrink-0 w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 text-slate-500 flex items-center justify-center">✕</button>
         </div>
-        <button type="button" onClick={onClose} className="shrink-0 w-8 h-8 rounded-md border border-slate-200 dark:border-slate-700 text-slate-500 flex items-center justify-center">✕</button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-md w-full mx-auto">
-        <div>
-          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Amount</label>
-          <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="3.09" />
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Amount</label>
+            <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="3.09" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Select a card</label>
+            <select
+              value={cardLocId}
+              onChange={(e) => setCardLocId(e.target.value)}
+              className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50">
+              <option value="">Pick the card</option>
+              {cards.map((c) => <option key={c.location_id} value={c.location_id}>{c.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Swiped on</label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Note (optional)</label>
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Patient, till, anything you know" />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="button" onClick={submit} disabled={saving}>{saving ? 'Saving…' : 'Log swipe'}</Button>
+          </div>
         </div>
-        <div>
-          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Store</label>
-          <select
-            value={storeId}
-            onChange={(e) => setStoreId(e.target.value)}
-            className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50">
-            <option value="">Pick the store</option>
-            {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Swiped at</label>
-          <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Note (optional)</label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Patient, till, anything you know" />
-        </div>
-        <Button type="button" onClick={submit} disabled={saving} className="w-full">
-          {saving ? 'Saving…' : 'Log swipe'}
-        </Button>
       </div>
     </div>
   );
@@ -3692,6 +3672,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         <LogSwipeDialog
           open={!!logSwipeLoc}
           defaultLocationId={logSwipeLoc}
+          cardOptions={(perLocation || []).map((l) => ({ location_id: l.location_id, label: l.name || l.location_id }))}
           currentUserName={currentUser?.full_name || null}
           onClose={() => setLogSwipeLoc(null)}
           onSave={async (data) => { await manualSwipes.add(data); toast.success('Swipe logged'); }}
