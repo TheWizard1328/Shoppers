@@ -21,28 +21,18 @@ import { EDITOR_HOST_DEVICE_NAME, getCurrentDevice } from "@/components/utils/de
 import PaymentDiscrepanciesList from "./PaymentDiscrepanciesList";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { StoreAbbrevBadge, DriverBadge } from "./CodCardBadges";
+import useManualSwipes from "./useManualSwipes";
+import LogSwipeDialog from "./LogSwipeDialog";
 
 /**
- * SquareBalancesView — owner-only estimated balance tracker (prototype, Oct 2026).
- * Tracks, per Square location (OWNER SPEC, Oct 7 2026 — STRICTLY DELIVERY DATA):
- *   - Card balance estimate: starting balance + Σ(finished delivery's Debit/Credit
- *     cod_payment − fee (rate sheet) − loan% − folder 2%) − bank sweeps − pending COD deductions
- *   - Loan remaining: starting loan − Σ(loan_rate × card payment)
- *   - Folder (savings) total: Σ(2% × card payment) since last true-up
- *
- * Data sources:
- *   - AppSettings 'square_balances': { trued_up_at, folder_rate, locations: [{location_id, name, card_start, loan_start, loan_rate, folder_start}] }
- *   - Delivery.cod_payments — the single authority for what was collected and how
- *     (Debit/Credit/Cash/Cheque). Active pending/in_transit/en_route CODs list as
- *     Uncollected with the Card Spend pill; FINISHED deliveries calculate the money
- *     back onto the card and badge Debit/Cash/Credit in Collected.
- *   - SquareLedgerEntry: ONLY cached BATCH payout (bank sweep) + card topup rows.
- *     NO Square API sync on this page anymore — the ledger only ever held half
- *     the collections (broken link chains, pending entries, unlinked rings).
- *
- * The loan repayment and folder contribution are NOT exposed by Square's API — they are
- * computed here from owner-supplied rates. Numbers drift with any off-card spending; the
- * true-up form resets the starting points from real Square dashboard numbers.
+ * SquareBalancesView — owner-only estimated balance tracker (Oct 2026). Per Square
+ * location it derives the card estimate (start + finished deliveries' Debit/Credit
+ * cod_payments − fee − loan% − folder 2% − bank sweeps − pending COD deductions),
+ * loan remaining and folder total from AppSettings 'square_balances' and
+ * Delivery.cod_payments (the single authority for what was collected and how).
+ * SquareLedgerEntry only caches batch bank sweeps and card topups — no Square API
+ * sync happens on this page. Loan and folder shares are computed from owner rates;
+ * the true-up form resets the starting points from real Square dashboard numbers.
  */
 
 const SETTING_KEY = 'square_balances';
