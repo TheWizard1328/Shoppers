@@ -317,11 +317,44 @@ export async function applyBulkEditStops({
     || values.statusChoice === 'in_transit'
     || values.statusChoice === 'en_route';
   let nextStopIdForBulk = null;
+  // HOLDER OUTSIDE THE SELECTION (owner Nov 23 2026): w275 only wrote the flag
+  // on stops inside the batch, so a stop that already held isNextDelivery but
+  // was not selected kept it. Two stops then read as "next", every dashboard's
+  // next-stop guard fought over them, and the route churned. The stale holder
+  // is released in this same write.
+  const staleHoldersForBulk = [];
   if (bulkSetsActiveStatus) {
-    const pool = (deliveries || allDeliveries || []).filter((d) => allIdsToUpdate.includes(d.id));
+    const source = deliveries || allDeliveries || [];
+    const pool = source.filter((d) => allIdsToUpdate.includes(d.id));
     pool.sort((a, b) => (Number(a.stop_order) || 9999) - (Number(b.stop_order) || 9999));
     nextStopIdForBulk = pool[0]?.id || null;
+    const routeIds = new Set(pool.map((d) => String(d.driver_id || '')));
+    source.forEach((d) => {
+      if (!d?.id || allIdsToUpdate.includes(d.id)) return;
+      if (d.isNextDelivery !== true) return;
+      if (['completed', 'failed', 'cancelled'].includes(String(d.status || ''))) return;
+      // Only stops that can compete for the flag on this route.
+      if (routeIds.size && !routeIds.has(String(d.driver_id || ''))) return;
+      staleHoldersForBulk.push(d.id);
+    });
   }
+
+  // Release any stale holder outside the selection in the same write, so the
+  // batch never leaves two stops flagged.
+  const releaseStaleHolders = async () => {
+    if (!staleHoldersForBulk.length) return;
+    const { updateDeliveryLocal } = await import("../utils/entityMutations");
+    for (const id of staleHoldersForBulk) {
+      try {
+        await updateDeliveryLocal(id, { isNextDelivery: false, next_flag_owner: null }, {
+          isBatchOperation: true,
+          skipSmartRefresh: true
+        });
+      } catch (e) {
+        console.warn('[BulkEdit] could not release stale next-stop flag on', id, e?.message || e);
+      }
+    }
+  };
 
   return Promise.all(
     allIdsToUpdate.map(async (deliveryId) => {
@@ -368,6 +401,9 @@ export async function applyBulkEditStops({
     })
   )
     .then(async () => {
+      // Clear any stale holder that sat outside the selection (see above) while
+      // batch silent mode is still on, so the release rides the same write.
+      await releaseStaleHolders();
       const { exitBatchSilentMode } = await import("../utils/entityMutations");
       exitBatchSilentMode();
       const freshDeliveries = (deliveries || []).map((delivery) => {
@@ -393,6 +429,10 @@ export async function applyBulkEditStops({
         freshDeliveries.forEach((d) => {
           if (allIdsToUpdate.includes(d.id) && !linkedPendingDeliveryIds.has(d.id)) {
             d.isNextDelivery = d.id === nextStopIdForBulk;
+          } else if (staleHoldersForBulk.includes(d.id)) {
+            // Released above — never leave two stops flagged in the snapshot.
+            d.isNextDelivery = false;
+            d.next_flag_owner = null;
           }
         });
       }

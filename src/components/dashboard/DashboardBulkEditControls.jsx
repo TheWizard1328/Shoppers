@@ -179,6 +179,21 @@ export default function DashboardBulkEditControls({
         );
         claimedNextId = orderedForClaim[0]?.id || null;
       }
+      // HOLDER OUTSIDE THE SELECTION (owner Nov 23 2026): w275 only touched stops
+      // inside the batch. A stop that already held isNextDelivery but was not
+      // selected kept the flag, so two stops read as "next" and the guard fought
+      // over them. That stale holder is released in this same write.
+      const selectedIdSet = new Set(selectedDeliveries.map((d) => String(d?.id || '')));
+      const routeDriverIds = new Set(selectedDeliveries.map((d) => String(d?.driver_id || '')));
+      const staleHolderIds = bulkSetsActiveStatus
+        ? (allDeliveries || [])
+            .filter((d) => d?.id
+              && !selectedIdSet.has(String(d.id))
+              && d.isNextDelivery === true
+              && !['completed', 'failed', 'cancelled'].includes(String(d.status || ''))
+              && (!routeDriverIds.size || routeDriverIds.has(String(d.driver_id || ''))))
+            .map((d) => d.id)
+        : [];
 
       // STEP 1: Build per-delivery payloads
       const perDeliveryPayloads = selectedDeliveries.map((delivery) => {
@@ -303,6 +318,15 @@ export default function DashboardBulkEditControls({
         }
 
         invalidate("Delivery");
+        // Release any stale holder outside the selection while batch silent mode
+        // is still on, so the batch can never leave two stops flagged.
+        for (const staleId of staleHolderIds) {
+          try {
+            await updateDeliveryLocal(staleId, { isNextDelivery: false, next_flag_owner: null }, { skipSmartRefresh: true, isBatchOperation: false });
+          } catch (err) {
+            console.warn(`[BulkEdit] could not release stale next-stop flag on ${staleId}: ${err?.message}`);
+          }
+        }
       } finally {
         // Exit batch silent mode — restores per-record notifications for any
         // future writes outside this batch
