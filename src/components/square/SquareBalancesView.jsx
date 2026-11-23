@@ -587,6 +587,101 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
 
 }
 
+/**
+ * usePendingSwipes — OWNER REQUEST (Nov 22 2026): "a store has swiped the card
+ * but not entered the delivery into the app yet". Those swipes live only on
+ * Square (a payment still APPROVED, or a cart still OPEN), so nothing in the
+ * delivery data can explain the pending card spend. This hook asks the
+ * squarePendingSwipes function for the live list and re-asks every 2 minutes;
+ * an unentered swipe therefore shows up on its own and clears itself once the
+ * delivery is entered or the payment captures.
+ */
+function usePendingSwipes(locationIds, enabled) {
+  const [byLocation, setByLocation] = useState({});
+  const [loading, setLoading] = useState(false);
+  const idsKey = (locationIds || []).join(',');
+  const load = useCallback(async () => {
+    if (!enabled || !idsKey) return;
+    setLoading(true);
+    try {
+      const res = await base44.functions.invoke('squarePendingSwipes', {
+        hours: 18,
+        location_ids: idsKey.split(',')
+      });
+      const data = res?.data || res || {};
+      setByLocation(data?.by_location || {});
+    } catch (e) {
+      // A failed probe must never break the balance page.
+      console.warn('[PendingSwipes] probe failed:', e?.message || e);
+    } finally {
+      setLoading(false);
+    }
+  }, [enabled, idsKey]);
+  useEffect(() => {
+    if (!enabled || !idsKey) return;
+    load();
+    const t = setInterval(load, 120000);
+    return () => clearInterval(t);
+  }, [enabled, idsKey, load]);
+  return { byLocation, loading, reload: load };
+}
+
+/**
+ * PendingSwipesPanel — the strip that sits at the top of a location card.
+ * Amount and time only: that is all Square knows before the cart is rung up.
+ * A "Store ?" pill flips to the store name the moment the line item carries
+ * its prefix (CW/HS/SC/MD...), which is exactly when the delivery gets typed in.
+ */
+function PendingSwipesPanel({ rows, loading, onReload }) {
+  if (!rows || !rows.length) return null;
+  const cents = rows.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0);
+  const fmtTime = (iso) => {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
+    } catch { return ''; }
+  };
+  return (
+    <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+          Pending swipes <span className="font-normal text-slate-500 dark:text-slate-400">({rows.length} · {fmtMoney(cents / 100)})</span>
+        </div>
+        <button
+          type="button"
+          title="Re-check Square"
+          aria-label="Re-check Square for pending swipes"
+          onClick={(e) => { e.stopPropagation(); onReload && onReload(); }}
+          className="shrink-0 w-6 h-6 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 flex items-center justify-center">
+          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+        </button>
+      </div>
+      <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">Swiped on the card, no delivery entered yet</div>
+      <div className="space-y-0.5">
+        {rows.slice(0, 6).map((r) => (
+          <div key={r.key} className="flex items-center gap-2 py-1 border-t border-slate-100 dark:border-slate-800 first:border-t-0">
+            <div className="w-[62px] shrink-0 text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(Number(r.amount_cents || 0) / 100)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
+                {fmtTime(r.created_at)}{r.item_name ? ` · ${r.item_name}` : ''}
+              </div>
+            </div>
+            <div
+              className={`shrink-0 rounded-full px-2 py-[3px] text-[11px] font-medium text-center min-w-[96px] ${r.store_name
+                ? 'bg-sky-50 border border-sky-300 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700'
+                : 'bg-slate-100 border border-slate-300 text-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600'}`}>
+              {r.store_name || 'Store ?'}
+            </div>
+          </div>
+        ))}
+        {rows.length > 6 && (
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">+{rows.length - 6} more</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SquareBalancesView({ currentUser, visibleLocationIds = null }) {
   const [config, setConfig] = useState(null);
   const [configRecordId, setConfigRecordId] = useState(null);
@@ -2707,6 +2802,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     });
   }, [config, deliveryCredits, payoutByLoc, payouts, codOutstandingByLoc, localOutstanding, weeklyCodAvgByLoc, manualSpendMarks, countedIdsSet]);
 
+  // OWNER REQUEST (Nov 22 2026): swipes that are live on Square but have no
+  // delivery yet. Only the owner sees this probe; it is read-only.
+  const pendingSwipeLocIds = useMemo(() => (perLocation || []).map((l) => l.location_id).filter(Boolean), [perLocation]);
+  const { byLocation: pendingSwipesByLoc, loading: pendingSwipesLoading, reload: reloadPendingSwipes } =
+    usePendingSwipes(pendingSwipeLocIds, ownerCanEdit);
+
+
   // ── PAGE-TRUTH PUBLISH (owner fix Oct 20 2026) ───────────────────────────
   // The sidebar Card-Balances badge reads the shared snapshot, whose compute
   // pipeline is duty-gated (no computes at night / rate-limit degradation), so
@@ -3450,6 +3552,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                   }
               </div>
             </div>
+            <PendingSwipesPanel
+              rows={pendingSwipesByLoc?.[loc.location_id] || []}
+              loading={pendingSwipesLoading}
+              onReload={reloadPendingSwipes}
+            />
             <div className="py-2 px-2 space-y-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Wallet className="w-3.5 h-3.5" /> Card</div>
