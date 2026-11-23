@@ -634,7 +634,8 @@ function usePendingSwipes(locationIds, enabled) {
  */
 function PendingSwipesPanel({ rows, manualRows, loading, onReload, onDismiss, onLog }) {
   const manual = manualRows || [];
-  if (!rows || !rows.length) {
+  const sq = rows || [];
+  if (!sq.length && !manual.length) {
     // Nothing from Square and nothing logged: keep the owner's entry point.
     if (!onLog) return null;
     return (
@@ -656,7 +657,7 @@ function PendingSwipesPanel({ rows, manualRows, loading, onReload, onDismiss, on
       </div>
     );
   }
-  const cents = rows.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0)
+  const cents = sq.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0)
     + manual.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0);
   const fmtTime = (iso) => {
     if (!iso) return '';
@@ -668,7 +669,7 @@ function PendingSwipesPanel({ rows, manualRows, loading, onReload, onDismiss, on
     <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
       <div className="flex items-center justify-between gap-2">
         <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
-          Pending swipes <span className="font-normal text-slate-500 dark:text-slate-400">({rows.length + manual.length} · {fmtMoney(cents / 100)})</span>
+          Pending swipes <span className="font-normal text-slate-500 dark:text-slate-400">({sq.length + manual.length} · {fmtMoney(cents / 100)})</span>
         </div>
         <button
           type="button"
@@ -704,7 +705,7 @@ function PendingSwipesPanel({ rows, manualRows, loading, onReload, onDismiss, on
             )}
           </div>
         ))}
-        {rows.slice(0, 6).map((r) => (
+        {sq.slice(0, 6).map((r) => (
           <div key={r.key} className="flex items-center gap-2 py-1 border-t border-slate-100 dark:border-slate-800 first:border-t-0">
             <div className="w-[62px] shrink-0 text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(Number(r.amount_cents || 0) / 100)}</div>
             <div className="min-w-0 flex-1">
@@ -720,8 +721,8 @@ function PendingSwipesPanel({ rows, manualRows, loading, onReload, onDismiss, on
             </div>
           </div>
         ))}
-        {rows.length > 6 && (
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">+{rows.length - 6} more</div>
+        {sq.length > 6 && (
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">+{sq.length - 6} more</div>
         )}
       </div>
     </div>
