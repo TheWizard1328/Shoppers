@@ -386,7 +386,10 @@ Deno.serve(async (req) => {
     }
 
     // Owner confirmation: did Riyaz's push actually go out?
-    if (ownerUserId) {
+    // OWNER REQUEST (Nov 23 2026): he wants a push confirming the reminder was
+    // sent to Riyaz. Only send it when something actually went out — a daily
+    // "nothing sent" push outside the nudge windows would just be noise.
+    if (ownerUserId && owed.length > 0) {
       const confirmTitle = 'Payroll reminder status';
       const confirmBody = owed.length
         ? (riyazResult?.sent
