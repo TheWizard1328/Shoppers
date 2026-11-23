@@ -11,10 +11,28 @@ const TEMP_MAX = 8;
  * theirs is ever "first" — a stale first_delivery flag on the delivery (or the
  * words "first delivery" in its notes) must not resurrect the N badge.
  */
-function patientHasRecordedHistory(patient) {
+export function patientHasRecordedHistory(patient) {
   if (!patient) return false;
   if (Array.isArray(patient.delivery_history) && patient.delivery_history.length > 0) return true;
   return !!patient.last_delivery_date;
+}
+
+/**
+ * FIRST-TIME DELIVERY — one rule for every surface (owner report Nov 23 2026):
+ * "patients are being marked as first time delivery on the map marker even
+ * though they have history; the delivery cards do not show the badge."
+ * The cards already consulted the patient record (delivery_history /
+ * last_delivery_date) and stayed quiet, while the map marker read the raw
+ * delivery.first_delivery flag, which is stamped at creation and goes stale
+ * when the patient's last_delivery_date was never written. Both now call this.
+ */
+export function isFirstDeliveryForDisplay(delivery, patient) {
+  if (!delivery) return false;
+  if (patientHasRecordedHistory(patient)) return false;
+  return delivery.first_delivery === true
+    || (patient && isFirstDeliveryPatient(patient))
+    || !!delivery.delivery_notes?.toLowerCase().includes('first delivery')
+    || !!delivery.delivery_instructions?.toLowerCase().includes('first delivery');
 }
 
 export function getCodSymbolColor(delivery) {

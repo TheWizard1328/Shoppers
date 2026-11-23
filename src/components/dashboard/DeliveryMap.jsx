@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isFirstDeliveryForDisplay } from '../utils/SpecialSymbolsBadges';
 import { haversineMeters } from '@/components/utils/geoUtils';
 import { isAppDarkTheme } from '@/lib/utils';
 import { MapContainer, Pane, Polyline } from "react-leaflet";
@@ -785,7 +786,11 @@ function DeliveryMap({
               ? getPolylineColorForDriver(delivery.driver_id, (driver || driverLookupMap.get(delivery.driver_id))?.sort_order)
               : (store ? getStoreColor(store) : "#6B7280"),
           number: delivery.display_stop_order || delivery.stop_order || 0,
-          isFirstTime: !!delivery.first_delivery,
+          // OWNER REPORT (Nov 23 2026): the marker showed the new-delivery icon
+          // for patients with real history because it read the raw
+          // first_delivery flag while the stop card stayed quiet. Both now use
+          // the shared rule, so patient history always wins.
+          isFirstTime: isFirstDeliveryForDisplay(delivery, patient),
           isNextInLine: !!delivery.isNextDelivery,
           isDriverOnDuty: driver?.driver_status === 'on_duty',
           markerType: "delivery",
