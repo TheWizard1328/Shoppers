@@ -292,6 +292,7 @@ async function handleGetCodData(base44, payload={}) {
   // the money, so the item must never be re-created for that delivery even when
   // the delivery's own stamp is missing or was reverted by a stale device.
   const registerPaidDeliveryIds = new Set();
+  const registerPaidAt = new Map();
   for (const t of existingTransactions) {
     const did = t?.delivery_id ? String(t.delivery_id) : '';
     if (!did) continue;
@@ -299,6 +300,7 @@ async function handleGetCodData(base44, payload={}) {
     if (String(t?.type || '').toLowerCase() !== 'collection') continue;
     if (!t?.square_payment_id) continue;
     registerPaidDeliveryIds.add(did);
+    if (!registerPaidAt.has(did)) registerPaidAt.set(did, t?.raw_square_data?.payment_date || t?.updated_date || new Date().toISOString());
   }
 
   const activeConfigById = new Map(safeConfigs.map((c) => [c.id, c]));
@@ -1249,6 +1251,23 @@ mark('after_db_cleanup');
     stampedThisRun++;
   }
   console.log('[squareGetCodData2] fresh collected stamps:', stampedThisRun, 'of', confirmedCollectedDeliveryIds.size, 'confirmed');
+  // ── MAKE REGISTER-PAID COLLECTION DURABLE (owner report Nov 23 2026) ──────
+  // The register rang up Amanda Klymchuk's Oct 28 $10.64 COD on Nov 5 and the
+  // sync matched it (matched_by abbr_store_match), but the delivery never got
+  // cod_confirmed_collected. Every later run therefore treated it as uncollected,
+  // re-created the catalog item, and the next match cancelled it again — the item
+  // vanished over and over. Stamp it once here so the collected state is durable
+  // and the backfill stops resurrecting it.
+  let registerStamped = 0;
+  for (const did of registerPaidDeliveryIds) {
+    const row = stampRowById.get(String(did));
+    if (!row || row.cod_confirmed_collected) continue;
+    const at = registerPaidAt.get(String(did)) || new Date().toISOString();
+    await base44.asServiceRole.entities.Delivery.update(did, { cod_confirmed_collected: true, cod_confirmed_collected_at: at })
+      .then(() => { registerStamped++; })
+      .catch((e) => console.warn('[squareGetCodData2] register stamp failed:', did, e?.message || e));
+  }
+  if (registerStamped > 0) console.log('[squareGetCodData2] register-paid stamps written:', registerStamped);
   // Purge rows for collected deliveries: tx rows only when older than the
   // floor; catalog mirror rows always (the live-catalog mirror replace in 5b
   // rebuilds the outstanding set).
