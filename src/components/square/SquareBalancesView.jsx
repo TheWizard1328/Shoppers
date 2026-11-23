@@ -811,6 +811,9 @@ function LogSwipeDialog({ open, card, onClose, onSave, currentUserName }) {
     setSaving(true);
     try {
       await onSave({
+        // The app schema still requires store_id, and a logged swipe has no
+        // store yet (that is the whole point), so it is written as 'unassigned'.
+        store_id: 'unassigned',
         location_id: card?.location_id || null,
         amount_cents: cents,
         swipe_date: date || null,
