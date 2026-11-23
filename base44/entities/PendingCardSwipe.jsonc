@@ -1,0 +1,63 @@
+{
+  "name": "PendingCardSwipe",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store whose card was swiped"
+    },
+    "store_name": {
+      "type": "string",
+      "description": "Display name of that store"
+    },
+    "location_id": {
+      "type": "string",
+      "description": "Square location of the card that was swiped (several stores share one location)"
+    },
+    "amount_cents": {
+      "type": "number",
+      "description": "Swipe amount in cents"
+    },
+    "swiped_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the card was swiped, as entered by the store"
+    },
+    "note": {
+      "type": "string",
+      "description": "Optional note (patient name, till, anything the store knows)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "cleared",
+        "dismissed"
+      ],
+      "description": "open = still missing a delivery; cleared = a collected delivery matched it; dismissed = manually closed"
+    },
+    "cleared_delivery_id": {
+      "type": "string",
+      "description": "Delivery that matched this swipe when it cleared"
+    },
+    "cleared_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When it cleared"
+    },
+    "cleared_by": {
+      "type": "string",
+      "description": "How it cleared: 'matched' (delivery found) or 'dismissed' (manual)"
+    },
+    "created_by_name": {
+      "type": "string",
+      "description": "Who logged the swipe"
+    }
+  },
+  "required": [
+    "store_id",
+    "amount_cents",
+    "swiped_at",
+    "status"
+  ]
+}

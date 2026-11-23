@@ -632,9 +632,32 @@ function usePendingSwipes(locationIds, enabled) {
  * A "Store ?" pill flips to the store name the moment the line item carries
  * its prefix (CW/HS/SC/MD...), which is exactly when the delivery gets typed in.
  */
-function PendingSwipesPanel({ rows, loading, onReload }) {
-  if (!rows || !rows.length) return null;
-  const cents = rows.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0);
+function PendingSwipesPanel({ rows, manualRows, loading, onReload, onDismiss, onLog }) {
+  const manual = manualRows || [];
+  if (!rows || !rows.length) {
+    // Nothing from Square and nothing logged: keep the owner's entry point.
+    if (!onLog) return null;
+    return (
+      <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Pending swipes</div>
+          <div className="flex items-center gap-1">
+            <button type="button" title="Re-check Square" aria-label="Re-check Square" onClick={(e) => { e.stopPropagation(); onReload && onReload(); }}
+              className="shrink-0 w-6 h-6 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 flex items-center justify-center">
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            </button>
+            <button type="button" onClick={(e) => { e.stopPropagation(); onLog(); }}
+              className="shrink-0 h-6 px-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300">
+              + Log
+            </button>
+          </div>
+        </div>
+        <div className="text-[11px] text-slate-500 dark:text-slate-400">Nothing pending. Log one if a store swiped and has not entered it.</div>
+      </div>
+    );
+  }
+  const cents = rows.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0)
+    + manual.reduce((sum, r) => sum + Math.round(Number(r.amount_cents || 0)), 0);
   const fmtTime = (iso) => {
     if (!iso) return '';
     try {
@@ -645,7 +668,7 @@ function PendingSwipesPanel({ rows, loading, onReload }) {
     <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
       <div className="flex items-center justify-between gap-2">
         <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">
-          Pending swipes <span className="font-normal text-slate-500 dark:text-slate-400">({rows.length} · {fmtMoney(cents / 100)})</span>
+          Pending swipes <span className="font-normal text-slate-500 dark:text-slate-400">({rows.length + manual.length} · {fmtMoney(cents / 100)})</span>
         </div>
         <button
           type="button"
@@ -655,9 +678,32 @@ function PendingSwipesPanel({ rows, loading, onReload }) {
           className="shrink-0 w-6 h-6 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 flex items-center justify-center">
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
         </button>
+        {onLog && (
+          <button type="button" onClick={(e) => { e.stopPropagation(); onLog(); }}
+            className="shrink-0 h-6 px-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300">
+            + Log
+          </button>
+        )}
       </div>
       <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">Swiped on the card, no delivery entered yet</div>
       <div className="space-y-0.5">
+        {manual.map((r) => (
+          <div key={`m-${r.id}`} className="flex items-center gap-2 py-1 border-t border-slate-100 dark:border-slate-800 first:border-t-0">
+            <div className="w-[62px] shrink-0 text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(Number(r.amount_cents || 0) / 100)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
+                {fmtTime(r.swiped_at)} · logged{r.note ? ` · ${r.note}` : ''}
+              </div>
+            </div>
+            <div className="shrink-0 rounded-full px-2 py-[3px] text-[11px] font-medium text-center min-w-[96px] bg-amber-50 border border-amber-300 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700 truncate">
+              {String(r.store_name || 'Store ?').replace(/\s*\([A-Za-z]{2,4}\)$/, '')}
+            </div>
+            {onDismiss && (
+              <button type="button" title="Dismiss" aria-label="Dismiss this logged swipe" onClick={(e) => { e.stopPropagation(); onDismiss(r.id); }}
+                className="shrink-0 w-5 h-5 rounded text-slate-400 hover:text-slate-600 flex items-center justify-center text-[13px] leading-none">×</button>
+            )}
+          </div>
+        ))}
         {rows.slice(0, 6).map((r) => (
           <div key={r.key} className="flex items-center gap-2 py-1 border-t border-slate-100 dark:border-slate-800 first:border-t-0">
             <div className="w-[62px] shrink-0 text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{fmtMoney(Number(r.amount_cents || 0) / 100)}</div>
@@ -677,6 +723,174 @@ function PendingSwipesPanel({ rows, loading, onReload }) {
         {rows.length > 6 && (
           <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">+{rows.length - 6} more</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * useManualSwipes — OWNER REQUEST (Nov 22 2026): Square's API cannot see a cart
+ * that was swiped but never rung up, so the strip can only show what Square
+ * exposes. This hook backs the manual fallback: a store logs the swipe it knows
+ * about (amount, card, time) and it stays on the card until a collected
+ * delivery matches it or someone dismisses it.
+ */
+function useManualSwipes(enabled) {
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    if (!enabled) return;
+    try {
+      const list = await base44.entities.PendingCardSwipe.filter({ status: 'open' }, '-swiped_at', 200);
+      setRows(Array.isArray(list) ? list : (list?.items || []));
+    } catch (e) {
+      console.warn('[ManualSwipes] load failed:', e?.message || e);
+    }
+  }, [enabled]);
+  useEffect(() => {
+    if (!enabled) return;
+    load();
+    const t = setInterval(load, 120000);
+    return () => clearInterval(t);
+  }, [enabled, load]);
+  const add = useCallback(async (data) => {
+    setBusy(true);
+    try {
+      const rec = await base44.entities.PendingCardSwipe.create({ ...data, status: 'open' });
+      setRows((prev) => [rec, ...prev]);
+      return rec;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+  const close = useCallback(async (id, how, deliveryId = null) => {
+    try {
+      await base44.entities.PendingCardSwipe.update(id, {
+        status: how === 'matched' ? 'cleared' : 'dismissed',
+        cleared_by: how,
+        cleared_delivery_id: deliveryId || undefined,
+        cleared_at: new Date().toISOString()
+      });
+      setRows((prev) => prev.filter((r) => String(r.id) !== String(id)));
+    } catch (e) {
+      console.warn('[ManualSwipes] close failed:', e?.message || e);
+    }
+  }, []);
+  return { rows, busy, add, close, reload: load };
+}
+
+/**
+ * LogSwipeDialog — the manual fallback form. Full-screen overlay (fixed inset-0)
+ * like every other edit form in the app. Owner only.
+ */
+function LogSwipeDialog({ open, onClose, onSave, defaultLocationId, currentUserName }) {
+  const [stores, setStores] = useState([]);
+  const [locByConfig, setLocByConfig] = useState({});
+  const [storeId, setStoreId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [when, setWhen] = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [st, cfgs] = await Promise.all([
+          base44.entities.Store.list('name', 500),
+          base44.entities.SquareLocationConfig.list('-updated_date', 200)
+        ]);
+        if (cancelled) return;
+        const map = {};
+        for (const c of cfgs || []) if (c?.square_location_id) map[String(c.id)] = String(c.square_location_id);
+        setLocByConfig(map);
+        setStores((st || []).filter((x) => x?.square_location_config_id));
+      } catch (e) {
+        console.warn('[LogSwipe] load failed:', e?.message || e);
+      }
+    })();
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    setWhen(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`);
+    return () => { cancelled = true; };
+  }, [open]);
+
+  const options = useMemo(() => {
+    const all = stores.map((x) => ({
+      id: x.id,
+      label: `${x.name}${x.abbreviation ? ` (${x.abbreviation})` : ''}`,
+      location_id: locByConfig[String(x.square_location_config_id)] || null
+    }));
+    if (!defaultLocationId) return all;
+    const here = all.filter((o) => o.location_id === defaultLocationId);
+    return here.length ? here : all;
+  }, [stores, locByConfig, defaultLocationId]);
+
+  if (!open) return null;
+
+  const submit = async () => {
+    const cents = Math.round(Number(String(amount).replace(/[^0-9.]/g, '')) * 100);
+    const store = options.find((o) => o.id === storeId);
+    if (!(cents > 0) || !store) {
+      toast.error('Enter an amount and pick the store');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        store_id: store.id,
+        store_name: store.label,
+        location_id: store.location_id || defaultLocationId || null,
+        amount_cents: cents,
+        swiped_at: when ? new Date(when).toISOString() : new Date().toISOString(),
+        note: note.trim() || null,
+        created_by_name: currentUserName || null
+      });
+      setAmount(''); setNote(''); setStoreId('');
+      onClose();
+    } catch (e) {
+      toast.error(e?.message || 'Could not log the swipe');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[10050] bg-white dark:bg-slate-900 flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">Log a missing card swipe</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">It shows on that card until a collected delivery matches it</div>
+        </div>
+        <button type="button" onClick={onClose} className="shrink-0 w-8 h-8 rounded-md border border-slate-200 dark:border-slate-700 text-slate-500 flex items-center justify-center">✕</button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-md w-full mx-auto">
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Amount</label>
+          <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="3.09" />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Store</label>
+          <select
+            value={storeId}
+            onChange={(e) => setStoreId(e.target.value)}
+            className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm text-slate-900 dark:text-slate-50">
+            <option value="">Pick the store</option>
+            {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Swiped at</label>
+          <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Note (optional)</label>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Patient, till, anything you know" />
+        </div>
+        <Button type="button" onClick={submit} disabled={saving} className="w-full">
+          {saving ? 'Saving…' : 'Log swipe'}
+        </Button>
       </div>
     </div>
   );
@@ -2807,6 +3021,21 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   const pendingSwipeLocIds = useMemo(() => (perLocation || []).map((l) => l.location_id).filter(Boolean), [perLocation]);
   const { byLocation: pendingSwipesByLoc, loading: pendingSwipesLoading, reload: reloadPendingSwipes } =
     usePendingSwipes(pendingSwipeLocIds, ownerCanEdit);
+  // Manual fallback: a store logs a swipe Square cannot see yet.
+  const manualSwipes = useManualSwipes(ownerCanEdit);
+  const [logSwipeLoc, setLogSwipeLoc] = useState(null);
+
+  // Auto-clear: a logged swipe disappears as soon as a collected delivery for
+  // the same card matches its amount (owner rule Nov 22 2026).
+  useEffect(() => {
+    if (!ownerCanEdit || !manualSwipes.rows.length) return;
+    for (const swipe of manualSwipes.rows) {
+      const collected = codCollectedTodayByLoc?.[swipe.location_id] || [];
+      const cents = Math.round(Number(swipe.amount_cents || 0));
+      const hit = collected.find((r) => r?.delivery_id && Math.abs(Math.round(Number(r.amount || 0) * 100) - cents) <= 1);
+      if (hit) manualSwipes.close(swipe.id, 'matched', hit.delivery_id);
+    }
+  }, [ownerCanEdit, manualSwipes.rows, manualSwipes.close, codCollectedTodayByLoc]);
 
 
   // ── PAGE-TRUTH PUBLISH (owner fix Oct 20 2026) ───────────────────────────
@@ -3459,6 +3688,16 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         <span className="text-slate-400">(average = total CODs to collect over the last 7 days, excluding today, ÷ 7)</span>
       </div>
 
+      {ownerCanEdit && (
+        <LogSwipeDialog
+          open={!!logSwipeLoc}
+          defaultLocationId={logSwipeLoc}
+          currentUserName={currentUser?.full_name || null}
+          onClose={() => setLogSwipeLoc(null)}
+          onSave={async (data) => { await manualSwipes.add(data); toast.success('Swipe logged'); }}
+        />
+      )}
+
       {/* Location cards — CENTERED per row (owner request Oct 9 2026):
              no matter how many store cards exist, each row's cards are
              horizontally centered (flex-wrap + justify-center so a lone last
@@ -3554,8 +3793,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
             </div>
             <PendingSwipesPanel
               rows={pendingSwipesByLoc?.[loc.location_id] || []}
+              manualRows={(manualSwipes.rows || []).filter((r) => String(r.location_id || '') === String(loc.location_id))}
               loading={pendingSwipesLoading}
               onReload={reloadPendingSwipes}
+              onDismiss={ownerCanEdit ? (id) => manualSwipes.close(id, 'dismissed') : null}
+              onLog={ownerCanEdit ? () => setLogSwipeLoc(loc.location_id) : null}
             />
             <div className="py-2 px-2 space-y-0">
               <div className="flex items-center justify-between">
