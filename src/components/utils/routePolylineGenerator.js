@@ -618,13 +618,23 @@ export async function generateRoutePolylines({
   // Build transport-mode groups (consecutive runs of the same mode).
   // Each group's fromPoint = effectiveOrigin for group[0], else the last stop of
   // the previous group. HERE/Google accept one transport mode per call.
+  // OWNER RULE (Nov 24 2026): a PENDING stop is never a polyline ORIGIN. It gets
+  // no leg of its own, so it must not anchor the next stop's leg either — that is
+  // how a line appeared to run from a pending stop into the cycling end marker and
+  // into a Callingwood pickup. A pending stop is still a DESTINATION (the boundary
+  // markers stay eligible while pending), it just cannot be a fromPoint.
+  const _isPendingStop = (t) => String(t?.delivery?.status || '').toLowerCase() === 'pending';
+  const _anchorBefore = (idx) => {
+    for (let j = idx - 1; j >= 0; j -= 1) {
+      if (!_isPendingStop(polyTargets[j])) return { lat: polyTargets[j].lat, lon: polyTargets[j].lng };
+    }
+    return effectiveOrigin;
+  };
   const modeGroups = [];
   for (let i = 0; i < polyTargets.length; i++) {
     const stop = polyTargets[i];
     const mode = resolveMode(stop.delivery);
-    const prev = (i === 0)
-      ? effectiveOrigin
-      : { lat: polyTargets[i - 1].lat, lon: polyTargets[i - 1].lng };
+    const prev = (i === 0) ? effectiveOrigin : _anchorBefore(i);
     const last = modeGroups[modeGroups.length - 1];
     if (last && last.mode === mode) {
       last.stops.push(stop);
@@ -916,6 +926,20 @@ export async function generateRoutePolylines({
           if (_coIdx !== -1) directionsLegs[_coIdx] = { ...directionsLegs[_coIdx], duration: 0, distance: 0 };
         }
         return;
+      }
+
+      // OWNER REPORT (Nov 24 2026): a provider ZERO-LENGTH section (1 point) used to
+      // survive until the very end, where it was nulled AFTER the straight-line
+      // recovery — so the stop kept its OLD stored leg, anchored at a stop that is no
+      // longer its predecessor. Null it here, before the recovery, so the leg is
+      // rebuilt from the real anchor.
+      if (typeof encoded === 'string' && encoded.length > 0) {
+        let _prePts = null;
+        try { _prePts = decodeGooglePolyline(encoded); } catch (_) { _prePts = null; }
+        const _preDistinct = Array.isArray(_prePts)
+          ? new Set(_prePts.map((pt) => `${Number(pt?.[0]).toFixed(5)},${Number(pt?.[1]).toFixed(5)}`)).size
+          : 0;
+        if (_preDistinct < 2) encoded = null;
       }
 
       if (_sameLeg) {

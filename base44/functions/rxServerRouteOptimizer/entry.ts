@@ -1159,9 +1159,14 @@ Deno.serve(async (req) => {
         const mode = legModeFor(eligibleStops[gi]);
         let gj = gi;
         while (gj < eligibleStops.length && legModeFor(eligibleStops[gj]) === mode) gj++;
+        // OWNER RULE (Nov 24 2026, client parity): a PENDING stop is never a polyline
+        // ORIGIN. It gets no leg of its own, so it must not anchor the next stop's
+        // leg either. Walk back to the last non-pending eligible stop.
+        let _anchorIdx = gi - 1;
+        while (_anchorIdx >= 0 && String((eligibleStops[_anchorIdx] as any)?.status || '').toLowerCase() === 'pending') _anchorIdx -= 1;
         const anchor = gi === 0
           ? _polyOrigin
-          : { lat: eligibleStops[gi - 1].lat, lon: eligibleStops[gi - 1].lng };
+          : (_anchorIdx >= 0 ? { lat: eligibleStops[_anchorIdx].lat, lon: eligibleStops[_anchorIdx].lng } : null);
         // No anchor on the first group = no inbound leg. Start the point list at
         // the stop itself and do not bend it through vias (a via with no origin
         // to leave from is exactly the doubling the owner reported).
@@ -1258,6 +1263,17 @@ Deno.serve(async (req) => {
             // the stale previous-route leg can't survive the re-optimization.
             const _anchorPt = pts[stopIdx - 1] || null;
             const _stopPt = { lat: Number(st.lat), lon: Number(st.lng) };
+            // OWNER REPORT (Nov 24 2026, client parity): a provider ZERO-LENGTH
+            // section (fewer than 2 distinct points) is not a leg. It is nulled HERE,
+            // before the straight-line recovery below, so the leg is rebuilt from the
+            // real anchor instead of being stored as a stub or left as a stale leg.
+            if (typeof encoded === 'string' && encoded.length > 0) {
+              try {
+                const _chkPts = decodeGooglePolyline(encoded);
+                const _distinct = new Set((_chkPts || []).map((pt: any) => `${Number(pt?.[0]).toFixed(5)},${Number(pt?.[1]).toFixed(5)}`)).size;
+                if (_distinct < 2) encoded = null;
+              } catch { /* keep as-is */ }
+            }
             // OWNER FIX (Oct 27 2026): never collapse the CURRENT LEG (live-GPS
             // leg) to a 2-point stub when the driver has arrived — the full
             // lastFinished/home -> driven path -> GPS -> stop chain must stay.
@@ -1448,6 +1464,16 @@ Deno.serve(async (req) => {
         ...(!isPending && !isCoLocated && seg?.encoded_polyline ? { encoded_polyline: seg.encoded_polyline, polyline_from_order: newOrder } : {}),
         ...(isPending ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),
         ...(isCoLocated && !isNextStop ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),
+        // OWNER REPORT (Nov 24 2026, client parity): a leg STAMPED with a different
+        // stop_order was generated from a predecessor that is no longer this stop's
+        // predecessor (the cycling end marker held an order-11 leg while sitting at
+        // order 6, anchored at a pending stop). With no fresh usable segment the
+        // stored geometry is cleared rather than drawn from the wrong origin. The
+        // current leg is never cleared.
+        ...(!isNextStop && (stop as any).polyline_from_order != null
+          && Number((stop as any).polyline_from_order) !== Number(newOrder)
+          && !seg?.encoded_polyline
+          ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),
       };
       // OWNER DIRECTIVE (Oct 27 2026 evening): clear deviation_waypoints on
       // every ACTIVE non-next stop at polyline generation/commit time —

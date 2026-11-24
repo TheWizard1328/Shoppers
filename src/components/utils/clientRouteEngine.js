@@ -2313,7 +2313,14 @@ let _inheritedWindowCount = 0;
     // OWNER REPORT (Nov 16 2026): a manual optimize cleared the leg INTO the cycling start
     // marker. Markers are never stripped of a leg they already have - they are the anchors the
     // rest of the loop is drawn from, and an anchor without a leg reads as a broken route.
-    const _invalidateStaleLeg = !_segWritable && _stampMismatch && !isPending && stop.is_cycling_marker !== true;
+    // OWNER REPORT (Nov 24 2026): the cycling END marker held a leg stamped order 11
+    // while it sits at order 6 — geometry anchored at a stop that is no longer its
+    // predecessor (a pending one). Markers were exempt from this clear, so the wrong
+    // leg survived every optimize. A marker may still keep a leg it HAS (Nov 16 rule),
+    // so the exemption now only covers the CURRENT leg; a stale stamp on any other
+    // marker is cleared like every other stop.
+    const _invalidateStaleLeg = !_segWritable && _stampMismatch && !isPending
+      && (stop.is_cycling_marker !== true || !isNextStop);
 
     const updateData = {
       stop_order: newOrder,
