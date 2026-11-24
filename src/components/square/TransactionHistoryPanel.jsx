@@ -6,14 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Calendar, AlertCircle, DollarSign } from 'lucide-react';
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from './badgeHelpers';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export default function TransactionHistoryPanel({ location, transactions = [], drivers = [], catalogItems = [], onClose }) {
   // Default to current month
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const defaultStart = monthStart.toISOString().split('T')[0];
-  const defaultEnd = monthEnd.toISOString().split('T')[0];
+  const defaultStart = edmontonTodayKey(monthStart);
+  const defaultEnd = edmontonTodayKey(monthEnd);
 
   const [dateRangeStart, setDateRangeStart] = useState(defaultStart);
   const [dateRangeEnd, setDateRangeEnd] = useState(defaultEnd);

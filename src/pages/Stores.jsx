@@ -15,6 +15,7 @@ import { useUser } from "../components/utils/UserContext";
 import { useAppData } from "../components/utils/AppDataContext";
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreOnlineStatusBanner from '../components/stores/StoreOnlineStatusBanner';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 export default function StoresPage() {
   const { currentUser } = useUser();
@@ -75,7 +76,7 @@ export default function StoresPage() {
 
   const dispatcherSummaries = React.useMemo(() => {
     if (!isDispatcherViewer) return {};
-    const dateStr = contextSelectedDate || (typeof window !== 'undefined' && window.__appSelectedDate) || (localStorage.getItem('global_selected_date') || new Date().toISOString().split('T')[0]);
+    const dateStr = contextSelectedDate || (typeof window !== 'undefined' && window.__appSelectedDate) || (localStorage.getItem('global_selected_date') || edmontonTodayKey());
     // Day-of-week determines which slot row applies (weekday/saturday/sunday)
     const dayIdx = new Date(`${dateStr}T12:00:00`).getDay();
     const dayKey = dayIdx === 0 ? 'sunday' : dayIdx === 6 ? 'saturday' : 'weekday';

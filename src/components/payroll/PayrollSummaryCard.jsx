@@ -34,6 +34,7 @@ import { applyStillOwedToNotes } from './stillOwedNote';
 import { toDateOnlyStr } from '@/components/utils/dateOnly';
 import { isAfterHoursPickupStop, isAfterHoursDeliveryStop } from './payrollDeliveryUnits';
 import { getActiveDeductionsForPeriod, formatDeductionDateRange, normalizeDate, recurringDeductionKey, applyRecurringOverrides } from '../utils/deductionHelpers';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
@@ -158,8 +159,8 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !isAdmin;
 
   // Format period dates for querying
-  const periodStartStr = currentPeriod?.start ? currentPeriod.start.toISOString().split('T')[0] : null;
-  const periodEndStr = currentPeriod?.end ? currentPeriod.end.toISOString().split('T')[0] : null;
+  const periodStartStr = currentPeriod?.start ? edmontonTodayKey(currentPeriod.start) : null;
+  const periodEndStr = currentPeriod?.end ? edmontonTodayKey(currentPeriod.end) : null;
 
   const payrollData = useMemo(() => {
     if (!deliveries || !drivers || !appUsers || !currentPeriod) return [];
@@ -386,8 +387,8 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     if (periodStartStr && periodEndStr) initialYtdCalculationDone.current = false;
     if (initialYtdCalculationDone.current) return;
     initialYtdCalculationDone.current = true;
-    const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-    const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+    const yearStart = edmontonTodayKey(new Date(currentPeriod.start.getFullYear(), 0, 1));
+    const periodEnd = edmontonTodayKey(currentPeriod.end);
     base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } }).then((records) => {setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);}).catch(() => {});
   }, [currentPeriod, periodStartStr, periodEndStr]);
 
@@ -1013,7 +1014,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     const poolArr = Array.from(pool.values());
     payrollData.forEach((data) => {
       const yearStart = `${currentPeriod.start.getFullYear()}-01-01`;
-      const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+      const periodEnd = edmontonTodayKey(currentPeriod.end);
       const ytdRecords = poolArr.filter((r) => r && r.driver_id === data.driver.id && r.pay_period_end >= yearStart && r.pay_period_end <= periodEnd);
       const appUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
       ytdMap[data.driver.id] = calculateYtdPayroll(ytdRecords, data, cities, appUser);

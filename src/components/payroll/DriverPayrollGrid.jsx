@@ -14,6 +14,7 @@ import { isAfterHoursPickup } from '@/components/dashboard/legendStopCounter';
 import { isAfterHoursPickupStop, isAfterHoursDeliveryStop } from '@/components/payroll/payrollDeliveryUnits';
 import { toDateOnlyStr } from '@/components/utils/dateOnly';
 import { loadStatHolidays, getStatHoliday } from '@/components/utils/statHolidayResolver';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 /**
  * Driver Payroll Grid
@@ -204,8 +205,8 @@ export default function DriverPayrollGrid({
 
     const periodStart = currentPeriod.start;
     const periodEnd = currentPeriod.end;
-    const periodStartStr = periodStart instanceof Date ? periodStart.toISOString().split('T')[0] : String(periodStart);
-    const periodEndStr = periodEnd instanceof Date ? periodEnd.toISOString().split('T')[0] : String(periodEnd);
+    const periodStartStr = periodStart instanceof Date ? edmontonTodayKey(periodStart) : String(periodStart);
+    const periodEndStr = periodEnd instanceof Date ? edmontonTodayKey(periodEnd) : String(periodEnd);
 
     const appUserMap = new Map();
     appUsers.forEach((au) => {

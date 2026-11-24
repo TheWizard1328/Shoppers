@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import { getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
+import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 /**
  * Save a jsPDF document and OPEN it: APK → save to Downloads + launch the
@@ -168,7 +169,7 @@ export async function exportPayrollPdf({
     const storeDataMap = {};
     const oversizedMap = {};
     dates.forEach((date) => {
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = edmontonTodayKey(date);
       storeDataMap[dateKey] = {};
       oversizedMap[dateKey] = {};
       storeList.forEach((store) => {
@@ -214,7 +215,7 @@ export async function exportPayrollPdf({
   // Helper: filter to stores with data
   const filterStoresToData = (activeStores, dates, storeDataMap) => {
     const withData = activeStores.filter((store) =>
-      dates.some((date) => storeDataMap[date.toISOString().split('T')[0]]?.[store.id] > 0)
+      dates.some((date) => storeDataMap[edmontonTodayKey(date)]?.[store.id] > 0)
     );
     return withData.length > 0 ? withData : activeStores;
   };
@@ -243,7 +244,7 @@ export async function exportPayrollPdf({
     let grandTotal = 0;
 
     dates.forEach((date) => {
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = edmontonTodayKey(date);
       const dayNum = date.getDate().toString();
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
