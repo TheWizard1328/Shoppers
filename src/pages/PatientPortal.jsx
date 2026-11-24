@@ -1489,7 +1489,14 @@ export default function PatientPortal({ embedded = false } = {}) {
         {/* Top Bar */}
         <div
           className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3 flex-shrink-0 z-10 py-4 px-4"
-          style={{ paddingTop: embedded ? '0.75rem' : 'calc(0.75rem + var(--app-inset-top))' }}>
+          /* Owner, Nov 23 2026 (w307): full-page header 10px shorter - 5px off the
+             top of the buttons (12px -> 7px) and 5px off below them (py-4's 16px ->
+             11px). Embedded (patient view inside the app) was already right and is
+             left untouched. */
+          style={{
+            paddingTop: embedded ? '0.75rem' : 'calc(7px + var(--app-inset-top))',
+            paddingBottom: embedded ? undefined : '11px'
+          }}>
           
           <button
             onClick={() => setSidebarOpen(true)}
@@ -1596,7 +1603,10 @@ export default function PatientPortal({ embedded = false } = {}) {
         {/* Map */}
         <div
           className="flex-1 overflow-hidden relative pt-2 pr-2 pl-2 pb-1"
-          style={{ paddingBottom: embedded ? '0px' : 'calc(1rem + var(--app-inset-bottom))' }}>
+          /* Owner, Nov 23 2026 (w307): no extra 1rem above the phone's navigation
+             bar - the inset already reserves the OS bar, so the extra 16px read as a
+             dead strip. Full-page ends flush on var(--app-inset-bottom). */
+          style={{ paddingBottom: embedded ? '0px' : 'var(--app-inset-bottom)' }}>
           
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
                  Only while the sidebar is hidden (phones, or the drawer closed), and
