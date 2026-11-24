@@ -287,17 +287,25 @@ export function useLayoutEventHandlers({
     // Listen for messaging requests from map markers
     const handleOpenMessaging = (event) => {
       const { otherUserId, otherUserName } = event.detail || {};
-      setInitialConversation(otherUserId && otherUserName ? { otherUserId, otherUserName } : null);
-      setUnreadMessageCount(0);setShowMessaging(true);
+      setUnreadMessageCount(0);
+      // ROUTE OPEN (Nov 23 2026): the overlay left Dashboard green alongside
+      // Messages, so every messaging entry point now navigates to /Messages.
+      window.dispatchEvent(new CustomEvent('navigateToMessages', {
+        detail: { initialConversation: otherUserId && otherUserName ? { otherUserId, otherUserName } : null },
+      }));
     };
-    const handleOpenMessagingPanel = () => {setInitialConversation(null);setUnreadMessageCount(0);setShowMessaging(true);};
+    const handleOpenMessagingPanel = () => {
+      setInitialConversation(null);setUnreadMessageCount(0);
+      window.dispatchEvent(new CustomEvent('navigateToMessages', { detail: { initialConversation: null } }));
+    };
     // App Issues conversation (push deep link /?app_issue_message=<id> from the
     // appIssueMonitor watchdog — dispatched by AppIssueSupport after validating
     // the message belongs to the current user).
     const handleOpenAppIssueConversation = () => {
       if (!currentUser?.id) return;
       setInitialConversation({ conversationId: ['app_issues', currentUser.id].sort().join('_'), otherUserId: 'app_issues', otherUserName: 'App Issues' });
-      setUnreadMessageCount(0);setShowMessaging(true);
+      setUnreadMessageCount(0);
+      window.dispatchEvent(new CustomEvent('navigateToMessages', { detail: { initialConversation: { conversationId: ['app_issues', currentUser.id].sort().join('_'), otherUserId: 'app_issues', otherUserName: 'App Issues' } } }));
     };
     window.addEventListener('openMessaging', handleOpenMessaging);window.addEventListener('openMessagingPanel', handleOpenMessagingPanel);
     window.addEventListener('openAppIssueConversation', handleOpenAppIssueConversation);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useLocation } from 'react-router-dom';
 import { useUser } from '@/components/utils/UserContext';
 import MessagingPanel from '@/components/messaging/MessagingPanel';
 
@@ -15,6 +16,10 @@ import MessagingPanel from '@/components/messaging/MessagingPanel';
 // overlay close button, and closing navigates back to the dashboard.
 export default function Messages() {
   const { currentUser } = useUser();
+  // Deep links (chat push, app-issue watchdog, driver auto-open) hand the
+  // conversation over through router state instead of a floating overlay.
+  const location = useLocation();
+  const initialConversation = location.state?.initialConversation || null;
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
@@ -37,6 +42,7 @@ export default function Messages() {
       pageMode
       currentUser={currentUser}
       users={users}
+      initialConversation={initialConversation}
       onClose={() => {}}
     />
   );

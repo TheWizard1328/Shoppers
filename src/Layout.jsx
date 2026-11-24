@@ -1,7 +1,7 @@
 // Redeployed on 2026-05-21 - Via Superagent The Boss
 import { getEnvironmentLabel } from '@/components/utils/envUtils';
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 // import "./components/utils/globalErrorHandler";
 import { createPageUrl } from "./utils";
 import { format, getData, invalidate, loadDeliveries } from './components/utils/dataManager';
@@ -289,6 +289,15 @@ export default function Layout({ children, currentPageName }) {
     }));
   };
   const [showMessaging, setShowMessaging] = useState(false);
+  const navigate = useNavigate();
+  // OWNER SPEC (Nov 23 2026): every messaging entry point (header icon, chat
+  // push, app-issue watchdog, driver auto-open) routes to the /Messages page so
+  // only ONE nav tab can ever be green. Payload rides in router state.
+  useEffect(() => {
+    const onNav = (e) => navigate('/Messages', { state: { initialConversation: e?.detail?.initialConversation || null } });
+    window.addEventListener('navigateToMessages', onNav);
+    return () => window.removeEventListener('navigateToMessages', onNav);
+  }, [navigate]);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [initialConversation, setInitialConversation] = useState(null);
   const [pendingBlinkConversationId, setPendingBlinkConversationId] = useState(null);
@@ -2081,7 +2090,7 @@ export default function Layout({ children, currentPageName }) {
                 logo={branding.logo_url}
                 sidebarOpen={sidebarOpen}
                 unreadMessageCount={unreadMessageCount}
-                onMessagingClick={() => setShowMessaging(true)}
+                onMessagingClick={() => navigate('/Messages')}
                 isMobile={isMobile}
                 isTabletPortrait={isTabletPortrait}
                 currentUser={currentUser}

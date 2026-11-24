@@ -25,6 +25,18 @@ import { useSquareBalancesSummary } from '@/components/square/useSquareBalancesS
 
 const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle, hasApkUpdate }, ref) {
   const { activeTab, navigateToTab } = useMobileNavigation();
+  // OWNER SPEC (Nov 23 2026): the nav scrolls horizontally, so the active tab
+  // (Messages sits off-screen on narrow phones) must be scrolled into view.
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        document
+          .querySelector('[data-mobile-bottom-nav-scroll] [data-nav-active="true"]')
+          ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+      } catch (_) { /* noop */ }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
   const navigate = useNavigate();
   const { count: bookedOffCount, records: bookedOffRecords } = useBookedOffBadge(currentUser);
   const { os, deviceType } = useDevice();
@@ -186,7 +198,9 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
             const isMessagingItem = item.action === 'messaging';
             // PAGE TAB (Nov 23 2026): Messages is a real route now, so the green
             // highlight comes from the active tab like every other page.
-            const isActive = isMessagingItem ? (activeTab === 'messages' || messagingPageOpen) : activeTab === item.tabKey;
+            // ONE green tab only (owner report Nov 23 2026): the overlay used to
+            // keep Dashboard green while Messages was open.
+            const isActive = isMessagingItem ? activeTab === 'messages' : activeTab === item.tabKey;
             const Icon = item.icon;
             // Even distribution: every tab grows equally to fill the row width, so
             // wider screens show MORE tabs. The 76px floor keeps them from
@@ -198,6 +212,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
               // mark the tab), so the stack is icon + label only and the vertical
               // padding drops to a hairline: 56px -> ~46px.
               className: 'flex min-h-11 flex-col items-center justify-center px-2 py-0.5 transition-colors',
+              'data-nav-active': isActive ? 'true' : undefined,
               style: {
                 flex: '1 1 0',
                 minWidth: '76px',
