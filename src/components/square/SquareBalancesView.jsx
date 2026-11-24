@@ -12,7 +12,7 @@ import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import { edmontonBusinessDayKey, edmontonWallString, parseAnyTimestamp } from "@/components/utils/albertaTime";
 import { changeCodTender, refundCodDelivery } from "./codTenderActions";
 import { sumAdjustmentsByLoc } from '@/components/utils/cardBalanceAdjustments';
-import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage, healDeliveryMirror } from "./useSquareBalancesSummary";
+import { buildStoreToLocMap, computeWeeklyCodTotalsByStore, weeklyAvgByLocFromStores, getBalanceLevel, safeBalanceLevel, BALANCE_LEVELS, computeCodOutstandingDetailed, loadCardPayouts, loadCardTopups, loadDeliveryCardCredits, computeNetCollected, DEFAULT_FOLDER_RATE, payoutsByLocation, computePendingCodDeduction, estimateCardFeeCents, folderCentsFor, markFailedCodRefunded, invalidateIdbReadCache, invalidateServerOverlay, sendFailedRefundAlerts, getAllDeliveriesIdb, publishFromBalancesPage, healDeliveryMirror } from "./useSquareBalancesSummary";
 import { getSummarySnapshot, deserializeSummary, mergeRowsIntoSummarySnapshot } from "./squareBalancesOfflineManager";
 import { setRowsSnapshot, rowsSignature } from "./squareBalancesRowsSnapshot";
 import { fetchLatestSharedSnapshot, subscribeSharedSnapshot } from "./squareBalancesSharedSnapshot";
@@ -2777,7 +2777,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         cardAdjustments: r2(adjCents / 100),
         loanRemaining: r2(Math.max(0, Number(loc.loan_start || 0) - loan)),
         weeklyCodAvg: r2(Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
-        level: getBalanceLevel((Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents + adjCents) / 100, Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
+        level: safeBalanceLevel((Math.round(Number(loc.card_start || 0) * 100) + Math.round(credits * 100) - Math.round(withdrawn * 100) - pendingDeductCents + adjCents) / 100, Number(weeklyCodAvgByLoc[loc.location_id] || 0)),
         pendingDeducted: r2(displayDeductCents / 100),
         pendingDeductCount: displayDeductCount,
         balanceDeduction: r2(pendingDeductCents / 100),
@@ -2817,7 +2817,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         ...loc,
         pendingSwipeCents: cents,
         cardEstimate: next / 100,
-        level: getBalanceLevel(next / 100, Number(loc.weeklyCodAvg || 0))
+        level: safeBalanceLevel(next / 100, Number(loc.weeklyCodAvg || 0))
       };
     });
   }, [perLocationBase, pendingSwipesByLoc, manualSwipes.rows]);

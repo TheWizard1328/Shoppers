@@ -11,7 +11,7 @@ import { EDITOR_HOST_DEVICE_NAME } from '@/components/utils/deviceManager';
 // binding, so line ~2112's getBalanceLevel() call became a free variable and every balance
 // compute threw 'getBalanceLevel is not defined' (rollup does not catch it). w332 imports
 // them locally as well.
-import { BALANCE_BAND, BALANCE_LEVELS, getBalanceLevel } from './balanceLevels';
+import { BALANCE_BAND, BALANCE_LEVELS, getBalanceLevel, safeBalanceLevel } from './balanceLevels';
 
 /**
  * useSquareBalancesSummary — lightweight per-card balance estimates for the
@@ -1754,7 +1754,7 @@ export function weeklyAvgByLocFromStores(storeToLoc, weeklyByStore) {
 // BALANCE_BAND / getBalanceLevel / BALANCE_LEVELS moved to ./balanceLevels.js so light
 // importers (sidebar legend, low-balance alert) no longer pull this whole module into the
 // boot bundle. Re-exported here for existing importers.
-export { BALANCE_BAND, getBalanceLevel, BALANCE_LEVELS } from './balanceLevels';
+export { BALANCE_BAND, getBalanceLevel, safeBalanceLevel, BALANCE_LEVELS } from './balanceLevels';
 
 // A record/event touches a COD if it carries a COD amount, payments or a
 // collection flag, a cod_* field was edited, or (for deletes, where we may not
@@ -2114,7 +2114,7 @@ function computeByLocId({ config, deliveryCredits, weeklyAvgByLoc, payoutsByLoc,
       // Full balance-scope deduction (incl. past-window rows the page hides).
       balanceDeduction: Math.round(pendingDeductCents) / 100,
       storeCardSpend: Math.round(storeCardSpend * 100) / 100,
-      level: getBalanceLevel(cardEstimate, codAvg),
+      level: safeBalanceLevel(cardEstimate, codAvg),
     });
   }
   return byLocId;

@@ -16,6 +16,20 @@ export function getBalanceLevel(balance, codAvg) {
   return 'red';
 }
 
+// OWNER FIX (Nov 24 2026): the Square balance summary died completely whenever this
+// binding was missing from the executing bundle (the w332 Rollup free-variable trap:
+// 'getBalanceLevel is not defined', 174 errors in one hour, no balances on screen).
+// A stale client is always possible, so the chip computation must never be able to
+// throw: worst case the level falls back to yellow and the page still renders.
+export function safeBalanceLevel(balance, codAvg) {
+  try {
+    const level = getBalanceLevel(balance, codAvg);
+    return BALANCE_LEVELS[level] ? level : 'yellow';
+  } catch (_) {
+    return 'yellow';
+  }
+}
+
 export const BALANCE_LEVELS = {
   green: { border: '#10b981', tint: 'rgba(16, 185, 129, 0.07)', chipBg: '#d1fae5', chipText: '#065f46' },
   yellow: { border: '#f59e0b', tint: 'rgba(245, 158, 11, 0.08)', chipBg: '#fef3c7', chipText: '#92400e' },
