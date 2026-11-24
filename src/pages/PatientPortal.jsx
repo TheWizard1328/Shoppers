@@ -22,6 +22,7 @@ import { patientPortalPing } from '@/functions/patientPortalPing';
 import UpdateInfoBalloon from '@/components/common/UpdateInfoBalloon';
 import { useWebUpdateCheck } from '@/components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from '@/components/utils/interactionIdleTracker';
+import { BAKED_APK_DIGIT, WEB_VERSION, formatVersionDigits } from '@/version';
 import { clearUserCache } from '@/components/utils/auth';
 import { purgeStaleServiceWorkerAndCaches } from '@/components/utils/ChunkErrorBoundary';
 import { isAppDarkTheme } from '@/lib/utils';
@@ -1506,9 +1507,16 @@ export default function PatientPortal({ embedded = false } = {}) {
           </button>
           <div className="flex items-center gap-2">
             <HeartPulse className="w-5 h-5 text-slate-700 dark:text-slate-300 hidden md:block" />
-            <div>
-              <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100">My Deliveries</h1>
-              <p className="text-xs text-slate-400 dark:text-slate-400">{format(new Date(), 'EEEE, MMMM d')}</p>
+            {/* THREE ROWS, SAME HEIGHT (owner request Nov 23 2026): "make the
+                   patient portal header show the Version number too. 3 rows without
+                   increasing the height of the portals header height." The two old
+                   rows were 20px + 16px = 36px, which is exactly the height of the
+                   header icon buttons, so the three rows are budgeted to 36px total
+                   (17 + 10 + 9) and the bar does not grow by a pixel. */}
+            <div className="min-w-0">
+              <h1 className="text-sm font-bold leading-[17px] text-slate-900 dark:text-slate-100">My Deliveries</h1>
+              <p className="text-[10px] leading-[10px] text-slate-400 dark:text-slate-400">{format(new Date(), 'EEEE, MMMM d')}</p>
+              <p className="text-[9px] leading-[9px] font-medium text-slate-400 dark:text-slate-500">{formatVersionDigits(BAKED_APK_DIGIT, WEB_VERSION)}</p>
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
