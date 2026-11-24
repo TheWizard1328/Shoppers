@@ -53,11 +53,21 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
   // If newStopOrder is still null on all rows, we're in "before" (loading) state
   const isLoading = rows.length > 0 && rows.every(r => r.newStopOrder === null);
   // Sort by new order when available, otherwise by old order
-  const sorted = [...rows].sort((a, b) =>
-    isLoading
-      ? (a.oldStopOrder || 0) - (b.oldStopOrder || 0)
-      : (a.newStopOrder || 0) - (b.newStopOrder || 0)
-  );
+  // OWNER RULE (Nov 24 2026): this panel lists the OPTIMIZED route, pending stops
+  // included, so the order is the ETA order — not the map/stop_order order, which
+  // deliberately keeps pending stops off the road. Sorting by new ETA (stop_order
+  // as the tie-break) is what puts a pending stop where its ETA actually falls.
+  const _etaMinutes = (v) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(v || ''));
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const sorted = [...rows].sort((a, b) => {
+    if (isLoading) return (a.oldStopOrder || 0) - (b.oldStopOrder || 0);
+    const ea = _etaMinutes(a.newEta);
+    const eb = _etaMinutes(b.newEta);
+    if (ea != null && eb != null && ea !== eb) return ea - eb;
+    return (a.newStopOrder || 0) - (b.newStopOrder || 0);
+  });
 
   // Mobile: center in the space between the top header (~56px) and bottom nav (~64px)
   // so the dialog sits visually centred in the usable viewport area

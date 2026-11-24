@@ -1977,10 +1977,17 @@ let _inheritedWindowCount = 0;
     const _etaStops = routeStops.map((stop) => {
       const d = stop.delivery || {};
       const pickupNotStarted = !!isFutureRoute && !routeOfficiallyStarted && !!stop.isPickup;
-      const _puFloor = _pendingPickupFloor(stop);
+      // OWNER RULE (Nov 24 2026, final): a PENDING stop is floored by its pickup's
+      // ETA, never by its own window start. Its pickup is always earlier in this
+      // same chain (sharedEnforcePickupBeforePending), so the ladder already
+      // arrives at the pickup's freshly computed ETA + dwell + travel. Any window
+      // floor of its own would pull the ETA back to 12:05 and break the order, so
+      // pending stops carry NO floor here.
+      const _isPendingStop = String(d.status || '').toLowerCase() === 'pending';
+      const _puFloor = _isPendingStop ? null : undefined;
       return {
         id: d.id,
-        windowFloorMinutes: Number.isFinite(_puFloor) ? _puFloor : sharedWindowFloorMinutesOf({
+        windowFloorMinutes: _isPendingStop ? null : sharedWindowFloorMinutesOf({
           windowStart: stop.windowStart,
           deliveryTimeStart: d.delivery_time_start,
           timeWindowStart: d.time_window_start,

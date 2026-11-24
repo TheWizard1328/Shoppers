@@ -1355,11 +1355,17 @@ Deno.serve(async (req) => {
     // dwell. A stored estimated_duration_minutes is never used again.
     const _etaStops = orderedStops.map((stop) => ({
       id: String(stop.id),
-      windowFloorMinutes: sharedWindowFloorMinutesOf({
-        windowStart: stop.windowStart,
-        deliveryTimeStart: stop.deliveryTimeStart,
-        timeWindowStart: stop.timeWindowStart,
-      }),
+      // OWNER RULE (Nov 24 2026, client parity): a PENDING stop is floored by its
+      // pickup's ETA, never by its own window start. Its pickup precedes it in this
+      // same chain, so the ladder arrives there naturally; its own window floor
+      // would pull the ETA back before the pickup.
+      windowFloorMinutes: String((stop as any).status || '').toLowerCase() === 'pending'
+        ? null
+        : sharedWindowFloorMinutesOf({
+          windowStart: stop.windowStart,
+          deliveryTimeStart: stop.deliveryTimeStart,
+          timeWindowStart: stop.timeWindowStart,
+        }),
       pickupFloorMinutes: (!routeInProgress && stop.isPickup) ? parseTimeToMinutes(stop.deliveryTimeStart) : null,
       dwellMinutes: sharedDwellMinutes({ extraTime: stop.extraTime, isPickup: !!stop.isPickup }),
     }));
