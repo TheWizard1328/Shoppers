@@ -735,6 +735,15 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
       if (required <= 0 || d?.cod_confirmed_collected || !d?.id) continue;
       const locId = storeToLoc.get(String(d?.store_id || ''));
       if (!locId) continue;
+      // TRUE-UP WINDOW (owner report Nov 24 2026: Callingwood read $127.49 instead of
+      // $114.09). Without a window this pass re-credited EVERY old manual mark on every
+      // load - the Oct 14 Scona $13.40 failed COD marked refunded Oct 15 was the exact
+      // extra $13.40. Only a refund that landed inside the same window the rest of the
+      // page uses (true-up minus 6h) is new money on the card.
+      const refundAtStr = marksF[String(d.id)]?.at || String(d?.cod_refunded_at || '');
+      const refundMs = refundAtStr ? new Date(refundAtStr).getTime() : null;
+      if (tuMs != null && refundMs != null && refundMs < tuMs - 6 * 3600000) continue;
+      if (tuMs != null && refundMs == null && !isCounted(d)) continue;
       const marked = !!marksF[String(d.id)] || !!String(d?.cod_refunded_at || '');
       const autoRefund = marked ? false : isFailedCodRefunded(
         { delivery_id: d.id, amount: required, date: String(d.delivery_date || '').slice(0, 10), store_id: d.store_id },
