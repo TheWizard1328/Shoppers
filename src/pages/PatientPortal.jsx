@@ -276,7 +276,7 @@ function portalFit(map, points, pad = {}) {
   map.flyTo(center, targetZoom, { duration: 0.75 });
 }
 
-function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly = false }) {
+function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly = false, refitSignal = 0 }) {
   const map = useMap();
   // ONE SIGNATURE PER FIT (owner report Nov 3 2026): the fit used to key off a
   // point COUNT plus the pad, so a coordinate that arrived in a later wave was
@@ -337,15 +337,10 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
     };
   }, [map]);
 
-  useEffect(() => {
-    // Must have the patient's location for any meaningful frame.
+  // One frame builder for every caller (the signature effect and the refresh
+  // refit), so the two can never drift apart.
+  const fitFrame = useCallback(() => {
     if (!patientLatLng) return;
-    // Nothing fits until the 2-second settle window closes (unless the map is
-    // already showing a frame and only needs a redraw).
-    if (!armed && !fittedSignatureRef.current) return;
-    if (fittedSignatureRef.current === signature) return;
-    fittedSignatureRef.current = signature;
-
     // ── SETTLED FOCUS (owner rule Nov 3 2026) ────────────────────────────────
     // Completed or failed delivery: pan/zoom to the patient's home and the pickup
     // location ONLY. The driver has already been here, so his position and the
@@ -363,7 +358,31 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
       // Normal case: fit store + patient (+ any visible route geometry)
       doFit([storeLatLng, patientLatLng, ...routePoints], mapPad);
     }
-  }, [signature, armed, doFit, patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad?.top, mapPad?.bottom, settledOnly]);
+  }, [doFit, patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly]);
+
+  useEffect(() => {
+    // Must have the patient's location for any meaningful frame.
+    if (!patientLatLng) return;
+    // Nothing fits until the 2-second settle window closes (unless the map is
+    // already showing a frame and only needs a redraw).
+    if (!armed && !fittedSignatureRef.current) return;
+    if (fittedSignatureRef.current === signature) return;
+    fittedSignatureRef.current = signature;
+    fitFrame();
+  }, [signature, armed, fitFrame, patientLatLng]);
+
+  // ── REFRESH REFIT (owner request Nov 23 2026) ────────────────────────────
+  // "if the patient presses the refresh spinner we should also repan & zoom the
+  // map to auto fit." A data refresh alone can leave the map parked wherever the
+  // patient had dragged it, or on a frame that predates the new data. Every tap
+  // of the header refresh button bumps refitSignal, which forces one fresh
+  // portalFit on the CURRENT points, bypassing both the settle window and the
+  // "same signature, skip" guard.
+  useEffect(() => {
+    if (!refitSignal) return;
+    fittedSignatureRef.current = signature;
+    fitFrame();
+  }, [refitSignal]);
   return null;
 }
 
@@ -606,6 +625,8 @@ export default function PatientPortal({ embedded = false } = {}) {
   const [loading, setLoading] = useState(true);
   // Spinner while the refresh button runs a data refresh or installs an update.
   const [updating, setUpdating] = useState(false);
+  // Bumped by the header refresh spinner so the map re-frames after the reload.
+  const [mapRefitSignal, setMapRefitSignal] = useState(0);
   const [liveConnected, setLiveConnected] = useState(false);
   // Stops REMAINING today on the driver's route — ONE number for both surfaces
   // (the red badge on the patient's home marker AND the card's "stops left"
@@ -1589,7 +1610,11 @@ export default function PatientPortal({ embedded = false } = {}) {
                   return;
                 }
                 try {setUpdating(true);} catch {/* ignore */}
-                loadData().finally(() => setUpdating(false));
+                // Owner request Nov 23 2026: the same tap re-frames the map.
+                loadData().finally(() => {
+                  setUpdating(false);
+                  setMapRefitSignal((n) => n + 1);
+                });
               }}
               className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
               title={hasWebUpdate ? 'Update available — tap to install' : 'Refresh'}
@@ -1681,7 +1706,8 @@ export default function PatientPortal({ embedded = false } = {}) {
                 showDriver={showLiveTracking && !!driverLocation}
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
                 mapPad={mapPad}
-                settledOnly={settledDelivery} />
+                settledOnly={settledDelivery}
+                refitSignal={mapRefitSignal} />
               
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
