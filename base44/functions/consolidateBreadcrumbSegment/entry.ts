@@ -1262,12 +1262,19 @@ async function handleSingle(base44, body) {
             boundaryCoords = ubDist > MATCH_RADIUS_M ? [stopLat, stopLng] : [masterPoints[ubIdx][0], masterPoints[ubIdx][1]];
             cursor = ubIdx + 1;
           } else {
-            // No timestamped crumb anywhere — genuine straight line
-            const anchor = boundaryCoords
-              ? [boundaryCoords[0], boundaryCoords[1], 0]
-              : (s === 0 && homePrepend
-                ? [homePrepend[0], homePrepend[1], homePrepend[2]]
-                : [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]);
+            // No timestamped crumb anywhere — genuine straight line.
+            // ORIGIN RULE (owner report Nov 24 2026): the leg starts at the crumb
+            // immediately AFTER the previous stop's end crumb, never at the
+            // previous stop's coords. Using boundaryCoords here made the origin a
+            // synthetic point (timestamp 0) sitting on the old stop instead of the
+            // real crumb the driver recorded next.
+            const anchor = (cursor < masterPoints.length)
+              ? [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]
+              : (boundaryCoords
+                ? [boundaryCoords[0], boundaryCoords[1], 0]
+                : (s === 0 && homePrepend
+                  ? [homePrepend[0], homePrepend[1], homePrepend[2]]
+                  : [stopLat, stopLng, 0]));
             pts = [anchor, [stopLat, stopLng, swc.dtMs ?? 0]];
             matchDistance = win.closestDist;
             method = 'far-miss-synthetic';
@@ -1277,12 +1284,17 @@ async function handleSingle(base44, body) {
             boundaryCoords = [stopLat, stopLng];
           }
         } else {
-          // No delivery time — no time anchor, genuine straight 2-point line
-          const anchor = boundaryCoords
-            ? [boundaryCoords[0], boundaryCoords[1], 0]
-            : (s === 0 && homePrepend
-              ? [homePrepend[0], homePrepend[1], homePrepend[2]]
-              : [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]);
+          // No delivery time — no time anchor, genuine straight 2-point line.
+          // Same ORIGIN RULE as above: the first point is the crumb right after
+          // the previous stop's end crumb (pickups and time-less stops hit this
+          // branch, which is why their legs started on the previous stop's pin).
+          const anchor = (cursor < masterPoints.length)
+            ? [masterPoints[cursor][0], masterPoints[cursor][1], masterPoints[cursor][2] || 0]
+            : (boundaryCoords
+              ? [boundaryCoords[0], boundaryCoords[1], 0]
+              : (s === 0 && homePrepend
+                ? [homePrepend[0], homePrepend[1], homePrepend[2]]
+                : [stopLat, stopLng, 0]));
           pts = [anchor, [stopLat, stopLng, swc.dtMs ?? 0]];
           matchDistance = win.closestDist;
           method = 'far-miss-synthetic';
