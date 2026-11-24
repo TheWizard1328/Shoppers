@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,9 +20,13 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
   } catch (_) {}
 })();
 import { userHasRole, isAppOwner } from '../utils/userRoles';
-import { useSquareBalancesSummary, getBalanceLevel, BALANCE_LEVELS, resolveDriverBadgeStoreIds } from '../square/useSquareBalancesSummary';
-import SquareBalanceRequestDialog from '../square/SquareBalanceRequestDialog';
-import SquareLowBalanceAlert from '../square/SquareLowBalanceAlert';
+// CODE SCAN (Nov 24 2026, #2 follow-up): the 158KB balances module used to be imported
+// statically here, which kept it in the boot bundle. Only the colour scale is needed
+// eagerly; the loader and the two dialogs are lazy chunks now.
+import { BALANCE_LEVELS } from '../square/balanceLevels';
+const SidebarSquareData = React.lazy(() => import('./SidebarSquareData'));
+const SquareLowBalanceAlert = React.lazy(() => import('../square/SquareLowBalanceAlert'));
+const SquareBalanceRequestDialog = React.lazy(() => import('../square/SquareBalanceRequestDialog'));
 import { edmontonWallString } from '../utils/albertaTime';
 import { useBookedOffBadge } from './useBookedOffBadge';
 
@@ -170,102 +174,20 @@ export default function AppSidebar({
   // Dispatchers can't open the balances page — clicking the Square Balances
   // link opens a dialog that asks the App Owner for more money on a card.
   const [showBalanceRequest, setShowBalanceRequest] = useState(false);
-  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc, weeklyByStore: sqWeeklyByStore, storeNames: sqStoreNames, dailyRemainingByStore: sqDailyRemaining } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null, isAppOwner(currentUser));
+  // Square data arrives from the lazily-loaded SidebarSquareData chunk.
+  const [sqData, setSqData] = useState({ ready: false, byLocId: null, storeToLoc: null, badge: null, scopeEmpty: false });
+  const handleSqData = useCallback((d) => setSqData(d), []);
+  const sqReady = sqData.ready;
+  const sqByLocId = sqData.byLocId;
+  const sqStoreToLoc = sqData.storeToLoc;
   // Owner spec (Nov 11 2026): the badge scope follows the SELECTED date in the
   // global filters (never the current date). Falls back to today only when no
   // date is set at all.
   const sqSelectedDate = String(globalFilters.getSelectedDate?.() || '').slice(0, 10) ||
     edmontonWallString(new Date()).slice(0, 10);
-  // Driver badge scope resolved against the SELECTED date (gates: default
-  // assigned stores -> scheduled stores -> that date's stops -> N/A).
-  const [sqDriverScope, setSqDriverScope] = useState(null);
-  useEffect(() => {
-    if (!sqIsDriver || !currentUser?.id) { setSqDriverScope(null); return; }
-    let alive = true;
-    resolveDriverBadgeStoreIds({
-      driverId: currentUser?.id,
-      dateStr: sqSelectedDate,
-      defaultStoreIds: currentUser?.store_ids,
-      deliveries,
-    })
-      .then((res) => { if (alive) setSqDriverScope(res); })
-      .catch(() => { if (alive) setSqDriverScope({ storeIds: [], source: 'error' }); });
-    return () => { alive = false; };
-  }, [sqIsDriver, currentUser?.id, sqSelectedDate, deliveries]);
-
-  const sqBadge = useMemo(() => {
-    if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
-    let storeIds = null;
-    if (sqIsDriver || sqIsDispatcher) {
-      // The driver's own stores come first (fixed assignments); a route with no
-      // assigned stores falls back to today's route stores.
-      storeIds = (currentUser?.store_ids || []).map(String).filter(Boolean);
-      if (sqIsDriver) {
-        // Gates (owner spec Nov 11 2026, selected date only): default assigned
-        // stores -> stores scheduled that date -> stores on that date's stops
-        // -> empty scope ("N/A"). Stat holidays skip the schedule gates.
-        storeIds = sqDriverScope?.storeIds || [];
-      }
-    }
-    let total = 0,avg = 0,found = false;
-    if (sqIsAdmin) {
-      // Admin: all cards combined against the combined 7-day COD average.
-      for (const row of sqByLocId.values()) {
-        total += Number(row?.cardEstimate || 0);
-        avg += Number(row?.codAvg || 0);
-      }
-      found = sqByLocId.size > 0;
-    } else if (storeIds && storeIds.length && sqStoreToLoc) {
-      // Driver/dispatcher: cards for their stores, but the COD average is built
-      // from THEIR stores' deliveries only (7 days, excluding today).
-      const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc.get(String(sid))).filter(Boolean))];
-      for (const lid of locIds) {
-        const row = sqByLocId.get(lid);
-        if (row) {total += Number(row.cardEstimate || 0);found = true;}
-      }
-      for (const sid of storeIds) avg += Number(sqWeeklyByStore?.get(String(sid)) || 0) / 7;
-    }
-    if (!found) return null;
-    // Dispatcher balloon: today's remaining CODs (count + total) across their stores
-    let remaining = null;
-    if (sqIsDispatcher && storeIds && storeIds.length) {
-      let c = 0,t = 0;
-      for (const sid of storeIds) {
-        const r = sqDailyRemaining?.get(String(sid));
-        if (r) {c += Number(r.count || 0);t += Number(r.total || 0);}
-      }
-      remaining = { count: c, total: t };
-    }
-    // Hover-balloon lines: one per store (the user's stores), showing the balance of
-    // that store's card, colored by the card's level.
-    const balloonStoreIds = sqIsAdmin ?
-    [...sqStoreToLoc.keys()] :
-    storeIds || [];
-    const lines = balloonStoreIds.
-    map((sid) => {
-      const lid = sqStoreToLoc.get(String(sid));
-      const row = lid ? sqByLocId.get(lid) : null;
-      if (!row) return null;
-      return {
-        storeId: String(sid),
-        name: sqStoreNames?.get(String(sid)) || String(sid),
-        balance: row.cardEstimate,
-        level: row.level
-      };
-    }).
-    filter(Boolean).
-    sort((a, b) => a.name.localeCompare(b.name));
-    return { total, avg, level: getBalanceLevel(total, avg), lines, remaining };
-  }, [sqReady, sqByLocId, sqStoreToLoc, sqWeeklyByStore, sqStoreNames, sqDailyRemaining, sqIsAdmin, sqIsDriver, sqIsDispatcher, currentUser, deliveries, sqSelectedDate, sqDriverScope]);
-  // "N/A" = loaded but nothing in scope for the selected date. "…" is reserved
-  // for the brief load window, so a driver with no stops that day never sits on
-  // an endless ellipsis (owner report Nov 11 2026).
-  const sqScopeEmpty = useMemo(() => {
-    if (sqIsAdmin) return false;
-    if (sqIsDriver) return !!sqDriverScope && (sqDriverScope.storeIds || []).length === 0;
-    const assigned = (currentUser?.store_ids || []).map(String).filter(Boolean);
-    return assigned.length === 0; // dispatcher with no store assigned
-  }, [sqIsAdmin, sqIsDriver, sqDriverScope, currentUser]);
+  // Badge, scope and the two dialogs' Maps all come from SidebarSquareData.
+  const sqBadge = sqData.badge;
+  const sqScopeEmpty = sqData.scopeEmpty;
   const sqBadgeLabel = sqBadge != null ?
   `$${Math.round(sqBadge.total).toLocaleString()}` :
   sqReady && sqScopeEmpty ? 'N/A' : '…';
@@ -832,12 +754,25 @@ export default function AppSidebar({
       {/* Owner-only: low-balance alert balloon (mobile: pops above the side
                                      panel button; desktop: pops out from the Square Balances link while
                                      the sidebar is open) + one deduped push per low-state change. */}
-      <SquareLowBalanceAlert
-                ready={sqReady}
-                byLocId={sqByLocId}
-                currentUser={currentUser}
-                sidebarOpen={sidebarOpen}
-                isMobileLike={isMobile || isTabletPortrait} />
+      <React.Suspense fallback={null}>
+        <SidebarSquareData
+          currentUser={currentUser}
+          deliveries={deliveries}
+          selectedDate={sqSelectedDate}
+          isAdmin={sqIsAdmin}
+          isDriver={sqIsDriver}
+          isDispatcher={sqIsDispatcher}
+          onData={handleSqData} />
+      </React.Suspense>
+
+      <React.Suspense fallback={null}>
+        <SquareLowBalanceAlert
+                  ready={sqReady}
+                  byLocId={sqByLocId}
+                  currentUser={currentUser}
+                  sidebarOpen={sidebarOpen}
+                  isMobileLike={isMobile || isTabletPortrait} />
+      </React.Suspense>
               
 
       {isAppOwner(currentUser) &&
@@ -991,13 +926,15 @@ export default function AppSidebar({
           }
   </div>
 
-  <SquareBalanceRequestDialog
-          open={showBalanceRequest}
-          onOpenChange={setShowBalanceRequest}
-          currentUser={currentUser}
-          appUsers={appUsers}
-          byLocId={sqByLocId}
-          storeToLoc={sqStoreToLoc} />
+  <React.Suspense fallback={null}>
+    <SquareBalanceRequestDialog
+            open={showBalanceRequest}
+            onOpenChange={setShowBalanceRequest}
+            currentUser={currentUser}
+            appUsers={appUsers}
+            byLocId={sqByLocId}
+            storeToLoc={sqStoreToLoc} />
+  </React.Suspense>
 
   <DriverAvailabilityPanel
           currentUser={currentUser}

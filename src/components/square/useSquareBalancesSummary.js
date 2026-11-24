@@ -1746,20 +1746,10 @@ export function weeklyAvgByLocFromStores(storeToLoc, weeklyByStore) {
   return avg;
 }
 
-// Color level: green when the balance is more than $20 ABOVE the 7-day average
-// daily CODs to collect, red when more than $20 BELOW, yellow inside the ±$20 band.
-export const BALANCE_BAND = 20;
-export function getBalanceLevel(balance, codAvg) {
-  const diff = (Number(balance) || 0) - (Number(codAvg) || 0);
-  if (diff > BALANCE_BAND) return 'green';
-  if (diff >= -BALANCE_BAND) return 'yellow';
-  return 'red';
-}
-export const BALANCE_LEVELS = {
-  green: { border: '#10b981', tint: 'rgba(16, 185, 129, 0.07)', chipBg: '#d1fae5', chipText: '#065f46' },
-  yellow: { border: '#f59e0b', tint: 'rgba(245, 158, 11, 0.08)', chipBg: '#fef3c7', chipText: '#92400e' },
-  red: { border: '#ef4444', tint: 'rgba(239, 68, 68, 0.07)', chipBg: '#fee2e2', chipText: '#991b1b' },
-};
+// BALANCE_BAND / getBalanceLevel / BALANCE_LEVELS moved to ./balanceLevels.js so light
+// importers (sidebar legend, low-balance alert) no longer pull this whole module into the
+// boot bundle. Re-exported here for existing importers.
+export { BALANCE_BAND, getBalanceLevel, BALANCE_LEVELS } from './balanceLevels';
 
 // A record/event touches a COD if it carries a COD amount, payments or a
 // collection flag, a cod_* field was edited, or (for deletes, where we may not
