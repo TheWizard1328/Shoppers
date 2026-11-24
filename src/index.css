@@ -103,11 +103,13 @@
      under the status bar. */
   html.is-ios-standalone {
     --portal-vh: calc(100dvh + var(--app-inset-top));
-    /* OWNER (Nov 23 2026): 10px more MAP CONTAINER on iOS. The portal page grows
-       by this amount, so the flex-1 map section (and the Leaflet canvas inside
-       it) is genuinely 10px taller and the bottom of the page - pure padding -
-       falls under the screen edge, which html overflow:hidden already clips. */
-    --portal-map-grow: 10px;
+    /* OWNER (Nov 23 2026, second correction): the 10px container growth is GONE.
+       It pushed the bottom of the portal past the screen edge (html overflow is
+       hidden there), so the Leaflet/HERE attribution in the map's bottom-right
+       corner was clipped on an iPhone while every other shell showed it. The iOS
+       page is now exactly as tall as before the experiment: --portal-map-grow
+       stays at its :root value of 0. */
+    --portal-map-grow: 0px;
     overflow: hidden;
   }
   html.is-ios-standalone body {
