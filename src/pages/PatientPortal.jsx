@@ -1637,7 +1637,9 @@ export default function PatientPortal({ embedded = false } = {}) {
 
         {/* Map */}
         <div
-          className="flex-1 overflow-hidden relative pt-2 pr-2 pl-2 pb-1"
+          /* min-h-0 (w316): without it a flex child refuses to shrink below its
+             content, so the map section could hang below the app's bottom edge. */
+          className="flex-1 min-h-0 overflow-hidden relative pt-2 pr-2 pl-2 pb-1"
           /* Owner, Nov 23 2026 (w307): no extra 1rem above the phone's navigation
              bar - the inset already reserves the OS bar, so the extra 16px read as a
              dead strip. Full-page ends flush on var(--app-inset-bottom). */

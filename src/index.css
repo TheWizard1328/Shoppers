@@ -113,7 +113,13 @@
      scroll inside their own containers), so the header cannot be dragged up
      under the status bar. */
   html.is-ios-standalone {
-    --portal-vh: calc(100dvh + var(--app-inset-top));
+    /* OWNER (Nov 23 2026, w316): "reduce the map's container to fit within the
+       main app container, it is still too tall and pulling some of the map below
+       the app's bottom edge." On this iPhone 100dvh already spans the WHOLE painted
+       screen, so adding the status-bar band on top made the page ~48px taller than
+       the screen: the map section then hung past the bottom edge. Plain 100dvh is
+       the correct page height; the header keeps its own inset-top padding. */
+    --portal-vh: 100dvh;
     /* OWNER (Nov 23 2026, second correction): the 10px container growth is GONE.
        It pushed the bottom of the portal past the screen edge (html overflow is
        hidden there), so the Leaflet/HERE attribution in the map's bottom-right
