@@ -1727,7 +1727,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         if (ntRows !== null) collect(ntRows || []);
       }
       for (const d of deliveryList) {
-        if (d?.status !== 'completed') continue;
+        // OWNER REPORT (Nov 24 2026, Scona Nov 23 $112.51): a FAILED COD that was swiped
+        // and then refunded belongs in Collected with a Refunded badge. It was excluded
+        // here by the completed-only gate, so the row showed nowhere at all.
+        const earlyRefundAt = String(d?.cod_refunded_at || '');
+        if (d?.status !== 'completed' && !(d?.status === 'failed' && earlyRefundAt)) continue;
         const doneAt = String(d.actual_delivery_time || '');
         // OWNER SPEC (Oct 19 2026): a PAST-dated delivery whose COD was
         // collected TODAY still belongs in "Collected today" — retro/backdated
@@ -1752,7 +1756,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const inKeepWindow = String(d.delivery_date || '') >= weekAgoEdm
           || (spendDay && spendDay >= weekAgoEdm)
           || (doneDay && doneDay >= weekAgoEdm);
-        if (!spentToday && doneDay !== today && !(markedNotTapped && inKeepWindow)) continue;
+        // A REFUNDED row stays for the week that follows the refund, even when the
+        // delivery itself was another day (owner report Nov 24 2026).
+        const refundDay = earlyRefundAt ? edmontonBusinessDayKey(parseAnyTimestamp(earlyRefundAt)) : null;
+        if (!spentToday && doneDay !== today && !(markedNotTapped && inKeepWindow) && !(refundDay && refundDay >= weekAgoEdm)) continue;
         const collectionMoment = spentToday ? spendAt : doneAt;
         const required = centsOf(d?.cod_total_amount_required);
         const payments = Array.isArray(d?.cod_payments) ? d.cod_payments : [];

@@ -719,6 +719,38 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
       if (rows.length < 2000) break;
     }
   }
+  // FAILED + REFUNDED (owner report Nov 24 2026, Scona Nov 23 $112.51: 'the Callingwood
+  // card is only at $1.58 instead of $114.09'): a failed COD that was swiped on the card
+  // and then refunded puts its FULL amount back on the card, and a failed COD never had
+  // fee / loan / folder taken, so there is no split here. The w323 attempt credited inside
+  // the OUTSTANDING pass, whose aggregation only holds the Uncollected lists - those
+  // credits are never read, which is why nothing moved. This is the credits aggregation.
+  try {
+    const [refundRowsF, marksF] = await Promise.all([
+      loadFailedRefundEntries(cfg, userId).catch(() => []),
+      loadFailedRefundMarksMap().catch(() => ({}))
+    ]);
+    for (const d of (deliveriesWithStatus(allDeliveries, 'failed') || [])) {
+      const required = Number(d?.cod_total_amount_required || 0);
+      if (required <= 0 || d?.cod_confirmed_collected || !d?.id) continue;
+      const locId = storeToLoc.get(String(d?.store_id || ''));
+      if (!locId) continue;
+      const marked = !!marksF[String(d.id)] || !!String(d?.cod_refunded_at || '');
+      const autoRefund = marked ? false : isFailedCodRefunded(
+        { delivery_id: d.id, amount: required, date: String(d.delivery_date || '').slice(0, 10), store_id: d.store_id },
+        refundRowsF,
+        (sid) => storeToLoc.get(String(sid || ''))
+      );
+      if (!marked && !autoRefund) continue;
+      const grossC = Math.round(required * 100);
+      if (grossC <= 0) continue;
+      const aggR = aggFor(locId);
+      aggR.gross += grossC; aggR.credits += grossC; aggR.count += 1;
+      const at = marksF[String(d.id)]?.at || String(d?.cod_refunded_at || '');
+      if (at && String(aggR.lastAt || '') < at) aggR.lastAt = at;
+    }
+  } catch { /* page still renders without the refund credit */ }
+
   for (const agg of byLoc.values()) {
     // Accumulators are integer cents — divide once at the boundary.
     agg.gross = agg.gross / 100; agg.fees = agg.fees / 100; agg.loan = agg.loan / 100;
@@ -1468,19 +1500,11 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
         // swiped on the card and then refunded in Square was simply skipped here, so
         // the row vanished AND nothing was credited. The money came back onto the card,
         // so the FULL gross is credited (a failed COD never had fee/loan/folder taken).
+        // The money side of a refunded failed COD is credited in loadDeliveryCardCredits
+        // (the credits aggregation). This pass only builds the Uncollected lists, so it
+        // must not try to credit anything here (w323 did, and nothing moved).
         const manualRefund = !!manualRefundMarks[String(d.id)];
         const autoRefundNow = !manualRefund && isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || '')));
-        if (manualRefund || autoRefundNow) {
-          const grossC = Math.round(centsOf(required));
-          if (grossC > 0) {
-            const aggR = aggFor(locId);
-            aggR.gross += grossC;
-            aggR.credits += grossC;
-            aggR.count += 1;
-            const refundAt = manualRefundMarks[String(d.id)]?.at || String(d?.cod_refunded_at || '');
-            if (refundAt && String(aggR.lastAt || '') < refundAt) aggR.lastAt = refundAt;
-          }
-        }
         if (manualRefund) continue; // manual mark — no alert (owner did it himself)
         if (autoRefundNow) {
           // AUTO-DETECTED refund — collect for the refund-posted alert
