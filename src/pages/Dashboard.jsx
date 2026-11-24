@@ -52,6 +52,7 @@ import { handleStatusUpdate as _handleStatusUpdateImpl } from '@/components/dash
 import { useFabControlEventHandler } from '@/components/dashboard/useFabControlEventHandler';
 import { remoteLogger } from '@/components/utils/remoteLogger';
 import { restartStatusForDelivery } from '@/components/utils/deliveryTypeUtils';
+import { usePatientDeliveryPushes } from '@/components/utils/patientDeliveryPushes';
 import { startPortalWatcherPolling } from '../components/utils/portalWatchers';
 import { useStopCardsBaseHeight } from '@/components/dashboard/useStopCardsBaseHeight';
 import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';import { useKittOptimizationMessages } from '@/components/dashboard/useKittOptimizationMessages';import { runAddDelay } from '@/components/dashboard/handleAddDelay';import { runDualDriverOptimization } from '@/components/dashboard/handleDualDriverOptimization';import { usePullToSyncDataReadyEffect } from '@/components/dashboard/usePullToSyncDataReadyEffect';import { useDataSourceChangedEffect } from '@/components/dashboard/useDataSourceChangedEffect';import { COMPLETED_ROUTE_RADIUS_KM, getCityRadiusBounds, resolveCompletedRouteCity } from '@/components/dashboard/completedRouteView';import { useDispatcherAutoPhaseController } from '@/components/dashboard/useDispatcherAutoPhaseController';
@@ -244,6 +245,11 @@ function Dashboard() {
   const [cardsReadyForFAB, setCardsReadyForFAB] = useState(false);
   const [isLoadingPayrollStats, setIsLoadingPayrollStats] = useState(false);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
+
+  // Patient delivery pushes (owner spec Nov 24 2026): pending / picked up /
+  // next / delayed. Primary device only, so one route never notifies a patient
+  // from three devices at once.
+  usePatientDeliveryPushes({ deliveries, patients, currentUser, enabled: isPrimaryDevice });
   const { isMobile } = useDevice();
   // Read once — this CSS variable is set at layout boot and never changes at runtime
   const bottomNavHeight = useMemo(() => { try { const val = window.getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height').trim(); if (!val || val === '0px') return 0; const match = val.match(/(\d+)px/); return match ? parseInt(match[1], 10) : 0; } catch (_) { return 0; } }, []); // eslint-disable-line react-hooks/exhaustive-deps

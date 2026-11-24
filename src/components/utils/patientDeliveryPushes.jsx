@@ -1,0 +1,276 @@
+import { useEffect, useRef } from 'react';
+import { base44 } from '@/api/base44Client';
+
+/**
+ * Patient delivery pushes (owner spec Nov 24 2026).
+ *
+ * Four states, one push each, copy approved verbatim by the owner:
+ *   pending  "Dear <name>, Your Rx delivery is ready and awaiting pickup by the
+ *            driver at <pickup ETA> - <+30 min>"
+ *   pickup   "Dear <name>, Your Rx delivery has been picked up by the driver and
+ *            ETA is <eta> - <+30 min>"
+ *   next     "Dear <name>, Your Rx is next for delivery with an ETA of <eta>"
+ *   delayed  "Dear <name>, Your Rx delivery is slightly delayed but should arrive
+ *            now by <eta> - <+30 min>"
+ *
+ * Delivery rules:
+ *   • Only today's active stops for a real patient (store pickups are skipped).
+ *   • Everything is evaluated after a settle window, so a route optimization
+ *     that lands right after a status change still supplies the final ETA.
+ *   • The "next" push waits 30s and re-checks the flag, so a re-optimize that
+ *     moves the flag before then never notifies the wrong patient.
+ *   • One push per state per delivery per device (localStorage ledger); the
+ *     delayed push also remembers the window it sent and only fires again when
+ *     the arrival window moves later.
+ */
+
+const LEDGER_KEY = 'rxdeliver:patientDeliveryPushes';
+const SETTLE_MS = 45000;
+const NEXT_STABLE_MS = 30000;
+const PENDING_FRESH_MS = 10 * 60 * 1000;
+const ACTIVE = new Set(['pending', 'in_transit', 'en_route']);
+
+function readLedger() {
+  try {
+    return JSON.parse(localStorage.getItem(LEDGER_KEY) || '{}') || {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function writeLedger(ledger) {
+  try {
+    localStorage.setItem(LEDGER_KEY, JSON.stringify(ledger));
+  } catch (_) { /* private mode / quota — pushes simply may repeat */ }
+}
+
+function parseHHmm(value) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(value || '').trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min)) return null;
+  return h * 60 + min;
+}
+
+function fmtMinutes(total) {
+  const wrapped = ((Math.round(total) % 1440) + 1440) % 1440;
+  const h24 = Math.floor(wrapped / 60);
+  const min = wrapped % 60;
+  const suffix = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${String(min).padStart(2, '0')} ${suffix}`;
+}
+
+/** Minutes-of-day for a delivery's ETA, falling back to its window start. */
+function etaMinutes(delivery) {
+  const eta = parseHHmm(delivery?.delivery_time_eta);
+  if (eta != null) return eta;
+  return parseHHmm(delivery?.delivery_time_start);
+}
+
+function windowText(startMinutes) {
+  return `${fmtMinutes(startMinutes)} - ${fmtMinutes(startMinutes + 30)}`;
+}
+
+export function buildPatientDeliveryMessage({ state, patientName, etaText, window }) {
+  const name = String(patientName || '').trim().split(/\s+/)[0] || 'there';
+  switch (state) {
+    case 'pending':
+      return `Dear ${name}, Your Rx delivery is ready and awaiting pickup by the driver at ${window}`;
+    case 'pickup':
+      return `Dear ${name}, Your Rx delivery has been picked up by the driver and ETA is ${window}`;
+    case 'next':
+      return `Dear ${name}, Your Rx is next for delivery with an ETA of ${etaText}`;
+    case 'delayed':
+      return `Dear ${name}, Your Rx delivery is slightly delayed but should arrive now by ${window}`;
+    default:
+      return '';
+  }
+}
+
+async function pushPatient(patientId, title, body, tag) {
+  if (!patientId || !body) return { sent: 0 };
+  return base44.functions.invoke('patientPush', {
+    action: 'send',
+    patient_id: patientId,
+    title: title || 'Your pharmacy',
+    body,
+    url: '/patient-portal',
+    tag,
+  }).catch(() => ({ sent: 0 }));
+}
+
+function albertaTodayKey() {
+  return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Watches the dashboard's deliveries and sends the four patient pushes.
+ * Mount once (Dashboard). `enabled` should be the primary-device flag so only
+ * the device actually driving the route notifies patients.
+ */
+export function usePatientDeliveryPushes({ deliveries, patients, currentUser, enabled }) {
+  const deliveriesRef = useRef(deliveries);
+  const patientsRef = useRef(patients);
+  const userRef = useRef(currentUser);
+  const enabledRef = useRef(enabled);
+  const settleTimerRef = useRef(null);
+  const nextTimersRef = useRef(new Map());
+
+  deliveriesRef.current = deliveries;
+  patientsRef.current = patients;
+  userRef.current = currentUser;
+  enabledRef.current = enabled;
+
+  const evaluate = useRef(null);
+
+  evaluate.current = async () => {
+    if (!enabledRef.current) return;
+    const list = Array.isArray(deliveriesRef.current) ? deliveriesRef.current : [];
+    const people = Array.isArray(patientsRef.current) ? patientsRef.current : [];
+    if (list.length === 0) return;
+
+    const today = albertaTodayKey();
+    const nameById = new Map();
+    for (const p of people) {
+      if (p?.id) nameById.set(String(p.id), p.full_name || p.name || '');
+    }
+
+    const ledger = readLedger();
+    const now = Date.now();
+
+    // Parent pickup per PUID, so a pending stop can quote the pickup ETA.
+    const pickupByPuid = new Map();
+    for (const d of list) {
+      if (d?.puid && !d.patient_id) pickupByPuid.set(String(d.puid), d);
+    }
+
+    for (const delivery of list) {
+      if (!delivery?.id || !delivery.patient_id) continue;
+      if (String(delivery.delivery_date || '') !== today) continue;
+      const status = String(delivery.status || '').toLowerCase();
+      if (!ACTIVE.has(status)) continue;
+
+      const entry = ledger[delivery.id] || {};
+      const patientName = nameById.get(String(delivery.patient_id)) || delivery.patient_name || '';
+      const title = delivery.store_name || 'Your pharmacy';
+      const eta = etaMinutes(delivery);
+
+      // ── 1. Created as pending ──────────────────────────────────────────
+      if (status === 'pending' && !entry.pending) {
+        const createdMs = delivery.created_date ? Date.parse(delivery.created_date) : 0;
+        if (createdMs && now - createdMs <= PENDING_FRESH_MS) {
+          const parentPickup = delivery.puid ? pickupByPuid.get(String(delivery.puid)) : null;
+          const pickupMinutes = etaMinutes(parentPickup) ?? eta;
+          if (pickupMinutes != null) {
+            const body = buildPatientDeliveryMessage({
+              state: 'pending',
+              patientName,
+              window: windowText(pickupMinutes),
+            });
+            await pushPatient(delivery.patient_id, title, body, `rx-pending-${delivery.id}`);
+            entry.pending = true;
+            entry.etaEnd = pickupMinutes + 30;
+          }
+        }
+      }
+
+      // ── 2. Picked up (covers staged -> in_transit jumps) ────────────────
+      if ((status === 'in_transit' || status === 'en_route') && !entry.pickup && eta != null) {
+        const body = buildPatientDeliveryMessage({
+          state: 'pickup',
+          patientName,
+          window: windowText(eta),
+        });
+        await pushPatient(delivery.patient_id, title, body, `rx-pickup-${delivery.id}`);
+        entry.pickup = true;
+        entry.etaEnd = eta + 30;
+      }
+
+      // ── 4. Arrival window moved later than the one already sent ─────────
+      if (entry.pickup && eta != null) {
+        const newEnd = eta + 30;
+        const sentEnd = Number(entry.etaEnd || 0);
+        if (sentEnd && newEnd > sentEnd) {
+          const body = buildPatientDeliveryMessage({
+            state: 'delayed',
+            patientName,
+            window: windowText(eta),
+          });
+          await pushPatient(delivery.patient_id, title, body, `rx-delayed-${delivery.id}`);
+          entry.etaEnd = newEnd;
+          entry.delayedAt = now;
+        }
+      }
+
+      ledger[delivery.id] = entry;
+    }
+
+    // ── 3. Next delivery, stable for 30s ─────────────────────────────────
+    const flagged = list.filter((d) => d?.isNextDelivery === true && d.patient_id && ACTIVE.has(String(d.status || '').toLowerCase()));
+    const flaggedIds = new Set(flagged.map((d) => String(d.id)));
+    for (const [id, timer] of nextTimersRef.current.entries()) {
+      if (!flaggedIds.has(id)) {
+        clearTimeout(timer);
+        nextTimersRef.current.delete(id);
+      }
+    }
+    for (const delivery of flagged) {
+      const id = String(delivery.id);
+      if (ledger[id]?.next) continue;
+      if (nextTimersRef.current.has(id)) continue;
+      const timer = setTimeout(async () => {
+        nextTimersRef.current.delete(id);
+        if (!enabledRef.current) return;
+        const latest = (deliveriesRef.current || []).find((d) => String(d.id) === id);
+        // Re-check after the settle: a re-optimize may have moved the flag.
+        if (!latest || latest.isNextDelivery !== true) return;
+        const status = String(latest.status || '').toLowerCase();
+        if (!ACTIVE.has(status)) return;
+        const eta = etaMinutes(latest);
+        if (eta == null) return;
+        const led = readLedger();
+        if (led[id]?.next) return;
+        const people2 = Array.isArray(patientsRef.current) ? patientsRef.current : [];
+        const nm = people2.find((p) => String(p?.id) === String(latest.patient_id));
+        const patientName = nm?.full_name || nm?.name || latest.patient_name || '';
+        const body = buildPatientDeliveryMessage({
+          state: 'next',
+          patientName,
+          etaText: fmtMinutes(eta),
+        });
+        await pushPatient(latest.patient_id, latest.store_name || 'Your pharmacy', body, `rx-next-${id}`);
+        led[id] = { ...(led[id] || {}), next: true };
+        writeLedger(led);
+      }, NEXT_STABLE_MS);
+      nextTimersRef.current.set(id, timer);
+    }
+
+    writeLedger(ledger);
+  };
+
+  // Settle window: any change to the route restarts it, so pushes always carry
+  // the ETA that survived the optimization.
+  useEffect(() => {
+    if (!enabled) return;
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null;
+      evaluate.current?.().catch(() => {});
+    }, SETTLE_MS);
+    return () => {
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+    };
+  }, [deliveries, patients, enabled]);
+
+  useEffect(() => () => {
+    for (const timer of nextTimersRef.current.values()) clearTimeout(timer);
+    nextTimersRef.current.clear();
+  }, []);
+}
+
+export default usePatientDeliveryPushes;
