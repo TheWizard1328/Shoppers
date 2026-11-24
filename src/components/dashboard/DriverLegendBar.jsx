@@ -38,11 +38,21 @@ export default function DriverLegendBar({
           const isSelected = selectedDriverId === route.driverId;
 
           return (
-            <button
+            <span
               key={route.driverId}
-              type="button"
-              className={`flex items-center gap-1.5 px-1 py-0.5 rounded transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 ${isSelected ? 'underline underline-offset-2 font-semibold' : ''}`}
+              data-compact
+              role="button"
+              tabIndex={0}
+              className={`inline-flex items-center gap-1.5 cursor-pointer rounded px-0.5 transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 ${isSelected ? 'underline underline-offset-2 font-semibold' : ''}`}
               onClick={(e) => {
+                e.stopPropagation();
+                if (handleDriverChange) {
+                  handleDriverChange(isSelected ? 'all' : route.driverId);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
                 e.stopPropagation();
                 if (handleDriverChange) {
                   handleDriverChange(isSelected ? 'all' : route.driverId);
@@ -55,7 +65,7 @@ export default function DriverLegendBar({
               </div>
               <span className="text-xs font-medium whitespace-nowrap text-body-2">{route.driverName || 'Unknown'}</span>
               <span className="text-xs text-soft">({route.totalStops})</span>
-            </button>
+            </span>
           );
         })}
       </div>
