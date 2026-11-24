@@ -1641,12 +1641,12 @@ export default function PatientPortal({ embedded = false } = {}) {
           /* Owner, Nov 23 2026 (w307): no extra 1rem above the phone's navigation
              bar - the inset already reserves the OS bar, so the extra 16px read as a
              dead strip. Full-page ends flush on var(--app-inset-bottom). */
-          /* OWNER, Nov 23 2026 (w307): no extra 1rem above the phone's navigation
-             bar - the inset already reserves the OS bar, so the extra 16px read as a
-             dead strip. Full-page ends flush on var(--app-inset-bottom). The iOS
-             extra height is applied to the CONTAINER (--portal-map-grow on the
-             page), not by shrinking this pad. */
-          style={{ paddingBottom: embedded ? '0px' : 'var(--app-inset-bottom)' }}>
+          /* OWNER, Nov 23 2026 (w313): the bottom pad is
+             var(--portal-map-pad-bottom) - the full OS navigation inset on
+             Android/desktop, and the same 8px border the map has on its top and
+             sides on an iPhone home-screen app, so the map reaches the bottom of
+             the screen there instead of leaving a strip above the gesture bar. */
+          style={{ paddingBottom: embedded ? '0px' : 'var(--portal-map-pad-bottom, var(--app-inset-bottom))' }}>
           
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
                  Only while the sidebar is hidden (phones, or the drawer closed), and

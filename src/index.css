@@ -82,12 +82,18 @@
        100dvh, and in the APK 100dvh is already the full edge-to-edge webview. */
     --portal-vh: 100dvh;
 
-    /* Extra height for the patient portal's MAP CONTAINER. 0 everywhere; the
-       iPhone home-screen app adds 10px (below). OWNER (Nov 23 2026): "we also
-       need to increase the map height on IOS ... the maps container should have
-       been increased on IOS instead." The container grows, the OS inset pad
-       stays intact. */
+    /* Extra height for the patient portal's MAP CONTAINER (kept at 0; see the
+       iOS block). */
     --portal-map-grow: 0px;
+
+    /* Bottom pad under the portal map. Everywhere but iOS the map clears the
+       whole OS navigation inset. OWNER (Nov 23 2026, w313): "the app is not
+       reaching completely to the bottom of the screen just above the gesture bar
+       and is still hiding ... border padding that exists on top and both sides."
+       The iPhone home-screen app overrides this to the same 8px border the map
+       has on its top and sides, so the map reaches the bottom edge and its border
+       is visible on all four sides. */
+    --portal-map-pad-bottom: var(--app-inset-bottom);
   }
 
   /* Edge-to-edge APK only: if MainActivity ever fails to inject a status bar
@@ -110,6 +116,12 @@
        page is now exactly as tall as before the experiment: --portal-map-grow
        stays at its :root value of 0. */
     --portal-map-grow: 0px;
+    /* OWNER (Nov 23 2026, w313): the map now runs to the bottom of the screen
+       with the same 8px border as its top and sides, instead of stopping a full
+       34px home-bar inset short and reading as an unpainted strip. The page
+       itself already reaches the screen bottom (--portal-vh), so nothing is
+       clipped; the home indicator overlays the map's bottom edge only. */
+    --portal-map-pad-bottom: 8px;
     overflow: hidden;
   }
   html.is-ios-standalone body {
