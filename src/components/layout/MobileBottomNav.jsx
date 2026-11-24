@@ -1,11 +1,14 @@
 import React from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { createPageUrl } from '@/utils';
-import { userHasRole , isAppOwner } from '@/components/utils/userRoles';
+import { userHasRole } from '@/components/utils/userRoles';
 import { useNavigate } from 'react-router-dom';
 import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
 import { useBookedOffBadge } from './useBookedOffBadge';
 import ShiftCoverageBalloon from './ShiftCoverageBalloon';
+
+// Lazily loaded so the 158KB Square balances module never enters the boot bundle.
+const SquareNavBadge = React.lazy(() => import('./SquareNavBadge'));
 
 import UpdateArrow from '../common/UpdateArrow';
 import UpdateInfoBalloon from '../common/UpdateInfoBalloon';
@@ -21,7 +24,6 @@ import {
   CalendarDays,
   Banknote,
 } from 'lucide-react';
-import { useSquareBalancesSummary } from '@/components/square/useSquareBalancesSummary';
 
 const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle, hasApkUpdate }, ref) {
   const { activeTab, navigateToTab } = useMobileNavigation();
@@ -51,7 +53,11 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
   const isDriverNav = userHasRole(currentUser, 'driver');
   const isDispatcherNav = userHasRole(currentUser, 'dispatcher');
   const isAdminNav = userHasRole(currentUser, 'admin');
-  const { ready: sqReady, byLocId: sqByLocId, storeToLoc: sqStoreToLoc } = useSquareBalancesSummary(!!currentUser, currentUser?.id || null, isAppOwner(currentUser));
+  // CODE SCAN (Nov 24 2026, #2): the balances hook used to be imported STATICALLY here
+  // while the same module was also imported dynamically below, so the split never
+  // happened and every driver downloaded the full 158KB Square balances + IndexedDB
+  // layer at boot. The badge now renders from a lazily-loaded SquareNavBadge chunk.
+  const [sqNavAmount, setSqNavAmount] = React.useState(null);
   // DRIVER NAV BADGE STORE SCOPE (owner report Oct 27 2026: every driver's
   // badge showed $0.00): driver AppUser records carry EMPTY store_ids, so the
   // old store_ids-only scope summed zero cards. Same fallback as the
@@ -107,27 +113,21 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
     resolve();
     return () => { alive = false; };
   }, [currentUser?.id, driverScopeNeeded, isDriverNav]);
-  const sqNavAmount = React.useMemo(() => {
-    if (!sqReady || !sqByLocId || sqByLocId.size === 0) return null;
-    let total = 0;
-    if (isAdminNav || (!isDriverNav && !isDispatcherNav)) {
-      for (const row of sqByLocId.values()) total += Number(row?.cardEstimate || 0);
-    } else {
-      // Still resolving the driver's route scope — stay blank rather than
-      // flashing "N/A" before the IDB resolve finishes.
-      if (isDriverNav && driverNavStoreIds === null) return null;
-      const storeIds = driverNavStoreIds ?? ((currentUser?.store_ids || []).map(String).filter(Boolean));
-      const locIds = [...new Set(storeIds.map((sid) => sqStoreToLoc?.get(String(sid))).filter(Boolean))];
-      // Loaded, but nothing in scope for the selected date -> explicit "N/A"
-      // (never a false $0.00 and never an endless blank).
-      if (locIds.length === 0) return 'N/A';
-      for (const lid of locIds) { const row = sqByLocId.get(lid); if (row) total += Number(row.cardEstimate || 0); }
-    }
-    if (!Number.isFinite(total)) return null;
-    return total >= 1000 ? `$${(total / 1000).toFixed(1)}k` : `$${total.toFixed(2)}`;
-  }, [sqReady, sqByLocId, sqStoreToLoc, isAdminNav, isDriverNav, isDispatcherNav, currentUser, driverNavStoreIds]);
+  const handleSqNavAmount = React.useCallback((v) => setSqNavAmount(v), []);
 
   if (!currentUser) return null;
+
+  // Lazily loaded money badge: renders nothing, reports its formatted amount.
+  const squareBadge = (
+    <React.Suspense fallback={null}>
+      <SquareNavBadge
+        currentUser={currentUser}
+        isAdminNav={isAdminNav}
+        isDriverNav={isDriverNav}
+        isDispatcherNav={isDispatcherNav}
+        driverNavStoreIds={driverNavStoreIds}
+        onAmount={handleSqNavAmount} />
+    </React.Suspense>);
 
   const isDriver = userHasRole(currentUser, 'driver');
   const isDispatcher = userHasRole(currentUser, 'dispatcher');
@@ -177,6 +177,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
       /* No safe-area-inset-bottom here — the .app-container already handles it.
          Adding it here too creates a double-padding dead bar at the bottom. */
       style={{ boxShadow: '0 -2px 10px var(--shadow-color)' }}>
+      {squareBadge}
       <div className="flex items-center gap-1 px-1">
         <button
           type="button"
