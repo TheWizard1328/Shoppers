@@ -23,6 +23,7 @@ import UpdateInfoBalloon from '@/components/common/UpdateInfoBalloon';
 import { useWebUpdateCheck } from '@/components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from '@/components/utils/interactionIdleTracker';
 import { useWakeLockAndVisibility } from '@/components/layout/useWakeLockAndVisibility';
+import { usePortalKeepAwake } from '@/components/patient-portal/usePortalKeepAwake';
 import { BAKED_APK_DIGIT, WEB_VERSION, formatVersionDigits } from '@/version';
 import { clearUserCache } from '@/components/utils/auth';
 import { purgeStaleServiceWorkerAndCaches } from '@/components/utils/ChunkErrorBoundary';
@@ -735,7 +736,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   // app-shell config: the driver-only branches inside (GPS refresh, smart sync)
   // are all gated on locationTracker.isTracking / a logged-in currentUser, which a
   // patient never has, so this only brings up the wake lock + iOS barrier video.
+  // w321: the portal gets its OWN barrier (see usePortalKeepAwake). The shared
+  // Layout hook is left mounted for its visibility/sync behaviour, but the screen
+  // itself is held by the portal hook, which has no app-shell guards at all.
   useWakeLockAndVisibility({});
+  const keepAwake = usePortalKeepAwake();
   useEffect(() => {
     // Idle measurement lives in the shared tracker (Layout owns the same one;
     // the init is idempotent) so "idle" means the same thing everywhere.
@@ -1793,6 +1798,16 @@ export default function PatientPortal({ embedded = false } = {}) {
             </MapContainer>
           </div>
         </div>
+      </div>
+
+      {/* TEMPORARY KEEP-AWAKE DIAGNOSTIC (w321): a 3-character read-out so the owner
+          can say whether the lock and the barrier video are actually live on the
+          iPhone. Removed as soon as he reports back. */}
+      <div
+        className="fixed left-1 bottom-1 z-[2147483000] rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono leading-none text-white"
+        style={{ pointerEvents: 'none' }}
+        aria-hidden="true">
+        KA L{keepAwake.lock ? 1 : 0} V{keepAwake.video ? 1 : 0}
       </div>
 
       <PatientMessaging
