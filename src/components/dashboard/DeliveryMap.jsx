@@ -288,14 +288,28 @@ function DeliveryMap({
     const wrap = (deg) => ((deg + 540) % 360) - 180;
     let current = 0;
     let raf = null;
+    let target = 0;
+    // OWNER REPORT (Nov 24 2026): the bearing used to follow the driver's live
+    // approach heading, so the map kept turning through the corner. It is now
+    // latched: the target only changes when the framed turn changes (or the
+    // preview ends), and it is held steady for the whole manoeuvre.
+    let lockedKey = null;
     const step = () => {
       raf = null;
       const map = headingMapRef.current;
       if (!map || typeof map.setBearing !== "function") return;
-      const heading = getMapHeading();
-      // CSS rotate is clockwise-positive, so a compass heading of H points up
-      // when the map is rotated by -H.
-      const target = heading == null ? 0 : wrap(-heading);
+      const headingState = getMapHeading() || {};
+      const heading = headingState.heading;
+      const key = headingState.key;
+      if (heading == null) {
+        target = 0;
+        lockedKey = null;
+      } else if (key !== lockedKey) {
+        lockedKey = key;
+        // CSS rotate is clockwise-positive, so a compass heading of H points up
+        // when the map is rotated by -H.
+        target = wrap(-heading);
+      }
       const delta = wrap(target - current);
       if (Math.abs(delta) < 3) {
         if (current !== target) {

@@ -1834,7 +1834,13 @@ function Dashboard() {
                 const _t = _tpRes.turn;
                 const _d = fabTargetDriverLocation;
                 if (_t && Number.isFinite(_t.lat) && Number.isFinite(_t.lon) && _d) {
-                  setMapHeading(bearingDeg(_d.latitude, _d.longitude, _t.lat, _t.lon));
+                  // The key is the corner being framed: the map rotates once when
+                  // a new turn is picked up and then holds that bearing until the
+                  // turn is passed (owner request Nov 24 2026).
+                  setMapHeading(
+                    bearingDeg(_d.latitude, _d.longitude, _t.lat, _t.lon),
+                    `${_t.lat.toFixed(5)}:${_t.lon.toFixed(5)}`,
+                  );
                 }
               } catch (_) { /* rotation is cosmetic, never break the preview */ }
               console.log(`🎯 [TurnAutoZoom] ${_tpRes.reason} ahead=${Math.round(_tpRes.turn?.aheadM ?? 0)}m angle=${Math.round(_tpRes.turn?.angleDeg ?? 0)}deg zoom=${window.__currentMapZoom}`);
