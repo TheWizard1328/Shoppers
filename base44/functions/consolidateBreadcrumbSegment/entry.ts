@@ -55,6 +55,10 @@ const TIME_WINDOW_MS = 2 * 60 * 1000; // crumb qualifies by ±2 min of delivery 
 const TIME_WINDOW_WIDE_MS = 10 * 60 * 1000; // time-priority fallback window — a visited stop should always have a crumb within ±10 min
 const VISIT_RUN_MAX_M = 150;         // contiguous crumbs within this of the pin belong to one visit
 const NEAR_MISS_MAX_M = 200;          // closest approach beyond this → straight synthetic line
+// OWNER RULE (Nov 24 2026): splice on the crumb CLOSEST to the stop's exact coords,
+// never the first crumb that happens to be near it. The ladder starts at the owner's
+// 100m and only widens when the trail never came that close (GPS drift, indoor, ramp).
+const ANCHOR_RADII_M = [100, 200, 400, 800];
 const POLY_PRECISION = 1e7;           // breadcrumb trails are 1e7 (legacy 1e5 auto-detected)
 
 // ── Polyline encode/decode ───────────────────────────────────────────────────
@@ -279,6 +283,43 @@ function firstIndexWithin(masterPoints, from, lat, lng, radiusM) {
     if (haversineMeters(lat, lng, masterPoints[i][0], masterPoints[i][1]) <= radiusM) return i;
   }
   return -1;
+}
+
+/**
+ * OWNER RULE (Nov 24 2026) — absolute-closest anchor inside a radius ladder.
+ *
+ * The old walk took the FIRST crumb inside MATCH_RADIUS_M, which splices a block
+ * early whenever the trail brushes past the address on the way in (and is off by
+ * a whole block of driving time, not crow-flight distance). This returns the
+ * single crumb with the SMALLEST distance in [from, to), searched at 100m first
+ * and widened only if nothing is inside. The crumb's timestamp gives the splice
+ * point: it ends this stop's slice, and the next crumb in time starts the next
+ * stop's slice (the caller advances its cursor past it).
+ *
+ * Location-only on purpose: a driver who has already driven away and THEN marks
+ * the stop finished still splices at the stop, because the nearest crumb is
+ * still the one recorded at the address.
+ *
+ * Returns { idx, dist, radius } or null when the trail never came within the
+ * widest radius.
+ */
+function scanClosestRadius(masterPoints, from, to, lat, lng) {
+  const start = Math.max(0, from);
+  const end = Math.min(to, masterPoints.length);
+  for (const radius of ANCHOR_RADII_M) {
+    let bestIdx = -1;
+    let bestDist = Infinity;
+    for (let i = start; i < end; i++) {
+      const p = masterPoints[i];
+      if (isCorruptedPoint(p[0], p[1])) continue;
+      const d = haversineMeters(lat, lng, p[0], p[1]);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    if (bestIdx !== -1 && bestDist <= radius) {
+      return { idx: bestIdx, dist: bestDist, radius };
+    }
+  }
+  return null;
 }
 
 /**
@@ -925,12 +966,19 @@ async function handleSingle(base44, body) {
       // Scan forward through the trail for the target stop
       const cursorStart = cursor + 1;
       const win = scanWindow(masterPoints, cursorStart, masterPoints.length, target.coords.lat, target.coords.lng, target.dtMs);
+      const anchorHit = scanClosestRadius(masterPoints, cursorStart, masterPoints.length, target.coords.lat, target.coords.lng);
 
       let segPts;
       let matchDistance;
       let method;
 
-      if (win.qualifierIdx !== null) {
+      if (anchorHit) {
+        // Absolute-closest splice (owner rule) for the single-stop scissors path.
+        segPts = masterPoints.slice(cursorStart, anchorHit.idx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+        if (anchorPoint) segPts.unshift(anchorPoint);
+        matchDistance = anchorHit.dist;
+        method = `incremental-closest-${anchorHit.radius}m`;
+      } else if (win.qualifierIdx !== null) {
         segPts = masterPoints.slice(cursorStart, win.qualifierIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
         if (anchorPoint) segPts.unshift(anchorPoint);
         matchDistance = win.qualifierDist;
@@ -1140,13 +1188,25 @@ async function handleSingle(base44, body) {
         }
 
         const win = scanWindow(masterPoints, cursor, windowEnd, stopLat, stopLng, swc.dtMs, swc.arrMs);
+        const anchorHit = scanClosestRadius(masterPoints, cursor, windowEnd, stopLat, stopLng);
 
         let pts;
         let matchDistance;
         let method;
         let synthetic = false;
 
-        if (win.qualifierIdx !== null) {
+        if (anchorHit) {
+          // Absolute-closest splice (owner rule). Everything up to and including
+          // the closest crumb belongs to this stop; the next crumb in time opens
+          // the next stop's slice because the cursor advances past it.
+          pts = masterPoints.slice(cursor, anchorHit.idx + 1).map((p) => [p[0], p[1], p[2] || 0]);
+          if (s === 0 && homePrepend) pts.unshift(homePrepend);
+          matchDistance = anchorHit.dist;
+          method = `closest-${anchorHit.radius}m`;
+          boundaryIdx = anchorHit.idx;
+          boundaryCoords = [masterPoints[anchorHit.idx][0], masterPoints[anchorHit.idx][1]];
+          cursor = anchorHit.idx + 1;
+        } else if (win.qualifierIdx !== null) {
           pts = masterPoints.slice(cursor, win.qualifierIdx + 1).map((p) => [p[0], p[1], p[2] || 0]);
           if (s === 0 && homePrepend) pts.unshift(homePrepend);
           matchDistance = win.qualifierDist;
