@@ -876,6 +876,24 @@ export async function markFailedCodRefunded(deliveryId, byId = null) {
   const existing = await loadFailedRefundMarksMap().catch(() => ({}));
   if (existing[key]) return existing;
   const next = { ...existing, [key]: { at: new Date().toISOString(), by: byId || null } };
+  // OWNER REPORT (Nov 24 2026): the manual mark used to live only in AppSettings, so the
+  // delivery itself never said Refunded — nothing could render a Refunded state. Stamp the
+  // delivery too (amount + tender kept for display; a failed COD was refunded back to the
+  // card, so the tender is credit).
+  try {
+    const rows = await base44.entities.Delivery.filter({ id: key }, undefined, 1, 0).catch(() => []);
+    const d = (rows || [])[0];
+    if (d && !d.cod_refunded_at) {
+      const amt = Number(d.cod_total_amount_required || 0);
+      await base44.entities.Delivery.update(key, {
+        cod_refunded_at: next[key].at,
+        cod_refunded_amount: amt,
+        cod_refunded_tender: 'credit'
+      }).catch(() => {});
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...d, cod_refunded_at: next[key].at, cod_refunded_amount: amt, cod_refunded_tender: 'credit' }]).catch(() => {});
+      invalidateIdbReadCache('deliveries');
+    }
+  } catch { /* the AppSettings mark alone still releases and credits the row */ }
   const rows = await getAppSettingRows(FAILED_REFUND_MARKS_KEY).catch(() => []);
   const rec = (rows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
   if (rec?.id) await base44.entities.AppSettings.update(rec.id, { setting_value: next });
@@ -1446,8 +1464,25 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
       // money back when the actual Square refund is detected or manually
       // marked on the badge.
       if (status === 'failed') {
-        if (manualRefundMarks[String(d.id)]) continue; // manual mark — no alert (owner did it himself)
-        if (isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || '')))) {
+        // OWNER REPORT (Nov 24 2026, Scona Nov 23 $112.51): a failed COD that was
+        // swiped on the card and then refunded in Square was simply skipped here, so
+        // the row vanished AND nothing was credited. The money came back onto the card,
+        // so the FULL gross is credited (a failed COD never had fee/loan/folder taken).
+        const manualRefund = !!manualRefundMarks[String(d.id)];
+        const autoRefundNow = !manualRefund && isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || '')));
+        if (manualRefund || autoRefundNow) {
+          const grossC = Math.round(centsOf(required));
+          if (grossC > 0) {
+            const aggR = aggFor(locId);
+            aggR.gross += grossC;
+            aggR.credits += grossC;
+            aggR.count += 1;
+            const refundAt = manualRefundMarks[String(d.id)]?.at || String(d?.cod_refunded_at || '');
+            if (refundAt && String(aggR.lastAt || '') < refundAt) aggR.lastAt = refundAt;
+          }
+        }
+        if (manualRefund) continue; // manual mark — no alert (owner did it himself)
+        if (autoRefundNow) {
           // AUTO-DETECTED refund — collect for the refund-posted alert
           // (owner spec Oct 9 2026: notify owner + assigned driver, one
           // message each, deduped when they are the same user).
