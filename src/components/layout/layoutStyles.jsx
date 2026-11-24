@@ -50,10 +50,12 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
                  iPhone/PWA -> env(safe-area-inset-*)
                  desktop    -> 0
                Need a new platform quirk handled? Change it HERE, once. */
-            --app-inset-top: max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
-            --app-inset-bottom: max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
-            --app-inset-left: max(var(--native-safe-left, 0px), env(safe-area-inset-left, 0px));
-            --app-inset-right: max(var(--native-safe-right, 0px), env(safe-area-inset-right, 0px));
+            /* MOVED (owner, Nov 23 2026, w306): the --app-inset-* mapping now
+               lives in src/index.css :root, because this stylesheet is only
+               injected by Layout.jsx and the PUBLIC routes (patient portal,
+               patient login, login, register, reset) render outside Layout -
+               there the variables did not exist and every safe-area padding
+               silently became 0. Do not redefine them here. */
 
             /* Full-screen forms and the messaging sheet do not use the raw inset as a
                padding: on iOS the 34px home-indicator band read as dead space under the
@@ -70,8 +72,8 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
              height, keep the old 30px / 14px floors so nothing hides under the OS bars.
              This is the ONLY place those numbers exist now. */
           body.is-native-apk {
-            --app-inset-top: max(30px, var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
-            --app-inset-bottom: max(14px, var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
+            /* The APK 30px / 14px floors moved to src/index.css with the rest of
+               the inset mapping (w306). Only the form gutters stay here. */
             --app-form-footer-gutter: 14px;
             --app-form-card-top: 0px;
             --app-form-card-bottom: 0px;

@@ -1457,13 +1457,15 @@ export default function PatientPortal({ embedded = false } = {}) {
   }, [patient?.id, messagingOpen]);
 
   return (
-    // Height: 100dvh on phones/tablets so the layout stops at the DEVICE
-    // navigation bar instead of running underneath it (100vh includes the area
-    // behind the OS bar). Owner report Nov 2 2026: the sidebar footer was
-    // slipping behind the nav bar on wider screens.
+    // Height: --portal-vh (index.css) instead of a raw 100dvh (owner, Nov 23
+    // 2026, w306). On an iPhone home-screen app 100dvh is the LAYOUT viewport,
+    // which is shorter than the area iOS paints, so the page left an unpainted
+    // strip along the bottom; --portal-vh adds the status-bar band back there and
+    // stays plain 100dvh in the APK, Android PWA and desktop. Top/bottom padding
+    // below uses var(--app-inset-*) to keep the header clear of the OS bars.
     <div
       className={`relative flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}
-      style={embedded ? undefined : { height: '100dvh' }}>
+      style={embedded ? undefined : { height: 'var(--portal-vh, 100dvh)' }}>
       
       <PatientPortalGuard />
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
@@ -1594,7 +1596,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         {/* Map */}
         <div
           className="flex-1 overflow-hidden relative pt-2 pr-2 pl-2 pb-1"
-          style={{ paddingBottom: embedded ? '1rem' : 'calc(1rem + var(--app-inset-bottom))' }}>
+          style={{ paddingBottom: embedded ? '0px' : 'calc(1rem + var(--app-inset-bottom))' }}>
           
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
                  Only while the sidebar is hidden (phones, or the drawer closed), and

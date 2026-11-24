@@ -137,6 +137,9 @@ export default function PatientLogin() {
     <div
       className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 flex items-center justify-center p-4"
       style={{
+        // --portal-vh (index.css, w306): full painted screen on an iPhone
+        // home-screen app, plain 100dvh everywhere else.
+        minHeight: 'var(--portal-vh, 100dvh)',
         paddingTop: 'calc(1rem + var(--app-inset-top))',
         paddingBottom: 'calc(1rem + var(--app-inset-bottom))',
       }}

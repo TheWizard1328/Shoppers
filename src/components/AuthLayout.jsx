@@ -23,8 +23,10 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
     <div
       className="min-h-screen w-full bg-background px-4 flex flex-col"
       style={{
-        // dvh where supported (APK / modern Chrome); the class above is the fallback.
-        minHeight: "100dvh",
+        // --portal-vh (index.css, w306): plain 100dvh everywhere except an iPhone
+        // home-screen app, where it also covers the status-bar band iOS paints
+        // but 100dvh does not count. The class above is the fallback.
+        minHeight: "var(--portal-vh, 100dvh)",
         paddingTop: "calc(1.25rem + var(--app-inset-top))",
         paddingBottom: "calc(1.25rem + var(--app-inset-bottom))",
         paddingLeft: "calc(1rem + var(--app-inset-left))",

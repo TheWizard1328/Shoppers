@@ -32,7 +32,10 @@ import { useEffect, useState } from 'react';
  *                                        visible viewport (window.visualViewport,
  *                                        not the inflated APK layout).
  *
- * --app-inset-* is resolved ONCE in layoutStyles.jsx:
+ * --app-inset-* is resolved ONCE in src/index.css :root (moved there in w306 so
+ * the PUBLIC routes outside Layout get them too - they used to be defined only in
+ * layoutStyles.jsx, which Layout alone injects, so every portal/login safe-area
+ * padding silently resolved to 0):
  *     max(APK safety floor, --native-safe-top injected by MainActivity, env())
  * so no component needs to know whether it is running in the APK, a browser PWA,
  * an iPhone home-screen app, a tablet or a PC.

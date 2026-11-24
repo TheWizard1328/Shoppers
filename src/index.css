@@ -51,6 +51,57 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  /* ══ PHONE CHROME INSETS - GLOBAL (owner, Nov 23 2026, w306) ══════════════
+     These four variables used to be defined ONLY inside layoutStyles.jsx, and
+     only Layout.jsx injects that stylesheet. Every PUBLIC route is mounted
+     outside Layout in App.jsx (patient-portal, patient-login, login, register,
+     forgot/reset password), so var(--app-inset-*) did not exist there and each
+     `calc(x + var(--app-inset-*))` became invalid at computed-value time, i.e.
+     padding 0. Symptoms: the patient portal header sat under the iPhone status
+     bar, and inside the edge-to-edge Android APK the portal filled the whole
+     screen instead of the usable area between the OS bars.
+     Defined here, in a stylesheet every route loads:
+       APK        -> MainActivity's --native-safe-* (+ safety floor, below)
+       iPhone/PWA -> env(safe-area-inset-*)
+       desktop    -> 0
+     layoutStyles.jsx no longer redefines these; it keeps only the dynamic
+     form-gutter values. */
+  :root {
+    --app-inset-top: max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
+    --app-inset-bottom: max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
+    --app-inset-left: max(var(--native-safe-left, 0px), env(safe-area-inset-left, 0px));
+    --app-inset-right: max(var(--native-safe-right, 0px), env(safe-area-inset-right, 0px));
+
+    /* Full-page height for routes outside Layout. On an iPhone home-screen app
+       100dvh resolves to the LAYOUT viewport, which is shorter than the area iOS
+       actually paints (the status-bar band is painted but not counted), so a
+       100dvh page left an unpainted strip along the bottom and put its header up
+       in the clock. html.is-ios-standalone (set by the head script in
+       index.html) adds the status-bar band back. Everywhere else this is plain
+       100dvh, and in the APK 100dvh is already the full edge-to-edge webview. */
+    --portal-vh: 100dvh;
+  }
+
+  /* Edge-to-edge APK only: if MainActivity ever fails to inject a status bar
+     height, keep the old 30px / 14px floors so nothing hides under the OS bars. */
+  body.is-native-apk {
+    --app-inset-top: max(30px, var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
+    --app-inset-bottom: max(14px, var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  }
+
+  /* iPhone home-screen app: size full-page routes to the whole painted screen and
+     stop the document itself from scrolling (the portal and the auth screens
+     scroll inside their own containers), so the header cannot be dragged up
+     under the status bar. */
+  html.is-ios-standalone {
+    --portal-vh: calc(100dvh + var(--app-inset-top));
+    overflow: hidden;
+  }
+  html.is-ios-standalone body {
+    overflow: hidden;
+  }
+
   /* ROOT-ONLY (Nov 1 2026): was bare `.dark`, so ANY injected nested .dark
      element (the Base44 editor is known to add one) darkened only its own
      subtree — half-dark pages that only ever reproduced in the editor. The app

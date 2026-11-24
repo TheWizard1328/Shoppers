@@ -14,6 +14,26 @@
     <!-- trigger redeploy -->
     <title>RxDeliver</title>
       <script>
+    // iOS home-screen app flag (owner, Nov 23 2026, w306): on an iPhone
+    // standalone PWA, 100dvh resolves to the LAYOUT viewport, which is shorter
+    // than the area iOS paints - full-page routes (patient portal, login
+    // screens) therefore ended in an unpainted strip at the bottom and their
+    // header sat up in the status bar. index.css keys --portal-vh off this class
+    // to size those routes to the whole painted screen. Runs before first paint
+    // so there is no flash of the wrong height.
+    (function () {
+      try {
+        var ua = navigator.userAgent || '';
+        var isIos = /iPad|iPhone|iPod/.test(ua) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (!isIos) return;
+        var standalone = navigator.standalone === true ||
+          (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        if (standalone) document.documentElement.classList.add('is-ios-standalone');
+      } catch (e) { /* never block the app on a UA sniff */ }
+    })();
+  </script>
+  <script>
     // Early dark-mode apply (owner fix, Sep 28): the loading screen flashed
     // LIGHT for ~1-2s before the app mounted and useAutoThemeSync's effect
     // ran, even for users on dark mode — that effect only fires after React
