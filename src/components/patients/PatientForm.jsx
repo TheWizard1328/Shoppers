@@ -1184,7 +1184,7 @@ export default function PatientForm({
       }
     : undefined;
 
-  return (
+  const overlay = (
     <div
     // role="dialog" opts this wrapper out of the native-APK generic
     // ".fixed.inset-0" safe-area catch-all rules (layoutStyles.jsx) — this
@@ -2425,5 +2425,13 @@ export default function PatientForm({
         </Card>
       </motion.div>
     </div>);
+
+  // OWNER REPORT (Nov 24 2026): on iOS the Add New Patient form opened BEHIND the
+  // Add To Route form. DeliveryFormView portals its overlay to document.body at
+  // z-[60000]; this form rendered inline, so its z-[65000] was trapped inside the
+  // dashboard's stacking context and lost to the portal no matter how high it was.
+  // Portaling to body puts both overlays at the same level, where 65000 wins.
+  if (typeof document === 'undefined') return overlay;
+  return ReactDOM.createPortal(overlay, document.body);
 
 }
