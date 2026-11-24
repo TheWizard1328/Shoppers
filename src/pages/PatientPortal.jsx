@@ -1639,7 +1639,10 @@ export default function PatientPortal({ embedded = false } = {}) {
           /* Owner, Nov 23 2026 (w307): no extra 1rem above the phone's navigation
              bar - the inset already reserves the OS bar, so the extra 16px read as a
              dead strip. Full-page ends flush on var(--app-inset-bottom). */
-          style={{ paddingBottom: embedded ? '0px' : 'var(--app-inset-bottom)' }}>
+          /* OWNER (Nov 23 2026): --portal-map-pad-bottom is the OS inset, minus
+             10px on iOS standalone, so the map is that much taller on an iPhone
+             while every other shell is unchanged. */
+          style={{ paddingBottom: embedded ? '0px' : 'var(--portal-map-pad-bottom, var(--app-inset-bottom))' }}>
           
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
                  Only while the sidebar is hidden (phones, or the drawer closed), and
