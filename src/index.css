@@ -120,12 +120,14 @@
        corner was clipped on an iPhone while every other shell showed it. The iOS
        page is now exactly as tall as before the experiment: --portal-map-grow
        stays at its :root value of 0. */
-    /* OWNER (Nov 23 2026, w314): "Reduce the map height by 10px and increase the
-       App container by 10px." The page grows 10px AND the Leaflet canvas is 10px
-       shorter than its wrapper, so the map's bottom edge sits 10px higher while
-       the container still reaches the bottom of the screen - the HERE link was
-       landing in the home-indicator band and disappeared behind it. */
-    --portal-map-grow: 10px;
+    /* OWNER (Nov 23 2026, w315): "the entire app is too tall for iPhone ... once I
+       click the map the entire app moves up, partially hiding the top behind the
+       notification bar." --portal-vh already equals the whole painted screen, so
+       ANY extra page height makes the document scrollable and iOS scrolls it up
+       when the Leaflet map takes focus. Grow is therefore 0: the page is exactly
+       one screen tall. The Leaflet canvas still keeps the 10px shrink from w314 so
+       the HERE attribution clears the home indicator. */
+    --portal-map-grow: 0px;
     --portal-map-shrink: 10px;
     /* OWNER (Nov 23 2026, w313): the map now runs to the bottom of the screen
        with the same 8px border as its top and sides, instead of stopping a full
