@@ -1957,12 +1957,30 @@ let _inheritedWindowCount = 0;
   const stageEtaMap = new Map();
 
   if (routeStops.length > 0) {
+    // OWNER REPORT (Nov 24 2026): a PENDING stop was floored by its OWN window
+    // start (a patient window like 12:00), so its ETA came out BEFORE the pickup
+    // that feeds it (pickup ETA 14:50) and the Before/After panel showed ETAs that
+    // ran backwards against the order. A pending stop's floor is its pickup's ETA
+    // + 5 — the same rule the write path stamps into delivery_time_start.
+    const _pendingPickupFloor = (stop) => {
+      const d = stop?.delivery || {};
+      if (String(d.status || '').toLowerCase() !== 'pending') return undefined;
+      if (!d.patient_id || !d.puid) return undefined;
+      const pickup = routeStops.map((x) => x.delivery).find((c) => c && !c.patient_id && c.stop_id === d.puid)
+        || (allDeliveries || []).find((c) => c && !c.patient_id && c.stop_id === d.puid);
+      if (!pickup) return undefined;
+      let base = sharedParseTimeToMinutes(pickup.delivery_time_eta);
+      if (!Number.isFinite(base)) base = sharedParseTimeToMinutes(pickup.delivery_time_start);
+      if (!Number.isFinite(base)) return undefined;
+      return base + 5;
+    };
     const _etaStops = routeStops.map((stop) => {
       const d = stop.delivery || {};
       const pickupNotStarted = !!isFutureRoute && !routeOfficiallyStarted && !!stop.isPickup;
+      const _puFloor = _pendingPickupFloor(stop);
       return {
         id: d.id,
-        windowFloorMinutes: sharedWindowFloorMinutesOf({
+        windowFloorMinutes: Number.isFinite(_puFloor) ? _puFloor : sharedWindowFloorMinutesOf({
           windowStart: stop.windowStart,
           deliveryTimeStart: d.delivery_time_start,
           timeWindowStart: d.time_window_start,
@@ -2384,9 +2402,12 @@ let _inheritedWindowCount = 0;
       // copy lost its geometry, the server copy kept it, and the map had nothing
       // to draw. The clear now also requires the stop's OWN status to really be
       // 'pending'; en_route / in_transit / anything in hand always keeps its leg.
+      // OWNER RULE (Nov 24 2026): cycling markers are NOT exempt — a PENDING marker
+      // kept its stored leg, which is how a line still ran from a pending marker to
+      // the cycling end marker and to a Callingwood pickup. Only the current leg
+      // (isNextDelivery) is spared.
       ...(isPending
         && String(stop?.status || stop?.delivery?.status || '').toLowerCase() === 'pending'
-        && stop.is_cycling_marker !== true
         && stop.delivery?.isNextDelivery !== true
         ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };

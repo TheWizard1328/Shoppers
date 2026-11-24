@@ -507,13 +507,10 @@ export async function generateRoutePolylines({
     // stay eligible while pending, because they define where the bicycle leg runs.
     // A pending interior marker (e.g. a stop near the store) must be skipped so the
     // loop reads start → cycling stops → end instead of detouring to it.
-    if (String(status).toLowerCase() === 'pending') {
-      const mIdx = _idxById.has(String(s.delivery?.id)) ? _idxById.get(String(s.delivery?.id)) : -1;
-      const flags = mIdx > -1 ? _markerFlags[mIdx] : null;
-      const isBoundaryMarker = !!flags && (flags.isCyclingStart || flags.isCyclingEnd);
-      if (!isBoundaryMarker) return false;
-      return true;
-    }
+    // OWNER RULE (Nov 24 2026): pending stops are NEVER polyline targets, markers
+    // included. The old boundary-marker exception kept a pending cycling marker
+    // eligible, so it both drew a leg and (before w336) anchored the next one.
+    if (String(status).toLowerCase() === 'pending') return false;
     return sharedIsPolylineEligible({ status, isCyclingMarker, transportMode: null }) || isCyclingSegmentStop;
   });
 

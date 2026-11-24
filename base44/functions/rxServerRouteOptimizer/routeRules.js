@@ -667,6 +667,12 @@ export function enforceCyclingBlock(stops, adapters) {
 // driving path renders into it; legs BRIDGE across pending stops.
 export function isPolylineEligibleStop({ status, isCyclingMarker, transportMode }) {
   const st = String(status || '').toLowerCase();
+  // OWNER RULE (Nov 24 2026): ONLY active stops carry a polyline. A PENDING stop
+  // gets no leg and never anchors one — cycling markers and cycling-mode stops
+  // included. Before this, `isCyclingMarker` and `transportMode === 'cycling'`
+  // returned true regardless of status, so pending cycling markers (the second
+  // marker of a loop, stale loop markers) drew legs and acted as origins.
+  if (st === 'pending') return false;
   if (st === 'en_route' || st === 'in_transit') return true;
   if (isCyclingMarker === true) return true;
   if (String(transportMode || '').toLowerCase() === 'cycling') return true;
