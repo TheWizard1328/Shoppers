@@ -20,6 +20,7 @@ import RouteManagementMobileCard from "./RouteManagementMobileCard";
 import StopDetailsPanel from "./StopDetailsPanel";
 import DeliveryListView from "../dashboard/DeliveryListView";
 import BulkEditStopsPanel from "./BulkEditStopsPanel";
+import BulkEditErrorBoundary from "./BulkEditErrorBoundary";
 
 import { createDeliveryLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
@@ -320,6 +321,7 @@ export default function RouteManagementContent({
         </div>
       }
 
+      <BulkEditErrorBoundary resetKey={`${isBulkEditPanelOpen ? 'open' : 'closed'}:${selectedBulkDeliveryIds.length}`}>
       <BulkEditStopsPanel
         open={isBulkEditPanelOpen}
         onOpenChange={setIsBulkEditPanelOpen}
@@ -332,6 +334,7 @@ export default function RouteManagementContent({
         currentUser={currentUser}
         onApply={handleBulkEditApply}
         isSaving={isBulkUpdating} />
+      </BulkEditErrorBoundary>
 
       <AlertDialog open={isBulkDeleteConfirmOpen} onOpenChange={setIsBulkDeleteConfirmOpen}>
         <AlertDialogContent className="py-3 px-3">

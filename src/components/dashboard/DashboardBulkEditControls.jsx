@@ -14,6 +14,7 @@ import {
   AlertDialogTitle } from
 "@/components/ui/alert-dialog";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
+import BulkEditErrorBoundary from "@/components/deliveries/BulkEditErrorBoundary";
 import { updateDeliveryLocal, deleteDeliveryLocal, updatePatientLocal } from "@/components/utils/offlineMutations";
 import { ensureRouteHasNextStop } from "@/components/utils/nextDeliveryGuard";
 import { enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
@@ -593,6 +594,9 @@ export default function DashboardBulkEditControls({
 
       <div className="hidden">{selectedDeliveries.length}</div>
 
+      {/* OWNER FIX (Nov 24 2026): a render error inside this panel used to reach the
+          app-wide boundary and blank the whole Dashboard (Erin's iPhone). Contained here. */}
+      <BulkEditErrorBoundary resetKey={`${showBulkEditPanel ? 'open' : 'closed'}:${selectedCount}`}>
       <BulkEditStopsPanel
         open={showBulkEditPanel}
         onOpenChange={closeBulkEditPanel}
@@ -606,6 +610,7 @@ export default function DashboardBulkEditControls({
         currentUser={currentUser}
         onApply={handleApply}
         isSaving={isSaving} />
+      </BulkEditErrorBoundary>
       
     </>);
 

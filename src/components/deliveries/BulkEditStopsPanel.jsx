@@ -190,7 +190,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
   // Time slot (window) fields are only visible when NO selected stop is finished.
   // If any selected stop has a terminal status, hide all time fields entirely.
-  const anyFinished = selectedDeliveries.length > 0 &&
+  const anyFinished = (selectedDeliveries || []).length > 0 &&
     selectedDeliveries.some((d) => TERMINAL_STATUSES.includes(d?.status));
   const shouldShowTimeWindows = !anyFinished;
 
