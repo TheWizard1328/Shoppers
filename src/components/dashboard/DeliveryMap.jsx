@@ -286,21 +286,22 @@ function DeliveryMap({
   useEffect(() => {
     if (!mapReady) return;
     const wrap = (deg) => ((deg + 540) % 360) - 180;
-    let current = 0;
-    let raf = null;
-    let target = 0;
-    // OWNER REPORT (Nov 24 2026): the bearing used to follow the driver's live
-    // approach heading, so the map kept turning through the corner. It is now
-    // latched: the target only changes when the framed turn changes (or the
-    // preview ends), and it is held steady for the whole manoeuvre.
+    // OWNER REPORTS (Nov 24 2026):
+    //   1. the map kept turning while driving through the corner -> the bearing
+    //      is latched to the turn (key), not tracked from live heading;
+    //   2. the turn was taken the long way round (270 instead of 90) -> the
+    //      eased multi-step sweep is gone. Each latch is now ONE absolute
+    //      setBearing call, so there is no path to travel and no direction to
+    //      get wrong; the map is simply at the new orientation.
+    let applied = 0;
     let lockedKey = null;
     const step = () => {
-      raf = null;
       const map = headingMapRef.current;
       if (!map || typeof map.setBearing !== "function") return;
       const headingState = getMapHeading() || {};
       const heading = headingState.heading;
       const key = headingState.key;
+      let target = null;
       if (heading == null) {
         target = 0;
         lockedKey = null;
@@ -310,25 +311,15 @@ function DeliveryMap({
         // when the map is rotated by -H.
         target = wrap(-heading);
       }
-      const delta = wrap(target - current);
-      if (Math.abs(delta) < 3) {
-        if (current !== target) {
-          current = target;
-          map.setBearing(current);
-          window.__mapBearing = current;
-        }
-      } else {
-        current = wrap(current + Math.max(-6, Math.min(6, delta * 0.18)));
-        map.setBearing(current);
-        window.__mapBearing = current;
-      }
-      if (Math.abs(wrap(target - current)) > 0.5) raf = requestAnimationFrame(step);
+      if (target == null) return;          // latched: leave the map alone
+      if (wrap(target - applied) === 0) return;
+      applied = target;
+      map.setBearing(applied);
+      // getBearing() reports the normalised 0-360 value the plugin applied.
+      window.__mapBearing = typeof map.getBearing === "function" ? map.getBearing() : applied;
     };
-    const timer = setInterval(() => { if (!raf) raf = requestAnimationFrame(step); }, 120);
-    return () => {
-      clearInterval(timer);
-      if (raf) cancelAnimationFrame(raf);
-    };
+    const timer = setInterval(step, 120);
+    return () => clearInterval(timer);
   }, [mapReady]);
   const fanCanvasRenderer = useRef(null);
   const [fanRendererReady, setFanRendererReady] = useState(false);
