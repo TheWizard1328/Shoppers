@@ -1994,17 +1994,26 @@ let _inheritedWindowCount = 0;
     // that feeds it (pickup ETA 14:50) and the Before/After panel showed ETAs that
     // ran backwards against the order. A pending stop's floor is its pickup's ETA
     // + 5 — the same rule the write path stamps into delivery_time_start.
-    const _pendingPickupFloor = (stop) => {
+    // OWNER RULE (Nov 24 2026): a PENDING stop's floor is its assigned pickup's
+    // START or ETA, whichever is GREATER — never "now". A pending stop used to
+    // chain straight from the current time (11:36), so it landed ahead of its own
+    // Callingwood pickup (12:00) even though the pickup is what feeds it.
+    const _findPickupFor = (d) => routeStops.map((x) => x.delivery).find((c) => c && !c.patient_id && c.stop_id === d.puid)
+      || (allDeliveries || []).find((c) => c && !c.patient_id && c.stop_id === d.puid)
+      || null;
+    const _pendingPickupFloor = (stop, etaMap) => {
       const d = stop?.delivery || {};
       if (String(d.status || '').toLowerCase() !== 'pending') return undefined;
       if (!d.patient_id || !d.puid) return undefined;
-      const pickup = routeStops.map((x) => x.delivery).find((c) => c && !c.patient_id && c.stop_id === d.puid)
-        || (allDeliveries || []).find((c) => c && !c.patient_id && c.stop_id === d.puid);
+      const pickup = _findPickupFor(d);
       if (!pickup) return undefined;
-      let base = sharedParseTimeToMinutes(pickup.delivery_time_eta);
-      if (!Number.isFinite(base)) base = sharedParseTimeToMinutes(pickup.delivery_time_start);
-      if (!Number.isFinite(base)) return undefined;
-      return base + 5;
+      const candidates = [
+        sharedParseTimeToMinutes(pickup.delivery_time_start),
+        sharedParseTimeToMinutes(pickup.delivery_time_eta),
+        etaMap ? etaMap.get(pickup.id) : undefined,
+      ].filter((v) => Number.isFinite(v));
+      if (candidates.length === 0) return undefined;
+      return Math.max(...candidates);
     };
     const _etaStops = routeStops.map((stop) => {
       const d = stop.delivery || {};
@@ -2016,10 +2025,12 @@ let _inheritedWindowCount = 0;
       // floor of its own would pull the ETA back to 12:05 and break the order, so
       // pending stops carry NO floor here.
       const _isPendingStop = String(d.status || '').toLowerCase() === 'pending';
-      const _puFloor = _isPendingStop ? null : undefined;
+      const _puFloor = _pendingPickupFloor(stop, null);
       return {
         id: d.id,
-        windowFloorMinutes: _isPendingStop ? null : sharedWindowFloorMinutesOf({
+        windowFloorMinutes: _isPendingStop
+          ? (Number.isFinite(_puFloor) ? _puFloor : null)
+          : sharedWindowFloorMinutesOf({
           windowStart: stop.windowStart,
           deliveryTimeStart: d.delivery_time_start,
           timeWindowStart: d.time_window_start,
@@ -2058,6 +2069,26 @@ let _inheritedWindowCount = 0;
     });
 
     _etaRows.forEach((row) => { if (row?.id) stageEtaMap.set(row.id, row.eta); });
+
+    // OWNER RULE (Nov 24 2026) pass 2: the pickup's own ETA is only known once the
+    // chain has run, and it can be later than its window start (window floor, dwell,
+    // travel). Any pending stop still sitting before max(pickup start, pickup ETA) is
+    // pushed up by the difference, together with everything behind it, so the ETA
+    // order never contradicts the pickup-before-pending order.
+    for (let i = 0; i < routeStops.length; i++) {
+      const stop = routeStops[i];
+      const floor = _pendingPickupFloor(stop, stageEtaMap);
+      if (!Number.isFinite(floor)) continue;
+      const eta = stageEtaMap.get(stop.delivery?.id);
+      if (!Number.isFinite(eta) || eta >= floor) continue;
+      const delta = floor - eta;
+      for (let j = i; j < routeStops.length; j++) {
+        const id = routeStops[j].delivery?.id;
+        const e = stageEtaMap.get(id);
+        if (Number.isFinite(e)) stageEtaMap.set(id, e + delta);
+      }
+      console.log(`[clientRouteEngine] ${source} — pending stop ${stop.delivery?.patient_name || stop.delivery?.id} pushed +${delta}min to its pickup floor`);
+    }
   }
 
   // ── Build response + write batch ───────────────────────────────────────────

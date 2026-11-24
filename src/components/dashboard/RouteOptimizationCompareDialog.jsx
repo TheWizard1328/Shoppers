@@ -21,7 +21,7 @@ import { isAppDarkTheme } from "@/lib/utils";
  *     orderChanged: boolean,
  *   }>
  */
-export default function RouteOptimizationCompareDialog({ open, onClose, rows = [] }) {
+export default function RouteOptimizationCompareDialog({ open, onClose, rows = [], orderBase = 1 }) {
   const { isMobile } = useDevice();
 
   // Dark mode here — the app's real dark-mode system flips the --bg-white /
@@ -163,7 +163,8 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
               // it is actually transitioned, so the "#" here is the SIMULATED position in
               // this optimized list (its ETA position), not the stored number.
               const pending = row.newStopOrder === null;
-              const simulatedOrder = isLoading ? null : idx + 1;
+              // OWNER RULE (Nov 24 2026): numbering starts one past the finished stops.
+              const simulatedOrder = isLoading ? null : orderBase + idx;
               const moved = !isLoading && row.oldStopOrder !== simulatedOrder;
               return (
                 <div

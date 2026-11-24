@@ -362,6 +362,10 @@ export default function RouteActionButtons({
         open={compareDialogOpen}
         onClose={() => setCompareDialogOpen(false)}
         rows={compareRows}
+        // OWNER RULE (Nov 24 2026): the simulated stop order in this panel starts at
+        // ONE GREATER than the total number of finished stops, because finished stops
+        // keep the numbers below that.
+        orderBase={(filteredDeliveries || []).filter((d) => d && FINISHED.has(d.status)).length + 1}
       />
       {fallbackBalloon && (
         <motion.div
