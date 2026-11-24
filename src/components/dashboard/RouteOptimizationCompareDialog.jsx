@@ -159,8 +159,12 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
             <div className="text-center text-sm py-10" style={{ color: 'var(--text-slate-400)' }}>No stops to compare</div>
           ) : (
             sorted.map((row, idx) => {
+              // OWNER RULE (Nov 24 2026): a pending stop keeps its stored stop_order until
+              // it is actually transitioned, so the "#" here is the SIMULATED position in
+              // this optimized list (its ETA position), not the stored number.
               const pending = row.newStopOrder === null;
-              const moved = !pending && row.oldStopOrder !== row.newStopOrder;
+              const simulatedOrder = isLoading ? null : idx + 1;
+              const moved = !isLoading && row.oldStopOrder !== simulatedOrder;
               return (
                 <div
                   key={row.deliveryId || idx}
@@ -223,7 +227,7 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
 
                   {/* New stop order */}
                   <div className="text-center font-mono font-bold" style={{ color: accent.emeraldText }}>
-                    {pending ? <span style={{ color: accent.dimText }}>…</span> : (row.newStopOrder ?? "—")}
+                    {isLoading ? <span style={{ color: accent.dimText }}>…</span> : (idx + 1)}
                   </div>
                 </div>
               );

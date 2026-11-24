@@ -1581,6 +1581,38 @@ let _inheritedWindowCount = 0;
       console.warn('[clientRouteEngine] pre-generation via clear skipped (non-fatal):', _viaClearErr?.message || _viaClearErr);
     }
 
+    // OWNER RULE (Nov 24 2026): a PENDING stop never sits ahead of the pickup that
+    // feeds it. The shared rule was applied to the RESPONSE list only, AFTER the ETA
+    // ladder had already run, and its isPickup adapter read `st.isPickup` off a raw
+    // delivery (always undefined — a pickup is simply a stop with no patient), so it
+    // silently did nothing. Pending stops therefore chained from "now" and showed an
+    // ETA before their Callingwood pickup. Reorder HERE, before the polylines and the
+    // ETA ladder, so geometry, ETAs and stop_order all agree.
+    {
+      const _beforeIds = routeStops.map((s) => String(s.delivery?.id));
+      const _ordered = sharedEnforcePickupBeforePending(
+        routeStops.map((s) => s.delivery),
+        {
+          idOf: (st) => st.id,
+          patientOf: (st) => st.patient_id,
+          puidOf: (st) => st.puid,
+          statusOf: (st) => st.status,
+          isPickupOf: (st) => !st.patient_id,
+          pickupKeyOf: (st) => st.stop_id,
+        },
+      );
+      const _afterIds = _ordered.map((d) => String(d.id));
+      if (_afterIds.join('|') !== _beforeIds.join('|')) {
+        const _byId = new Map(routeStops.map((s) => [String(s.delivery?.id), s]));
+        const _legById = new Map(routeStops.map((s, i) => [String(s.delivery?.id), directionsLegs?.[i] ?? null]));
+        routeStops = _afterIds.map((id) => _byId.get(id)).filter(Boolean);
+        if (Array.isArray(directionsLegs)) {
+          directionsLegs = routeStops.map((s) => _legById.get(String(s.delivery?.id)) ?? null);
+        }
+        console.log(`[clientRouteEngine] ${source} — pickup-before-pending reorder applied before polylines/ETAs (${_beforeIds.length} stops)`);
+      }
+    }
+
     // OWNER RULE (Oct 29 2026): on a cycling route the two segment passes below
     // replace the single mixed call — driving pass for all active stops, then the
     // cycling loop. Same number of HERE calls, no extra single-leg request.
@@ -2049,7 +2081,10 @@ let _inheritedWindowCount = 0;
     patientOf: (st) => st.patient_id,
     puidOf: (st) => st.puid,
     statusOf: (st) => st.status,
-    isPickupOf: (st) => st.isPickup,
+    // A pickup is a stop with no patient — `st.isPickup` only exists on the routeStops
+    // WRAPPER, never on the delivery record, so the old adapter matched no pickups and
+    // this rule was a no-op (owner report Nov 24 2026).
+    isPickupOf: (st) => !st.patient_id,
     pickupKeyOf: (st) => st.stop_id,
   });
 
