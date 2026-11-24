@@ -3,6 +3,8 @@ import { isFirstDeliveryForDisplay } from '../utils/SpecialSymbolsBadges';
 import { haversineMeters } from '@/components/utils/geoUtils';
 import { isAppDarkTheme } from '@/lib/utils';
 import { MapContainer, Pane, Polyline } from "react-leaflet";
+import "leaflet-rotate";
+import { getMapHeading } from "@/components/utils/mapHeading";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { CachedTileLayer } from "../utils/hereTileCache";
@@ -273,6 +275,47 @@ function DeliveryMap({
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [map, setMap] = useState(null);
   const [mapReady, setMapReady] = useState(false);
+  const headingMapRef = useRef(null);
+
+  // HEADS-UP TEST (owner request Nov 24 2026): keep the travel direction up
+  // while the turn preview is active, and ease back to north when it ends.
+  // The earlier attempt jittered because it set the bearing straight from raw
+  // GPS heading every tick; this one uses a deadband plus a capped step per
+  // frame, so it only moves when the heading really changed and never snaps
+  // left/right. window.__mapBearing exposes the applied angle for debugging.
+  useEffect(() => {
+    if (!mapReady) return;
+    const wrap = (deg) => ((deg + 540) % 360) - 180;
+    let current = 0;
+    let raf = null;
+    const step = () => {
+      raf = null;
+      const map = headingMapRef.current;
+      if (!map || typeof map.setBearing !== "function") return;
+      const heading = getMapHeading();
+      // CSS rotate is clockwise-positive, so a compass heading of H points up
+      // when the map is rotated by -H.
+      const target = heading == null ? 0 : wrap(-heading);
+      const delta = wrap(target - current);
+      if (Math.abs(delta) < 3) {
+        if (current !== target) {
+          current = target;
+          map.setBearing(current);
+          window.__mapBearing = current;
+        }
+      } else {
+        current = wrap(current + Math.max(-6, Math.min(6, delta * 0.18)));
+        map.setBearing(current);
+        window.__mapBearing = current;
+      }
+      if (Math.abs(wrap(target - current)) > 0.5) raf = requestAnimationFrame(step);
+    };
+    const timer = setInterval(() => { if (!raf) raf = requestAnimationFrame(step); }, 120);
+    return () => {
+      clearInterval(timer);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [mapReady]);
   const fanCanvasRenderer = useRef(null);
   const [fanRendererReady, setFanRendererReady] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(zoom);
@@ -2279,10 +2322,20 @@ function DeliveryMap({
         style={{ height: "100%", width: "100%" }}
         zoomControl={false}
         doubleClickZoom={false}
+        // HEADS-UP TEST (owner request Nov 24 2026): leaflet-rotate lets the map
+        // turn so the travel direction points up. Only programmatic bearing is
+        // used — touch/shift rotation and the compass control stay off so the
+        // driver cannot rotate the map by accident mid-route.
+        rotate={true}
+        bearing={0}
+        rotateControl={false}
+        touchRotate={false}
+        shiftKeyRotate={false}
         onClick={() => setFannedLocationKey(null)}
         whenReady={(instance) => {
           if (!instance?.target?._loaded || !instance?.target?._container || !instance?.target?._panes) return;
           const mapInst = instance.target;
+          headingMapRef.current = mapInst;
 
           // Guard against Leaflet's _onZoomTransitionEnd firing after unmount.
           // When the map pane is gone, _leaflet_pos is undefined and getPosition throws.

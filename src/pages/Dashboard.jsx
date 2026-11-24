@@ -21,7 +21,8 @@ import { useUser } from '@/components/utils/UserContext';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
 import { determinePolylineSegment, fetchPolylineForSegment, decodeGooglePolyline } from "@/components/utils/dynamicPolylineManager";
-import { createTurnPreviewController } from "@/components/utils/turnAutoZoom";
+import { createTurnPreviewController, bearingDeg } from "@/components/utils/turnAutoZoom";
+import { setMapHeading } from "@/components/utils/mapHeading";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager"; import { queueEntityRequest } from "@/components/utils/requestQueue";
@@ -1826,6 +1827,16 @@ function Dashboard() {
               userControlling: (window._userMapControlUntil || 0) > Date.now() || window._isUserTouchingMap === true,
             });
             if (_tpRes?.bounds) {
+              // HEADS-UP TEST (owner request Nov 24 2026): point the map along the
+              // approach so the driver's travel direction is up. The bearing is
+              // driver -> turn vertex, i.e. the direction they are about to drive.
+              try {
+                const _t = _tpRes.turn;
+                const _d = fabTargetDriverLocation;
+                if (_t && Number.isFinite(_t.lat) && Number.isFinite(_t.lon) && _d) {
+                  setMapHeading(bearingDeg(_d.latitude, _d.longitude, _t.lat, _t.lon));
+                }
+              } catch (_) { /* rotation is cosmetic, never break the preview */ }
               console.log(`🎯 [TurnAutoZoom] ${_tpRes.reason} ahead=${Math.round(_tpRes.turn?.aheadM ?? 0)}m angle=${Math.round(_tpRes.turn?.angleDeg ?? 0)}deg zoom=${window.__currentMapZoom}`);
               setShouldFitBounds({
                 bounds: _tpRes.bounds,
@@ -1838,7 +1849,11 @@ function Dashboard() {
               setMapZoom(null);
               break;
             }
+            // No turn preview this tick: release the heads-up rotation so the
+            // map eases back to north-up instead of holding a stale bearing.
+            setMapHeading(null);
           } catch (e) {
+            setMapHeading(null);
             // Never let the preview break normal map behaviour.
             console.warn('[TurnAutoZoom] skipped:', e?.message);
           }
