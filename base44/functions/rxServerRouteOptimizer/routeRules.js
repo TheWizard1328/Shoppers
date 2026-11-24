@@ -688,6 +688,28 @@ export function isCoLocatedStop(prevStop, stop, maxKm = CO_LOCATED_MAX_KM) {
   return crowFliesKm(a, b) <= maxKm;
 }
 
+// ── RULE: co-located stop ids for a whole ordered route (SHARED, both engines) ─
+// OWNER REPORT (Nov 24 2026): after a cycling loop was created, one or two
+// PENDING markers inside the loop still drew polylines, and the manual FAB could
+// not clear them. The owner's diagnosis was exact: the second marker of a
+// clustered set is not supposed to have a polyline at all, and because the
+// generators simply SKIP it, a leg left over from an earlier pass was never
+// cleared.
+// This returns the ids of every stop that sits at (or within CO_LOCATED_MAX_KM
+// of) the stop immediately BEFORE it in route order. Callers must NULL the stored
+// leg for these ids even when they have no fresh geometry, and must never fall
+// back to a stored leg for them.
+export function coLocatedStopIds(orderedStops = [], maxKm = CO_LOCATED_MAX_KM) {
+  const ids = new Set();
+  for (let i = 1; i < orderedStops.length; i += 1) {
+    const prev = orderedStops[i - 1];
+    const cur = orderedStops[i];
+    if (!cur || cur.id == null) continue;
+    if (isCoLocatedStop(prev, cur, maxKm)) ids.add(String(cur.id));
+  }
+  return ids;
+}
+
 // ── RULE: dwell minutes per stop type ────────────────────────────────────────
 // extra_time override, else pickups 15 / deliveries 5 (ETA ladder dwell).
 export function dwellMinutesForStop({ extraTime, isPickup }) {

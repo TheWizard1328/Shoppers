@@ -20,6 +20,7 @@ import {
   buildEtaChain as sharedBuildEtaChain,
   windowFloorMinutesOf as sharedWindowFloorMinutesOf,
   parseTimeToMinutes as sharedParseTimeToMinutes,
+  coLocatedStopIds,
 } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { edmontonNowMinutes, edmontonNowHHmm, edmontonTodayKey, edmontonOffsetStringForWallDate } from './albertaTime';
 import { getLegTravelMinutes, SAME_ADDRESS_TRAVEL_MINUTES } from './legTravelMinutes';
@@ -2357,6 +2358,13 @@ let _inheritedWindowCount = 0;
       // dot, which is what the map reads as "no polyline".
       ...(_segWritable ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode, polyline_from_order: newOrder } : {}),
       ...(_invalidateStaleLeg ? { encoded_polyline: null, polyline_from_order: null } : {}),
+      // OWNER REPORT (Nov 24 2026): the SECOND marker of a clustered set must have
+      // NO leg. The server already nulls these; the client write path only SKIPPED
+      // them (the generator returns encodedPolyline null, so nothing was written and
+      // the stale leg survived every optimize). Cleared explicitly now, never on the
+      // current leg (client/server parity: the first stop of a chain keeps geometry).
+      ...(sameCoordsAdjacentIds.has(stop.id) && !isNextStop
+        ? { encoded_polyline: null, polyline_from_order: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),
       // OWNER REPORT (Oct 30 2026: "it keeps clearing the current leg polyline
       // then redrawing it"): a stop the engine reads as pending was having its
       // stored leg NULLED on every pass — and when that stop is the leg the
@@ -2439,7 +2447,11 @@ let _inheritedWindowCount = 0;
       // Owner fix Oct 23 2026: a leg that failed regeneration keeps its
       // EXISTING stored polyline in the response (never report null for an
       // active stop — downstream consumers read null as 'deleted').
-      encoded_polyline: segmentPolylineByDeliveryId.get(stop.id)?.encodedPolyline || stop.encoded_polyline || null,
+      // A co-located stop reports NO leg. Falling back to the stored polyline here
+      // (the old behaviour) handed the map the stale line back after every optimize.
+      encoded_polyline: (sameCoordsAdjacentIds.has(stop.id) && stop.id !== nextStopId)
+        ? null
+        : (segmentPolylineByDeliveryId.get(stop.id)?.encodedPolyline || stop.encoded_polyline || null),
       estimated_distance_km: writeEntry?.data?.estimated_distance_km ?? null,
       estimated_duration_minutes: writeEntry?.data?.estimated_duration_minutes ?? null,
       travel_dist: legIndex >= 0 && Number(directionsLegs[legIndex]?.distance)
@@ -2778,7 +2790,22 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   });
 
   // ── Augment writeBatch with planned polyline fields ───────────────────────
+  // OWNER REPORT (Nov 24 2026): a co-located stop (second marker of a cluster) has
+  // no leg of its own, so the generator emits nothing for it and the old `!seg`
+  // skip left whatever leg an earlier pass had stored. The co-located ids are
+  // therefore cleared from ROUTE ORDER, before any segment lookup.
+  const _futureCoLocatedIds = coLocatedStopIds(orderedStops.map(({ delivery }) => {
+    const c = getDeliveryCoords(delivery, patientMap, storeMap);
+    return { id: delivery.id, lat: c?.lat, lon: c?.lng };
+  }));
   for (const w of writeBatch) {
+    if (_futureCoLocatedIds.has(String(w.id)) && w.data.isNextDelivery !== true) {
+      w.data.encoded_polyline = null;
+      w.data.polyline_from_order = null;
+      w.data.estimated_distance_km = null;
+      w.data.estimated_duration_minutes = null;
+      continue;
+    }
     const seg = futurePolylineByDeliveryId.get(w.id);
     if (!seg) continue;
     // OWNER REQUEST (Nov 18 2026): a stop CO-LOCATED with the stop before it

@@ -15,7 +15,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { guardLegGeometry } from './polylineOriginRules';
-import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias, isCoLocatedStop, splitDegenerateLegs, expandDegenerateSections } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
+import { isPolylineEligibleStop as sharedIsPolylineEligible, hasPendingCyclingLoop as sharedHasPendingCyclingLoop, legContributesVias as sharedLegContributesVias, isCoLocatedStop, coLocatedStopIds, splitDegenerateLegs, expandDegenerateSections } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { haversineKm } from './geoUtils';
 import { getMultiStopRouteGoogle } from '@/components/utils/clientRouteGoogle';
 import { getPolylineRoutePrefs } from '@/components/utils/polylineRoutePrefs';
@@ -566,6 +566,15 @@ export async function generateRoutePolylines({
   // pass. `orderUnchanged` and `forceRegenerate` stay in the signature for
   // callers but no longer change the outcome.
   const polyTargets = stopsToPolyline;
+  // Route-order predecessor + co-located ids for the whole route (SHARED RULE
+  // routeRules.coLocatedStopIds). Computed once so every group can use it.
+  const _prevRouteStopById = new Map();
+  for (let _i = 1; _i < polyTargets.length; _i += 1) {
+    _prevRouteStopById.set(String(polyTargets[_i].delivery.id), polyTargets[_i - 1]);
+  }
+  const _coLocatedRouteIds = coLocatedStopIds(polyTargets.map((t) => ({
+    id: t.delivery.id, lat: t.lat, lon: t.lng,
+  })));
   if (polyTargets.length > 0) {
     console.log(`[routePolylineGenerator] ${source} — ALWAYS REGENERATE (${polyTargets.length} leg(s)) — no order-unchanged skip, no leg reuse`);
   }
@@ -884,8 +893,16 @@ export async function generateRoutePolylines({
       // line into the location, every later member is cleared (SHARED RULE:
       // routeRules.isCoLocatedStop). Emitted as coLocatedWithPrevious so the
       // writeBatch nulls the stored leg instead of keeping a stale one.
+      // OWNER REPORT (Nov 24 2026): co-location is a ROUTE-ORDER fact, not a
+      // group fact. Comparing only inside the transport-mode group missed a
+      // cluster that straddles a group boundary (a cycling loop's first pending
+      // marker beside the marker before it), so the second marker kept the leg
+      // from an earlier pass. Now the previous stop in route order decides.
       const _prevGroupStop = groupLocalIndex > 0 ? group.stops[groupLocalIndex - 1] : null;
-      const _coLocated = _prevGroupStop ? isCoLocatedStop(_prevGroupStop, stop) : false;
+      const _prevRouteStop = _prevRouteStopById.get(stop.delivery.id) || null;
+      const _coLocated = _coLocatedRouteIds.has(String(stop.delivery.id))
+        || (_prevRouteStop ? isCoLocatedStop(_prevRouteStop, stop) : false)
+        || (_prevGroupStop ? isCoLocatedStop(_prevGroupStop, stop) : false);
       if (_coLocated) {
         polylineByDeliveryId.set(stop.delivery.id, {
           encodedPolyline: null,

@@ -49,6 +49,7 @@ import {
   windowFloorMinutesOf as sharedWindowFloorMinutesOf,
   splitDegenerateLegs as sharedSplitDegenerateLegs,
   expandDegenerateSections as sharedExpandDegenerateSections,
+  coLocatedStopIds,
 } from './routeRules.js';
 
 const TIME_ZONE = 'America/Edmonton';
@@ -1404,11 +1405,10 @@ Deno.serve(async (req) => {
         ? (firstNonInterStoreActive?.id || orderedStops[0]?.id || null)
         : (!routeInProgress ? (firstNonInterStoreActive?.id || orderedStops[0]?.id || null) : _midRouteFallback));
 
-    const sameCoordsAdjacentIds = new Set();
-    for (let i = 1; i < orderedStops.length; i++) {
-      const a = orderedStops[i - 1], b = orderedStops[i];
-      if (crowFliesKm(a.lat, a.lng, b.lat, b.lng) < 0.05) sameCoordsAdjacentIds.add(b.id);
-    }
+    // SHARED RULE (Nov 24 2026): co-located ids come from routeRules.coLocatedStopIds
+    // so the server and the client generator can never disagree about which stop
+    // of a cluster owns the arriving line.
+    const sameCoordsAdjacentIds = coLocatedStopIds(orderedStops.map((st: any) => ({ id: st.id, lat: st.lat, lon: st.lng })));
 
     const writeBatch = [];
     for (let i = 0; i < orderedStops.length; i++) {
