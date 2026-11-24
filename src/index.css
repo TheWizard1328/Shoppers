@@ -246,8 +246,13 @@
   line-height: 1.25rem !important;
 }
 
-button,
-[role="button"],
+/* TOUCH TARGETS (code scan Nov 24 2026, finding #7): this used to apply 44px to EVERY
+   button, including the deliberately small icon buttons, which is why per-screen padding
+   patches kept coming back - the developer sets h-6/h-8 and the blanket rule overrides it.
+   Buttons that carry an explicit height class now keep their size; everything without one
+   stays a 44px touch target. Inputs and list options are unchanged. */
+button:not(.h-5):not(.h-6):not(.h-7):not(.h-8):not(.h-9):not(.h-10),
+[role="button"]:not(.h-5):not(.h-6):not(.h-7):not(.h-8):not(.h-9):not(.h-10),
 input,
 select,
 textarea,
