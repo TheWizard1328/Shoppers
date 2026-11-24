@@ -1685,7 +1685,9 @@ export default function PatientPortal({ embedded = false } = {}) {
             <MapContainer
               center={defaultCenter}
               zoom={13}
-              style={{ height: '100%', width: '100%' }}
+              /* OWNER (Nov 23 2026, w314): 10px shorter than the wrapper on iOS
+                 so the HERE attribution clears the home indicator. */
+              style={{ height: 'calc(100% - var(--portal-map-shrink, 0px))', width: '100%' }}
               zoomControl={false}
               // OWNER FIX (Oct 23 2026): Leaflet's default zoomSnap=1 rounds
               // EVERY zoom change to whole numbers — the auto-fit computed the

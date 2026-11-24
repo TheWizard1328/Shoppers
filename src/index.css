@@ -94,6 +94,11 @@
        has on its top and sides, so the map reaches the bottom edge and its border
        is visible on all four sides. */
     --portal-map-pad-bottom: var(--app-inset-bottom);
+
+    /* How much shorter the Leaflet canvas is than its map wrapper. 0 everywhere;
+       the iPhone home-screen app trims 10px (below) so the HERE attribution in
+       the map's bottom-right corner clears the home indicator. */
+    --portal-map-shrink: 0px;
   }
 
   /* Edge-to-edge APK only: if MainActivity ever fails to inject a status bar
@@ -115,7 +120,13 @@
        corner was clipped on an iPhone while every other shell showed it. The iOS
        page is now exactly as tall as before the experiment: --portal-map-grow
        stays at its :root value of 0. */
-    --portal-map-grow: 0px;
+    /* OWNER (Nov 23 2026, w314): "Reduce the map height by 10px and increase the
+       App container by 10px." The page grows 10px AND the Leaflet canvas is 10px
+       shorter than its wrapper, so the map's bottom edge sits 10px higher while
+       the container still reaches the bottom of the screen - the HERE link was
+       landing in the home-indicator band and disappeared behind it. */
+    --portal-map-grow: 10px;
+    --portal-map-shrink: 10px;
     /* OWNER (Nov 23 2026, w313): the map now runs to the bottom of the screen
        with the same 8px border as its top and sides, instead of stopping a full
        34px home-bar inset short and reading as an unpainted strip. The page
