@@ -7,6 +7,11 @@ import { saveSummarySnapshot, getSummarySnapshot, deserializeSummary, saveLedger
 import { buildSummaryPayload, publishSharedSnapshot, fetchLatestSharedSnapshot, subscribeSharedSnapshot } from '@/components/square/squareBalancesSharedSnapshot';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { EDITOR_HOST_DEVICE_NAME } from '@/components/utils/deviceManager';
+// w329 moved these to ./balanceLevels.js. The re-export below does NOT create a local
+// binding, so line ~2112's getBalanceLevel() call became a free variable and every balance
+// compute threw 'getBalanceLevel is not defined' (rollup does not catch it). w332 imports
+// them locally as well.
+import { BALANCE_BAND, BALANCE_LEVELS, getBalanceLevel } from './balanceLevels';
 
 /**
  * useSquareBalancesSummary — lightweight per-card balance estimates for the
