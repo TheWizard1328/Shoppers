@@ -1487,7 +1487,9 @@ export default function PatientPortal({ embedded = false } = {}) {
     // below uses var(--app-inset-*) to keep the header clear of the OS bars.
     <div
       className={`relative flex ${embedded ? 'h-full' : 'h-screen'} bg-slate-100 dark:bg-slate-800 overflow-hidden`}
-      style={embedded ? undefined : { height: 'var(--portal-vh, 100dvh)' }}>
+      /* OWNER (Nov 23 2026): on iOS the page is --portal-map-grow (10px) taller,
+         which is what actually grows the map CONTAINER and the Leaflet canvas. */
+      style={embedded ? undefined : { height: 'calc(var(--portal-vh, 100dvh) + var(--portal-map-grow, 0px))' }}>
       
       <PatientPortalGuard />
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
@@ -1639,10 +1641,12 @@ export default function PatientPortal({ embedded = false } = {}) {
           /* Owner, Nov 23 2026 (w307): no extra 1rem above the phone's navigation
              bar - the inset already reserves the OS bar, so the extra 16px read as a
              dead strip. Full-page ends flush on var(--app-inset-bottom). */
-          /* OWNER (Nov 23 2026): --portal-map-pad-bottom is the OS inset, minus
-             10px on iOS standalone, so the map is that much taller on an iPhone
-             while every other shell is unchanged. */
-          style={{ paddingBottom: embedded ? '0px' : 'var(--portal-map-pad-bottom, var(--app-inset-bottom))' }}>
+          /* OWNER, Nov 23 2026 (w307): no extra 1rem above the phone's navigation
+             bar - the inset already reserves the OS bar, so the extra 16px read as a
+             dead strip. Full-page ends flush on var(--app-inset-bottom). The iOS
+             extra height is applied to the CONTAINER (--portal-map-grow on the
+             page), not by shrinking this pad. */
+          style={{ paddingBottom: embedded ? '0px' : 'var(--app-inset-bottom)' }}>
           
           {/* TODAY'S DELIVERY — floating top-left (owner request Nov 2 2026).
                  Only while the sidebar is hidden (phones, or the drawer closed), and

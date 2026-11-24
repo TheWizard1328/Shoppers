@@ -82,11 +82,12 @@
        100dvh, and in the APK 100dvh is already the full edge-to-edge webview. */
     --portal-vh: 100dvh;
 
-    /* Map bottom pad for the patient portal. Default is the full OS inset so the
-       map ends flush on the nav-bar band; html.is-ios-standalone trims it (below).
-       OWNER (Nov 23 2026): "we also need to increase the map height on IOS. I
-       think it can go another 10px at the bottom." */
-    --portal-map-pad-bottom: var(--app-inset-bottom);
+    /* Extra height for the patient portal's MAP CONTAINER. 0 everywhere; the
+       iPhone home-screen app adds 10px (below). OWNER (Nov 23 2026): "we also
+       need to increase the map height on IOS ... the maps container should have
+       been increased on IOS instead." The container grows, the OS inset pad
+       stays intact. */
+    --portal-map-grow: 0px;
   }
 
   /* Edge-to-edge APK only: if MainActivity ever fails to inject a status bar
@@ -102,11 +103,11 @@
      under the status bar. */
   html.is-ios-standalone {
     --portal-vh: calc(100dvh + var(--app-inset-top));
-    /* OWNER (Nov 23 2026): the portal map gets 10px more height on iOS. The
-       home-bar inset is 34px there and the map only needs to clear the bar
-       itself, so 10px of that band is reclaimed for the map. Clamped at 0 so a
-       device reporting no inset can never produce a negative pad. */
-    --portal-map-pad-bottom: max(0px, calc(var(--app-inset-bottom) - 10px));
+    /* OWNER (Nov 23 2026): 10px more MAP CONTAINER on iOS. The portal page grows
+       by this amount, so the flex-1 map section (and the Leaflet canvas inside
+       it) is genuinely 10px taller and the bottom of the page - pure padding -
+       falls under the screen edge, which html overflow:hidden already clips. */
+    --portal-map-grow: 10px;
     overflow: hidden;
   }
   html.is-ios-standalone body {
