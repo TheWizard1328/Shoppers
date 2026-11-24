@@ -13,7 +13,7 @@ import { useLocation } from 'react-router-dom';
 import { hideSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
 
-function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange, pendingBlinkConversationId, onClearBlink }) {
+function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange, pendingBlinkConversationId, onClearBlink, pageMode = false }) {
   // OWNER SPEC (Nov 19 2026): Messages must behave like every other page. It is
   // still mounted as a full-screen page layer, so navigating from the sidebar
   // used to render the new page BEHIND it. Any route change now closes the panel
@@ -22,10 +22,14 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
   const location = useLocation();
   const openedOnPathRef = useRef(location.pathname);
   useEffect(() => {
+    // PAGE MODE (Nov 23 2026): as a real route the panel IS the current page, so
+    // a path change means the user navigated away and the route already unmounts
+    // it. Running onClose here would fight the nav.
+    if (pageMode) return;
     if (location.pathname === openedOnPathRef.current) return;
     openedOnPathRef.current = location.pathname;
     onClose();
-  }, [location.pathname, onClose]);
+  }, [location.pathname, onClose, pageMode]);
   // OWNER SPEC (Nov 17 2026): "make the in-app messaging panel on mobile full screen
   // like the edit route form, adhering to the APK header and footer gap that's required
   // for the APK but ignoring it when not in the APK." Same rules as DeliveryFormView:
@@ -211,7 +215,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleCloseMessaging}
+              onClick={() => { if (pageMode) { window.history.length > 1 ? window.history.back() : (window.location.href = '/Dashboard'); } else { handleCloseMessaging(); } }}
               className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               aria-label="Close messages"
             >

@@ -25,6 +25,10 @@ export const MOBILE_TAB_CONFIG = {
     rootPath: '/squarebalances',
     matches: ['/squarebalances'],
   },
+  messages: {
+    rootPath: '/messages',
+    matches: ['/messages'],
+  },
   payroll: {
     rootPath: '/driverpayroll',
     matches: ['/driverpayroll'],

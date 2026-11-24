@@ -2,6 +2,7 @@ import React from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { createPageUrl } from '@/utils';
 import { userHasRole , isAppOwner } from '@/components/utils/userRoles';
+import { useNavigate } from 'react-router-dom';
 import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
 import { useBookedOffBadge } from './useBookedOffBadge';
 import ShiftCoverageBalloon from './ShiftCoverageBalloon';
@@ -24,6 +25,7 @@ import { useSquareBalancesSummary } from '@/components/square/useSquareBalancesS
 
 const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle, hasApkUpdate }, ref) {
   const { activeTab, navigateToTab } = useMobileNavigation();
+  const navigate = useNavigate();
   const { count: bookedOffCount, records: bookedOffRecords } = useBookedOffBadge(currentUser);
   const { os, deviceType } = useDevice();
   const isIOS = os === 'iOS' && deviceType === 'Mobile';
@@ -182,7 +184,9 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
         <div data-mobile-bottom-nav-scroll className="flex-1 flex overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', overscrollBehaviorX: 'contain' }}>
           {navItems.map((item) => {
             const isMessagingItem = item.action === 'messaging';
-            const isActive = isMessagingItem ? messagingPageOpen : activeTab === item.tabKey;
+            // PAGE TAB (Nov 23 2026): Messages is a real route now, so the green
+            // highlight comes from the active tab like every other page.
+            const isActive = isMessagingItem ? (activeTab === 'messages' || messagingPageOpen) : activeTab === item.tabKey;
             const Icon = item.icon;
             // Even distribution: every tab grows equally to fill the row width, so
             // wider screens show MORE tabs. The 76px floor keeps them from
@@ -207,7 +211,7 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
                   key={item.name}
                   type="button"
                   {...sharedProps}
-                  onClick={() => window.dispatchEvent(new CustomEvent('openMessagingPanel'))}
+                  onClick={() => navigate('/Messages')}
                 >
                   <Icon className="w-5 h-5 mb-0.5" style={{ color: isActive ? '#10b981' : undefined, opacity: isActive ? 1 : undefined }} />
                   <span className={`text-sm font-medium truncate ${isActive ? '' : 'text-soft'}`} style={{ maxWidth: '80px', color: isActive ? '#10b981' : undefined }}>

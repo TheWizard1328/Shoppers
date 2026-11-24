@@ -27,6 +27,7 @@ const Patients = lazy(() => import('./pages/Patients'));
 const Settings = lazy(() => import('./pages/Settings'));
 const SquareLocationConfigs = lazy(() => import('./pages/SquareLocationConfigs'));
 const SquareManagement = lazy(() => import('./pages/SquareManagement'));
+const Messages = lazy(() => import('./pages/Messages'));
 const SquareBalances = lazy(() => import('./pages/SquareBalances'));
 const StoreInvoices = lazy(() => import('./pages/StoreInvoices'));
 const Stores = lazy(() => import('./pages/Stores'));
@@ -45,6 +46,7 @@ export const PAGES = {
     "Documents": Documents,
     "DriverSettings": DriverSettings,
     "Home": Home,
+    "Messages": Messages,
     "PatientActivityReview": PatientActivityReview,
     "Patients": Patients,
     "Settings": Settings,

@@ -1010,7 +1010,7 @@ export default function AppSidebar({
           users={users}
           appUsers={appUsers}
           unreadMessageCount={unreadMessageCount}
-          onOpenMessaging={() => {setShowMessaging(true);setUnreadMessageCount(0);setSidebarOpen(false);}}
+          onOpenMessaging={() => { navigate('/Messages'); setUnreadMessageCount(0); setSidebarOpen(false); }}
           onOpenInviteQR={() => {setShowInviteQRModal(true);setSidebarOpen(false);}}
           onOpenDriverChat={(driver) => {
             const otherUserId = driver.user_id || driver.id;
