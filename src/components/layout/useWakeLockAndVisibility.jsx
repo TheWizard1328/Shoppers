@@ -77,7 +77,12 @@ export function useWakeLockAndVisibility({
         keepAwakeVideoRef.current = v;
         const play = () => { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); };
         play();
+        // A cold PWA start can reject the very first play() before the media pipeline
+        // is ready; these events plus one rAF retry catch that without a gesture.
         v.addEventListener('pause', play);
+        v.addEventListener('loadeddata', play);
+        v.addEventListener('canplay', play);
+        try { window.requestAnimationFrame(play); } catch { /* older webview */ }
       } catch { keepAwakeVideoRef.current = null; }
     };
 
@@ -254,7 +259,11 @@ export function useWakeLockAndVisibility({
     // until the page has settled, so nothing was holding the screen until the first
     // tap. Both paths are retried across the first 30 seconds now, which covers iOS
     // granting the lock a beat after load as well as a late "visible" state.
-    const bootTimers = [300, 1000, 2500, 5000, 10000, 20000, 30000].map((ms) =>
+    // DENSER LADDER (owner report Nov 23 2026): "the patient portal seems to take some
+    // time for the service to activate. I had the screen dim 2x before it began to stay
+    // on." Every second for the first 10s, then out to a minute, so the barrier comes up
+    // before the first dim instead of after the second one.
+    const bootTimers = [0, 250, 600, 1200, 2000, 3000, 4000, 5000, 6500, 8000, 10000, 13000, 16000, 20000, 25000, 30000, 40000, 50000, 60000].map((ms) =>
     setTimeout(() => {
       if (document.visibilityState !== 'visible') return;
       if (isIOSDeviceRef.current) startKeepAwakeVideo();
@@ -270,6 +279,9 @@ export function useWakeLockAndVisibility({
     // actually decoding. Two consecutive stalled ticks (iOS pause with no event, or a
     // refresh where autoplay was refused before the first touch) rebuild it from scratch.
     let videoStalls = 0;
+    // 2s instead of 5s (owner report Nov 23 2026): iOS can pause the barrier within a
+    // couple of seconds of a cold start, and the first screen dim is roughly 30s away -
+    // a 5s tick let the portal spend that whole window unprotected.
     const videoWatchdog = isIOSDeviceRef.current ? setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       const v = keepAwakeVideoRef.current;
@@ -281,7 +293,7 @@ export function useWakeLockAndVisibility({
       } else {
         videoStalls = 0;
       }
-    }, 5000) : null;
+    }, 2000) : null;
 
     // A PWA refresh / bfcache restore fires pageshow after the effect has run; iOS has
     // dropped everything by then, so re-arm both the lock and the barrier video.
