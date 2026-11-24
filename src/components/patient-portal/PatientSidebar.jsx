@@ -3,7 +3,6 @@ import { HeartPulse, LogOut, Package, ChevronDown, ChevronUp, X } from 'lucide-r
 import PatientDeliveryCard from './PatientDeliveryCard';
 import { buildDeliveryCardProps } from './deliveryCardHelpers';
 import { PatientSessionManager } from './PatientSessionManager';
-import { formatAppVersion } from '@/version';
 import { isPatientViewOverlayActive, requestExitPatientView } from './patientViewExit';
 
 export default function PatientSidebar({ puidGroups, patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false, liveRemainingStops = null }) {
@@ -154,14 +153,9 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
               </button>
             }
           </div>
-          <div className="mt-1 text-right">
-            <span
-              className="text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500"
-              title="App version">
-              
-              {formatAppVersion()}
-            </span>
-          </div>
+          {/* Version line REMOVED (owner request Nov 23 2026): "remove the version
+              number from the side bar". The portal header already shows it as the
+              third row, so the footer is just the two action buttons now. */}
         </div>
       </div>
     </>);

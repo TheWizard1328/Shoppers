@@ -134,7 +134,10 @@
        one screen tall. The Leaflet canvas still keeps the 10px shrink from w314 so
        the HERE attribution clears the home indicator. */
     --portal-map-grow: 0px;
-    --portal-map-shrink: 10px;
+    /* OWNER (Nov 23 2026): "for IOS increase the map by 10px height within it's
+       container." The canvas now fills the wrapper exactly (no shrink); the bottom
+       8px border and the page height keep the HERE link on screen. */
+    --portal-map-shrink: 0px;
     /* OWNER (Nov 23 2026, w313): the map now runs to the bottom of the screen
        with the same 8px border as its top and sides, instead of stopping a full
        34px home-bar inset short and reading as an unpainted strip. The page

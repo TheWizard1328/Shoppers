@@ -247,6 +247,20 @@ export function useWakeLockAndVisibility({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     if (document.visibilityState === 'visible') requestWakeLock();
 
+    // BOOT LADDER (owner report Nov 23 2026): "the IOS PWA keep screen on not
+    // activating upon initial app load/refresh, but does 'sometimes' activate after
+    // user interaction." On an iPhone PWA cold start the first wakeLock.request()
+    // is refused (no activation yet) and the barrier video's autoplay is refused
+    // until the page has settled, so nothing was holding the screen until the first
+    // tap. Both paths are retried across the first 30 seconds now, which covers iOS
+    // granting the lock a beat after load as well as a late "visible" state.
+    const bootTimers = [300, 1000, 2500, 5000, 10000, 20000, 30000].map((ms) =>
+    setTimeout(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (isIOSDeviceRef.current) startKeepAwakeVideo();
+      ensureWakeLock().catch(() => {});
+    }, ms));
+
     // iOS silently drops the wake lock (no event, terminated sentinel) and also
     // suspends a video it thinks is idle. The heartbeat therefore (a) revives the
     // video, (b) re-requests the lock, and (c) forces a brand new lock every
@@ -319,8 +333,14 @@ export function useWakeLockAndVisibility({
       if (isIOSDeviceRef.current) startKeepAwakeVideo();
       ensureWakeLock().catch(() => {});
     };
+    // Any first gesture re-arms both paths. click/scroll/keydown are added because a
+    // patient can scroll the portal or open a sheet without ever firing pointerdown
+    // on a window listener in some iOS PWA builds.
     window.addEventListener('pointerdown', gestureRetry, { passive: true });
     window.addEventListener('touchstart', gestureRetry, { passive: true });
+    window.addEventListener('click', gestureRetry, { passive: true });
+    window.addEventListener('scroll', gestureRetry, { passive: true, capture: true });
+    window.addEventListener('keydown', gestureRetry, { passive: true });
 
     return () => {
       stopKeepAwakeVideo();
@@ -328,8 +348,12 @@ export function useWakeLockAndVisibility({
       if (videoWatchdog) clearInterval(videoWatchdog);
       window.removeEventListener('pageshow', handlePageShow);
       window.removeEventListener('focus', handlePageShow);
+      bootTimers.forEach(clearTimeout);
       window.removeEventListener('pointerdown', gestureRetry);
       window.removeEventListener('touchstart', gestureRetry);
+      window.removeEventListener('click', gestureRetry);
+      window.removeEventListener('scroll', gestureRetry, { capture: true });
+      window.removeEventListener('keydown', gestureRetry);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releaseWakeLock();
     };

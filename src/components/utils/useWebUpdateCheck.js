@@ -18,7 +18,10 @@ import { WEB_VERSION } from '@/version';
 import { base44 } from '@/api/base44Client';
 import { isUpdateSuppressed, clearUpdateAttempts } from '@/components/utils/updateLoopGuard';
 
-const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+// OWNER (Nov 23 2026): "we need the background update checks to be more frequent
+// too." 60s instead of 5 minutes; /version.json is a tiny static file and the fetch
+// is no-store, so a push is now noticed within about a minute of the deploy.
+const POLL_INTERVAL = 60 * 1000; // 1 minute
 
 /**
  * PREVIEW SELF-REFRESH (owner report Nov 6 2026, twice): "the 2 row version
