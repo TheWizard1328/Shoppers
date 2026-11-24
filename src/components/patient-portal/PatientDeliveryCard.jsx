@@ -159,27 +159,38 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
               </p>
             }
           </div>
-          <div className="flex flex-col items-center flex-shrink-0">
-            <div className="flex items-center gap-1">
-              {/* Invisible chevron spacer (owner fix Nov 3 2026): the visible
-                              chevron used to push the status badge off-centre, so the ETA /
-                              delivered time, and the new stops-left line, sat under the
-                              badge+chevron pair instead of under the badge itself. A
-                              matching invisible chevron on the left keeps the badge dead
-                              centre and the lines below it perfectly aligned. */}
-              <ChevronDown className="w-3.5 h-3.5 opacity-0" aria-hidden="true" />
+          {/* BADGE STACK + CHEVRON COLUMN (owner request Nov 23 2026): "I need the
+              Time badge to be either centered bellow the Status badge or to have
+              both badges aligned with each other on their right sides and the
+              Chevron in it's own column." The right side is now two columns: the
+              badges stack right-aligned (status on top, time/ETA directly under it,
+              both flush to the same right edge) and the chevron owns a column of its
+              own, centred against the stack. The old invisible-chevron spacer is
+              gone because nothing has to be balanced any more. */}
+          <div className="flex items-start gap-1.5 flex-shrink-0">
+            <div className="flex flex-col items-end gap-1">
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
               expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`}`
               }>
                 <Icon className="w-3 h-3" />
                 {config.label}
               </span>
+              {subBadge && (subBadge.pill ?
+              <span className={`inline-flex items-center justify-center rounded-full border font-semibold leading-tight tabular-nums whitespace-nowrap text-xs px-2 py-0.5 ${subBadge.pillCls}`}>
+                  {subBadge.text}
+                </span> :
+              <span className={`text-xs font-medium leading-tight text-right whitespace-nowrap ${expanded ? 'text-slate-300' : subBadge.color}`}>
+                  {subBadge.text}
+                </span>)
+              }
+            </div>
+            <div className="flex items-center self-stretch pt-0.5">
               {expanded ?
               <ChevronUp className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" /> :
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
               }
             </div>
-                      </div>
+          </div>
         </div>
         {/* DATE / STOPS-LEFT / ETA ROW (owner request Nov 4 2026): the stop
             count belongs CENTRED between the date and the ETA. It was crammed
@@ -192,14 +203,8 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
           <span className="flex-1 flex items-center justify-center min-w-0">
             {stopsPill}
           </span>
-          {subBadge && (subBadge.pill ?
-            <span className={`inline-flex items-center justify-center rounded-full border font-semibold leading-tight tabular-nums whitespace-nowrap text-xs px-3 flex-shrink-0 ${subBadge.pillCls}`}>
-              {subBadge.text}
-            </span> :
-            <span className={`text-sm font-medium leading-tight text-right flex-shrink-0 ${expanded ? 'text-slate-300' : subBadge.color}`}>
-              {subBadge.text}
-            </span>)
-          }
+          {/* The time / ETA badge moved up into the right-hand badge stack
+              (owner request Nov 23 2026), so this row is date + stops only. */}
         </div>
       </button>
 
