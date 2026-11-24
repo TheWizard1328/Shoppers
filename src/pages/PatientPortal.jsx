@@ -22,6 +22,7 @@ import { patientPortalPing } from '@/functions/patientPortalPing';
 import UpdateInfoBalloon from '@/components/common/UpdateInfoBalloon';
 import { useWebUpdateCheck } from '@/components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from '@/components/utils/interactionIdleTracker';
+import { useWakeLockAndVisibility } from '@/components/layout/useWakeLockAndVisibility';
 import { BAKED_APK_DIGIT, WEB_VERSION, formatVersionDigits } from '@/version';
 import { clearUserCache } from '@/components/utils/auth';
 import { purgeStaleServiceWorkerAndCaches } from '@/components/utils/ChunkErrorBoundary';
@@ -726,6 +727,15 @@ export default function PatientPortal({ embedded = false } = {}) {
   // build waiting. Patients are not app users, so the balloon is driven by the
   // /version.json poll rather than an app-update broadcast Message.
   const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
+
+  // KEEP THE SCREEN AWAKE (owner report Nov 23 2026): "the iOS PWA is still not
+  // staying on in the patient portal but it is staying on for the drivers." The
+  // keep-awake hook lives in Layout.jsx, and the patient portal renders OUTSIDE
+  // Layout, so a patient device never mounted it at all. Called with an empty
+  // app-shell config: the driver-only branches inside (GPS refresh, smart sync)
+  // are all gated on locationTracker.isTracking / a logged-in currentUser, which a
+  // patient never has, so this only brings up the wake lock + iOS barrier video.
+  useWakeLockAndVisibility({});
   useEffect(() => {
     // Idle measurement lives in the shared tracker (Layout owns the same one;
     // the init is idempotent) so "idle" means the same thing everywhere.
