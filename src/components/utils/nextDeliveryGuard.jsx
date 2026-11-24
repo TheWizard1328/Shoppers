@@ -24,7 +24,7 @@
 import { offlineDB } from './offlineDatabase';
 import { updateDeliveryLocal } from './offlineMutations';
 import { canThisDeviceRestoreNextFlag, stampNextFlagOwner, parseFlagOwner } from './nextFlagOwnership';
-import { isEntityDead, markEntityDead } from './deadEntityGuard';
+import { isEntityDead } from './deadEntityGuard';
 
 const TERMINAL = ['completed', 'failed', 'cancelled'];
 const isInterStoreId = (id) => String(id || '').startsWith('ISP') || String(id || '').startsWith('ISD');
@@ -293,8 +293,13 @@ export async function ensureRouteHasNextStop({
       try {
         const { base44 } = await import('@/api/base44Client');
         await base44.entities.Delivery.update(target.id, restorePayload).catch(async (err) => {
-          const { isEntityNotFoundError } = await import('./deadEntityGuard');
-          if (isEntityNotFoundError(err)) markEntityDead(target.id);
+          // 404 is terminal (owner fix Nov 24 2026): drop the ghost row and its
+          // queued mutation, not just the in-memory marker, so the next guard
+          // pass cannot pick it again and nothing retries a dead write.
+          const { isEntityNotFoundError, dropDeadEntityMutation } = await import('./deadEntityGuard');
+          if (isEntityNotFoundError(err)) {
+            await dropDeadEntityMutation({ entity: 'Delivery', id: target.id });
+          }
         });
       } catch (_) { /* offline — IDB + queued mutation carry it */ }
     }

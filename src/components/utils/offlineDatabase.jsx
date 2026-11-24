@@ -589,9 +589,19 @@ const _nextFlagActive = (r) => !!r && !NEXT_FLAG_TERMINAL.includes(String(r?.sta
 
 const _restoreStompedNextFlags = async (records) => {
   const list = Array.isArray(records) ? records : [];
-  const candidates = list.filter((r) =>
+  let candidates = list.filter((r) =>
     r?.id && _nextFlagActive(r) && r.isNextDelivery !== true);
   if (candidates.length === 0) return records;
+  // DEAD RECORDS ARE NOT RESTORABLE (owner fix Nov 24 2026): this gate decided
+  // from local IndexedDB alone, so a stop the server had deleted kept getting its
+  // flag restored on every write batch — the guard restored it, the server 404'd,
+  // and the cycle repeated (~22 rows/hour across 8 devices). A 404'd id is dead
+  // for 24h; never restore a flag on it.
+  try {
+    const { isEntityDead } = await import('./deadEntityGuard');
+    candidates = candidates.filter((r) => !isEntityDead(r.id));
+    if (candidates.length === 0) return records;
+  } catch (_) { /* guard unavailable — fall through with the full list */ }
   // A write that promotes SOME stop to next is a legitimate advance — the
   // previous holder is meant to be cleared in that same payload.
   const claimants = list.filter((r) => r?.id && r.isNextDelivery === true && _nextFlagActive(r));
