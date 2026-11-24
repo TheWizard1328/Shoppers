@@ -248,12 +248,14 @@ export async function refundCodDelivery({ deliveryId }) {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
     const noteSuffix = `Original COD of $${amount.toFixed(2)} was refunded on ${today}.`;
     const existingNote = String(d.delivery_notes || '');
+    // OWNER REPORT (Nov 24 2026): 'the item disappeared from the store card items ...
+    // It should have been moved to the collected section, showing the Refunded state.'
+    // Zeroing cod_total_amount_required and clearing cod_payments is what erased the
+    // row: nothing was left to render. The amount and the original payments are now
+    // KEPT, the collection stamps stay, and cod_refunded_at is what marks it Refunded -
+    // the balance math reads cod_refunded_amount and skips the live payments entirely,
+    // so nothing is counted twice.
     const updatePayload = {
-      cod_total_amount_required: 0,
-      cod_payments: [],
-      cod_card_spend_at: '',
-      cod_confirmed_collected: false,
-      cod_confirmed_collected_at: '',
       cod_refunded_at: new Date().toISOString(),
       cod_refunded_amount: amount,
       cod_refunded_tender: origTender,

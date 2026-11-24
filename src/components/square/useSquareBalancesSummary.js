@@ -595,7 +595,31 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
     // the same rate sheet the live collection would have used.
     const refundTender = String(d?.cod_refunded_tender || '').toLowerCase();
     const refundOnCard = refundTender ? (refundTender === 'debit' || refundTender === 'credit') : true;
-    if (String(d?.cod_refunded_at || '') && cardPayments.length === 0 && refundOnCard) {
+    // OWNER REPORT (Nov 24 2026): 'I just changed a Cash collected item to Refunded and
+    // the item disappeared ... its amount did not return to the cards balance.' A COD that
+    // was SWIPED off the card (cod_card_spend_at stamped) took money off the card, so a
+    // refund must put that amount back even when the tender was cash. And a refunded row
+    // must always stop here: its live cod_payments are the ORIGINAL collection and would
+    // otherwise be counted a second time now that refundCodDelivery keeps them for display.
+    const hadCardSpend = !!String(d?.cod_card_spend_at || '').trim() || Number(d?.cod_card_spend || 0) > 0;
+    if (String(d?.cod_refunded_at || '')) {
+      if (refundOnCard || hadCardSpend) {
+        const grossC = Math.round(Number(d?.cod_refunded_amount || 0) * 100);
+        if (grossC > 0) {
+          const agg = aggFor(locId);
+          const feeC = estimateCardFeeCents(grossC, 'credit');
+          const loanC = Math.round(grossC * loanRate);
+          const folderC = folderCentsFor(grossC, folderRate);
+          const settledC = Math.max(0, grossC - feeC - loanC - folderC);
+          agg.gross += grossC; agg.fees += feeC; agg.loan += loanC; agg.folder += folderC;
+          agg.credits += settledC; agg.count += 1;
+          const refundOcc = String(d?.cod_refunded_at || '');
+          if (refundOcc && String(agg.lastAt || '') < refundOcc) agg.lastAt = refundOcc;
+        }
+      }
+      return;
+    }
+    if (cardPayments.length === 0 && refundOnCard) {
       const grossC = Math.round(Number(d?.cod_refunded_amount || 0) * 100);
       if (grossC > 0) {
         const agg = aggFor(locId);
