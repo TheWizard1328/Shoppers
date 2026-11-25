@@ -1777,9 +1777,9 @@ export default function PatientPortal({ embedded = false } = {}) {
                    canvas shrink so it never covers the HERE attribution. */}
             {showLiveTracking && driverLocation &&
             <div
-              className="absolute left-1/2 -translate-x-1/2 z-[1000] pointer-events-none"
+              className="absolute inset-x-0 z-[1000] pointer-events-none flex justify-center px-2"
               style={{ bottom: 'calc(var(--portal-map-shrink, 0px) + 10px)' }}>
-              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
+              <div className={`whitespace-nowrap text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
                 {trackingMode ? '📍 Tracking driver' : '⏳ Tracking resumes shortly'}
               </div>
             </div>
