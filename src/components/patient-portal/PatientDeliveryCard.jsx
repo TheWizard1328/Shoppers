@@ -24,7 +24,7 @@ function InfoRow({ icon: Icon, label, value }) {
 
 }
 
-export default function PatientDeliveryCard({ delivery, storeName, pickupTime, pickupEta = null, pickupWindowStart = null, pickupWindowEnd = null, stopsBetween, pickupDriverName = null, deliveredBy = null, pickupByOtherDriver = false, transferred = false, transferredFrom = null, transferredOn = null, remainingStops = null, expandInline = false, belowDateSlot = null }) {
+export default function PatientDeliveryCard({ delivery, storeName, pickupTime, pickupEta = null, pickupWindowStart = null, pickupWindowEnd = null, stopsBetween, stopsTillPickup = null, pickupDriverName = null, deliveredBy = null, pickupByOtherDriver = false, transferred = false, transferredFrom = null, transferredOn = null, remainingStops = null, expandInline = false, belowDateSlot = null }) {
   const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
@@ -103,11 +103,18 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
   // Content rules are unchanged: per-card count of stops prior to this patient's
   // own stop, plus "you're next" as a status suffix.
   const stopsPill = (['pending', 'en_route', 'in_transit'].includes(delivery.status) &&
-    (stopsBetween != null || remainingStops != null)) ?
+    (stopsBetween != null || remainingStops != null || stopsTillPickup != null)) ?
     (() => {
-      const count = stopsBetween != null ? Number(stopsBetween) : Number(remainingStops);
+      // OWNER RULE (Nov 25 2026): PENDING reads "x stops till pickup" (the stops
+      // ahead of her pickup); once in transit it reads "x stops away".
+      const isPendingNow = delivery.status === 'pending';
+      const count = isPendingNow
+        ? Number(stopsTillPickup != null ? stopsTillPickup : (remainingStops != null ? remainingStops : 0))
+        : Number(stopsBetween != null ? stopsBetween : (remainingStops != null ? remainingStops : 0));
       const isNext = delivery.isNextDelivery === true;
-      const countLabel = count === 0 ? 'Direct delivery' : `${count} stop${count === 1 ? '' : 's'}`;
+      const countLabel = isPendingNow
+        ? (count === 0 ? 'Pickup is next' : `${count} stop${count === 1 ? '' : 's'} till pickup`)
+        : (count === 0 ? 'Direct delivery' : `${count} stop${count === 1 ? '' : 's'} away`);
       const label = isNext ? `${countLabel} \u00b7 you're next` : countLabel;
       const cls = isNext ?
         expanded ?

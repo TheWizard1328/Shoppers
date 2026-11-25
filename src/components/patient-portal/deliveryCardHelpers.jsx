@@ -127,6 +127,28 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
     }
   }
 
+  // ── STOPS TILL PICKUP (owner rule Nov 25 2026) ───────────────────────────
+  // While the delivery is PENDING the card must count the stops ahead of the
+  // PICKUP ("6 stops till pickup"), not the stops after it. Once it is in
+  // transit the same pill switches to "6 stops away".
+  let stopsTillPickup = null;
+  if (pickupStop) {
+    const pickupOrder = Number(pickupStop.stop_order);
+    const pool = (group.length > 0 ? group : (Array.isArray(allDeliveries) ? allDeliveries : []))
+      .filter((rec) => rec && rec.id !== pickupStop.id
+        && (!pickupStop.driver_id || rec.driver_id === pickupStop.driver_id));
+    if (Number.isFinite(pickupOrder) && pool.length > 0) {
+      stopsTillPickup = pool.filter((rec) => {
+        const order = Number(rec.stop_order);
+        if (!Number.isFinite(order) || order >= pickupOrder) return false;
+        return !['completed', 'failed', 'cancelled'].includes(String(rec.status || '').toLowerCase());
+      }).length;
+    }
+    if (stopsTillPickup == null && Number.isFinite(pickupOrder)) {
+      stopsTillPickup = Math.max(0, pickupOrder - 1);
+    }
+  }
+
   // ── TRANSFER HISTORY ─────────────────────────────────────────────────────
   // A moved stop carries a driver note: "Delivery Transferred from <driver> on
   // <date>" (or "...from <date>" when the driver did not change).
@@ -147,6 +169,7 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
     pickupWindowStart,
     pickupWindowEnd,
     stopsBetween,
+    stopsTillPickup,
     pickupDriverName,
     deliveredBy,
     pickupByOtherDriver,

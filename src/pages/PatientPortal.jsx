@@ -1210,6 +1210,10 @@ export default function PatientPortal({ embedded = false } = {}) {
       const cardProps = buildDeliveryCardProps(todayDelivery, {
         pickupStops, puidGroups, storeMap, allDeliveries: deliveries,
       });
+      // PENDING shows the card's "till pickup" number, in transit shows "away".
+      const pendingNow = todayDelivery.status === 'pending';
+      const shown = pendingNow ? cardProps?.stopsTillPickup : cardProps?.stopsBetween;
+      if (shown != null && Number.isFinite(Number(shown))) return Number(shown);
       const between = cardProps?.stopsBetween;
       if (between != null && Number.isFinite(Number(between))) return Number(between);
     } catch { /* fall back below */ }
