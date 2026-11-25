@@ -819,9 +819,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   const routeDeliveriesRef = useRef([]);
 
   // ── Initial data load ─────────────────────────────────────────────
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (opts = {}) => {
     if (!patient?.id) return;
-    setLoading(true);
+    // A silent pass is the background refresh: it must not flash the spinner or
+    // tear down what the patient is already reading.
+    if (!opts.silent) setLoading(true);
     try {
       // OWNER REQUEST Nov 4 2026: one login shows EVERY record that shares this
       // patient's name + phone (same person filed under more than one store),
@@ -950,6 +952,29 @@ export default function PatientPortal({ embedded = false } = {}) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // OWNER REPORT (Nov 25 2026): a patient waited 30-60s to see a delivery added to
+  // the route, and longer to see a removed pending stop go away. The portal is a
+  // public page, so its Delivery websocket is not reliable — this polls the
+  // patient's own deliveries while the tab is visible and refreshes instantly when
+  // the patient comes back to it.
+  useEffect(() => {
+    if (!patient?.id) return undefined;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      loadData({ silent: true }).catch(() => {});
+    }, 15000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadData({ silent: true }).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [patient?.id, loadData]);
 
   // Keep a ref to the current todayDelivery's driver_id and stop_order for use in WS closures
   const todayDeliveryRouteRef = useRef(null);
