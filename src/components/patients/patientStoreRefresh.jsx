@@ -36,7 +36,12 @@ export async function refreshPatientsForStores({ storeIds = [], expectedCounts =
     ({ offlineDB } = await import('../utils/offlineDatabase'));
   } catch (_) { /* offline DB is best-effort; the UI update still runs from memory */ }
 
-  for (const storeId of ids) {
+  // OWNER REPORT (Nov 24 2026): a sequential store loop made a 13-store city take
+  // minutes. Stores now load with a small pool (4 at a time): fast, but far below the
+  // wide parallel fan-out that used to cause IDB timeout storms on the store tablets.
+  const CONCURRENCY = 4;
+
+  const loadStore = async (storeId) => {
     let loaded = 0;
     let storeRows = [];
     try {
@@ -66,7 +71,16 @@ export async function refreshPatientsForStores({ storeIds = [], expectedCounts =
     byStore[storeId] = loaded;
     try { onProgress?.({ storeId, loaded, expected: expectedCounts?.[storeId] || 0, done: true }); } catch (_) {}
     try { onStoreDone?.({ storeId, loaded }); } catch (_) {}
-  }
+  };
+
+  const queue = [...ids];
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const storeId = queue.shift();
+      if (!storeId) break;
+      await loadStore(storeId);
+    }
+  }));
 
   const total = Object.values(byStore).reduce((sum, n) => sum + (Number(n) || 0), 0);
   return { byStore, total, patients };
@@ -92,15 +106,35 @@ export function publishRefreshedPatients(patients = [], deletedIds = []) {
  * every device, so they hold the newest user_name without a server round-trip.
  * Name fields only — nothing else on the record is touched.
  */
-export async function refreshDriverNamesFromIdb() {
-  try {
-    const { offlineDB } = await import('../utils/offlineDatabase');
-    const rows = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-    return (Array.isArray(rows) ? rows : []).filter((row) => row && row.id && row.__decryptFailed !== true);
-  } catch (error) {
-    console.warn('[patientStoreRefresh] IDB AppUser read failed:', error?.message || error);
-    return [];
+const DRIVER_NAMES_TTL_MS = 5 * 60 * 1000; // reuse one IDB read for 5 minutes
+let driverNamesCache = { at: 0, rows: [] };
+let driverNamesInFlight = null;
+
+export async function refreshDriverNamesFromIdb({ force = false } = {}) {
+  // OWNER REPORT (Nov 24 2026): the name pull was being repeated on every store sync
+  // and dominated the refresh time. One read now serves the whole session window, and
+  // concurrent callers share the same in-flight promise.
+  if (!force && driverNamesCache.rows.length > 0 && Date.now() - driverNamesCache.at < DRIVER_NAMES_TTL_MS) {
+    return driverNamesCache.rows;
   }
+  if (driverNamesInFlight) return driverNamesInFlight;
+
+  driverNamesInFlight = (async () => {
+    try {
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const rows = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      const usable = (Array.isArray(rows) ? rows : []).filter((row) => row && row.id && row.__decryptFailed !== true);
+      driverNamesCache = { at: Date.now(), rows: usable };
+      return usable;
+    } catch (error) {
+      console.warn('[patientStoreRefresh] IDB AppUser read failed:', error?.message || error);
+      return [];
+    } finally {
+      driverNamesInFlight = null;
+    }
+  })();
+
+  return driverNamesInFlight;
 }
 
 /** Merge IDB AppUser rows into the current list, taking only the name fields. */

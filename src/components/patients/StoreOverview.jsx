@@ -41,7 +41,9 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
             return (
               <Card key={store.id} className="rounded-xl border shadow cursor-pointer hover:shadow-md transition-all duration-200 text-body bg-surface" style={{ borderColor: store.color || 'var(--border-slate-200)', borderWidth: '2px' }} onClick={() => onStoreSelect(store.id)}>
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
+                  {/* position:relative so the refresh bar can span the CARD width, not
+                      just the narrow address column (owner report Nov 24 2026). */}
+                  <div className="relative flex items-start justify-between mb-2">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-base text-body">{store.name}</h3>
@@ -52,9 +54,8 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
                           directly under the store's phone number. It is absolutely
                           positioned so the card height never changes while a refresh
                           is running. */}
-                      <div className="relative">
-                        <p className="text-sm font-medium text-label">{store.phone ? formatPhoneNumber(store.phone) : ''}</p>
-                        {(() => {
+                      <p className="text-sm font-medium text-label">{store.phone ? formatPhoneNumber(store.phone) : ''}</p>
+                      {(() => {
                           const loaded = refreshProgressByStore ? refreshProgressByStore[store.id] : undefined;
                           if (loaded === undefined || loaded === null) return null;
                           const expected = Number(store.patientCount) || 0;
@@ -73,8 +74,7 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
                                 style={{ width: `${pct}%`, backgroundColor: store.color || '#10b981' }} />
                             </div>
                           );
-                        })()}
-                      </div>
+                      })()}
                     </div>
                     <div className="text-center ml-3">
                       <div className="text-3xl font-bold text-emerald-600 mb-1">{store.patientCount || 0}</div>
