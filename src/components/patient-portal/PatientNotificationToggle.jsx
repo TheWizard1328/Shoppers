@@ -74,11 +74,16 @@ export default function PatientNotificationToggle({ patient }) {
     setBusy(true);
     setNotice('');
     try {
+      // OWNER REPORT (Nov 25 2026): the dedicated 'test' action 500'd because the
+      // deployed function still ran the build where it sat behind auth.me().
+      // 'send' is the same public path the portal already uses for its messages,
+      // so the test rides it and works on whatever build is live.
       const res = await base44.functions.invoke('patientPush', {
-        action: 'test',
+        action: 'send',
         patient_id: patient?.id,
         title: 'RxDeliver test',
         body: 'Test notification from your pharmacy',
+        tag: 'rxdeliver-test',
       });
       const data = res?.data || res || {};
       const sent = Number(data?.sent || 0);
