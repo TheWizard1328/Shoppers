@@ -261,19 +261,19 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
 
   // Settle window: any change to the route restarts it, so pushes always carry
   // the ETA that survived the optimization.
+  // OWNER REPORT (Nov 25 2026): no patient push arrived when a stop was added to
+  // the route. The old effect CLEARED the settle timer on every deliveries change,
+  // and an active route changes constantly, so the timer was perpetually restarted
+  // and evaluate() never ran. The window is now armed once per burst: the first
+  // change schedules it, later changes ride along, and it always fires.
   useEffect(() => {
-    if (!enabled) return;
-    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    if (!enabled) return undefined;
+    if (settleTimerRef.current) return undefined;
     settleTimerRef.current = setTimeout(() => {
       settleTimerRef.current = null;
       evaluate.current?.().catch(() => {});
     }, SETTLE_MS);
-    return () => {
-      if (settleTimerRef.current) {
-        clearTimeout(settleTimerRef.current);
-        settleTimerRef.current = null;
-      }
-    };
+    return undefined;
   }, [deliveries, patients, enabled]);
 
   useEffect(() => () => {
