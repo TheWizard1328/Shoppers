@@ -482,17 +482,30 @@ function Dashboard() {
     // Lightweight numeric hash of sort-relevant fields — avoids building a large
     // concatenated string on every memo recompute (O(n) string alloc + join).
     // Uses a simple djb2-style hash over the field values.
+    // OWNER REPORT (Nov 25 2026, third time): pressing Start "only moves that stop
+    // to the next position" and the rest keep their old order. Root cause found
+    // here: the fingerprint used XOR, which is ORDER-INSENSITIVE. A re-optimize
+    // hands the SAME set of stop_order numbers to a different set of stops, so the
+    // XOR of every value is byte-identical, the memo below early-returns the
+    // cached array, and the cards keep serving the pre-optimize order while the
+    // map, polylines and ETAs all show the new one. The mix is now additive
+    // (djb2), so position matters and any stop_order reassignment changes the key.
     let sortKey = 5381;
+    const _mixKey = (v) => { sortKey = (((sortKey << 5) + sortKey) + (v | 0)) | 0; };
     for (let i = 0; i < filteredDeliveries.length; i++) {
       const d = filteredDeliveries[i];
-      if (!d) { sortKey = ((sortKey << 5) + sortKey) ^ 0; continue; }
-      sortKey = ((sortKey << 5) + sortKey) ^ (d.id?.length || 0);
-      sortKey = ((sortKey << 5) + sortKey) ^ (d.status?.charCodeAt(0) || 0);
-      sortKey = ((sortKey << 5) + sortKey) ^ (Number(d.stop_order) || 0);
-      sortKey = ((sortKey << 5) + sortKey) ^ (d.actual_delivery_time?.length || 0);
-      sortKey = ((sortKey << 5) + sortKey) ^ (d.delivery_time_eta?.length || 0);
-      sortKey = ((sortKey << 5) + sortKey) ^ (d.delivery_time_start?.length || 0);
-      sortKey = ((sortKey << 5) + sortKey) ^ (d.is_cycling_marker ? 1 : 0);
+      if (!d) { _mixKey(0); continue; }
+      _mixKey(d.id?.length || 0);
+      _mixKey(d.status?.charCodeAt(0) || 0);
+      _mixKey(Number(d.stop_order) || 0);
+      // The next flag decides which card the driver acts on, so it is part of
+      // the order too (Start flips it without touching stop_order on a stop that
+      // was already accepted).
+      _mixKey(d.isNextDelivery ? 7919 : 0);
+      _mixKey(d.actual_delivery_time?.length || 0);
+      _mixKey(d.delivery_time_eta?.length || 0);
+      _mixKey(d.delivery_time_start?.length || 0);
+      _mixKey(d.is_cycling_marker ? 1 : 0);
     }
     // The fingerprint MUST include the row count: adding rows (a transfer that
     // moves a pickup and its stops onto the selected date) can hash identically
