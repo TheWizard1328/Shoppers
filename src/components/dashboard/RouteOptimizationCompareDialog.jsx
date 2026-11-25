@@ -69,6 +69,19 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
     return (a.newStopOrder || 0) - (b.newStopOrder || 0);
   });
 
+  // OWNER RULE (Nov 25 2026): the new "#" column must reflect the ACTUAL new stop
+  // order numbers, not a list starting at 1. "Start from the same stop order
+  // number as the first item in the list so in this case the first stop order for
+  // the new stop should be 30 as well." The list is sorted by new ETA, so the base
+  // is the stored stop_order of the row that now leads the route; every following
+  // row counts up from it. Falls back to the caller's base when the leading row
+  // has no stored number yet.
+  const _baseOrder = (() => {
+    const lead = sorted[0];
+    const leadOld = Number(lead?.oldStopOrder);
+    return Number.isFinite(leadOld) && leadOld > 0 ? leadOld : orderBase;
+  })();
+
   // Mobile: center in the space between the top header (~56px) and bottom nav (~64px)
   // so the dialog sits visually centred in the usable viewport area
   const positionStyle = isMobile
@@ -163,8 +176,10 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
               // it is actually transitioned, so the "#" here is the SIMULATED position in
               // this optimized list (its ETA position), not the stored number.
               const pending = row.newStopOrder === null;
-              // OWNER RULE (Nov 24 2026): numbering starts one past the finished stops.
-              const simulatedOrder = isLoading ? null : orderBase + idx;
+              // OWNER RULE (Nov 25 2026): count up from the leading row's real
+              // stop_order (see _baseOrder above) so the panel shows the true new
+              // numbers (30, 31, 32 ...) instead of restarting at 1.
+              const simulatedOrder = isLoading ? null : _baseOrder + idx;
               const moved = !isLoading && row.oldStopOrder !== simulatedOrder;
               return (
                 <div
