@@ -48,6 +48,7 @@ import { useAppData } from '../components/utils/AppDataContext';
 import { patientMatchesSearch } from '../components/utils/careProSearchHelper';
 
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
+import { refreshPatientsForStores, publishRefreshedPatients } from '../components/patients/patientStoreRefresh';
 // Helper function to calculate distance between two coordinates (in kilometers)
 // Consolidated into geoUtils (Sep 6 2026) — km, no input guards (previous semantics).
 
@@ -452,8 +453,9 @@ export default function Patients() {
       console.log(`   contextUsers.length: ${contextUsers.length}, contextAppUsers.length: ${contextAppUsers.length}`);
       console.log(`   contextCities.length: ${contextCities.length}`);
 
-      // Always sync when context updates
-      setAllPatients(contextPatients);
+      // Always sync when context updates — minus anything another device has
+      // already deleted (see the tombstone listener below).
+      setAllPatients((contextPatients || []).filter((p) => p && !deletedPatientIdsRef.current.has(p.id)));
       setDeliveries(contextDeliveries);
       setStores(contextStores);
       setDrivers(contextDrivers);
@@ -485,6 +487,47 @@ export default function Patients() {
     fetchAllDeliveries();
   }, [hasAccess, contextDataLoaded]);
 
+  // ── CROSS-DEVICE PATIENT DELETE (owner report Nov 24 2026) ────────────
+  // Deleting a patient on one device must drop it here, on Store Overview and
+  // in the Patient Database, without a reload. The websocket path already
+  // clears IndexedDB, but a delete that lands while this page holds a stale
+  // context/IDB snapshot could still be merged back in by a later
+  // patientsUpdated. A tombstone set makes the delete stick for this session,
+  // and the realtime event is handled directly as well as through the
+  // subscription below so the page never depends on a single path.
+  const deletedPatientIdsRef = useRef(new Set());
+
+  const pruneDeletedPatients = useCallback((ids) => {
+    const list = (ids || []).filter(Boolean);
+    if (list.length === 0) return;
+    list.forEach((id) => deletedPatientIdsRef.current.add(id));
+    setAllPatients((prev) => prev.filter((p) => !deletedPatientIdsRef.current.has(p?.id)));
+    setSelectedPatient((prev) => (prev && deletedPatientIdsRef.current.has(prev.id) ? null : prev));
+    window.dispatchEvent(new CustomEvent('patientsDeleted', { detail: { deletedIds: list } }));
+  }, []);
+
+  useEffect(() => {
+    if (!hasAccess || typeof window === 'undefined') return undefined;
+
+    const onRealtimePatient = (e) => {
+      const detail = e?.detail || {};
+      if (detail.type !== 'delete') return;
+      const deletedId = detail.id || detail.data?.id;
+      if (deletedId) pruneDeletedPatients([deletedId]);
+    };
+    const onPatientsUpdated = (e) => {
+      const deletedIds = e?.detail?.deletedIds;
+      if (Array.isArray(deletedIds) && deletedIds.length > 0) pruneDeletedPatients(deletedIds);
+    };
+
+    window.addEventListener('realtimeUpdate_Patient', onRealtimePatient);
+    window.addEventListener('patientsUpdated', onPatientsUpdated);
+    return () => {
+      window.removeEventListener('realtimeUpdate_Patient', onRealtimePatient);
+      window.removeEventListener('patientsUpdated', onPatientsUpdated);
+    };
+  }, [hasAccess, pruneDeletedPatients]);
+
   useEffect(() => {
     if (!hasAccess) return;
 
@@ -496,8 +539,7 @@ export default function Patients() {
           setAllPatients((prev) => prev.map((patient) => patient?.id === event.id ? { ...patient, ...event.data } : patient));
           setSelectedPatient((prev) => prev?.id === event.id ? { ...prev, ...event.data } : prev);
         } else if (event.type === 'delete') {
-          setAllPatients((prev) => prev.filter((patient) => patient?.id !== event.id));
-          setSelectedPatient((prev) => prev?.id === event.id ? null : prev);
+          pruneDeletedPatients([event.id]);
         }
       },
       onDeliveryChange: (event) => {
@@ -587,6 +629,62 @@ export default function Patients() {
       };
     }).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
   }, [stores, selectedCityId, allPatients, currentUser]);
+
+  // ── STORE PATIENT REFRESH (owner spec Nov 24 2026) ────────────────────
+  // Store Overview: every patient for the selected city + company, with a
+  // per-store bar drawn under each card's phone number. Patient Database:
+  // just the selected store. Both take over the header spinner.
+  const [patientRefresh, setPatientRefresh] = useState({ active: false, byStore: {} });
+
+  const runPatientRefresh = useCallback(async (storeIds) => {
+    const ids = [...new Set((storeIds || []).filter(Boolean))];
+    if (ids.length === 0) return;
+    const expectedCounts = {};
+    ids.forEach((id) => {
+      const store = (stores || []).find((st) => st && st.id === id);
+      expectedCounts[id] = store?.patientCount || 0;
+    });
+    setPatientRefresh({ active: true, byStore: Object.fromEntries(ids.map((id) => [id, 0])) });
+    try {
+      const result = await refreshPatientsForStores({
+        storeIds: ids,
+        expectedCounts,
+        onProgress: ({ storeId, loaded }) => {
+          setPatientRefresh((prev) => (prev.active
+            ? { ...prev, byStore: { ...prev.byStore, [storeId]: loaded } }
+            : prev));
+        },
+      });
+      publishRefreshedPatients(result.patients);
+      // Fold the fresh rows straight into page state so the counts move even if
+      // the patientsUpdated listener is paused for any reason.
+      if (result.patients.length > 0) {
+        setAllPatients((prev) => {
+          const byId = new Map((prev || []).filter(Boolean).map((p) => [p.id, p]));
+          result.patients.forEach((p) => { if (p?.id) byId.set(p.id, p); });
+          return Array.from(byId.values());
+        });
+      }
+    } catch (error) {
+      console.warn('[Patients] store patient refresh failed:', error?.message || error);
+    } finally {
+      // Let the bars sit at 100% for a beat, then clear them.
+      setTimeout(() => setPatientRefresh({ active: false, byStore: {} }), 1200);
+    }
+  }, [stores]);
+
+  const handleOverviewPatientRefresh = useCallback(async () => {
+    const overviewStores = getStoreOverview(isAdmin ? 'all' : selectedCityId) || [];
+    await runPatientRefresh(overviewStores.map((st) => st.id));
+  }, [getStoreOverview, isAdmin, selectedCityId, runPatientRefresh]);
+
+  const handleDatabasePatientRefresh = useCallback(async () => {
+    const ids = storeFilter && storeFilter !== 'all'
+      ? [storeFilter]
+      : (getStoreOverview(isAdmin ? 'all' : selectedCityId) || []).map((st) => st.id);
+    await runPatientRefresh(ids);
+  }, [storeFilter, getStoreOverview, isAdmin, selectedCityId, runPatientRefresh]);
+
 
   // OWNER BUG (Nov 20 2026): tapping a store card sometimes opened a DIFFERENT
   // store's patient database. Cause: the store shown is decided by two writers
@@ -1295,7 +1393,7 @@ export default function Patients() {
       await deletePatientLocal(patient.id);
       await invalidate('Patient');
       // Remove the patient from the local state immediately
-      setAllPatients((prev) => prev.filter((p) => p.id !== patient.id));
+      pruneDeletedPatients([patient.id]);
       // If the deleted patient was selected, clear selection
       if (selectedPatient?.id === patient.id) {
         setSelectedPatient(null);
@@ -1526,9 +1624,10 @@ export default function Patients() {
         deliveries={deliveries}
         onStoreSelect={handleStoreOverviewClick}
         importStats={importStats}
-        getAssignedDrivers={getAssignedDriversForStore} />);
+        getAssignedDrivers={getAssignedDriversForStore}
+        refreshProgressByStore={patientRefresh.active ? patientRefresh.byStore : null} />);
 
-  }, [inOverviewContext, currentUser, isAdmin, selectedCityId, getStoreOverview, allPatients, deliveries, handleStoreOverviewClick, importStats, getAssignedDriversForStore]);
+  }, [inOverviewContext, currentUser, isAdmin, selectedCityId, getStoreOverview, allPatients, deliveries, handleStoreOverviewClick, importStats, getAssignedDriversForStore, patientRefresh]);
 
   // NOW WE CAN HAVE EARLY RETURNS AFTER ALL HOOKS ARE CALLED
 
@@ -1570,7 +1669,7 @@ export default function Patients() {
                 <div className="flex flex-col gap-3 mb-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <SmartRefreshIndicator inline={true} />
+                      <SmartRefreshIndicator inline={true} onManualRefresh={handleDatabasePatientRefresh} />
                       <h1 className="text-2xl font-bold text-body">Patient Database</h1>
                       <Badge
                     className="text-white px-2.5 py-0.5 text-sm font-semibold rounded-md"
@@ -1609,7 +1708,7 @@ export default function Patients() {
                 }}>
                       {sortedAndFilteredPatients.length}
                     </Badge>
-                    <SmartRefreshIndicator inline={true} />
+                    <SmartRefreshIndicator inline={true} onManualRefresh={handleDatabasePatientRefresh} />
                   </div>
                   <p className="mt-1 text-label">Manage patient information and delivery preferences</p>
                 </div>
@@ -1976,7 +2075,7 @@ export default function Patients() {
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <h1 className="text-3xl font-bold text-body">Store Overview</h1>
-                  <SmartRefreshIndicator inline={true} />
+                  <SmartRefreshIndicator inline={true} onManualRefresh={handleOverviewPatientRefresh} />
                 </div>
                 <p className="mt-1 text-label">Select a store to view and manage patients</p>
               </div>

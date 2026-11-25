@@ -245,6 +245,22 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     if (isManualRefreshing || isPaused) return;
     if (window.__dashboardSyncing && window.__activePullToSyncRunId) return;
 
+    // OWNER SPEC (Nov 24 2026): a page can take over the spinner. Store Overview
+    // refreshes every patient for the selected city + company (drawing its own
+    // per-store bars) and Patient Database refreshes just the selected store, so
+    // both pass onManualRefresh and the generic pull-to-sync path is skipped.
+    if (typeof onManualRefresh === 'function') {
+      setIsManualRefreshing(true);
+      try {
+        await onManualRefresh();
+      } catch (error) {
+        console.warn('[SmartRefreshIndicator] custom refresh failed:', error?.message || error);
+      } finally {
+        setTimeout(() => setIsManualRefreshing(false), 400);
+      }
+      return;
+    }
+
     setIsManualRefreshing(true);
 
     // Pull-to-sync always bypasses the 5-min cooldown and restarts it on completion

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { hexToRgba } from '@/components/utils/colorGenerator';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 
-export default function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, getAssignedDrivers }) {
+export default function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, getAssignedDrivers, refreshProgressByStore = null }) {
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   const getStoreStats = useCallback((store) => {
@@ -48,7 +48,30 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
                         {store.abbreviation && <Badge variant="outline" className="text-foreground px-2.5 py-0.5 text-xs font-semibold opacity-75 rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" style={{ backgroundColor: 'transparent', backgroundImage: store.color ? `linear-gradient(to bottom right, ${store.color}, ${hexToRgba(store.color, 0.8)})` : 'linear-gradient(to bottom right, #10B981, #059669)', color: store.color ? 'white' : '#475569', borderColor: store.color || '#e2e8f0' }}>{store.abbreviation}</Badge>}
                       </div>
                       <p className="text-sm text-label">{store.address}</p>
-                      <p className="text-sm font-medium text-label">{store.phone ? formatPhoneNumber(store.phone) : ''}</p>
+                      {/* OWNER SPEC (Nov 24 2026): refresh progress draws as a thin bar
+                          directly under the store's phone number. It is absolutely
+                          positioned so the card height never changes while a refresh
+                          is running. */}
+                      <div className="relative">
+                        <p className="text-sm font-medium text-label">{store.phone ? formatPhoneNumber(store.phone) : ''}</p>
+                        {(() => {
+                          const loaded = refreshProgressByStore ? refreshProgressByStore[store.id] : undefined;
+                          if (loaded === undefined || loaded === null) return null;
+                          const expected = Number(store.patientCount) || 0;
+                          const pct = expected > 0
+                            ? Math.max(6, Math.min(100, Math.round((Number(loaded) / expected) * 100)))
+                            : 45;
+                          return (
+                            <div
+                              className="absolute left-0 right-0 h-[3px] rounded-full overflow-hidden"
+                              style={{ bottom: '-6px', background: 'var(--bg-slate-100, #e2e8f0)' }}>
+                              <div
+                                className="h-full transition-all duration-200 ease-out"
+                                style={{ width: `${pct}%`, backgroundColor: store.color || '#10b981' }} />
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                     <div className="text-center ml-3">
                       <div className="text-3xl font-bold text-emerald-600 mb-1">{store.patientCount || 0}</div>
