@@ -2027,7 +2027,10 @@ export default function Layout({ children, currentPageName }) {
                   appVersion={sidebarVersion}
                   buildsAheadCount={buildsAheadCount}
                   liveVersionLabel={liveVersionLabel}
-                  onOpenUpdateLog={isOwnerDevice ? () => setShowUpdateLog(true) : undefined}
+                  // OWNER REQUEST (Nov 25 2026): on a phone the drawer stayed open
+                  // over the change log, hiding the panel behind it. Opening the log
+                  // closes the sidebar first, on every device size.
+                  onOpenUpdateLog={isOwnerDevice ? () => { setSidebarOpen(false); setShowUpdateLog(true); } : undefined}
                   latestBuildNumber={latestBuild?.buildNumber ?? null}
                   hasWebUpdate={hasWebUpdate}
                   autoUpdatedNotice={autoUpdatedNotice}
