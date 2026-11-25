@@ -634,7 +634,7 @@ export default function Patients() {
   // Store Overview: every patient for the selected city + company, with a
   // per-store bar drawn under each card's phone number. Patient Database:
   // just the selected store. Both take over the header spinner.
-  const [patientRefresh, setPatientRefresh] = useState({ active: false, byStore: {} });
+  const [patientRefresh, setPatientRefresh] = useState({ active: false, byStore: {}, doneByStore: {} });
 
   // OWNER BUG (Nov 20 2026): tapping a store card sometimes opened a DIFFERENT
   // store's patient database. Cause: the store shown is decided by two writers
@@ -1516,7 +1516,7 @@ export default function Patients() {
       const store = (stores || []).find((st) => st && st.id === id);
       expectedCounts[id] = store?.patientCount || 0;
     });
-    setPatientRefresh({ active: true, byStore: Object.fromEntries(ids.map((id) => [id, 0])) });
+    setPatientRefresh({ active: true, byStore: Object.fromEntries(ids.map((id) => [id, 0])), doneByStore: {} });
     try {
       // OWNER SPEC (Nov 24 2026): driver names come from IndexedDB first and land in
       // the UI before the patient pull starts, so cards and filters never show a
@@ -1528,9 +1528,16 @@ export default function Patients() {
       const result = await refreshPatientsForStores({
         storeIds: ids,
         expectedCounts,
-        onProgress: ({ storeId, loaded }) => {
+        onProgress: ({ storeId, loaded, done }) => {
+          // OWNER REPORT (Nov 24 2026): bars froze just before the end because a store
+          // can come back with fewer rows than its cached count. `done` snaps the bar
+          // to full the moment that store's pull finishes.
           setPatientRefresh((prev) => (prev.active
-            ? { ...prev, byStore: { ...prev.byStore, [storeId]: loaded } }
+            ? {
+              ...prev,
+              byStore: { ...prev.byStore, [storeId]: loaded },
+              doneByStore: done ? { ...prev.doneByStore, [storeId]: true } : prev.doneByStore,
+            }
             : prev));
         },
       });
@@ -1548,7 +1555,7 @@ export default function Patients() {
       console.warn('[Patients] store patient refresh failed:', error?.message || error);
     } finally {
       // Let the bars sit at 100% for a beat, then clear them.
-      setTimeout(() => setPatientRefresh({ active: false, byStore: {} }), 1200);
+      setTimeout(() => setPatientRefresh({ active: false, byStore: {}, doneByStore: {} }), 1200);
     }
   }, [stores]);
 
@@ -1633,7 +1640,8 @@ export default function Patients() {
         onStoreSelect={handleStoreOverviewClick}
         importStats={importStats}
         getAssignedDrivers={getAssignedDriversForStore}
-        refreshProgressByStore={patientRefresh.active ? patientRefresh.byStore : null} />);
+        refreshProgressByStore={patientRefresh.active ? patientRefresh.byStore : null}
+        refreshDoneByStore={patientRefresh.active ? patientRefresh.doneByStore : null} />);
 
   }, [inOverviewContext, currentUser, isAdmin, selectedCityId, getStoreOverview, allPatients, deliveries, handleStoreOverviewClick, importStats, getAssignedDriversForStore, patientRefresh]);
 

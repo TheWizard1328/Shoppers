@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { hexToRgba } from '@/components/utils/colorGenerator';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 
-export default function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, getAssignedDrivers, refreshProgressByStore = null }) {
+export default function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, getAssignedDrivers, refreshProgressByStore = null, refreshDoneByStore = null }) {
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   const getStoreStats = useCallback((store) => {
@@ -59,16 +59,21 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
                           const loaded = refreshProgressByStore ? refreshProgressByStore[store.id] : undefined;
                           if (loaded === undefined || loaded === null) return null;
                           const expected = Number(store.patientCount) || 0;
-                          const pct = expected > 0
-                            ? Math.max(6, Math.min(100, Math.round((Number(loaded) / expected) * 100)))
-                            : 45;
+                          const finished = !!(refreshDoneByStore && refreshDoneByStore[store.id]);
+                          // A finished store always reads full, even when the server came
+                          // back with fewer rows than the cached count (owner report Nov 24).
+                          const pct = finished
+                            ? 100
+                            : expected > 0
+                              ? Math.max(4, Math.min(99, Math.round((Number(loaded) / expected) * 100)))
+                              : 8;
                           // OWNER SPEC (Nov 24 2026): the track spans 95% of the card
                           // width and fills proportionally from 0 to the store's known
                           // patient total, so a finished store (336 of 336) ends at 95%.
                           return (
                             <div
                               className="absolute h-[3px] rounded-full overflow-hidden"
-                              style={{ bottom: '-6px', left: 0, width: '95%', background: 'var(--bg-slate-100, #e2e8f0)' }}>
+                              style={{ bottom: '-6px', left: 0, width: '95%', background: 'rgba(148,163,184,0.35)' }}>
                               <div
                                 className="h-full transition-all duration-200 ease-out"
                                 style={{ width: `${pct}%`, backgroundColor: store.color || '#10b981' }} />
