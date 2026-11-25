@@ -1,5 +1,5 @@
 import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
-import React from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, ChevronDown, ChevronRight, RotateCcw, Ban } from "lucide-react";
@@ -36,6 +36,26 @@ export default function DeliveryFormStaged({
   shouldAutoFocusFields,
   selectedDate
 }) {
+  // OWNER REPORT (Nov 25 2026): the staged/pending list jumped back to the top
+  // every time a pending patient card was selected. Selecting a card re-renders
+  // the list and auto-focuses the edit fields, and the browser scrolls the
+  // focused field into view — which reset this container to 0. Remember the
+  // position and put it back after every render (and again after the focus
+  // scroll settles).
+  const listRef = useRef(null);
+  const savedScrollRef = useRef(0);
+  const restoreListScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    if (Math.abs(el.scrollTop - savedScrollRef.current) > 2) el.scrollTop = savedScrollRef.current;
+  };
+  useLayoutEffect(() => { restoreListScroll(); });
+  useEffect(() => {
+    const t1 = setTimeout(restoreListScroll, 60);
+    const t2 = setTimeout(restoreListScroll, 220);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  });
+
   // ── PROJECTIONS SUPPRESSED FOR 2 MISSED ROTATIONS (owner rule Nov 6 2026) ──
   // Flagged rows are pulled out of the normal list and shown in a collapsed
   // group so nothing is silently dropped: Restore puts the patient straight back
@@ -282,7 +302,7 @@ export default function DeliveryFormStaged({
   ];
 
   return (
-    <div className="space-y-1 flex-1 min-h-0 h-full overflow-y-auto overscroll-contain custom-scrollbar">
+    <div ref={listRef} onScroll={(e) => { savedScrollRef.current = e.currentTarget.scrollTop; }} className="space-y-1 flex-1 min-h-0 h-full overflow-y-auto overscroll-contain custom-scrollbar">
       {/* Staged Deliveries Section (new, not yet saved) */}
       {sortedStagedDeliveries.filter((s) => !s.id).length > 0 &&
       <>
