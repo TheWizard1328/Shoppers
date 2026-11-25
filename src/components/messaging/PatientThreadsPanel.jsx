@@ -73,10 +73,6 @@ export default function PatientThreadsPanel({
   // into one list, so a message sent to a driver looked like it went to the
   // pharmacy team, and every staff reply was forced into the store thread.
   const [driverDir, setDriverDir] = useState([]);
-  // OWNER REPORT (Nov 25 2026): an owner/dispatcher who is ALSO a driver sent from
-  // the pharmacy thread, so the patient saw "pharmacy" instead of them. Driver-role
-  // users can now pick which side of themselves the message comes from.
-  const [sendAsDriver, setSendAsDriver] = useState(false);
   const [storeRows, setStoreRows] = useState(stores || []);
   const unreadContributedRef = useRef(0);
   const endRef = useRef(null);
@@ -132,6 +128,13 @@ export default function PatientThreadsPanel({
 
   // Delivery.driver_id = AUTH user id, which is AppUser.user_id.
   const driverId = currentUser?.user_id || currentUser?.id;
+  // OWNER RULE (Nov 25 2026): the App Owner is also an Admin and a driver, so a
+  // driver-role user always sends to patients AS THEMSELVES, while keeping the
+  // owner/admin privileges (delete, full store list). No identity picker.
+  const sendsAsDriver = useMemo(
+    () => isDriverMode || userHasRole(currentUser, 'driver'),
+    [isDriverMode, currentUser],
+  );
   // Both ids belong to this driver: a device whose AppUser row has no user_id
   // writes under its AppUser.id, and those threads must still show up here.
   const myDriverIds = useMemo(
@@ -326,7 +329,7 @@ export default function PatientThreadsPanel({
       id: localId,
       conversation_id: isDriverMode ? driverThreadConversationId(driverId, selected.id) : patientConversationId(selected.id),
       patient_id: selected.id,
-      driver_id: (isDriverMode || sendAsDriver) ? driverId : (replyTargetDriverRef.current || ''),
+      driver_id: sendsAsDriver ? driverId : (replyTargetDriverRef.current || ''),
       store_id: selected.store_id || '',
       sender_id: currentUser?.user_id || currentUser?.id || '',
       sender_name: currentUser?.full_name || currentUser?.user_name || 'Staff',
@@ -345,7 +348,7 @@ export default function PatientThreadsPanel({
     setInput('');
     try {
       const pickedDriver = replyTargetDriver;
-      const created = (isDriverMode || sendAsDriver)
+      const created = sendsAsDriver
         ? await sendDriverMessageToPatient({ user: currentUser, patient: selected, content: text, storeName })
         : pickedDriver
           ? await sendStaffMessageToDriverThread({
@@ -554,21 +557,6 @@ export default function PatientThreadsPanel({
         </div>
 
         <div className="flex flex-col gap-1 px-3 py-2 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          {!isDriverMode && userHasRole(currentUser, 'driver') && (
-            <div className="flex items-center gap-1 text-[11px]">
-              <span className="text-slate-400 dark:text-slate-500">Send as</span>
-              <button
-                type="button"
-                onClick={() => setSendAsDriver(false)}
-                className={`px-2 py-0.5 rounded-full border ${!sendAsDriver ? 'bg-blue-600 text-white border-blue-600' : 'bg-transparent text-slate-500 border-slate-300 dark:border-slate-600'}`}
-              >Pharmacy</button>
-              <button
-                type="button"
-                onClick={() => setSendAsDriver(true)}
-                className={`px-2 py-0.5 rounded-full border ${sendAsDriver ? 'bg-blue-600 text-white border-blue-600' : 'bg-transparent text-slate-500 border-slate-300 dark:border-slate-600'}`}
-              >Me (driver)</button>
-            </div>
-          )}
           <div className="flex items-center gap-2">
           {/* OWNER SPEC (Nov 19 2026): composer grows downward with the text
               instead of scrolling sideways, capped then scrolls. */}
