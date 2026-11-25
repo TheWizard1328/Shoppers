@@ -138,6 +138,16 @@ export function usePortalWatcherVersion() {
 export const isDeliveryInStoreScope = (delivery, appUser) => {
   if (!delivery || !appUser) return false;
   const roles = Array.isArray(appUser.app_roles) ? appUser.app_roles : [];
+  // OWNER REPORT (Nov 25 2026): a store dispatcher was seeing the "patient is
+  // viewing" pulse on other stores' patients (a Callingwood/Kingsway view pulsing
+  // a Londonderry pending stop) because a store account that also carries an
+  // admin/owner role fell through to the see-everything bypass. Store accounts
+  // are now scoped by their OWN store_ids first, whatever other roles they hold.
+  const storeIds = Array.isArray(appUser.store_ids) ? appUser.store_ids : [];
+  const storeBound = roles.includes('dispatcher') || roles.includes('store_owner');
+  if (storeBound && storeIds.length) {
+    return !!delivery.store_id && storeIds.includes(delivery.store_id);
+  }
   if (appUser.is_app_owner === true || roles.includes('app_owner') || roles.includes('admin')) return true;
   if (appUser.user_id && delivery.driver_id && appUser.user_id === delivery.driver_id) return true;
   const stores = Array.isArray(appUser.store_ids) ? appUser.store_ids : [];

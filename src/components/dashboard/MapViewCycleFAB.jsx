@@ -42,6 +42,10 @@ export default function MapViewCycleFAB({
   const _fabIsAdmin = _fabViewerAppUser?.is_app_owner === true
     || _fabRoles.includes('app_owner')
     || _fabRoles.includes('admin');
+  // A store account that also carries admin/owner roles must NOT see every
+  // store's watchers (owner report Nov 25 2026).
+  const _fabStoreBound = (_fabRoles.includes('dispatcher') || _fabRoles.includes('store_owner'))
+    && (Array.isArray(_fabViewerAppUser?.store_ids) && _fabViewerAppUser.store_ids.length > 0);
   const [showWatchersBalloon, setShowWatchersBalloon] = useState(false);
   // Hover balloon list: every watcher for the owner, otherwise only the watchers
   // already inside this viewer's scope (the same set the badge counts).
@@ -49,14 +53,17 @@ export default function MapViewCycleFAB({
   // watchers whose presence row belongs to one of THEIR stores (or a driver's
   // own route), not only from the route currently drawn on the map.
   const scopedWatchers = React.useMemo(() => {
-    if (_fabIsAdmin) return allWatchers;
-    const visiblePatientIds = new Set((filteredDeliveries || []).map((d) => d?.patient_id).filter(Boolean));
-    return allWatchers.filter((w) => visiblePatientIds.has(w.patient_id)
-      || isDeliveryInStoreScope({ store_id: w?.store_id, driver_id: w?.driver_id }, _fabViewerAppUser));
-  }, [allWatchers, _fabIsAdmin, filteredDeliveries, _fabViewerAppUser]);
+    if (!_fabViewerAppUser) return [];
+    // Store accounts are scoped strictly by their own stores (see
+    // isDeliveryInStoreScope) — the old "any patient on a delivery this viewer can
+    // see" union let a dispatcher pulse other stores' patients.
+    return allWatchers.filter((w) => isDeliveryInStoreScope({ store_id: w?.store_id, driver_id: w?.driver_id }, _fabViewerAppUser));
+  }, [allWatchers, _fabViewerAppUser]);
   const balloonWatchers = scopedWatchers;
-  const scopedWatchCount = _fabIsAdmin ? watchingCount : Math.max(watchingCount, scopedWatchers.length);
-  const hasAnyWatcher = _fabIsAdmin ? allWatchers.length > 0 : scopedWatchCount > 0;
+  const scopedWatchCount = _fabIsAdmin && !_fabStoreBound
+    ? watchingCount
+    : Math.max(watchingCount, scopedWatchers.length);
+  const hasAnyWatcher = (_fabIsAdmin && !_fabStoreBound) ? allWatchers.length > 0 : scopedWatchCount > 0;
   const storeAbbrevFor = React.useCallback((storeId) => {
     const store = (_fabStores || []).find((st) => String(st?.id) === String(storeId));
     const raw = store?.abbreviation || store?.store_abbreviation || '';
