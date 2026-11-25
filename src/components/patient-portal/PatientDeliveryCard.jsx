@@ -168,6 +168,14 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
                 COD: ${codTotal.toFixed(2)}
               </p>
             }
+            {/* DATE MOVED INTO THE LEFT COLUMN (owner request Nov 25 2026): "the
+                left side has three rows the right side's got three rows — store
+                name, COD amount and the date, three perfect rows; if there's no
+                COD then store name and date." The date used to sit in its own row
+                under the card, which left a big gap under the COD. */}
+            <p className={`text-xs mt-0.5 font-semibold truncate text-slate-800 dark:text-slate-200`}>
+              {dateStr}
+            </p>
           </div>
           {/* BADGE STACK + CHEVRON COLUMN (owner request Nov 23 2026): "I need the
               Time badge to be either centered bellow the Status badge or to have
@@ -209,18 +217,9 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
             </div>
           </div>
         </div>
-        {/* DATE / STOPS-LEFT / ETA ROW (owner request Nov 4 2026): the stop
-            count belongs CENTRED between the date and the ETA. It was crammed
-            against the ETA in the right column; now it owns the middle of its
-            own row and the ETA sits flush right. */}
-        <div className="flex items-center gap-2 mt-1">
-          <span className={`font-semibold text-xs flex-shrink-0 text-slate-800 dark:text-slate-200`}>
-            {dateStr}
-          </span>
-          {/* The stops-away count moved up into the right-hand badge column
-              (owner request Nov 25 2026) so it lines up with the status badge and
-              the ETA at the same width; this row carries the date alone. */}
-        </div>
+        {/* No row under the columns any more (owner request Nov 25 2026): the
+            date joined the store/COD stack on the left, so the two sides line up
+            row for row instead of leaving a gap under the COD. */}
       </button>
 
       {/* Expanded detail — floats over cards below, doesn't push them down */}
