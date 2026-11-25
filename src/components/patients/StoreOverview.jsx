@@ -61,10 +61,13 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
                           const pct = expected > 0
                             ? Math.max(6, Math.min(100, Math.round((Number(loaded) / expected) * 100)))
                             : 45;
+                          // OWNER SPEC (Nov 24 2026): the track spans 95% of the card
+                          // width and fills proportionally from 0 to the store's known
+                          // patient total, so a finished store (336 of 336) ends at 95%.
                           return (
                             <div
-                              className="absolute left-0 right-0 h-[3px] rounded-full overflow-hidden"
-                              style={{ bottom: '-6px', background: 'var(--bg-slate-100, #e2e8f0)' }}>
+                              className="absolute h-[3px] rounded-full overflow-hidden"
+                              style={{ bottom: '-6px', left: 0, width: '95%', background: 'var(--bg-slate-100, #e2e8f0)' }}>
                               <div
                                 className="h-full transition-all duration-200 ease-out"
                                 style={{ width: `${pct}%`, backgroundColor: store.color || '#10b981' }} />

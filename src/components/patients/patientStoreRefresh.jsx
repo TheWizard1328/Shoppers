@@ -85,3 +85,36 @@ export function publishRefreshedPatients(patients = [], deletedIds = []) {
     detail: { patients: valid, deletedIds: deletedIds || [], fullReplacement: false, fromStoreRefresh: true },
   }));
 }
+
+/**
+ * OWNER SPEC (Nov 24 2026): before syncing patients, refresh the driver names the
+ * UI shows from IndexedDB. AppUser rows in IDB are written by the realtime path on
+ * every device, so they hold the newest user_name without a server round-trip.
+ * Name fields only — nothing else on the record is touched.
+ */
+export async function refreshDriverNamesFromIdb() {
+  try {
+    const { offlineDB } = await import('../utils/offlineDatabase');
+    const rows = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    return (Array.isArray(rows) ? rows : []).filter((row) => row && row.id && row.__decryptFailed !== true);
+  } catch (error) {
+    console.warn('[patientStoreRefresh] IDB AppUser read failed:', error?.message || error);
+    return [];
+  }
+}
+
+/** Merge IDB AppUser rows into the current list, taking only the name fields. */
+export function mergeDriverNames(currentUsers = [], idbUsers = []) {
+  if (!Array.isArray(idbUsers) || idbUsers.length === 0) return currentUsers || [];
+  const byId = new Map((currentUsers || []).filter(Boolean).map((user) => [user.id, user]));
+  idbUsers.forEach((row) => {
+    if (!row?.id) return;
+    const existing = byId.get(row.id);
+    const nameFields = {};
+    if (row.user_name) nameFields.user_name = row.user_name;
+    if (row.full_name) nameFields.full_name = row.full_name;
+    if (Object.keys(nameFields).length === 0) return;
+    byId.set(row.id, existing ? { ...existing, ...nameFields } : row);
+  });
+  return Array.from(byId.values());
+}

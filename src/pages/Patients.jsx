@@ -48,7 +48,7 @@ import { useAppData } from '../components/utils/AppDataContext';
 import { patientMatchesSearch } from '../components/utils/careProSearchHelper';
 
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
-import { refreshPatientsForStores, publishRefreshedPatients } from '../components/patients/patientStoreRefresh';
+import { refreshPatientsForStores, publishRefreshedPatients, refreshDriverNamesFromIdb, mergeDriverNames } from '../components/patients/patientStoreRefresh';
 // Helper function to calculate distance between two coordinates (in kilometers)
 // Consolidated into geoUtils (Sep 6 2026) — km, no input guards (previous semantics).
 
@@ -1518,6 +1518,13 @@ export default function Patients() {
     });
     setPatientRefresh({ active: true, byStore: Object.fromEntries(ids.map((id) => [id, 0])) });
     try {
+      // OWNER SPEC (Nov 24 2026): driver names come from IndexedDB first and land in
+      // the UI before the patient pull starts, so cards and filters never show a
+      // stale AppUser name while the sync is running.
+      const idbUsers = await refreshDriverNamesFromIdb();
+      if (idbUsers.length > 0) {
+        setAllUsers((prev) => mergeDriverNames(prev, idbUsers));
+      }
       const result = await refreshPatientsForStores({
         storeIds: ids,
         expectedCounts,
