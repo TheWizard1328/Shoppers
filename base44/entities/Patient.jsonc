@@ -120,6 +120,18 @@
       "default": "active",
       "description": "Patient status"
     },
+    "source_patient_id": {
+      "type": "string",
+      "description": "Cross-store transfer lineage: the patient record this one was transferred from (owner feature Nov 24 2026)"
+    },
+    "source_store_id": {
+      "type": "string",
+      "description": "Cross-store transfer lineage: the store the source record belonged to when it was transferred"
+    },
+    "transferred_at": {
+      "type": "string",
+      "description": "Cross-store transfer lineage: when this record was created by a transfer"
+    },
     "mailbox_ok": {
       "type": "boolean",
       "default": false

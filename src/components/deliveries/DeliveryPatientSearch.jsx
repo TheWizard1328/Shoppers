@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, X, Camera, Plus, Copy, MapPin } from "lucide-react";
+import { Search, X, Camera, Plus, Copy, MapPin, Store, ArrowRightLeft } from "lucide-react";
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { getStoreColor } from '../utils/colorGenerator';
 import { shouldShowStoreBadges } from '../utils/userRoles';
@@ -41,6 +41,11 @@ export default function DeliveryPatientSearch({
   onStartCamera,
   onDuplicatePatient,
   onNewAddressPatient,
+  onTransferPatient,
+  otherStoresMode = false,
+  canOfferOtherStores = false,
+  onUnlockOtherStores,
+  otherStoreMatches = [],
   onCreatePatient,
   setIsPatientFormOpen,
   handleSearchKeyDown,
@@ -176,14 +181,30 @@ export default function DeliveryPatientSearch({
 
           {visiblePatients.length === 0 ?
         <div className="p-4 text-center text-slate-500 dark:text-slate-400 text-sm">
-              No patients found
+              {otherStoresMode ? 'No matches in other stores' : 'No patients found'}
+              {/* OWNER SPEC (Nov 24 2026): a dispatcher or driver whose own
+                  stores have no match gets the "Other Stores" peek to the LEFT of
+                  Add New Patient. It is never shown to admins (they already
+                  search every store) and never once the peek is unlocked. */}
+              {(canOfferOtherStores || onCreatePatient) &&
+          <div className="mt-3 flex items-stretch gap-2">
+            {canOfferOtherStores && !otherStoresMode &&
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={() => onUnlockOtherStores?.()}>
+              <Store className="w-4 h-4" /> Other Stores
+            </Button>
+            }
               {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
           <Button
             ref={addPatientButtonRef}
             type="button"
             variant="outline"
             size="sm"
-            className="w-full mt-3 gap-2"
+            className="flex-1 gap-2"
             onClick={async () => {
               setIsPatientFormOpen(true);
               onCreatePatient((newPatient) => {
@@ -195,6 +216,8 @@ export default function DeliveryPatientSearch({
                   <Plus className="w-4 h-4" /> Add New Patient
                 </Button>
           }
+          </div>
+          }
             </div> :
 
         <div className="divide-y">
@@ -205,6 +228,7 @@ export default function DeliveryPatientSearch({
             const isSelected = selectedPatientIds.has(patient.id);
             const isAlreadyStaged = patient._isAlreadyStaged;
             const isInactive = patient.status === 'inactive';
+            const isOtherStorePatient = !!(patient._isOtherStore || otherStoresMode);
             return (
               <div
                 key={patient.id}
@@ -256,7 +280,7 @@ export default function DeliveryPatientSearch({
                         {isInactive && <Badge className="bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 text-[10px] px-1.5 py-0 h-4">INACTIVE</Badge>}
                         {patient.care_pros && patient.cp_name && <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">({patient.cp_name})</span>}
                         {isAlreadyStaged && <Badge className="bg-amber-200/80 text-amber-900 dark:text-amber-950 text-[10px] px-1.5 py-0 h-4">STAGED</Badge>}
-                        {storeAbbr && shouldShowStoreBadges(currentUser) && (() => {
+                        {storeAbbr && (shouldShowStoreBadges(currentUser) || isOtherStorePatient) && (() => {
                       const color = patientStore ? getStoreColor(patientStore) : '#64748b';
                       return <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: color }}>{storeAbbr}</Badge>;
                     })()}
@@ -269,6 +293,15 @@ export default function DeliveryPatientSearch({
                   }
                     </button>
                     <div className="flex flex-col gap-1 ml-1">
+                      {/* Cross-store records get TRANSFER only — never Duplicate or
+                          Change (owner spec Nov 24 2026). */}
+                      {isOtherStorePatient ? (
+                        <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-amber-100/70 dark:hover:bg-amber-900/30" onClick={(e) => {e.stopPropagation();onTransferPatient?.(patient);}} title="Transfer this patient to your store">
+                          <span className="text-amber-700 dark:text-amber-300">Transfer</span>
+                          <ArrowRightLeft className="w-3 h-3 text-amber-600 dark:text-amber-300" />
+                        </Button>
+                      ) : (
+                      <>
                       <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-blue-100/70 dark:hover:bg-blue-900/30" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
                         <span className="text-blue-700 dark:text-blue-300">Duplicate</span>
                         <Copy className="w-3 h-3 text-blue-600 dark:text-blue-300" />
@@ -277,6 +310,8 @@ export default function DeliveryPatientSearch({
                         <span className="text-purple-700 dark:text-purple-300">Change</span>
                         <MapPin className="w-3 h-3 text-purple-600 dark:text-purple-300" />
                       </Button>
+                      </>
+                      )}
                     </div>
                   </div>);
 

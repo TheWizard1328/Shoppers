@@ -121,6 +121,7 @@ export default function DeliveryFormView({
   isScanning, showCameraOverlay,
   handleSearchKeyDown, handlePatientSelect, handleAddSelectedPatients,
   handleDuplicatePatient, handleNewAddressPatient,
+  handleTransferPatient, otherStoresMode, canOfferOtherStores, onUnlockOtherStores, otherStoreMatches,
   onCreatePatient, setIsPatientFormOpen,
   // Camera
   videoRef, canvasRef, handleCameraCapture,
@@ -1521,6 +1522,9 @@ export default function DeliveryFormView({
                           onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
                           onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
                           onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
+                          onTransferPatient={handleTransferPatient} otherStoresMode={otherStoresMode}
+                          canOfferOtherStores={canOfferOtherStores} onUnlockOtherStores={onUnlockOtherStores}
+                          otherStoreMatches={otherStoreMatches}
                           onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
                           handleSearchKeyDown={handleSearchKeyDown}
                           scheduledDriverMap={scheduledDriverMap}
@@ -1573,6 +1577,9 @@ export default function DeliveryFormView({
                           onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
                           onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
                           onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
+                          onTransferPatient={handleTransferPatient} otherStoresMode={otherStoresMode}
+                          canOfferOtherStores={canOfferOtherStores} onUnlockOtherStores={onUnlockOtherStores}
+                          otherStoreMatches={otherStoreMatches}
                           onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
                           handleSearchKeyDown={handleSearchKeyDown}
                           scheduledDriverMap={scheduledDriverMap}

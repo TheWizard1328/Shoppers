@@ -37,6 +37,11 @@ import { triggerPatientLastDeliverySync } from '../utils/directDeliverySideEffec
 import useDeliveryProjectionManager from './useDeliveryProjectionManager';
 import { runDeliverySubmitSideEffects } from './deliverySubmitSideEffects';
 import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDuplicatePatientDraft, buildNewAddressPatientDraft } from './deliveryPatientSelectionHelpers';
+import {
+  getUserStoreIds,
+  getOtherCompanyStores,
+  transferPatientToStore,
+} from './patientTransferHelpers';
 import { resetDraftEditorState, cleanupDetachedAutoCreatedPickups } from './deliveryDraftStateHelpers';
 import { filterPendingDeliveriesForUser, mapPendingDeliveriesToStaged } from './deliveryPendingLoadHelpers';
 import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescriptionScanHelpers';
@@ -167,6 +172,10 @@ export default function DeliveryForm({
   const [patientSearch, setPatientSearch] = useState("");
   // Server-side patient hits — the last-resort search source (owner report Oct 31 2026).
   const [serverPatientHits, setServerPatientHits] = useState([]);
+  // CROSS-STORE PEEK (owner feature Nov 24 2026): off by default, and reset on
+  // every new query — the owner's rule is that the unlock never persists across
+  // searches, so "Other Stores" only ever appears for a search that came up empty.
+  const [otherStoresUnlocked, setOtherStoresUnlocked] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(() => (initialPatientId && Array.isArray(patients) ? (patients.find((pt) => pt && pt.id === initialPatientId) || null) : null));
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
@@ -803,7 +812,12 @@ export default function DeliveryForm({
     // cover, so a legitimate Beverly search came back empty. When the scoped
     // search finds nothing, fall back to the full patient list instead of a blank
     // dropdown - the stop can still be added, and scoped matches always win.
-    if (results.length === 0 && storeRestricted) {
+    // OWNER SPEC (Nov 24 2026): other stores' patients are no longer offered
+    // silently. A dispatcher or driver with no match in their own stores now
+    // gets the "Other Stores" button instead, and only then are cross-store
+    // records shown (Transfer in place of Duplicate/Change). Admins already
+    // search the whole company, so their fallback stays.
+    if (results.length === 0 && storeRestricted && userHasRole(currentUser, 'admin')) {
       results = (patients || []).filter(matchesSearch);
       if (results.length > 0) {
         console.log(`[DeliveryForm] patient search "${searchLower}" had no store-scoped match - fell back to all patients (${results.length})`);
@@ -812,6 +826,59 @@ export default function DeliveryForm({
     results = sortFilteredPatients(results, { currentUser, userHasRole, stores, stagedPatientIds, calculateDistance });
     return results.slice(0, 50).map(patient => ({ ...patient, _isAlreadyStaged: stagedPatientIds.has(patient.id) }));
   }, [patientSearch, patients, stores, currentUser, formData.patient_id, stagedDeliveries, allDeliveries]);
+
+  // ── CROSS-STORE PEEK ────────────────────────────────────────────────────────
+  // The user's own store ids (dispatcher store list, driver's assigned stores for
+  // the day, plus any store they run a pickup for) — the scope the normal search
+  // uses. Anything outside it counts as "another store".
+  const ownStoreIds = useMemo(
+    () => getUserStoreIds(currentUser, scheduledDriverMap, allDeliveries, formData.delivery_date),
+    [currentUser, scheduledDriverMap, allDeliveries, formData.delivery_date]
+  );
+
+  // Admins never see the peek (owner rule): they already search every store.
+  const canOfferOtherStores = useMemo(
+    () => !userHasRole(currentUser, 'admin') &&
+      (userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')),
+    [currentUser]
+  );
+
+  // Same company, not one of ours, active stores.
+  const otherCompanyStores = useMemo(
+    () => getOtherCompanyStores({ stores, ownStoreIds, currentUser }),
+    [stores, ownStoreIds, currentUser]
+  );
+
+  // The unlock resets on every new query (owner rule).
+  useEffect(() => { setOtherStoresUnlocked(false); }, [patientSearch]);
+
+  const otherStoreMatches = useMemo(() => {
+    if (!otherStoresUnlocked || !patientSearch || formData.patient_id) return [];
+    const searchLower = patientSearch.toLowerCase().trim();
+    if (!searchLower) return [];
+    const allowed = new Set(otherCompanyStores.map((st) => st && st.id).filter(Boolean));
+    if (allowed.size === 0) return [];
+    const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
+    const careProKeywordSearch = isCareProSearch(searchLower);
+    const matches = (patient) => {
+      if (!patient || !patient.store_id || !allowed.has(patient.store_id)) return false;
+      const name = patient.full_name?.toLowerCase() || '';
+      if (name.includes('deceased') || name.includes('(old')) return false;
+      if (String(patient.status || 'active').toLowerCase() !== 'active') return false;
+      if (careProKeywordSearch && patient.care_pros) return true;
+      return name.includes(searchLower)
+        || patient.address?.toLowerCase().includes(searchLower)
+        || patient.phone?.toLowerCase().includes(searchLower)
+        || patient.cp_name?.toLowerCase().includes(searchLower);
+    };
+    return (patients || []).filter(matches)
+      .slice(0, 50)
+      .map((patient) => ({
+        ...patient,
+        _isAlreadyStaged: stagedPatientIds.has(patient.id),
+        _isOtherStore: true,
+      }));
+  }, [otherStoresUnlocked, patientSearch, patients, otherCompanyStores, formData.patient_id, stagedDeliveries]);
 
   // OWNER REPORT (Oct 31 2026, Sharuk at Beverly): his device's patient cache
   // only holds the stores that were hydrated for him, so a Beverly patient the
@@ -822,7 +889,7 @@ export default function DeliveryForm({
   // the local lists produced nothing.
   useEffect(() => {
     const term = (patientSearch || '').trim();
-    if (term.length < 2 || formData.patient_id || localPatientMatches.length > 0) {
+    if (term.length < 2 || formData.patient_id || localPatientMatches.length > 0 || otherStoreMatches.length > 0) {
       setServerPatientHits((prev) => (prev.length ? [] : prev));
       return;
     }
@@ -843,13 +910,22 @@ export default function DeliveryForm({
         // Scope to the form's store, or every store in the user's list when no
         // store is chosen yet. PAGED: the API caps one response, so a single
         // big-limit filter could return a slice that misses the patient.
-        const storeIds = formData.store_id
-          ? [formData.store_id]
-          : [...new Set([
-              ...((currentUser?.store_ids) || []),
-              ...(currentUser?.store_id ? [currentUser.store_id] : []),
-              ...(stores || []).filter((st) => !currentUser?.city_id || st?.city_id === currentUser.city_id).map((st) => st?.id),
-            ].filter(Boolean))].slice(0, 40);
+        // OTHER-STORES PEEK: once unlocked the server question is the opposite
+        // one — which of the OTHER stores in this company has this person. The
+        // user's own stores are excluded so the peek can never quietly hand back
+        // a same-store record with a Transfer button on it.
+        const otherIds = otherStoresUnlocked
+          ? otherCompanyStores.map((st) => st && st.id).filter(Boolean)
+          : [];
+        const storeIds = otherStoresUnlocked
+          ? otherIds
+          : formData.store_id
+            ? [formData.store_id]
+            : [...new Set([
+                ...((currentUser?.store_ids) || []),
+                ...(currentUser?.store_id ? [currentUser.store_id] : []),
+                ...(stores || []).filter((st) => !currentUser?.city_id || st?.city_id === currentUser.city_id).map((st) => st?.id),
+              ].filter(Boolean))].slice(0, 40);
         const scopedRows = [];
         for (let skip = 0; skip < 2000; skip += 500) {
           const query = storeIds.length
@@ -860,19 +936,32 @@ export default function DeliveryForm({
           scopedRows.push(...page);
           if (page.length < 500) break;
         }
-        const hits = scopedRows.filter(matchFn);
+        const otherSet = new Set(otherIds);
+        const hits = scopedRows.filter(matchFn).filter((p) => {
+          if (!otherStoresUnlocked) return true;
+          if (!p?.store_id || !otherSet.has(p.store_id)) return false;
+          return String(p.status || 'active').toLowerCase() === 'active';
+        });
         if (cancelled) return;
         console.log(`[DeliveryForm] server patient search "${needle}" -> ${hits.length} hit(s)`);
-        setServerPatientHits(hits.slice(0, 50).map((p) => ({ ...p, _isAlreadyStaged: stagedIds.has(p.id) })));
+        setServerPatientHits(hits.slice(0, 50).map((p) => ({
+          ...p,
+          _isAlreadyStaged: stagedIds.has(p.id),
+          ...(otherStoresUnlocked ? { _isOtherStore: true } : {}),
+        })));
       } catch {
         if (!cancelled) setServerPatientHits([]);
       }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [patientSearch, formData.patient_id, formData.store_id, localPatientMatches.length, stagedDeliveries, currentUser?.store_ids, currentUser?.store_id, currentUser?.city_id, stores]);
+  }, [patientSearch, formData.patient_id, formData.store_id, localPatientMatches.length, otherStoreMatches.length, otherStoresUnlocked, otherCompanyStores, stagedDeliveries, currentUser?.store_ids, currentUser?.store_id, currentUser?.city_id, stores]);
 
   // Local matches always win; server hits only fill a genuinely empty list.
-  const filteredPatients = localPatientMatches.length > 0 ? localPatientMatches : serverPatientHits;
+  const filteredPatients = localPatientMatches.length > 0
+    ? localPatientMatches
+    : otherStoreMatches.length > 0
+      ? otherStoreMatches
+      : serverPatientHits;
 
   const hasAnyDaySelected = useMemo(() => {
     return formData.recurring_weekly_mon || formData.recurring_weekly_tue || formData.recurring_weekly_wed || formData.recurring_weekly_thu || formData.recurring_weekly_fri || formData.recurring_weekly_sat || formData.recurring_weekly_sun;
@@ -991,6 +1080,69 @@ export default function DeliveryForm({
     setPatientSearch(''); setHighlightedPatientIndex(-1); setFormData(nextFormData); setSelectedPatient(duplicateSelectedPatient);
     if (shouldAutoFocusFields) setTimeout(() => patientNameInputRef.current?.focus(), 150);
   }, [patients, formData, stores, drivers, allDeliveries, onCreatePatient, handlePatientSelect, shouldAutoFocusFields]);
+
+  // ── CROSS-STORE TRANSFER (owner spec Nov 24 2026) ──────────────────────────
+  // Dispatcher: copy the patient straight into their own store — new active
+  // record linked to the original, original set inactive, pickup location and
+  // distance from store follow the new store. Driver: the system cannot know
+  // which store is meant, so the Add New Patient form opens prefilled with the
+  // source data and the store cleared, forcing the pick.
+  const handleTransferPatient = useCallback(async (patient) => {
+    if (!patient || !patient.id) return;
+    if (userHasRole(currentUser, 'admin')) return; // admins keep Duplicate/Change
+    const isDriverOnly = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher');
+    setPatientSearch('');
+    setHighlightedPatientIndex(-1);
+
+    if (isDriverOnly) {
+      if (!onCreatePatient) return;
+      const prefill = {
+        ...patient,
+        id: undefined,
+        patient_id: '',
+        store_id: '',
+        status: 'active',
+        email: '',
+        signature_image_url: '',
+        delivery_history: [],
+        last_delivery_date: '',
+        portal_login_count: 0,
+        source_patient_id: patient.id,
+        source_store_id: patient.store_id || null,
+        transferred_at: new Date().toISOString(),
+        _transferSource: true,
+        _isNew: true,
+      };
+      setIsPatientFormOpen(true);
+      onCreatePatient(async (createdPatient) => {
+        setIsPatientFormOpen(false);
+        if (createdPatient?.id) {
+          await updatePatientLocal(patient.id, { status: 'inactive' }).catch(() => {});
+        }
+        if (createdPatient) await handlePatientSelect(createdPatient, false);
+      }, prefill, 'transfer');
+      return;
+    }
+
+    // Dispatcher: destination is the form's store when it is one of theirs.
+    const myStoreIds = [...new Set([
+      ...((currentUser?.store_ids) || []),
+      ...(currentUser?.store_id ? [currentUser.store_id] : []),
+    ].filter(Boolean))];
+    const targetStoreId = myStoreIds.includes(formData.store_id) ? formData.store_id : myStoreIds[0];
+    const targetStore = (stores || []).find((st) => st && st.id === targetStoreId);
+    if (!targetStore) {
+      setError('Cannot transfer: no store is assigned to your account.');
+      return;
+    }
+    try {
+      const created = await transferPatientToStore({ source: patient, targetStore });
+      await handlePatientSelect(created, false);
+    } catch (err) {
+      console.warn('[DeliveryForm] patient transfer failed:', err?.message || err);
+      setError('Transfer failed. Check your connection and try again.');
+    }
+  }, [currentUser, formData.store_id, stores, onCreatePatient, handlePatientSelect, updatePatientLocal, setPatientSearch, setHighlightedPatientIndex, setError]);
 
   const handleNewAddressPatient = useCallback((patient) => {
     if (!patient || !onCreatePatient) return;
@@ -2104,6 +2256,9 @@ export default function DeliveryForm({
       isScanning={isScanning} showCameraOverlay={showCameraOverlay}
       handleSearchKeyDown={handleSearchKeyDown} handlePatientSelect={handlePatientSelect} handleAddSelectedPatients={handleAddSelectedPatients}
       handleDuplicatePatient={handleDuplicatePatient} handleNewAddressPatient={handleNewAddressPatient}
+      handleTransferPatient={handleTransferPatient} otherStoresMode={otherStoresUnlocked}
+      canOfferOtherStores={canOfferOtherStores} onUnlockOtherStores={() => setOtherStoresUnlocked(true)}
+      otherStoreMatches={otherStoreMatches}
       onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
       videoRef={videoRef} canvasRef={canvasRef} handleCameraCapture={handleCameraCapture}
       startCamera={startCamera} stopCamera={stopCamera} setShowCameraOverlay={setShowCameraOverlay} setIsScanning={setIsScanning}
