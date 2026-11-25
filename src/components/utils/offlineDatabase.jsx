@@ -587,11 +587,45 @@ const _enforceTerminalNextFlag = (record) => {
 const NEXT_FLAG_TERMINAL = ['completed', 'failed', 'cancelled', 'returned'];
 const _nextFlagActive = (r) => !!r && !NEXT_FLAG_TERMINAL.includes(String(r?.status || '').toLowerCase());
 
+// TODAY-ONLY NEXT FLAG (owner direction Nov 25 2026): "what should be getting
+// checked is just today's deliveries for the is next delivery — we should be
+// ignoring any future or past dates." Past-dated stops that still carry the flag
+// are stale by definition and get cleared here; future-dated stops are left
+// completely alone so each future route keeps its first stop marked.
+let _edmontonTodayKey = null;
+const _todayKey = async () => {
+  if (_edmontonTodayKey) return _edmontonTodayKey;
+  try {
+    const { edmontonTodayKey } = await import('./albertaTime');
+    _edmontonTodayKey = edmontonTodayKey();
+  } catch (_) { _edmontonTodayKey = null; }
+  return _edmontonTodayKey;
+};
+
 const _restoreStompedNextFlags = async (records) => {
   const list = Array.isArray(records) ? records : [];
-  let candidates = list.filter((r) =>
-    r?.id && _nextFlagActive(r) && r.isNextDelivery !== true);
-  if (candidates.length === 0) return records;
+  const _today = await _todayKey();
+  // 1) SELF-HEAL PAST DATES: a stop from an earlier day can never be "next".
+  //    Clear it locally (no server write from this hot path) so the guard below
+  //    stops trying to restore it and the churn dies at the source.
+  const _staleCleared = new Set();
+  if (_today) {
+    for (const r of list) {
+      const _d = String(r?.delivery_date || '');
+      if (r?.id && _d && _d < _today && r.isNextDelivery === true) _staleCleared.add(String(r.id));
+    }
+  }
+  const _base = _staleCleared.size
+    ? list.map((r) => (r?.id && _staleCleared.has(String(r.id)) ? { ...r, isNextDelivery: false, next_flag_owner: null } : r))
+    : list;
+  // 2) RESTORATION SCOPE: only TODAY's routes are guarded. Future dates are
+  //    ignored outright (their first stop keeps its own flag).
+  let candidates = _base.filter((r) => {
+    if (!(r?.id && _nextFlagActive(r) && r.isNextDelivery !== true)) return false;
+    if (!_today) return true;
+    return String(r?.delivery_date || '') === _today;
+  });
+  if (candidates.length === 0) return _base;
   // DEAD RECORDS ARE NOT RESTORABLE (owner fix Nov 24 2026): this gate decided
   // from local IndexedDB alone, so a stop the server had deleted kept getting its
   // flag restored on every write batch — the guard restored it, the server 404'd,
@@ -600,7 +634,7 @@ const _restoreStompedNextFlags = async (records) => {
   try {
     const { isEntityDead } = await import('./deadEntityGuard');
     candidates = candidates.filter((r) => !isEntityDead(r.id));
-    if (candidates.length === 0) return records;
+    if (candidates.length === 0) return _base;
   } catch (_) { /* guard unavailable — fall through with the full list */ }
   // A write that promotes SOME stop to next is a legitimate advance — the
   // previous holder is meant to be cleared in that same payload.
@@ -625,8 +659,8 @@ const _restoreStompedNextFlags = async (records) => {
         for (const d of rows || []) if (d?.id) existingById.set(String(d.id), d);
       } catch (_) { /* one bad route must not block the write */ }
     }
-    if (existingById.size === 0) return records;
-  } catch (_) { return records; }
+    if (existingById.size === 0) return _base;
+  } catch (_) { return _base; }
   const claimedRouteKeys = new Set(claimants.map((r) => `${r.driver_id || ''}:${r.delivery_date || ''}`));
   const restored = new Map(); // id -> true
   for (const rec of candidates) {
@@ -643,9 +677,9 @@ const _restoreStompedNextFlags = async (records) => {
     if (alt) continue;
     restored.set(key, true);
   }
-  if (restored.size === 0) return records;
+  if (restored.size === 0) return _base;
   console.warn(`[offlineDB] blocked stale next-stop clear on ${restored.size} stop(s) — restored isNextDelivery`);
-  return list.map((r) => (r?.id && restored.has(String(r.id)) ? { ...r, isNextDelivery: true } : r));
+  return _base.map((r) => (r?.id && restored.has(String(r.id)) ? { ...r, isNextDelivery: true } : r));
 };
 
 // ── SNAPSHOT VERSION GATE (owner fix Nov 16 2026) ───────────────────────────

@@ -260,6 +260,16 @@ export async function ensureRouteHasNextStop({
 } = {}) {
   try {
     if (!driverId || !deliveryDate) return null;
+    // TODAY-ONLY (owner direction Nov 25 2026): "what should be getting checked
+    // is just today's deliveries for the is next delivery — ignore any future or
+    // past dates." A past route is finished business; a future route keeps
+    // whatever first stop it already has. Neither may be healed, cleared or
+    // re-flagged from here.
+    try {
+      const { edmontonTodayKey } = await import('./albertaTime');
+      const _today = edmontonTodayKey();
+      if (_today && String(deliveryDate).slice(0, 10) !== _today) return null;
+    } catch (_) { /* helper unavailable — fall through to the old behaviour */ }
     // Heal first: finished stops must never hold the flag (owner report Nov 2 2026).
     await clearTerminalNextFlags({ driverId, deliveryDate, deliveries, skipServerWrite });
     // Then: a route may hold at most ONE next stop (owner report Nov 20 2026).
