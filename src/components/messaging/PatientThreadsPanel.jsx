@@ -419,7 +419,17 @@ export default function PatientThreadsPanel({
   useEffect(() => { replyTargetDriverRef.current = replyTargetDriver; }, [replyTargetDriver]);
 
   const labelForRow = useCallback((m) => {
-    if (!m?.driver_id) return 'pharmacy team';
+    // OWNER REPORT (Nov 25 2026): a delivery notice he created as a driver/admin
+    // still read "To pharmacy team". A store-side notice is not a pharmacy-team
+    // message: it is the automatic Rx delivery update, credited to the driver who
+    // created the stop when that driver is known.
+    const isNotice = String(m?.sender_id || '').startsWith('store:');
+    if (!m?.driver_id) {
+      if (!isNotice) return 'pharmacy team';
+      const who = String(m?.sender_name || '').trim();
+      const named = who && !/^your pharmacy$/i.test(who);
+      return named ? `delivery update · ${who}` : 'delivery update';
+    }
     return (driverDir || []).find((d) => String(d.driver_id) === String(m.driver_id))?.driver_name
       || m.receiver_name
       || m.sender_name
@@ -535,7 +545,9 @@ export default function PatientThreadsPanel({
                     {!fromPatient && !isDriverMode && (
                       <p className="text-[10px] font-medium text-blue-100 mb-0.5">To {labelForRow(m)}</p>
                     )}
-                    <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                    {/* OWNER REPORT (Nov 25 2026): black text on the blue bubble
+                        was unreadable, so the outgoing text colour is explicit. */}
+                    <p className="whitespace-pre-wrap break-words" style={{ color: fromPatient ? undefined : '#ffffff' }}>{m.content}</p>
                     <p className={`mt-1 text-[10px] ${fromPatient ? 'text-slate-400 dark:text-slate-500' : 'text-blue-100'}`}>
                       {ts ? format(new Date(ts), 'MMM d, h:mm a') : ''}
                     </p>

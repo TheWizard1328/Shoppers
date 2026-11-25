@@ -107,6 +107,7 @@ async function pushPatient(patientId, title, body, tag, store = {}) {
     tag,
     store_id: store.store_id || '',
     store_name: store.store_name || '',
+    sender_name: store.sender_name || '',
   }).catch(() => ({ sent: 0, in_app: false }));
 }
 
@@ -178,7 +179,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
               patientName,
               window: windowText(pickupMinutes),
             });
-            await pushPatient(delivery.patient_id, title, body, `rx-pending-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name });
+            await pushPatient(delivery.patient_id, title, body, `rx-pending-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name, sender_name: delivery.driver_name });
             entry.pending = true;
             entry.etaEnd = pickupMinutes + 30;
           }

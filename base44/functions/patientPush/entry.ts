@@ -576,7 +576,7 @@ Deno.serve(async (req) => {
 
       const created = await base44.asServiceRole.entities.Message.create({
         sender_id: `store:${store_id || patient?.store_id || ''}`,
-        sender_name: store_name || 'Your pharmacy',
+        sender_name: payload.sender_name || store_name || 'Your pharmacy',
         receiver_id: conversationId,
         conversation_id: conversationId,
         content: text,
