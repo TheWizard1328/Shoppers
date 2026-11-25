@@ -23,6 +23,7 @@ import UpdateInfoBalloon from '@/components/common/UpdateInfoBalloon';
 import { useWebUpdateCheck } from '@/components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from '@/components/utils/interactionIdleTracker';
 import { usePortalKeepAwake } from '@/components/patient-portal/usePortalKeepAwake';
+import { buildDeliveryCardProps } from '@/components/patient-portal/deliveryCardHelpers';
 import { BAKED_APK_DIGIT, WEB_VERSION, formatVersionDigits } from '@/version';
 import { clearUserCache } from '@/components/utils/auth';
 import { purgeStaleServiceWorkerAndCaches } from '@/components/utils/ChunkErrorBoundary';
@@ -1197,8 +1198,26 @@ export default function PatientPortal({ embedded = false } = {}) {
   }, [driverLocation?.cycling, routeDeliveries]);
   const driverMapIcon = useMemo(() => driverIsCycling ? cyclingDriverIcon : driverIcon, [driverIsCycling]);
 
+  // OWNER RULE (Nov 25 2026): the badge on her home marker must show the SAME
+  // number as the info card. The card uses stopsBetween (the stop_order gap from
+  // her pickup to her stop); the marker was using stopsRemaining (active stops
+  // ahead), so the badge read 6 while the card read 3. One value now feeds both.
+  const markerStopsCount = useMemo(() => {
+    if (!todayDelivery) return stopsRemaining;
+    try {
+      const storeMap = {};
+      (stores || []).forEach((st) => { storeMap[st.id] = st.name; });
+      const cardProps = buildDeliveryCardProps(todayDelivery, {
+        pickupStops, puidGroups, storeMap, allDeliveries: deliveries,
+      });
+      const between = cardProps?.stopsBetween;
+      if (between != null && Number.isFinite(Number(between))) return Number(between);
+    } catch { /* fall back below */ }
+    return stopsRemaining;
+  }, [todayDelivery, stopsRemaining, stores, pickupStops, puidGroups, deliveries]);
+
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
-  const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsRemaining);
+  const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, markerStopsCount);
 
   // ── POLYLINE INTEGRITY (owner report Nov 3 2026) ─────────────────────────
   // Two portal-only artefacts, both from gluing leg polylines blindly:
