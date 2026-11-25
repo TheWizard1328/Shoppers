@@ -625,6 +625,13 @@ export default function PatientForm({
     if (isSavingPatient) return;
 
     let dataToSave = { ...formData };
+    // Cross-store transfer (owner spec Nov 24 2026): the linkage to the source
+    // record is only written when the form is actually saved with "+ Add".
+    if (duplicateMode === 'transfer' && patient) {
+      if (patient.source_patient_id) dataToSave.source_patient_id = patient.source_patient_id;
+      if (patient.source_store_id) dataToSave.source_store_id = patient.source_store_id;
+      dataToSave.transferred_at = patient.transferred_at || new Date().toISOString();
+    }
     dataToSave.latitude = dataToSave.latitude !== null && dataToSave.latitude !== undefined && dataToSave.latitude !== '' ? Number(dataToSave.latitude) : null;
     dataToSave.longitude = dataToSave.longitude !== null && dataToSave.longitude !== undefined && dataToSave.longitude !== '' ? Number(dataToSave.longitude) : null;
     dataToSave.distance_from_store = dataToSave.distance_from_store !== null && dataToSave.distance_from_store !== undefined && dataToSave.distance_from_store !== '' ? Number(dataToSave.distance_from_store) : null;
@@ -1207,7 +1214,7 @@ export default function PatientForm({
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl font-bold flex items-center gap-2 text-body">
                 <UserPlus className="w-5 h-5 text-emerald-600" />
-                {duplicateMode === 'duplicate' || duplicateMode === 'newAddress' ? 'Add New Patient' : patient ? 'Edit Patient' : 'Add New Patient'}
+                {duplicateMode === 'duplicate' || duplicateMode === 'newAddress' || duplicateMode === 'transfer' ? 'Add New Patient' : patient ? 'Edit Patient' : 'Add New Patient'}
               </CardTitle>
               <Button variant="ghost" size="icon" onClick={onCancel}>
                 <X className="w-4 h-4 text-body-2" />
@@ -2420,7 +2427,7 @@ export default function PatientForm({
               </Button>
               <Button type="button" onClick={handleSubmit} disabled={!isFormValid || isSavingPatient || disableOtherFieldsDuringAddressLookup} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">
                 {isSavingPatient ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                {returnPatientOnSave ? 'Save & Return' : patient ? 'Update Patient' : 'Create Patient'}
+                {returnPatientOnSave ? 'Save & Return' : duplicateMode === 'transfer' ? '+ Add Patient' : patient ? 'Update Patient' : 'Create Patient'}
               </Button>
             </div>
           </CardFooter>

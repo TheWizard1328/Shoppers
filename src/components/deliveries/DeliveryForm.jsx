@@ -40,7 +40,6 @@ import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDupl
 import {
   getUserStoreIds,
   getOtherCompanyStores,
-  transferPatientToStore,
 } from './patientTransferHelpers';
 import { resetDraftEditorState, cleanupDetachedAutoCreatedPickups } from './deliveryDraftStateHelpers';
 import { filterPendingDeliveriesForUser, mapPendingDeliveriesToStaged } from './deliveryPendingLoadHelpers';
@@ -1101,59 +1100,55 @@ export default function DeliveryForm({
   const handleTransferPatient = useCallback(async (patient) => {
     if (!patient || !patient.id) return;
     if (userHasRole(currentUser, 'admin')) return; // admins keep Duplicate/Change
+    if (!onCreatePatient) return;
+
+    // OWNER SPEC (Nov 24 2026): tapping Transfer only OPENS the prefilled form.
+    // Nothing is written to the patient DB until "+ Add" is pressed, so the
+    // transfer can still be cancelled by closing the form.
     const isDriverOnly = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher');
+    let targetStoreId = '';
+    if (!isDriverOnly) {
+      // Dispatcher: the destination is their own store (form's store when it is theirs).
+      const myStoreIds = [...new Set([
+        ...((currentUser?.store_ids) || []),
+        ...(currentUser?.store_id ? [currentUser.store_id] : []),
+      ].filter(Boolean))];
+      targetStoreId = myStoreIds.includes(formData.store_id) ? formData.store_id : (myStoreIds[0] || '');
+      if (!targetStoreId) {
+        setError('Cannot transfer: no store is assigned to your account.');
+        return;
+      }
+    }
+
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
-
-    if (isDriverOnly) {
-      if (!onCreatePatient) return;
-      const prefill = {
-        ...patient,
-        id: undefined,
-        patient_id: '',
-        store_id: '',
-        status: 'active',
-        email: '',
-        signature_image_url: '',
-        delivery_history: [],
-        last_delivery_date: '',
-        portal_login_count: 0,
-        source_patient_id: patient.id,
-        source_store_id: patient.store_id || null,
-        transferred_at: new Date().toISOString(),
-        _transferSource: true,
-        _isNew: true,
-      };
-      setIsPatientFormOpen(true);
-      onCreatePatient(async (createdPatient) => {
-        setIsPatientFormOpen(false);
-        if (createdPatient?.id) {
-          await updatePatientLocal(patient.id, { status: 'inactive' }).catch(() => {});
-        }
-        if (createdPatient) await handlePatientSelect(createdPatient, false);
-      }, prefill, 'transfer');
-      return;
-    }
-
-    // Dispatcher: destination is the form's store when it is one of theirs.
-    const myStoreIds = [...new Set([
-      ...((currentUser?.store_ids) || []),
-      ...(currentUser?.store_id ? [currentUser.store_id] : []),
-    ].filter(Boolean))];
-    const targetStoreId = myStoreIds.includes(formData.store_id) ? formData.store_id : myStoreIds[0];
-    const targetStore = (stores || []).find((st) => st && st.id === targetStoreId);
-    if (!targetStore) {
-      setError('Cannot transfer: no store is assigned to your account.');
-      return;
-    }
-    try {
-      const created = await transferPatientToStore({ source: patient, targetStore });
-      await handlePatientSelect(created, false);
-    } catch (err) {
-      console.warn('[DeliveryForm] patient transfer failed:', err?.message || err);
-      setError('Transfer failed. Check your connection and try again.');
-    }
-  }, [currentUser, formData.store_id, stores, onCreatePatient, handlePatientSelect, updatePatientLocal, setPatientSearch, setHighlightedPatientIndex, setError]);
+    const prefill = {
+      ...patient,
+      id: undefined,
+      patient_id: '',
+      store_id: targetStoreId,
+      status: 'active',
+      email: '',
+      signature_image_url: '',
+      delivery_history: [],
+      last_delivery_date: '',
+      portal_login_count: 0,
+      source_patient_id: patient.id,
+      source_store_id: patient.store_id || null,
+      transferred_at: new Date().toISOString(),
+      _transferSource: true,
+      _isNew: true,
+    };
+    setIsPatientFormOpen(true);
+    onCreatePatient(async (createdPatient) => {
+      setIsPatientFormOpen(false);
+      // Original stays on file but inactive (owner rule): only written now, on Add.
+      if (createdPatient?.id) {
+        await updatePatientLocal(patient.id, { status: 'inactive' }).catch(() => {});
+      }
+      if (createdPatient) await handlePatientSelect(createdPatient, false);
+    }, prefill, 'transfer');
+  }, [currentUser, formData.store_id, onCreatePatient, handlePatientSelect, updatePatientLocal, setPatientSearch, setHighlightedPatientIndex, setError]);
 
   const handleNewAddressPatient = useCallback((patient) => {
     if (!patient || !onCreatePatient) return;
