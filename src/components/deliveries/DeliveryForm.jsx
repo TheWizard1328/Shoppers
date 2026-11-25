@@ -1168,6 +1168,11 @@ export default function DeliveryForm({
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     await handlePatientSelect(draft, false);
+    // handlePatientSelect re-locks the search in add_to_route mode, which made the
+    // no-match panel (Other Stores / Add New Patient) reappear over the filled form.
+    // A transfer is a finished choice, so the panel closes and stays closed.
+    setPatientSearch('');
+    setHighlightedPatientIndex(-1);
   }, [currentUser, formData.store_id, stores, onCreatePatient, handlePatientSelect, updatePatientLocal, setPatientSearch, setHighlightedPatientIndex, setError]);
 
   const handleNewAddressPatient = useCallback((patient) => {
@@ -1802,14 +1807,25 @@ export default function DeliveryForm({
   useEffect(() => {
     const handleEscapeKey = (event) => {
       if (event.key !== 'Escape') return;
+      // OWNER SPEC (Nov 24 2026): Escape closes the TOP-MOST form/dialog first and
+      // leaves the layers below untouched. A dialog or the patient form stacked
+      // above this form handles its own Escape, so bail out and let it close.
+      if (isPatientFormOpen) return;
+      const openOverlay = document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+      if (openOverlay) return;
       event.preventDefault();
+      // The open patient-results panel sits above the form too: close it only.
+      if (patientSearch && patientSearch !== '__locked__') {
+        setPatientSearch(''); setHighlightedPatientIndex(-1);
+        return;
+      }
       if (showCameraOverlay) { stopCamera(); setShowCameraOverlay(false); setIsScanning(false); }
       else if (delivery || cancelButtonState !== 'clear') { handleCancelClick(); }
       else { handleClearForm(); }
     };
     document.addEventListener('keydown', handleEscapeKey);
     return () => document.removeEventListener('keydown', handleEscapeKey);
-  }, [cancelButtonState, delivery, handleCancelClick, handleClearForm, showCameraOverlay, stopCamera]);
+  }, [cancelButtonState, delivery, handleCancelClick, handleClearForm, showCameraOverlay, stopCamera, isPatientFormOpen, patientSearch]);
 
   useEffect(() => {
     const handleKeyDown = (e) => { if (e.shiftKey || e.ctrlKey || e.metaKey) setIsMultiSelectMode(true); };
@@ -1817,6 +1833,20 @@ export default function DeliveryForm({
     window.addEventListener('keydown', handleKeyDown);
     return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); };
   }, []);
+
+  // The patient form is the top-most layer while it is open: one Escape closes it
+  // and nothing else. Capture phase so it beats the delivery form's own handler.
+  useEffect(() => {
+    if (!isPatientFormOpen) return;
+    const handlePatientFormEscape = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setIsPatientFormOpen(false);
+    };
+    document.addEventListener('keydown', handlePatientFormEscape, true);
+    return () => document.removeEventListener('keydown', handlePatientFormEscape, true);
+  }, [isPatientFormOpen]);
 
   useEffect(() => {
     if (shouldAutoFocusFields) requestAnimationFrame(() => { patientSearchInputRef.current?.focus?.(); });
