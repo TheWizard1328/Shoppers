@@ -1426,10 +1426,26 @@ export default function PatientPortal({ embedded = false } = {}) {
       if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) storeCoords[String(st.id)] = [lat, lng];
     });
 
+    // OWNER RULE (Nov 25 2026): the frame may only contain the driver, the
+    // originating store, the patient's home and the ACTIVE stops between the
+    // driver and the parent store (pending) or the patient's home (active).
+    // It used to cap at the patient's own late stop_order, so future pickups
+    // beyond her store dragged the view out to the whole route.
+    const pendingNow = String(todayDelivery?.status || 'pending').toLowerCase() === 'pending';
+    let boundCapOrder = patientStopOrder;
+    if (pendingNow) {
+      const pickupCap = (routeDeliveries || [])
+        .filter((d) => d && Number.isFinite(Number(d.stop_order)) && Number(d.stop_order) <= patientStopOrder)
+        .filter((d) => (d.is_pickup === true || d.isPickup === true || !d.patient_id) &&
+          (todayDelivery?.puid ? d.puid === todayDelivery.puid : d.store_id === todayDelivery?.store_id))
+        .map((d) => Number(d.stop_order));
+      if (pickupCap.length > 0) boundCapOrder = Math.min(patientStopOrder, Math.max(...pickupCap));
+    }
+
     const DONE = ['completed', 'failed', 'cancelled'];
     for (const d of routeDeliveries || []) {
       if (DONE.includes(d.status)) continue; // finished stop — never a fit point
-      if (Number(d.stop_order) >= patientStopOrder) continue; // patient & later stops excluded
+      if (Number(d.stop_order) >= boundCapOrder) continue; // nothing past the cap
 
       let pt = null;
       if (Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng)) &&
@@ -1444,6 +1460,16 @@ export default function PatientPortal({ embedded = false } = {}) {
       if (!pt && d.store_id) pt = storeCoords[String(d.store_id)] || null;
       if (pt) pts.push(pt);
     }
+
+    // The four anchors that must ALWAYS be framed, whatever the route holds.
+    if (driverPoint) pts.push(driverPoint);
+    const homeLat = Number(patient?.latitude);
+    const homeLng = Number(patient?.longitude);
+    if (Number.isFinite(homeLat) && Number.isFinite(homeLng) && homeLat !== 0 && homeLng !== 0) {
+      pts.push([homeLat, homeLng]);
+    }
+    const originStore = storeCoords[String(todayDelivery?.store_id)];
+    if (originStore) pts.push(originStore);
     return pts;
   }, [
   routeDeliveries,
@@ -1454,7 +1480,12 @@ export default function PatientPortal({ embedded = false } = {}) {
   staticPolylineSegments,
   currentLegCoords,
   driverLocation?.lat,
-  driverLocation?.lng]
+  driverLocation?.lng,
+  todayDelivery?.status,
+  todayDelivery?.puid,
+  todayDelivery?.store_id,
+  patient?.latitude,
+  patient?.longitude]
   );
 
   const storeLatLng = activeStore?.latitude && activeStore?.longitude ?
