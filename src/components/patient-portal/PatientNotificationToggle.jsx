@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, BellOff, BellRing, Loader2, Share, X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { WEB_VERSION, BAKED_APK_DIGIT, formatVersionDigits } from '@/version';
+
+const APP_BUILD_LABEL = formatVersionDigits(BAKED_APK_DIGIT, WEB_VERSION);
 import {
   getPatientPushState,
   enablePatientPush,
@@ -84,7 +87,12 @@ export default function PatientNotificationToggle({ patient }) {
         ? 'Test sent. It should arrive in a moment.'
         : `No device accepted it (${why}).`);
     } catch (err) {
-      setNotice(`Test failed: ${err?.message || 'unknown error'}`);
+      // OWNER REPORT (Nov 25 2026): the notice said only "status code 500", which
+      // could not tell a stale bundle apart from a real server error. The build
+      // that ran the tap is now part of the message.
+      const status = err?.response?.status || err?.status || '';
+      const detail = err?.response?.data?.error || err?.response?.data?.errors?.[0] || err?.message || 'unknown error';
+      setNotice(`Test failed on ${APP_BUILD_LABEL}${status ? ` (${status})` : ''}: ${detail}`);
     }
     setBusy(false);
   };
