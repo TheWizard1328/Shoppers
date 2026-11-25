@@ -183,6 +183,7 @@ export async function enablePatientPush(patient) {
   if (isNativeAndroid()) {
     try {
       const { PushNotifications } = await getNativePushPlugin();
+      let perm = await PushNotifications.checkPermissions();
       if (perm?.receive !== 'granted') perm = await PushNotifications.requestPermissions();
       if (perm?.receive !== 'granted') return { ok: false, reason: 'permission' };
 
