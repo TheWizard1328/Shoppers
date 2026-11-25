@@ -63,8 +63,25 @@ export const PatientSessionManager = {
 
   /**
    * Clear the session and redirect to patient login.
+   *
+   * OWNER REPORT (Nov 25 2026): his phone was logged out of Katelyn's portal and
+   * still got her delayed-delivery push, because signing out only cleared
+   * localStorage — the device's push subscription stayed registered server-side,
+   * so the backend kept fanning her notices out to a signed-out phone. Logout now
+   * unregisters this device first (bounded wait so a dead network cannot trap the
+   * user on the portal), then clears the session and leaves.
    */
-  logout() {
+  async logout() {
+    const patient = this.getPatient();
+    if (patient?.id) {
+      try {
+        const mod = await import('./patientPushClient');
+        await Promise.race([
+          mod.disablePatientPush(patient).catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 2500)),
+        ]);
+      } catch { /* never block the sign-out */ }
+    }
     localStorage.removeItem(SESSION_KEY);
     window.location.href = '/patient-login';
   },

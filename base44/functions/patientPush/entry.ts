@@ -295,6 +295,23 @@ Deno.serve(async (req) => {
       if (match) await base44.asServiceRole.entities.PushSubscription.update(match.id, record);
       else await base44.asServiceRole.entities.PushSubscription.create(record);
 
+      // ── ONE PATIENT PER DEVICE (owner report Nov 25 2026) ─────────────────
+      // His phone was signed out of Katelyn's portal and still received her
+      // delay push: the row lived on. Registering an endpoint for a patient now
+      // retires any OTHER patient's row that holds the same endpoint, so a device
+      // can only ever be subscribed to the patient currently signed in on it.
+      try {
+        const sameEndpoint = await base44.asServiceRole.entities.PushSubscription
+          .filter({ endpoint })
+          .catch(() => []);
+        for (const other of sameEndpoint || []) {
+          if (!other?.id) continue;
+          if (String(other.user_id || '') === userKey) continue;
+          if (!String(other.user_id || '').startsWith('patient:')) continue;
+          await base44.asServiceRole.entities.PushSubscription.delete(other.id).catch(() => {});
+        }
+      } catch { /* best effort */ }
+
       const all = await base44.asServiceRole.entities.PushSubscription
         .filter({ user_id: userKey }, '-last_used_at', 20)
         .catch(() => []);
