@@ -1710,17 +1710,20 @@ export default function PatientPortal({ embedded = false } = {}) {
             </div>
           }
 
-          {/* Tracking badge — BOTTOM CENTER (owner request Nov 2 2026, moved
-                 down from the top centre so it no longer overlaps the floating
-                 today card or the header controls). */}
-          {showLiveTracking && driverLocation &&
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
-              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
+          <div className="h-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm relative">
+            {/* Tracking badge — BOTTOM CENTER, pinned just above the map's own
+                   bottom edge (owner report Nov 25 2026: it used to sit below the
+                   map, behind the phone's navigation bar). Offset by the iOS
+                   canvas shrink so it never covers the HERE attribution. */}
+            {showLiveTracking && driverLocation &&
+            <div
+              className="absolute left-1/2 -translate-x-1/2 z-[1000] pointer-events-none"
+              style={{ bottom: 'calc(var(--portal-map-shrink, 0px) + 10px)' }}>
+              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
                 {trackingMode ? '📍 Tracking driver' : '⏳ Tracking resumes shortly'}
               </div>
             </div>
-          }
-          <div className="h-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm relative">
+            }
             {/* Map centre crosshair — same overlay the main dashboard map uses.
                    Sits at the centre of the SAME padded region the auto-fit uses
                    (left/right 20, top clears the floating today card, bottom 35),
