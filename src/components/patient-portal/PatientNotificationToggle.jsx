@@ -30,6 +30,9 @@ export default function PatientNotificationToggle({ patient }) {
   const [state, setState] = useState(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  // OWNER REPORT (Nov 25 2026): a failed turn-on used to be silent — the panel just
+  // re-read the state and looked like the tap did nothing. Every reason is shown.
+  const [notice, setNotice] = useState('');
 
   const refresh = useCallback(() => {
     getPatientPushState().then(setState).catch(() => setState('unsupported'));
@@ -47,13 +50,32 @@ export default function PatientNotificationToggle({ patient }) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [refresh]);
 
+  const NOTICE = {
+    permission: 'Notifications were not allowed. Turn them on for this site in your settings, then try again.',
+    needs_install: 'On iPhone, add this page to your Home Screen first, then turn notifications on from there.',
+    ios_unsupported_browser: 'iPhone only allows notifications from a Safari Home Screen app. Open this page in Safari, add it to your Home Screen, then try again.',
+    unsupported: 'This browser cannot show notifications.',
+    push_plugin_missing: 'This build of the app has no notification plugin. Update the RxDeliver app and try again.',
+    no_token: 'The phone did not return a notification token. Check that notifications are allowed for the RxDeliver app, then try again.',
+    register_failed: 'The server could not save this device for notifications. Try again in a moment.',
+    no_vapid_key: 'Notifications are not configured on the server yet.',
+  };
+
   const handleEnable = async () => {
     setBusy(true);
-    const res = await enablePatientPush(patient);
+    setNotice('');
+    let res = { ok: false, reason: 'error' };
+    try {
+      res = await enablePatientPush(patient);
+    } catch (err) {
+      res = { ok: false, reason: err?.message || 'error' };
+    }
     setBusy(false);
-    if (res.ok) setState('on');else
-    if (res.reason === 'permission') setState('blocked');else
-    if (res.reason === 'needs_install') setState('needs-install');else
+    if (res.ok) { setState('on'); setNotice(''); return; }
+    if (res.reason === 'permission') setState('blocked');
+    else if (res.reason === 'needs_install') setState('needs-install');
+    else if (res.reason === 'ios_unsupported_browser') setState('unsupported');
+    setNotice(NOTICE[res.reason] || `Could not turn notifications on (${res.reason || 'unknown'}).`);
     refresh();
   };
 
@@ -179,6 +201,10 @@ export default function PatientNotificationToggle({ patient }) {
                 {state === 'blocked' ? 'Try again' : 'Turn on notifications'}
               </button>
             </>
+          )}
+
+          {!!notice && (
+            <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">{notice}</p>
           )}
 
           {iosNeedsInstall && (

@@ -10,6 +10,17 @@ export const isNativeAndroid = () => {
   try { return isCapacitorNativeApp() && getCapacitorPlatform() === 'android'; } catch { return false; }
 };
 
+/** The Capacitor push plugin, via the bundle or the runtime bridge. */
+async function getNativePushPlugin() {
+  try {
+    const mod = await import('@capacitor/push-notifications');
+    if (mod?.PushNotifications) return { PushNotifications: mod.PushNotifications };
+  } catch { /* fall through to the bridge */ }
+  const bridge = typeof window !== 'undefined' ? window?.Capacitor?.Plugins?.PushNotifications : null;
+  if (bridge) return { PushNotifications: bridge };
+  throw new Error('push_plugin_missing');
+}
+
 /**
  * Patient portal push notifications (owner build Nov 2 2026).
  *
@@ -96,7 +107,7 @@ const urlBase64ToUint8Array = (base64String) => {
 export async function getPatientPushState() {
   if (isNativeAndroid()) {
     try {
-      const { PushNotifications } = await import('@capacitor/push-notifications');
+      const { PushNotifications } = await getNativePushPlugin();
       const status = await PushNotifications.checkPermissions();
       if (status?.receive === 'denied') return 'blocked';
       const token = localStorage.getItem(PATIENT_FCM_TOKEN_KEY);
@@ -128,8 +139,7 @@ export async function enablePatientPush(patient) {
   // ── APK (Capacitor + FCM) ────────────────────────────────────────────────
   if (isNativeAndroid()) {
     try {
-      const { PushNotifications } = await import('@capacitor/push-notifications');
-      let perm = await PushNotifications.checkPermissions();
+      const { PushNotifications } = await getNativePushPlugin();
       if (perm?.receive !== 'granted') perm = await PushNotifications.requestPermissions();
       if (perm?.receive !== 'granted') return { ok: false, reason: 'permission' };
 
@@ -162,7 +172,12 @@ export async function enablePatientPush(patient) {
     }
   }
 
-  if (!pushSupported()) return { ok: false, reason: 'unsupported' };
+  if (!pushSupported()) {
+    // iPhone/iPad: only a Safari Home Screen app can receive web push. Chrome on
+    // iOS cannot, and a plain Safari tab cannot either.
+    if (isIosDevice()) return { ok: false, reason: isStandalonePwa() ? 'ios_unsupported_browser' : 'needs_install' };
+    return { ok: false, reason: 'unsupported' };
+  }
   if (isIosDevice() && !isStandalonePwa()) return { ok: false, reason: 'needs_install' };
 
   try {
