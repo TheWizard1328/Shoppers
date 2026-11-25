@@ -213,6 +213,16 @@ export default function PatientNotificationToggle({ patient }) {
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 This device gets a phone alert when your pharmacy replies or when your delivery is on the way.
               </p>
+              {/* OWNER REPORT (Nov 25 2026): the portal screen still slept. This
+                  readout says whether the wake lock or the barrier video is
+                  actually holding, so a device can be diagnosed without a console. */}
+              <p className="mt-1 text-[10px] leading-tight text-slate-400 dark:text-slate-500">
+                {(() => {
+                  const k = typeof window !== 'undefined' ? window.__rxKeepAwake : null;
+                  if (!k) return 'Screen wake: not armed yet';
+                  return `Screen wake: ${k.lock ? 'lock held' : 'no lock'} · ${k.video ? 'video on' : 'no video'}${k.ios ? ' · iOS' : ''}`;
+                })()}
+              </p>
               <button
                 onClick={handleTest}
                 disabled={busy}

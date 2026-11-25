@@ -16,7 +16,12 @@ export function useWakeLockAndVisibility({
   currentUser,
   dataLoaded,
   isFormOverlayOpen,
-  stores
+  stores,
+  // OWNER REPORT (Nov 25 2026): the patient portal still let the screen sleep.
+  // A patient device has no driver duty state and no route, so it asks for an
+  // unconditional keep-awake: no battery gate and the barrier video runs on every
+  // platform, not just iOS.
+  forceKeepAwake = false
 }) {
   const wakeLockRef = useRef(null);
   const keepAwakeVideoRef = useRef(null);
@@ -99,7 +104,7 @@ export function useWakeLockAndVisibility({
         // For on-duty drivers, keep the wake lock active regardless of battery level.
         // GPS tracking for active deliveries is mission-critical.
         const isOnDuty = locationTracker?.isTracking && locationTracker?.driverStatus === 'on_duty';
-        if (!isOnDuty && 'getBattery' in navigator) {
+        if (!isOnDuty && !forceKeepAwake && 'getBattery' in navigator) {
           const battery = await navigator.getBattery();
           if (battery.level * 100 < 25 && !battery.charging) return;
         }
@@ -126,7 +131,16 @@ export function useWakeLockAndVisibility({
       if (!wakeLockRef.current && 'wakeLock' in navigator) startKeepAwakeVideo();
       if (!('wakeLock' in navigator)) startKeepAwakeVideo();
       // iOS: arm the video barrier straight away, in parallel with the lock.
-      if (isIOSDeviceRef.current) startKeepAwakeVideo();
+      if (isIOSDeviceRef.current || forceKeepAwake) startKeepAwakeVideo();
+      try {
+        window.__rxKeepAwake = {
+          lock: !!wakeLockRef.current,
+          video: !!keepAwakeVideoRef.current,
+          ios: isIOSDeviceRef.current,
+          forced: !!forceKeepAwake,
+          at: Date.now(),
+        };
+      } catch { /* no window */ }
       if (!keepAwakeDiagRef.current) {
         keepAwakeDiagRef.current = true;
         try {
@@ -282,7 +296,7 @@ export function useWakeLockAndVisibility({
     // 2s instead of 5s (owner report Nov 23 2026): iOS can pause the barrier within a
     // couple of seconds of a cold start, and the first screen dim is roughly 30s away -
     // a 5s tick let the portal spend that whole window unprotected.
-    const videoWatchdog = isIOSDeviceRef.current ? setInterval(() => {
+    const videoWatchdog = (isIOSDeviceRef.current || forceKeepAwake) ? setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       const v = keepAwakeVideoRef.current;
       if (!v || !v.isConnected) { videoStalls = 0; startKeepAwakeVideo(); return; }

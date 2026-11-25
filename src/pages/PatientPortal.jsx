@@ -739,7 +739,7 @@ export default function PatientPortal({ embedded = false } = {}) {
   // w321: the portal gets its OWN barrier (see usePortalKeepAwake). The shared
   // Layout hook is left mounted for its visibility/sync behaviour, but the screen
   // itself is held by the portal hook, which has no app-shell guards at all.
-  useWakeLockAndVisibility({});
+  useWakeLockAndVisibility({ forceKeepAwake: true });
   const keepAwake = usePortalKeepAwake();
   useEffect(() => {
     // Idle measurement lives in the shared tracker (Layout owns the same one;
@@ -1239,12 +1239,27 @@ export default function PatientPortal({ embedded = false } = {}) {
     const notYetPickedUp = String(todayDelivery.status || 'pending').toLowerCase() === 'pending';
     let capOrder = patientStopOrder;
     if (notYetPickedUp) {
-      const ownPickup = routeDeliveries.find((d) =>
-        d && (d.is_pickup === true || d.isPickup === true) &&
-        todayDelivery.puid && d.puid === todayDelivery.puid &&
-        Number.isFinite(Number(d.stop_order))
-      );
-      if (ownPickup) capOrder = Math.min(patientStopOrder, Number(ownPickup.stop_order));
+      // OWNER REPORT (Nov 25 2026): the patient saw the driver's whole route past
+      // her own pickup. The old lookup needed an is_pickup flag and used find() on
+      // an UNSORTED list, so a pickup record without the flag (a store stop with no
+      // patient_id) never matched and the cap stayed at the patient's late stop.
+      // Pickups are now identified by flag OR by having no patient, restricted to
+      // this patient's own puid group (falling back to the same store), and the
+      // LAST one at or before her stop is the cap.
+      const isPickupStop = (d) =>
+        d && (d.is_pickup === true || d.isPickup === true || !d.patient_id);
+      const before = routeDeliveries.filter((d) =>
+        d && Number.isFinite(Number(d.stop_order)) && Number(d.stop_order) <= patientStopOrder);
+      let pickups = todayDelivery.puid
+        ? before.filter((d) => isPickupStop(d) && d.puid === todayDelivery.puid)
+        : [];
+      if (pickups.length === 0) {
+        pickups = before.filter((d) => isPickupStop(d) && d.store_id && d.store_id === todayDelivery.store_id);
+      }
+      if (pickups.length > 0) {
+        const lastPickup = Math.max(...pickups.map((d) => Number(d.stop_order)));
+        capOrder = Math.min(patientStopOrder, lastPickup);
+      }
     }
 
     const relevantStops = routeDeliveries
