@@ -91,10 +91,22 @@ export async function hardRefreshToNewBuild(text = 'update') {
     }
   } catch { /* no cache storage in this webview */ }
 
+  // Do NOT unregister the worker: a push subscription dies with its registration,
+  // which is how the Android PWA portal kept losing notifications on restart
+  // (owner report Nov 25 2026). Caches above are already gone, so the new build
+  // is fetched; just let the updated worker take over.
   try {
     if (navigator?.serviceWorker?.getRegistrations) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister().catch(() => false)));
+      await Promise.all(regs.map(async (r) => {
+        const scriptUrl = r.active?.scriptURL || r.waiting?.scriptURL || r.installing?.scriptURL || '';
+        if (scriptUrl.includes('push-sw.js')) {
+          try { await r.unregister(); } catch { /* ignore */ }
+          return;
+        }
+        try { await r.update(); } catch { /* ignore */ }
+        try { r.waiting?.postMessage({ type: 'SKIP_WAITING' }); } catch { /* ignore */ }
+      }));
     }
   } catch { /* no SW support */ }
 

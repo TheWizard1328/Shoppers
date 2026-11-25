@@ -41,12 +41,25 @@ const isChunkError = (error) => {
  */
 export const purgeStaleServiceWorkerAndCaches = async () => {
   try {
-    // 1. Unregister every active service worker
+    // 1. Refresh the service worker WITHOUT unregistering it.
+    // OWNER REPORT (Nov 25 2026): the Android PWA portal lost its notifications
+    // on every restart. A push subscription belongs to the service worker
+    // REGISTRATION, so unregister() here (and in updateLoopGuard) silently threw
+    // her subscription away every time a stale chunk triggered a recovery. Now we
+    // only push the new worker to take over; the subscription survives.
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
       await Promise.all(
         (regs || []).map(async (reg) => {
-          try { await reg.unregister(); } catch (_) {}
+          const scriptUrl = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
+          if (scriptUrl.includes('push-sw.js')) {
+            // Legacy second worker — the only one that must go (it splits push).
+            try { await reg.unregister(); } catch (_) {}
+            return;
+          }
+          try { await reg.update(); } catch (_) {}
+          try { reg.waiting?.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
+          try { reg.active?.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
         })
       );
       // Remove any BroadcastChannel/heartbeat the SW may use to keep itself alive
