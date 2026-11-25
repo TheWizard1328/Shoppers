@@ -95,7 +95,12 @@ export default function DeliveryPatientSearch({
       addPatientButtonRef?.current?.blur?.();
       const highlightedPatient = visiblePatients[highlightedPatientIndex];
       if (!highlightedPatient?._isAlreadyStaged) {
-        onPatientSelect(highlightedPatient, false);
+        // Other-store records transfer on Enter too (same rule as the card click).
+        if (highlightedPatient?._isOtherStore) {
+          onTransferPatient?.(highlightedPatient);
+        } else {
+          onPatientSelect(highlightedPatient, false);
+        }
       }
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
@@ -267,6 +272,12 @@ export default function DeliveryPatientSearch({
                         if (newSet.has(patient.id)) newSet.delete(patient.id);else newSet.add(patient.id);
                         return newSet;
                       });
+                    } else if (isOtherStorePatient) {
+                      // OWNER SPEC (Nov 24 2026): tapping the card itself starts the
+                      // transfer for other-store records; the Transfer text is a label.
+                      setPatientSearch('');
+                      setHighlightedPatientIndex(-1);
+                      onTransferPatient?.(patient);
                     } else {
                       onPatientSelect(patient, false);
                       setPatientSearch('');
@@ -296,10 +307,10 @@ export default function DeliveryPatientSearch({
                       {/* Cross-store records get TRANSFER only — never Duplicate or
                           Change (owner spec Nov 24 2026). */}
                       {isOtherStorePatient ? (
-                        <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-amber-100/70 dark:hover:bg-amber-900/30" onClick={(e) => {e.stopPropagation();onTransferPatient?.(patient);}} title="Transfer this patient to your store">
+                        <div className="flex items-center justify-end gap-1 rounded-md text-xs h-5 px-2 select-none" aria-hidden="true" title="Tap this card to transfer the patient to your store">
                           <span className="text-amber-700 dark:text-amber-300">Transfer</span>
                           <ArrowRightLeft className="w-3 h-3 text-amber-600 dark:text-amber-300" />
-                        </Button>
+                        </div>
                       ) : (
                       <>
                       <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-blue-100/70 dark:hover:bg-blue-900/30" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
