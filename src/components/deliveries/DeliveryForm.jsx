@@ -917,15 +917,20 @@ export default function DeliveryForm({
         const otherIds = otherStoresUnlocked
           ? otherCompanyStores.map((st) => st && st.id).filter(Boolean)
           : [];
-        const storeIds = otherStoresUnlocked
-          ? otherIds
-          : formData.store_id
-            ? [formData.store_id]
-            : [...new Set([
-                ...((currentUser?.store_ids) || []),
-                ...(currentUser?.store_id ? [currentUser.store_id] : []),
-                ...(stores || []).filter((st) => !currentUser?.city_id || st?.city_id === currentUser.city_id).map((st) => st?.id),
-              ].filter(Boolean))].slice(0, 40);
+        // OWNER BUG (Nov 24 2026): the pre-unlock fallback used to widen to every
+        // store in the user's city, so 3-5s after the empty result (once this
+        // debounced query finished) OTHER-store patients landed in the list,
+        // the Other Stores / Add New Patient buttons vanished, and those rows
+        // offered Duplicate/Change instead of Transfer. Pre-unlock now asks only
+        // about the user's OWN stores, so an empty own-store search stays empty
+        // and the peek buttons stay put.
+        const ownIds = [...new Set([
+          ...(ownStoreIds || []),
+          ...(formData.store_id ? [formData.store_id] : []),
+          ...((currentUser?.store_ids) || []),
+          ...(currentUser?.store_id ? [currentUser.store_id] : []),
+        ].filter(Boolean))];
+        const storeIds = otherStoresUnlocked ? otherIds : ownIds;
         const scopedRows = [];
         for (let skip = 0; skip < 2000; skip += 500) {
           const query = storeIds.length
@@ -937,10 +942,16 @@ export default function DeliveryForm({
           if (page.length < 500) break;
         }
         const otherSet = new Set(otherIds);
+        const ownSet = new Set(ownIds);
         const hits = scopedRows.filter(matchFn).filter((p) => {
-          if (!otherStoresUnlocked) return true;
-          if (!p?.store_id || !otherSet.has(p.store_id)) return false;
-          return String(p.status || 'active').toLowerCase() === 'active';
+          if (!p?.store_id) return false;
+          if (!otherStoresUnlocked) {
+            // Never let another store's record into the pre-unlock list — that is
+            // what silently turned the peek into a Duplicate/Change card.
+            return ownSet.has(p.store_id);
+          }
+          return otherSet.has(p.store_id) &&
+            String(p.status || 'active').toLowerCase() === 'active';
         });
         if (cancelled) return;
         console.log(`[DeliveryForm] server patient search "${needle}" -> ${hits.length} hit(s)`);
@@ -954,7 +965,7 @@ export default function DeliveryForm({
       }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [patientSearch, formData.patient_id, formData.store_id, localPatientMatches.length, otherStoreMatches.length, otherStoresUnlocked, otherCompanyStores, stagedDeliveries, currentUser?.store_ids, currentUser?.store_id, currentUser?.city_id, stores]);
+  }, [patientSearch, formData.patient_id, formData.store_id, localPatientMatches.length, otherStoreMatches.length, otherStoresUnlocked, otherCompanyStores, stagedDeliveries, ownStoreIds, currentUser?.store_ids, currentUser?.store_id, currentUser?.city_id, stores]);
 
   // Local matches always win; server hits only fill a genuinely empty list.
   const filteredPatients = localPatientMatches.length > 0
