@@ -446,47 +446,6 @@ export default function Patients() {
 
   // ALL HOOKS MUST BE CALLED HERE - BEFORE ANY EARLY RETURNS
 
-  // Sync context data to local state for real-time updates
-  useEffect(() => {
-    if (contextDataLoaded) {
-      console.log("🔄 [Patients] Syncing data from AppDataContext");
-      console.log(`   contextUsers.length: ${contextUsers.length}, contextAppUsers.length: ${contextAppUsers.length}`);
-      console.log(`   contextCities.length: ${contextCities.length}`);
-
-      // Always sync when context updates — minus anything another device has
-      // already deleted (see the tombstone listener below).
-      setAllPatients((contextPatients || []).filter((p) => p && !deletedPatientIdsRef.current.has(p.id)));
-      setDeliveries(contextDeliveries);
-      setStores(contextStores);
-      setDrivers(contextDrivers);
-      setCities(contextCities); // CRITICAL: Get cities from Layout via context
-
-      // CRITICAL FIX: Use contextUsers if available, otherwise fall back to contextAppUsers
-      const finalUsers = contextUsers.length > 0 ? contextUsers : contextAppUsers;
-      console.log(`   Setting allUsers to: ${finalUsers.length} users`);
-      setAllUsers(finalUsers);
-
-      // Force refresh of import stats display when data changes
-
-    }
-  }, [contextDataLoaded, contextPatients, contextDeliveries, contextStores, contextDrivers, contextUsers, contextAppUsers, contextCities]);
-
-  // Fetch ALL deliveries (unfiltered by driver) for patient history calendar
-  useEffect(() => {
-    const fetchAllDeliveries = async () => {
-      if (!hasAccess || !contextDataLoaded) return;
-
-      try {
-        const allDeliveries = await getData('Delivery', '-delivery_date');
-        setAllDriverDeliveries(allDeliveries || []);
-      } catch (error) {
-        console.error('[Patients] Error fetching all deliveries:', error);
-      }
-    };
-
-    fetchAllDeliveries();
-  }, [hasAccess, contextDataLoaded]);
-
   // ── CROSS-DEVICE PATIENT DELETE (owner report Nov 24 2026) ────────────
   // Deleting a patient on one device must drop it here, on Store Overview and
   // in the Patient Database, without a reload. The websocket path already
@@ -527,6 +486,47 @@ export default function Patients() {
       window.removeEventListener('patientsUpdated', onPatientsUpdated);
     };
   }, [hasAccess, pruneDeletedPatients]);
+
+  // Sync context data to local state for real-time updates
+  useEffect(() => {
+    if (contextDataLoaded) {
+      console.log("🔄 [Patients] Syncing data from AppDataContext");
+      console.log(`   contextUsers.length: ${contextUsers.length}, contextAppUsers.length: ${contextAppUsers.length}`);
+      console.log(`   contextCities.length: ${contextCities.length}`);
+
+      // Always sync when context updates — minus anything another device has
+      // already deleted (see the tombstone listener below).
+      setAllPatients((contextPatients || []).filter((p) => p && !deletedPatientIdsRef.current.has(p.id)));
+      setDeliveries(contextDeliveries);
+      setStores(contextStores);
+      setDrivers(contextDrivers);
+      setCities(contextCities); // CRITICAL: Get cities from Layout via context
+
+      // CRITICAL FIX: Use contextUsers if available, otherwise fall back to contextAppUsers
+      const finalUsers = contextUsers.length > 0 ? contextUsers : contextAppUsers;
+      console.log(`   Setting allUsers to: ${finalUsers.length} users`);
+      setAllUsers(finalUsers);
+
+      // Force refresh of import stats display when data changes
+
+    }
+  }, [contextDataLoaded, contextPatients, contextDeliveries, contextStores, contextDrivers, contextUsers, contextAppUsers, contextCities]);
+
+  // Fetch ALL deliveries (unfiltered by driver) for patient history calendar
+  useEffect(() => {
+    const fetchAllDeliveries = async () => {
+      if (!hasAccess || !contextDataLoaded) return;
+
+      try {
+        const allDeliveries = await getData('Delivery', '-delivery_date');
+        setAllDriverDeliveries(allDeliveries || []);
+      } catch (error) {
+        console.error('[Patients] Error fetching all deliveries:', error);
+      }
+    };
+
+    fetchAllDeliveries();
+  }, [hasAccess, contextDataLoaded]);
 
   useEffect(() => {
     if (!hasAccess) return;
@@ -635,56 +635,6 @@ export default function Patients() {
   // per-store bar drawn under each card's phone number. Patient Database:
   // just the selected store. Both take over the header spinner.
   const [patientRefresh, setPatientRefresh] = useState({ active: false, byStore: {} });
-
-  const runPatientRefresh = useCallback(async (storeIds) => {
-    const ids = [...new Set((storeIds || []).filter(Boolean))];
-    if (ids.length === 0) return;
-    const expectedCounts = {};
-    ids.forEach((id) => {
-      const store = (stores || []).find((st) => st && st.id === id);
-      expectedCounts[id] = store?.patientCount || 0;
-    });
-    setPatientRefresh({ active: true, byStore: Object.fromEntries(ids.map((id) => [id, 0])) });
-    try {
-      const result = await refreshPatientsForStores({
-        storeIds: ids,
-        expectedCounts,
-        onProgress: ({ storeId, loaded }) => {
-          setPatientRefresh((prev) => (prev.active
-            ? { ...prev, byStore: { ...prev.byStore, [storeId]: loaded } }
-            : prev));
-        },
-      });
-      publishRefreshedPatients(result.patients);
-      // Fold the fresh rows straight into page state so the counts move even if
-      // the patientsUpdated listener is paused for any reason.
-      if (result.patients.length > 0) {
-        setAllPatients((prev) => {
-          const byId = new Map((prev || []).filter(Boolean).map((p) => [p.id, p]));
-          result.patients.forEach((p) => { if (p?.id) byId.set(p.id, p); });
-          return Array.from(byId.values());
-        });
-      }
-    } catch (error) {
-      console.warn('[Patients] store patient refresh failed:', error?.message || error);
-    } finally {
-      // Let the bars sit at 100% for a beat, then clear them.
-      setTimeout(() => setPatientRefresh({ active: false, byStore: {} }), 1200);
-    }
-  }, [stores]);
-
-  const handleOverviewPatientRefresh = useCallback(async () => {
-    const overviewStores = getStoreOverview(isAdmin ? 'all' : selectedCityId) || [];
-    await runPatientRefresh(overviewStores.map((st) => st.id));
-  }, [getStoreOverview, isAdmin, selectedCityId, runPatientRefresh]);
-
-  const handleDatabasePatientRefresh = useCallback(async () => {
-    const ids = storeFilter && storeFilter !== 'all'
-      ? [storeFilter]
-      : (getStoreOverview(isAdmin ? 'all' : selectedCityId) || []).map((st) => st.id);
-    await runPatientRefresh(ids);
-  }, [storeFilter, getStoreOverview, isAdmin, selectedCityId, runPatientRefresh]);
-
 
   // OWNER BUG (Nov 20 2026): tapping a store card sometimes opened a DIFFERENT
   // store's patient database. Cause: the store shown is decided by two writers
@@ -1557,6 +1507,57 @@ export default function Patients() {
   const canManagePatients = ['admin', 'dispatcher'].includes(userRole);
   const canCreatePatients = ['admin', 'dispatcher'].includes(userRole);
   const isAdmin = ['admin'].includes(userRole);
+
+  const runPatientRefresh = useCallback(async (storeIds) => {
+    const ids = [...new Set((storeIds || []).filter(Boolean))];
+    if (ids.length === 0) return;
+    const expectedCounts = {};
+    ids.forEach((id) => {
+      const store = (stores || []).find((st) => st && st.id === id);
+      expectedCounts[id] = store?.patientCount || 0;
+    });
+    setPatientRefresh({ active: true, byStore: Object.fromEntries(ids.map((id) => [id, 0])) });
+    try {
+      const result = await refreshPatientsForStores({
+        storeIds: ids,
+        expectedCounts,
+        onProgress: ({ storeId, loaded }) => {
+          setPatientRefresh((prev) => (prev.active
+            ? { ...prev, byStore: { ...prev.byStore, [storeId]: loaded } }
+            : prev));
+        },
+      });
+      publishRefreshedPatients(result.patients);
+      // Fold the fresh rows straight into page state so the counts move even if
+      // the patientsUpdated listener is paused for any reason.
+      if (result.patients.length > 0) {
+        setAllPatients((prev) => {
+          const byId = new Map((prev || []).filter(Boolean).map((p) => [p.id, p]));
+          result.patients.forEach((p) => { if (p?.id) byId.set(p.id, p); });
+          return Array.from(byId.values());
+        });
+      }
+    } catch (error) {
+      console.warn('[Patients] store patient refresh failed:', error?.message || error);
+    } finally {
+      // Let the bars sit at 100% for a beat, then clear them.
+      setTimeout(() => setPatientRefresh({ active: false, byStore: {} }), 1200);
+    }
+  }, [stores]);
+
+  const handleOverviewPatientRefresh = useCallback(async () => {
+    const overviewStores = getStoreOverview(isAdmin ? 'all' : selectedCityId) || [];
+    await runPatientRefresh(overviewStores.map((st) => st.id));
+  }, [getStoreOverview, isAdmin, selectedCityId, runPatientRefresh]);
+
+  const handleDatabasePatientRefresh = useCallback(async () => {
+    const ids = storeFilter && storeFilter !== 'all'
+      ? [storeFilter]
+      : (getStoreOverview(isAdmin ? 'all' : selectedCityId) || []).map((st) => st.id);
+    await runPatientRefresh(ids);
+  }, [storeFilter, getStoreOverview, isAdmin, selectedCityId, runPatientRefresh]);
+
+
 
   // Show import button only for app owners / admins
   const showImportButton = isAppOwner(currentUser) || userHasRole(currentUser, 'admin');

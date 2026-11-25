@@ -40,7 +40,7 @@ const BALLOON_WIDTH = 250;
  * Rendering uses createPortal to document.body with z-index 1000000 — outside
  * the nav/header stacking contexts, so nothing (stop cards included) covers it.
  */
-function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = '#2563EB', icon = '⬆️', title, message, cta, onClick, persistent = false }) {
+function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = '#2563EB', icon = '⬆️', title, message, cta, onClick, persistent = false, offsetY = 0 }) {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState(null); // { left, main (top|bottom), tailLeft }
   const shownRef = useRef(false);
@@ -89,7 +89,9 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
           tailLeft = Math.max(10, Math.min(tailLeft, BALLOON_WIDTH - 10 - TAIL_HALF * 2));
           let main;
           if (direction === 'up') main = { bottom: Math.max(window.innerHeight - r.top + 8, 8) };
-          else if (direction === 'right') main = { left: r.right + 8, top: r.top + r.height / 2 };
+          // OWNER REPORT (Nov 24 2026): the dispatcher sidebar balloon sat too high
+          // against the top bar. offsetY nudges it down without moving the tail anchor.
+          else if (direction === 'right') main = { left: r.right + 8, top: r.top + r.height / 2 + offsetY };
           else main = { top: r.bottom + 8 };
           setPos({ left, main, tailLeft });
           setVisible(true);
@@ -113,7 +115,7 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
       cancelled = true;
       clearTimeout(hideTimer);
     };
-  }, [active, visible, anchorSelector, direction, persistent]);
+  }, [active, visible, anchorSelector, direction, persistent, offsetY]);
 
   if (!visible || !pos) return null;
 
@@ -155,7 +157,7 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
           // 'right': tail on the balloon's left edge, vertically centered.
           // 'up'/'down': tail pinned to the bottom/top edge at pos.tailLeft.
           ...(direction === 'right'
-            ? { left: '-6px', top: '50%', transform: 'translateY(-50%) rotate(45deg)' }
+            ? { left: '-6px', top: `calc(50% - ${offsetY}px)`, transform: 'translateY(-50%) rotate(45deg)' }
             : {
               ...(direction === 'up' ? { bottom: '-6px' } : { top: '-6px' }),
               left: `${pos.tailLeft}px`,
