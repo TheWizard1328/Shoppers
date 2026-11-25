@@ -992,6 +992,78 @@ let _inheritedWindowCount = 0;
       console.warn(`⚠️ [clientRouteEngine] ${source} — windowed HERE attempt rejected (status=${attempt.response.status}) at ±${_sway} min sway`);
     }
 
+    // ── DEADLINE-ONLY RETRY (owner report Nov 25 2026, third pass) ─────────
+    // "with 11:50 and then 1:00 PM to a 3:30 end it still optimized the stop
+    // after every other stop, past 6:00 PM." Start gates force HERE to WAIT,
+    // and one conflicting wait makes the whole windowed request infeasible —
+    // HERE then rejects it and the old code re-ran with no windows at all, so
+    // the 3:30 deadline was lost. Owner spec (Nov 3 2026): a delivery END is
+    // the promise, a start only says "not before". Retry with the deadlines
+    // kept and the start gates released BEFORE any window is thrown away.
+    if ((!attempt.response.ok || !result || waypoints.length === 0) && attempt.includeTimeWindows) {
+      const _hasDeadline = seqStops.some((st) => Number.isFinite(parseTimeToMinutes(st.windowEnd)));
+      if (_hasDeadline) {
+        console.warn(`⚠️ [clientRouteEngine] ${source} — HERE rejected the start+end windows; retrying with DEADLINES ONLY (start gates released)`);
+        const _deadlineStops = seqStops.map((st) => (st.windowStart ? { ...st, windowStart: null } : st));
+        const _dlAttempt = await callHereSequence({
+          sequenceStart, stopsToSequence: _deadlineStops,
+          resolvedHomePosition: destination || (withHome ? resolvedHomePosition : null),
+          hereApiKey, hereTransportMode: hereMode,
+          deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true,
+          windowSway: 30,
+          driverId, userName: _driverUserName
+        });
+        const _dlResult = Array.isArray(_dlAttempt.data?.results) ? _dlAttempt.data.results[0] : null;
+        const _dlWaypoints = Array.isArray(_dlResult?.waypoints) ? _dlResult.waypoints : [];
+        if (_dlAttempt.response.ok && _dlResult && _dlWaypoints.length > 0) {
+          attempt = _dlAttempt;
+          result = _dlResult;
+          waypoints = _dlWaypoints;
+          interconnections = Array.isArray(_dlResult.interconnections) ? _dlResult.interconnections : [];
+          console.log(`✅ [clientRouteEngine] ${source} — deadline-only sequencing accepted`);
+        }
+      }
+    }
+
+    // ── GRACEFUL DEGRADATION BEFORE DROPPING WINDOWS (owner report Nov 25 2026)
+    // "with 11:50 and then 1:00 PM to a 3:30 end, the optimizer still put Care
+    // Pro's after every other stop, past 6:00 PM." ONE unsatisfiable window makes
+    // HERE reject the ENTIRE windowed request; the old code then re-ran with NO
+    // windows at all, so pure geography decided and a 3:30 deadline could land
+    // dead last. Before windows are thrown away, retry with only the windows
+    // that are still LIVE (close more than 20 min ahead). Expired windows carry
+    // no information anyway — their stops are servable now.
+    if ((!attempt.response.ok || !result || waypoints.length === 0) && attempt.includeTimeWindows) {
+      const _nowMin = Number.isFinite(currentMinutes) ? currentMinutes : 0;
+      let _droppedWindows = 0;
+      const _liveStops = seqStops.map((st) => {
+        const closeMin = parseTimeToMinutes(st.windowEnd);
+        const isLive = Number.isFinite(closeMin) && closeMin > _nowMin + 20;
+        if (isLive) return st;
+        if (st.windowStart || st.windowEnd) _droppedWindows++;
+        return { ...st, windowStart: null, windowEnd: null, windowStartExpired: true };
+      });
+      if (_droppedWindows > 0) {
+        console.warn(`⚠️ [clientRouteEngine] ${source} — HERE rejected the full window set; retrying with ${seqStops.length - _droppedWindows} live window(s), ${_droppedWindows} expired window(s) released`);
+        const _liveAttempt = await callHereSequence({
+          sequenceStart, stopsToSequence: _liveStops,
+          resolvedHomePosition: destination || (withHome ? resolvedHomePosition : null),
+          hereApiKey, hereTransportMode: hereMode,
+          deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true,
+          windowSway: 30,
+          driverId, userName: _driverUserName
+        });
+        const _liveResult = Array.isArray(_liveAttempt.data?.results) ? _liveAttempt.data.results[0] : null;
+        const _liveWaypoints = Array.isArray(_liveResult?.waypoints) ? _liveResult.waypoints : [];
+        if (_liveAttempt.response.ok && _liveResult && _liveWaypoints.length > 0) {
+          attempt = _liveAttempt;
+          result = _liveResult;
+          waypoints = _liveWaypoints;
+          interconnections = Array.isArray(_liveResult.interconnections) ? _liveResult.interconnections : [];
+        }
+      }
+    }
+
     if ((!attempt.response.ok || !result || waypoints.length === 0) && attempt.includeTimeWindows) {
       console.warn(`⚠️ [clientRouteEngine] ${source} — HERE time-window attempt FAILED (status=${attempt.response.status}), retrying WITHOUT time windows`);
       usedTimeWindows = false;
