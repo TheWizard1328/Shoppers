@@ -1032,7 +1032,11 @@ export default function StatsPanel({
               </>}
 
               {(isStatsCardCentered || isMobile) && <>
-                <div className="border-t border-slate-200 dark:border-slate-700 mt-2 pt-2"></div>
+                {/* Owner Nov 24 2026: this border-t read as an extra divider bar
+                    sitting right under the driver-select + InterStore row (the
+                    dispatcher card is always expanded), and its mt-2/pt-2 padded
+                    the card. Divider removed, gap tightened to 2px. */}
+                <div className="pt-0.5"></div>
                 <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
               </>}
             </motion.div>}
