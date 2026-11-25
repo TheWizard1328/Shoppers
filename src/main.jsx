@@ -155,7 +155,15 @@ if ('serviceWorker' in navigator && swDisabled) {
   window.addEventListener('load', async () => {
     try {
       const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister().catch(() => {})));
+      // OWNER REPORT (Nov 25 2026): a patient's push subscription died on every
+      // preview reload because this block unregistered the worker that owns it, so
+      // the phone showed the toggle green and received nothing. A registration that
+      // holds a live push subscription is kept.
+      await Promise.all(regs.map(async (r) => {
+        const sub = await r.pushManager?.getSubscription?.().catch(() => null);
+        if (sub) return;
+        await r.unregister().catch(() => {});
+      }));
       const names = await caches.keys();
       await Promise.all(
         names.filter((n) => n.startsWith('rxdeliver-shell')).map((n) => caches.delete(n))

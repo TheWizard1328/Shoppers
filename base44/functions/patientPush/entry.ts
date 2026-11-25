@@ -132,7 +132,9 @@ async function sendFcmPush(token: string, notification: any): Promise<{ ok: bool
       }).map(([k, v]) => [k, String(v)])),
       android: {
         priority: 'high',
-        notification: { tag: notification.tag || 'rxdeliver-patient', channel_id: 'default', icon: 'ic_stat_notify', color: '#22c55e' },
+        // The APK creates these channels itself; 'default' does not exist there, so
+        // Android 8+ could drop the patient's delivery notice silently.
+        notification: { tag: notification.tag || 'rxdeliver-patient', channel_id: 'stops_assigned', icon: 'ic_stat_notify', color: '#22c55e' },
       },
     },
   });
