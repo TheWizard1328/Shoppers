@@ -169,9 +169,17 @@ export default function DashboardBulkEditControls({
       // hour across devices). The edit now claims the flag on the first affected
       // stop (lowest stop_order) in the SAME write, so the guard has nothing to
       // repair.
-      const bulkSetsActiveStatus = values.statusChoice === "in_transit_or_en_route"
+      // OWNER REPORT (Nov 25 2026): changing only the time windows on a batch of
+      // already-In Transit stops made one of them jump to "next". The status
+      // select opens on the batch's CURRENT status (in_transit/en_route normalise
+      // to in_transit_or_en_route), so it looked like a status edit and the claim
+      // below fired. A claim now requires the user to actually CHANGE the status.
+      const statusChoiceIsActive = values.statusChoice === "in_transit_or_en_route"
         || values.statusChoice === "in_transit"
         || values.statusChoice === "en_route";
+      const statusActuallyChanged = values.statusChoice !== "unchanged"
+        && values.statusChoice !== initialValues?.statusChoice;
+      const bulkSetsActiveStatus = statusChoiceIsActive && statusActuallyChanged;
       const batchHasNextStop = selectedDeliveries.some((d) => d?.isNextDelivery === true);
       let claimedNextId = null;
       if (bulkSetsActiveStatus && !batchHasNextStop) {
@@ -205,9 +213,15 @@ export default function DashboardBulkEditControls({
           // SHARED RULE (restartStatusForDelivery): only a genuine store pickup
           // becomes en_route. An inter-store stop has no patient_id but must be
           // in_transit (owner bug Nov 20 2026 — restarting an ISD wrote en_route).
-          payload.status = values.statusChoice === "in_transit_or_en_route" ?
+          // OWNER REPORT (Nov 25 2026): a time-window-only edit must not rewrite
+          // status either, so an unchanged status is skipped entirely (that write
+          // could also flip an in_transit pickup to en_route for no reason).
+          const nextStatus = values.statusChoice === "in_transit_or_en_route" ?
           restartStatusForDelivery(delivery) :
           values.statusChoice;
+          if (nextStatus && nextStatus !== delivery?.status) {
+            payload.status = nextStatus;
+          }
         }
 
         // PUID: only apply if admin changed it (and storeChoice is not overriding)
