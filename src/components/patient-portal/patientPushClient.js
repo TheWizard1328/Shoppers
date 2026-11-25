@@ -85,12 +85,23 @@ async function getRegistration() {
     if (tile) return tile;
     await new Promise((r) => setTimeout(r, 250));
   }
+  // NOTHING REGISTERED: the app deliberately unregisters service workers on the
+  // preview/editor host, so a patient who taps "Turn on notifications" there had
+  // no worker at all (that is the no_push_manager error). A tap is an explicit
+  // request, so register the combined tile+push worker here. It caches tiles and
+  // handles push only — it never caches the app shell.
+  let registered = null;
+  try {
+    registered = await navigator.serviceWorker.register('/map-tile-sw.js').catch(() => null);
+  } catch { registered = null; }
+  if (registered?.pushManager) return registered;
+
   // NEVER wait forever: `navigator.serviceWorker.ready` does not resolve at all
   // when no worker controls the page, which left the portal stuck on
   // "Checking this device..." on iOS. Give it a hard ceiling.
   return Promise.race([
     navigator.serviceWorker.ready,
-    new Promise((resolve) => setTimeout(() => resolve(null), 4000)),
+    new Promise((resolve) => setTimeout(() => resolve(null), 6000)),
   ]).catch(() => null);
 }
 

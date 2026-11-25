@@ -58,6 +58,7 @@ export default function PatientNotificationToggle({ patient }) {
     push_plugin_missing: 'This build of the app has no notification plugin. Update the RxDeliver app and try again.',
     no_token: 'The phone did not return a notification token. Check that notifications are allowed for the RxDeliver app, then try again.',
     register_failed: 'The server could not save this device for notifications. Try again in a moment.',
+    no_push_manager: 'This page could not start its background worker. Close the app, reopen it, and try again.',
     no_vapid_key: 'Notifications are not configured on the server yet.',
   };
 
