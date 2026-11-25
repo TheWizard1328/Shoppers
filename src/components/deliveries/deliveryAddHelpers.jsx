@@ -1,3 +1,4 @@
+import { buildTransferPatientPayload } from './patientTransferHelpers';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { addMinutes, format } from 'date-fns';
 
@@ -84,7 +85,9 @@ export const createPatientFromDraft = async ({
   formData,
   selectedPatient,
   createPatientLocal,
-  setFormData
+  setFormData,
+  store = null,
+  updatePatientLocal = null
 }) => {
   if (!selectedPatient) {
     throw new Error('Patient information missing for new patient creation.');
@@ -95,6 +98,46 @@ export const createPatientFromDraft = async ({
       patient: { id: formData.patient_id, full_name: formData.patient_name },
       isNewPatient: false
     };
+  }
+
+  // ── CROSS-STORE TRANSFER DRAFT (owner spec Nov 24 2026) ────────────────────
+  // The transfer is only a draft until "+ Add" is pressed. This is that moment:
+  // the new record is created in the destination store with the source linkage and
+  // the distance from the new store, and the source record is set inactive.
+  if (selectedPatient._transferSource) {
+    const source = selectedPatient._transferSource;
+    const targetStore = store || { id: formData.store_id, latitude: null, longitude: null };
+    const payload = buildTransferPatientPayload({ source, targetStore });
+    if (!payload) throw new Error('Transfer details are incomplete.');
+    const patient = await createPatientLocal(payload);
+    if (updatePatientLocal && source.id) {
+      await updatePatientLocal(source.id, { status: 'inactive' }).catch(() => {});
+    }
+    setFormData((prev) => ({
+      ...prev,
+      patient_id: patient.id,
+      store_id: patient.store_id || prev.store_id,
+      distance_from_store: patient.distance_from_store ?? prev.distance_from_store,
+    }));
+    // Heal the straight-line stamp to the real road distance from the new store.
+    try {
+      const sLat = Number(targetStore.latitude);
+      const sLng = Number(targetStore.longitude);
+      const pLat = Number(source.latitude);
+      const pLng = Number(source.longitude);
+      if ([sLat, sLng, pLat, pLng].every(Number.isFinite) && updatePatientLocal) {
+        const { base44 } = await import('@/api/base44Client');
+        base44.functions.invoke('getGoogleDrivingDistance', {
+          originLat: sLat, originLng: sLng, destLat: pLat, destLng: pLng,
+        }).then(async (res) => {
+          const km = Number(res?.data?.distance_km ?? res?.distance_km);
+          if (Number.isFinite(km) && km > 0) {
+            await updatePatientLocal(patient.id, { distance_from_store: Math.round(km * 100) / 100 }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+    } catch (_) { /* offline — the straight-line stamp stands */ }
+    return { patient, isNewPatient: true };
   }
 
   const newPatientData = {
