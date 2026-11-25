@@ -377,6 +377,12 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
         // the START only: Beverly must open at 14:00, Londonderry at 16:00, and
         // the ascending order is forced while geography stays free.
         if (isPickupStop) closeMin = null;
+        // An open side that is at/after the close side is an impossible window;
+        // sending it to HERE parks the stop at the end of the route (owner report
+        // Nov 25 2026). Keep the deadline, drop the bogus start.
+        if (Number.isFinite(openMin) && Number.isFinite(closeMin) && openMin >= closeMin) {
+          openMin = null;
+        }
         const accessConstraint = buildAccessConstraint(
           deliveryDate,
           Number.isFinite(openMin) ? formatMinutesToTime(openMin) : null,
@@ -609,6 +615,7 @@ export async function optimizeRouteClientSide({
   const routeIsToday = deliveryDate === getEdmontonTodayDateString();
   let _clampedWindowCount = 0;
 let _inheritedWindowCount = 0;
+  let _deadlineOnlyCount = 0;
   const stops = optimizableDeliveries.map(delivery => {
     const coords = getDeliveryCoords(delivery, patientMap, storeMap);
     const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
@@ -707,16 +714,61 @@ let _inheritedWindowCount = 0;
       }
     }
 
+    // ── DEADLINE-ONLY WINDOW (owner report Nov 25 2026) ────────────────────
+    // "the optimizer all day kept putting a stop with a 3:30 end window at the
+    // second-last position, when there was plenty of time to run it before
+    // Beverly (2:00-3:30)." Cause: a delivery with NO patient start inherits
+    // its pickup slot + 5 (Londonderry 16:00 -> 16:05) while its own END
+    // window is still 15:30. The engine then hands HERE an impossible window
+    // (open 16:05, close 15:30), and HERE resolves it by parking the stop at
+    // the tail of the route. A start at/after the end is not a promise: the
+    // stop is servable ANY time before its deadline, so the start is dropped
+    // and only the end gates sequencing.
+    let deadlineOnly = false;
+    // ── NO PATIENT START = DEADLINE ONLY (owner report Nov 25 2026) ────────
+    // Care Pro's Cal Tr: patient has NO time_window_start, only an END of
+    // 15:30. Her delivery carried a 15:26 start stamp (pickup slot + 5), so
+    // the engine gated her stop at 15:26 — a 4-minute band — and HERE parked
+    // it at the second-last position all day even though the route ran her
+    // area before Beverly (14:00-15:30). Owner spec (Nov 3 2026, restated
+    // today): "if there is a delivery end time the optimizer should be able to
+    // place that stop anywhere prior to that end time." When the patient has no
+    // start window, their END is the only promise; the record's own start is an
+    // auto stamp. Pickup-before-delivery order is still enforced separately.
+    const _patientStartMin = parseTimeToMinutes(patient?.time_window_start);
+    const _patientHasStart = Number.isFinite(_patientStartMin) && _patientStartMin > 0;
+    if (delivery.patient_id && !_patientHasStart && windowEnd && windowStart) {
+      windowStart = null;
+      windowStartExpired = true;
+      deadlineOnly = true;
+      _deadlineOnlyCount++;
+    }
+    if (windowStart && windowEnd) {
+      const _dStartMin = parseTimeToMinutes(windowStart);
+      const _dEndMin = parseTimeToMinutes(windowEnd);
+      if (Number.isFinite(_dStartMin) && Number.isFinite(_dEndMin) && _dStartMin >= _dEndMin) {
+        windowStart = null;
+        windowStartExpired = true;
+        deadlineOnly = true;
+        _deadlineOnlyCount++;
+      }
+    }
+
     return {
       delivery,
       windowStartExpired,
+      deadlineOnly,
       lat: coords?.lat,
       lng: coords?.lng,
       isPickup: !delivery.patient_id,
       windowStart,
       windowEnd,
       hasLateWindow: isLateWindowStop(windowStart, currentMinutes),
-      timeMinutes: parseTimeToMinutes(windowStart || delivery.delivery_time_start)
+      // A deadline-only stop must not carry a late anchor into the local sorts
+      // either — it is servable now.
+      timeMinutes: deadlineOnly
+        ? (Number.isFinite(currentMinutes) ? currentMinutes : parseTimeToMinutes(windowStart || delivery.delivery_time_start))
+        : parseTimeToMinutes(windowStart || delivery.delivery_time_start)
     };
   }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
   const _droppedStops = optimizableDeliveries.length - stops.length;
@@ -732,6 +784,9 @@ let _inheritedWindowCount = 0;
   }
   if (_clampedWindowCount > 0) {
     console.log(`[clientRouteEngine] ${source} — PAST-WINDOW CLAMP: ${_clampedWindowCount} stale window(s) (start <= now) clamped to now (${formatMinutesToTime(currentMinutes)}) for geographic sequencing`);
+  }
+  if (_deadlineOnlyCount > 0) {
+    console.log(`[clientRouteEngine] ${source} — DEADLINE-ONLY: ${_deadlineOnlyCount} stop(s) had a start at/after their end window (impossible acc window) — start dropped, only the deadline gates`);
   }
   if (_inheritedWindowCount > 0) {
     console.log(`[clientRouteEngine] ${source} — PICKUP-WINDOW INHERITANCE: ${_inheritedWindowCount} windowless delivery(ies) inherited pickup start+5`);
