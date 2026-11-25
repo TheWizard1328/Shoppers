@@ -1023,9 +1023,17 @@ export default function PatientPortal({ embedded = false } = {}) {
     // OWNER RULE (Nov 25 2026): only ACTIVE stops count — a pending stop is not on
     // the road yet, so it must never inflate the "stops remaining" number.
     const ACTIVE = ['in_transit', 'en_route'];
-    return (routeDeliveries || []).filter(
-      (d) => d && d.id !== patientDelivery?.id && ACTIVE.includes(String(d.status || '').toLowerCase())
-    ).length;
+    // OWNER RULE (Nov 25 2026): only ACTIVE stops that sit BEFORE her stop count.
+    // Active stops after her delivery were being added in, which is why a route
+    // with six stops ahead of her read as ten.
+    const myOrder = Number(patientDelivery?.stop_order);
+    return (routeDeliveries || []).filter((d) => {
+      if (!d || d.id === patientDelivery?.id) return false;
+      if (!ACTIVE.includes(String(d.status || '').toLowerCase())) return false;
+      const order = Number(d.stop_order);
+      if (Number.isFinite(myOrder) && Number.isFinite(order)) return order < myOrder;
+      return true;
+    }).length;
   }, []);
 
   // Helper: recount stops before patient from a given route deliveries array
