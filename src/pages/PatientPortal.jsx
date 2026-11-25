@@ -1768,6 +1768,10 @@ export default function PatientPortal({ embedded = false } = {}) {
                    button. Tapping it reloads onto the new build. */}
             <UpdateInfoBalloon
               active={!!hasWebUpdate}
+              // OWNER REQUEST (Nov 25 2026): patients must keep seeing the update
+              // notice until the portal is actually restarted onto the new build —
+              // no 10s auto-hide, no 3-minute re-show cycle.
+              persistent
               anchorSelector="[data-patient-update-btn]"
               direction="down"
               accent="#10b981"

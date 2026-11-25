@@ -341,8 +341,10 @@ export default function MobileHeader({
           refresh (cache clear + reload), which is what picks up a web build. */}
       <UpdateInfoBalloon
         active={!!hasWebUpdate || !!autoUpdatedNotice}
-        // "Just updated automatically" notice stays on screen until acknowledged
-        persistent={!hasWebUpdate && !!autoUpdatedNotice}
+        // OWNER REQUEST (Nov 25 2026): both notices stay on screen until the app
+        // is updated or restarted — an update-available balloon must not vanish
+        // after 10s and leave the device running the old build unnoticed.
+        persistent
         anchorSelector="[data-update-menu-btn]"
         direction="down"
         accent="#10b981"
