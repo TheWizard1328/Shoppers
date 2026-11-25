@@ -567,28 +567,6 @@ export default function PatientPortal({ embedded = false } = {}) {
 
 
   // Inner fit paddings handed to every auto-fit call: top clears the floating
-  // today card WHEN IT IS SHOWING (otherwise just the base 115), bottom clears
-  // the tracking badge that now lives down there.
-  // OWNER REQUEST (Nov 25 2026): the map's bottom buffer must also clear the
-  // "Tracking driver" pill, so the auto-fit frame grows by the pill's real
-  // height (measured, 26px fallback) plus the 10px it floats above the edge.
-  const trackingPillRef = useRef(null);
-  const [trackingPillHeight, setTrackingPillHeight] = useState(26);
-  useEffect(() => {
-    const el = trackingPillRef.current;
-    const h = el?.offsetHeight;
-    if (h > 0) setTrackingPillHeight((prev) => (Math.abs(prev - h) > 1 ? h : prev));
-  }, [showLiveTracking, driverLocation, trackingMode]);
-
-  const mapPad = useMemo(() => ({
-    left: 20,
-    right: 20,
-    bottom: 35 + (showLiveTracking && driverLocation ? trackingPillHeight + 10 : 0),
-    // Card showing (sidebar hidden on a narrow screen): card height + 32
-    // (was + 52, cut by 20 per owner tweak Nov 2 2026). Sidebar visible: 35,
-    // identical to the bottom padding.
-    top: showFloatTodayCard && floatCardHeight ? floatCardHeight + 32 : PORTAL_PAD_TOP_DEFAULT
-  }), [showFloatTodayCard, floatCardHeight, showLiveTracking, driverLocation, trackingPillHeight]);
   const [driverLocation, setDriverLocation] = useState(null);
 
   // ── Dark mode map tiles (owner Oct 23 2026): follow the app's theme ────────
@@ -1588,6 +1566,29 @@ export default function PatientPortal({ embedded = false } = {}) {
   // and the 9:30am floor stays as the guard against an overnight stale fix.
   const isLiveDeliveryStatus = !!todayDelivery && LIVE_DRIVER_STATUSES.includes(todayDelivery.status);
   const showLiveTracking = !!driverLocation && isLiveDeliveryStatus && (driverStatus === 'on_duty' || isAfter930am);
+
+  // today card WHEN IT IS SHOWING (otherwise just the base 115), bottom clears
+  // the tracking badge that now lives down there.
+  // OWNER REQUEST (Nov 25 2026): the map's bottom buffer must also clear the
+  // "Tracking driver" pill, so the auto-fit frame grows by the pill's real
+  // height (measured, 26px fallback) plus the 10px it floats above the edge.
+  const trackingPillRef = useRef(null);
+  const [trackingPillHeight, setTrackingPillHeight] = useState(26);
+  useEffect(() => {
+    const el = trackingPillRef.current;
+    const h = el?.offsetHeight;
+    if (h > 0) setTrackingPillHeight((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+  }, [showLiveTracking, driverLocation, trackingMode]);
+
+  const mapPad = useMemo(() => ({
+    left: 20,
+    right: 20,
+    bottom: 35 + (showLiveTracking && driverLocation ? trackingPillHeight + 10 : 0),
+    // Card showing (sidebar hidden on a narrow screen): card height + 32
+    // (was + 52, cut by 20 per owner tweak Nov 2 2026). Sidebar visible: 35,
+    // identical to the bottom padding.
+    top: showFloatTodayCard && floatCardHeight ? floatCardHeight + 32 : PORTAL_PAD_TOP_DEFAULT
+  }), [showFloatTodayCard, floatCardHeight, showLiveTracking, driverLocation, trackingPillHeight]);
 
   // SETTLED (owner rule Nov 3 2026): this patient's delivery is done — completed
   // or failed. From that moment the map frames the patient's home and the pickup
