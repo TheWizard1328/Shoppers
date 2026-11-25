@@ -958,19 +958,33 @@ export default function PatientPortal({ embedded = false } = {}) {
   // public page, so its Delivery websocket is not reliable — this polls the
   // patient's own deliveries while the tab is visible and refreshes instantly when
   // the patient comes back to it.
+  // OWNER REPORT (Nov 25 2026): after a driver deviated, the portal kept the old
+  // current-leg polyline. A fixed 15s tick was too slow while the driver is actually
+  // driving, so the cadence now follows the delivery state: 5s while the stop is
+  // in transit or en route, 15s otherwise. This refreshes the driver's whole
+  // today's route, which is where the deviated encoded_polyline lives.
+  const livePollRef = useRef(false);
+  livePollRef.current = !!todayDelivery && ['in_transit', 'en_route'].includes(String(todayDelivery.status || '').toLowerCase());
   useEffect(() => {
     if (!patient?.id) return undefined;
-    const timer = setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      loadData({ silent: true }).catch(() => {});
-    }, 15000);
+    let stopped = false;
+    let timer = null;
+    const tick = async () => {
+      if (stopped) return;
+      if (document.visibilityState === 'visible') {
+        await loadData({ silent: true }).catch(() => {});
+      }
+      if (!stopped) timer = setTimeout(tick, livePollRef.current ? 5000 : 15000);
+    };
+    timer = setTimeout(tick, livePollRef.current ? 5000 : 15000);
     const onVisible = () => {
       if (document.visibilityState === 'visible') loadData({ silent: true }).catch(() => {});
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
     return () => {
-      clearInterval(timer);
+      stopped = true;
+      if (timer) clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
