@@ -10,7 +10,8 @@ import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
 import PatientTodayFloatingCard from '@/components/patient-portal/PatientTodayFloatingCard';
 import MapCrosshair from '@/components/dashboard/MapCrosshair';
-import PatientMessaging, { loadPatientUnreadCount } from '@/components/patient-portal/PatientMessaging';
+import PatientMessaging, { loadPatientUnreadCount, loadLatestIncomingMessage } from '@/components/patient-portal/PatientMessaging';
+import PatientMessageBalloon from '@/components/patient-portal/PatientMessageBalloon';
 import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
 import { resolveLinkedPatientIds } from '@/components/utils/patientLinkedRecords';
 import PatientNotificationToggle from '@/components/patient-portal/PatientNotificationToggle';
@@ -524,6 +525,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   // free space (owner request Nov 3 2026) instead of inside the floating card.
   const [canExitPreview] = useState(isPatientViewOverlayActive);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  // OWNER REQUEST (Nov 25 2026): pop the same "new message" panel staff devices
+  // get when a patient receives an in-app message while looking at the portal.
+  const [messageToast, setMessageToast] = useState(null);
+  const seenToastIdRef = useRef('');
+  const firstToastPassRef = useRef(true);
   const [deliveries, setDeliveries] = useState([]);
   const [pickupStops, setPickupStops] = useState([]);
   // Every record sharing each puid (pickup + its deliveries) — lets a transferred
@@ -1613,16 +1619,36 @@ export default function PatientPortal({ embedded = false } = {}) {
   }, []);
 
   useEffect(() => {
+    if (messagingOpen && messageToast) setMessageToast(null);
+  }, [messagingOpen, messageToast]);
+
+  useEffect(() => {
     if (!patient?.id) return undefined;
     let cancelled = false;
     const refresh = async () => {
-      const count = await loadPatientUnreadCount(patient.id);
-      if (!cancelled) setUnreadMessages(count);
+      const [count, latest] = await Promise.all([
+        loadPatientUnreadCount(patient.id),
+        loadLatestIncomingMessage(patient.id)
+      ]);
+      if (cancelled) return;
+      setUnreadMessages(count);
+      // The public portal has no Base44 session, so the Message websocket stays
+      // silent here; this 4s live check is what brings the message in and pops
+      // the panel (the first pass only records what is already waiting, so a
+      // patient opening the portal is not greeted by a stale pop-up).
+      if (firstToastPassRef.current) {
+        firstToastPassRef.current = false;
+        seenToastIdRef.current = latest?.id || '';
+        return;
+      }
+      if (latest?.id && latest.id !== seenToastIdRef.current && !messagingOpen && !document.hidden) {
+        setMessageToast(latest);
+      }
     };
     refresh();
     // OWNER REPORT (Nov 25 2026): the badge lagged after messages were read, so the
-    // server count is re-read every 15s (and on focus) instead of once a minute.
-    const timer = setInterval(refresh, 15000);
+    // server count is re-read on a short timer (and on focus) instead of once a minute.
+    const timer = setInterval(refresh, 4000);
     const onFocus = () => refresh();
     window.addEventListener('focus', onFocus);
     return () => {
@@ -1953,6 +1979,18 @@ export default function PatientPortal({ embedded = false } = {}) {
         aria-hidden="true">
         KA L{keepAwake.lock ? 1 : 0} V{keepAwake.video ? 1 : 0}
       </div>
+
+      <PatientMessageBalloon
+        message={messageToast}
+        onOpen={() => {
+          seenToastIdRef.current = messageToast?.id || '';
+          setMessageToast(null);
+          setMessagingOpen(true);
+        }}
+        onDismiss={() => {
+          seenToastIdRef.current = messageToast?.id || '';
+          setMessageToast(null);
+        }} />
 
       <PatientMessaging
         patient={patient}

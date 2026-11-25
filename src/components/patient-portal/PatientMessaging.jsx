@@ -41,6 +41,23 @@ export async function loadPatientUnreadCount(patientId) {
   }
 }
 
+/**
+ * OWNER REQUEST (Nov 25 2026): the portal needs the newest UNREAD incoming
+ * message so it can pop the same "new message" panel staff devices get. Returns
+ * the newest row sent by someone other than the patient, or null.
+ */
+export async function loadLatestIncomingMessage(patientId) {
+  if (!patientId) return null;
+  try {
+    const rows = await base44.entities.Message.filter({ patient_id: patientId, read: false }, '-created_date', 25);
+    const mine = patientSender(patientId);
+    const list = Array.isArray(rows) ? rows : (rows?.items || []);
+    return list.find((m) => m && m.sender_id !== mine) || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PatientMessaging({ patient, open, onClose, onUnreadChange, stores = [] }) {
   const patientId = patient?.id;
   // SEARCH (owner request Nov 3 2026): ONE field filters the whole list — it
@@ -153,8 +170,17 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
         });
       } catch { /* offline — keep what is shown */ }
     };
-    const timer = setInterval(sync, 10000);
-    return () => { cancelled = true; clearInterval(timer); };
+    // OWNER REQUEST (Nov 25 2026): replies must flow in like a live chat. The
+    // public portal has no Base44 session for the Message websocket, so this
+    // short sync is what makes a reply appear within a couple of seconds.
+    const timer = setInterval(() => { if (!document.hidden) sync(); }, 3000);
+    const onVisible = () => { if (!document.hidden) sync(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [open, patientId]);
 
   // Refresh duty status while the sheet is open so a driver going off duty
