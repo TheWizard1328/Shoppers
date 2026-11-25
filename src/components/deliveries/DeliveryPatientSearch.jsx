@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useDevice } from '@/components/utils/DeviceContext';
 
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,14 @@ export default function DeliveryPatientSearch({
 }) {
   const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const { isMobile } = useDevice();
+  // OWNER SPEC (Nov 24 2026): once either no-match action is used, the panel that
+  // holds the Other Stores and Add New Patient buttons closes and stays closed
+  // until the query changes again.
+  const [noMatchActionsUsed, setNoMatchActionsUsed] = useState(false);
+  useEffect(() => {
+    setNoMatchActionsUsed(false);
+  }, [patientSearch, otherStoresMode]);
+
   const visiblePatients = React.useMemo(() => {
     // Inactive patients: keep them in the results — sortFilteredPatients
     // already ranks them to the bottom of the list (owner Oct 5 2026).
@@ -191,7 +199,7 @@ export default function DeliveryPatientSearch({
                   stores have no match gets the "Other Stores" peek to the LEFT of
                   Add New Patient. It is never shown to admins (they already
                   search every store) and never once the peek is unlocked. */}
-              {(canOfferOtherStores || onCreatePatient) &&
+              {(canOfferOtherStores || onCreatePatient) && !noMatchActionsUsed &&
           <div className="mt-3 flex items-stretch gap-2">
             {canOfferOtherStores && !otherStoresMode &&
             <Button
@@ -199,7 +207,7 @@ export default function DeliveryPatientSearch({
               variant="outline"
               size="sm"
               className="flex-1 gap-2"
-              onClick={() => onUnlockOtherStores?.()}>
+              onClick={() => { setNoMatchActionsUsed(true); onUnlockOtherStores?.(); }}>
               <Store className="w-4 h-4" /> Other Stores
             </Button>
             }
@@ -211,6 +219,9 @@ export default function DeliveryPatientSearch({
             size="sm"
             className="flex-1 gap-2"
             onClick={async () => {
+              setNoMatchActionsUsed(true);
+              setPatientSearch('');
+              setHighlightedPatientIndex(-1);
               setIsPatientFormOpen(true);
               onCreatePatient((newPatient) => {
                 setIsPatientFormOpen(false);
