@@ -79,9 +79,10 @@ export default function PatientNotificationToggle({ patient }) {
       });
       const data = res?.data || res || {};
       const sent = Number(data?.sent || 0);
+      const why = data?.errors?.[0] || data?.reason || 'unknown';
       setNotice(sent > 0
         ? 'Test sent. It should arrive in a moment.'
-        : `No device accepted it (${data?.reason || data?.errors?.[0] || 'unknown'}).`);
+        : `No device accepted it (${why}).`);
     } catch (err) {
       setNotice(`Test failed: ${err?.message || 'unknown error'}`);
     }

@@ -521,9 +521,16 @@ Deno.serve(async (req) => {
         // APK's fcm:// token. FCM tokens now go through FCM.
         if (String(sub.endpoint || '').startsWith('fcm://')) {
           const token = String(sub.endpoint).slice('fcm://'.length);
-          const r = token
-            ? await sendFcmPush(token, { ...notification, patient_id })
-            : { ok: false, status: 'NO_TOKEN' } as { ok: boolean; status?: string };
+          // An FCM failure must never bubble out as a 500: the portal shows the
+          // reason, and the other devices still get their push.
+          let r: { ok: boolean; status?: string } = { ok: false, status: 'NO_TOKEN' };
+          if (token) {
+            try {
+              r = await sendFcmPush(token, { ...notification, patient_id });
+            } catch (err: any) {
+              r = { ok: false, status: `EXC:${err?.message || String(err)}` };
+            }
+          }
           if (r.ok) {
             sent++;
             await base44.asServiceRole.entities.PushSubscription
@@ -583,15 +590,20 @@ Deno.serve(async (req) => {
     // OWNER REPORT (Nov 25 2026): a one-tap test so a patient (or the owner
     // testing her devices) can prove the alert path without waiting for a stop.
     if (action === 'test') {
-      const result = await deliverPush({
-        title: 'RxDeliver test',
-        body: 'Test notification from your pharmacy',
-        url: '/patient-portal',
-        tag: 'rxdeliver-test',
-        timestamp: Date.now(),
-        requireInteraction: false,
-        patient_id,
-      });
+      let result: any;
+      try {
+        result = await deliverPush({
+          title: 'RxDeliver test',
+          body: 'Test notification from your pharmacy',
+          url: '/patient-portal',
+          tag: 'rxdeliver-test',
+          timestamp: Date.now(),
+          requireInteraction: false,
+          patient_id,
+        });
+      } catch (err: any) {
+        return Response.json({ ok: false, sent: 0, errors: [err?.message || String(err)], reason: 'exception' });
+      }
       return Response.json({ ok: true, ...result });
     }
 
