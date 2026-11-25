@@ -704,9 +704,9 @@ export function useStopCardStartActions({
         // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
         const startedRouteDeliveries = routeDeliveries.map((d) => {
           if (d?.id === delivery.id) {
-            // Stamp the start time to NOW: a stop carrying a later-today window
-            // otherwise keeps that future window as its sequencing/ETA anchor and
-            // gets sorted behind other stops even though the driver just started it.
+            // OWNER RULE (Nov 25 2026): clicking Start must NEVER rewrite the
+            // stop's delivery_time_start window. It used to stamp NOW here, which
+            // silently moved Robert's window to the moment he tapped Start.
             // OWNER DIRECTIVE (Oct 27 2026 evening, refined): the STARTED stop
             // becomes isNextDelivery — it KEEPS its deviation_waypoints (they
             // are the live driven path of the current leg). Clearing applies
@@ -718,7 +718,6 @@ export function useStopCardStartActions({
               ...d,
               status: expectedStartStatus,
               isNextDelivery: true,
-              delivery_time_start: currentLocalTime,
               ...(Array.isArray(_mergedVias) ? { deviation_waypoints: _mergedVias } : {}),
             };
           }
@@ -776,8 +775,8 @@ export function useStopCardStartActions({
             const _pre = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
             const _flagChanged = (_pre?.isNextDelivery || false) !== (item?.isNextDelivery || false);
             if (item?.isNextDelivery === true) {
-              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order', 'delivery_time_start'], 60000, {
-                status: expectedStartStatus, isNextDelivery: true, delivery_time_start: currentLocalTime,
+              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order'], 60000, {
+                status: expectedStartStatus, isNextDelivery: true,
               });
             } else if (item?.isNextDelivery === false && _flagChanged) {
               // Only lock the PREVIOUS flag holder. Via-cleared stops (Oct 22
@@ -812,9 +811,7 @@ export function useStopCardStartActions({
           if (item.id === delivery.id && existing.status !== expectedStartStatus) {
             updates.status = expectedStartStatus;
           }
-          if (item.id === delivery.id && existing.delivery_time_start !== currentLocalTime) {
-            updates.delivery_time_start = currentLocalTime;
-          }
+          // (Nov 25 2026) Start no longer sends delivery_time_start at all.
           // Oct 22 guard + Oct 27 deviation transfer: any deviation_waypoints
           // change (old-holder clear, started stop's transferred vias + GPS)
           // rides the same single silent commit.

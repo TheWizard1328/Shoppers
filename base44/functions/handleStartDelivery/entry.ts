@@ -76,10 +76,9 @@ Deno.serve(async (req) => {
     // STEP 1: Only set isNextDelivery and origin coords — stop_order handled by repairStopOrders
     const newStopPayload = {
       isNextDelivery: true,
-      // Stamp start time to now — see stopCardStartActions.js: a later-today window
-      // otherwise stays as the stop's sequencing/ETA anchor and re-sorts the
-      // started stop behind others (the not-next-in-line bug).
-      ...(currentLocalTime ? { delivery_time_start: currentLocalTime } : {}),
+      // OWNER RULE (Nov 25 2026): Start must NOT rewrite delivery_time_start. The
+      // stamp that used to live here moved Robert's window to the tap moment, so it
+      // is gone on both the client and the server side of Start.
       ...(departureOriginLat != null ? { first_leg_origin_lat: departureOriginLat } : {}),
       ...(departureOriginLng != null ? { first_leg_origin_lng: departureOriginLng } : {})
     };
