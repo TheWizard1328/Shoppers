@@ -145,14 +145,17 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
         // the amber highlight — no chip, no detail row.
         ? 'border-amber-500 bg-amber-950/40 text-white shadow-md' :
         'border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-600 hover:border-amber-500 hover:shadow-sm' :
+        // OWNER REPORT (Nov 25 2026): expanding the card turned its top section
+        // black. It now stays the same light card it is when collapsed, just with
+        // a firmer border and shadow to show it is open.
         expanded ?
-        'border-slate-700 bg-slate-900 text-white shadow-md' :
+        'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-md' :
         'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:border-slate-600 hover:shadow-sm'}`
         }>
         
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0 py-1">
-            <p className={`text-xs font-medium truncate ${expanded ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
+            <p className={`text-xs font-medium truncate text-slate-500 dark:text-slate-400`}>
               {storeName || 'Pharmacy'}
             </p>
             {/* Slot rendered immediately UNDER the date (owner request Nov 3
@@ -161,7 +164,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
                             a span so it stays legal inside the card's toggle button. */}
             {belowDateSlot}
             {hasCod &&
-            <p className={`text-xs mt-0.5 font-semibold ${expanded ? 'text-green-400' : 'text-green-600'}`}>
+            <p className={`text-xs mt-0.5 font-semibold text-green-600 dark:text-green-400`}>
                 COD: ${codTotal.toFixed(2)}
               </p>
             }
@@ -177,7 +180,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
           <div className="flex items-start gap-1.5 flex-shrink-0">
             <div className="flex flex-col items-end gap-1">
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
-              expanded ? 'bg-slate-700 border-slate-600 text-slate-200' : `${config.bg} ${config.border} ${config.color}`}`
+              `${config.bg} ${config.border} ${config.color}`}`
               }>
                 <Icon className="w-3 h-3" />
                 {config.label}
@@ -186,7 +189,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
               <span className={`inline-flex items-center justify-center rounded-full border font-semibold leading-tight tabular-nums whitespace-nowrap text-xs px-2 py-0.5 ${subBadge.pillCls}`}>
                   {subBadge.text}
                 </span> :
-              <span className={`text-xs font-medium leading-tight text-right whitespace-nowrap ${expanded ? 'text-slate-300' : subBadge.color}`}>
+              <span className={`text-xs font-medium leading-tight text-right whitespace-nowrap ${subBadge.color}`}>
                   {subBadge.text}
                 </span>)
               }
@@ -203,8 +206,8 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
             count belongs CENTRED between the date and the ETA. It was crammed
             against the ETA in the right column; now it owns the middle of its
             own row and the ETA sits flush right. */}
-        <div className={`flex items-center gap-2 mt-1 ${expanded ? 'text-slate-300' : ''}`}>
-          <span className={`font-semibold text-xs flex-shrink-0 ${expanded ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>
+        <div className="flex items-center gap-2 mt-1">
+          <span className={`font-semibold text-xs flex-shrink-0 text-slate-800 dark:text-slate-200`}>
             {dateStr}
           </span>
           <span className="flex-1 flex items-center justify-center min-w-0">
