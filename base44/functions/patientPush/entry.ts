@@ -471,6 +471,66 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, ...result });
     }
 
+    // ── Patient self-test (public, like register/notifyStaff) ──────────────
+    // OWNER REPORT (Nov 25 2026): the test button 500'd with "Authentication
+    // required to view users" because this action sat BELOW the auth.me() gate and
+    // patients are not Base44 users. It only ever pushes a fixed test message to
+    // the patient's OWN registered devices, so it needs no staff login.
+    if (action === 'test') {
+      const tpid = payload.patient_id;
+      if (!tpid) return Response.json({ ok: false, error: 'patient_id is required' }, { status: 400 });
+      const tsubs = await base44.asServiceRole.entities.PushSubscription
+        .filter({ user_id: ownerKey(tpid) })
+        .catch(() => []);
+      if (!tsubs || tsubs.length === 0) {
+        return Response.json({ ok: true, sent: 0, removed: 0, errors: [], reason: 'no_devices' });
+      }
+      const note = {
+        title: 'RxDeliver test',
+        body: 'Test notification from your pharmacy',
+        url: '/patient-portal',
+        tag: 'rxdeliver-test',
+        timestamp: Date.now(),
+        requireInteraction: false,
+        patient_id: tpid,
+      };
+      const vPub = Deno.env.get('VAPID_PUBLIC_KEY');
+      const vPriv = Deno.env.get('VAPID_PRIVATE_KEY');
+      const vSub = Deno.env.get('VAPID_SUBJECT');
+      const tHasVapid = !!(vPub && vPriv && vSub);
+      if (tHasVapid) webpush.setVapidDetails(vSub, vPub, vPriv);
+      let tSent = 0, tRemoved = 0;
+      const tErrors: string[] = [];
+      await Promise.all(tsubs.map(async (sub: any) => {
+        try {
+          if (String(sub.endpoint || '').startsWith('fcm://')) {
+            const token = String(sub.endpoint).slice('fcm://'.length);
+            const r = token ? await sendFcmPush(token, note) : { ok: false, status: 'NO_TOKEN' } as { ok: boolean; status?: string };
+            if (r.ok) tSent++;
+            else if (r.status === 'NOT_FOUND' || r.status === 'UNREGISTERED') {
+              await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
+              tRemoved++;
+            } else tErrors.push(`fcm:${r.status || 'error'}`);
+            return;
+          }
+          if (!tHasVapid) { tErrors.push('VAPID keys not configured'); return; }
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } },
+            JSON.stringify(note)
+          );
+          tSent++;
+        } catch (err: any) {
+          if (err?.statusCode === 404 || err?.statusCode === 410) {
+            await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
+            tRemoved++;
+          } else {
+            tErrors.push(err?.message || String(err));
+          }
+        }
+      }));
+      return Response.json({ ok: true, sent: tSent, removed: tRemoved, errors: tErrors, reason: null });
+    }
+
     // ── Send to a patient's devices (authenticated staff OR driver) ─────────
     const user = await base44.auth.me();
     if (!user) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
@@ -587,26 +647,6 @@ Deno.serve(async (req) => {
     //      messages cannot fire a second notification for the same event;
     //   3. repeat calls are no-ops: an identical body already in this patient's
     //      store thread within the last 12h is treated as sent.
-    // OWNER REPORT (Nov 25 2026): a one-tap test so a patient (or the owner
-    // testing her devices) can prove the alert path without waiting for a stop.
-    if (action === 'test') {
-      let result: any;
-      try {
-        result = await deliverPush({
-          title: 'RxDeliver test',
-          body: 'Test notification from your pharmacy',
-          url: '/patient-portal',
-          tag: 'rxdeliver-test',
-          timestamp: Date.now(),
-          requireInteraction: false,
-          patient_id,
-        });
-      } catch (err: any) {
-        return Response.json({ ok: false, sent: 0, errors: [err?.message || String(err)], reason: 'exception' });
-      }
-      return Response.json({ ok: true, ...result });
-    }
-
     if (action === 'notify') {
       if (!result.sent) return Response.json({ ok: true, ...result, in_app: false });
       const text = String(body || '').trim();
