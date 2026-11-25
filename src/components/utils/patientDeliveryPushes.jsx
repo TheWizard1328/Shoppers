@@ -89,16 +89,25 @@ export function buildPatientDeliveryMessage({ state, patientName, etaText, windo
   }
 }
 
-async function pushPatient(patientId, title, body, tag) {
-  if (!patientId || !body) return { sent: 0 };
+/**
+ * Sends ONE delivery-state notification: a push, plus an in-app message that is
+ * only written when at least one device accepted the push (owner rule, Nov 24
+ * 2026). The server writes the in-app row itself with no push of its own, so a
+ * patient can never get a duplicate for the same state. Returns the server
+ * result: { sent, in_app, deduped, ... }.
+ */
+async function pushPatient(patientId, title, body, tag, store = {}) {
+  if (!patientId || !body) return { sent: 0, in_app: false };
   return base44.functions.invoke('patientPush', {
-    action: 'send',
+    action: 'notify',
     patient_id: patientId,
     title: title || 'Your pharmacy',
     body,
     url: '/patient-portal',
     tag,
-  }).catch(() => ({ sent: 0 }));
+    store_id: store.store_id || '',
+    store_name: store.store_name || '',
+  }).catch(() => ({ sent: 0, in_app: false }));
 }
 
 function albertaTodayKey() {
@@ -169,7 +178,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
               patientName,
               window: windowText(pickupMinutes),
             });
-            await pushPatient(delivery.patient_id, title, body, `rx-pending-${delivery.id}`);
+            await pushPatient(delivery.patient_id, title, body, `rx-pending-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name });
             entry.pending = true;
             entry.etaEnd = pickupMinutes + 30;
           }
@@ -183,7 +192,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
           patientName,
           window: windowText(eta),
         });
-        await pushPatient(delivery.patient_id, title, body, `rx-pickup-${delivery.id}`);
+        await pushPatient(delivery.patient_id, title, body, `rx-pickup-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name });
         entry.pickup = true;
         entry.etaEnd = eta + 30;
       }
@@ -198,7 +207,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
             patientName,
             window: windowText(eta),
           });
-          await pushPatient(delivery.patient_id, title, body, `rx-delayed-${delivery.id}`);
+          await pushPatient(delivery.patient_id, title, body, `rx-delayed-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name });
           entry.etaEnd = newEnd;
           entry.delayedAt = now;
         }
@@ -240,7 +249,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
           patientName,
           etaText: fmtMinutes(eta),
         });
-        await pushPatient(latest.patient_id, latest.store_name || 'Your pharmacy', body, `rx-next-${id}`);
+        await pushPatient(latest.patient_id, latest.store_name || 'Your pharmacy', body, `rx-next-${id}`, { store_id: latest.store_id, store_name: latest.store_name });
         led[id] = { ...(led[id] || {}), next: true };
         writeLedger(led);
       }, NEXT_STABLE_MS);

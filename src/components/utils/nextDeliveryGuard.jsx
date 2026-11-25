@@ -284,6 +284,44 @@ export async function ensureRouteHasNextStop({
     const restoreKey = `${driverId}|${deliveryDate}|${target.id}`;
     if (recentlyRestored(restoreKey)) return null;
 
+    // SERVER TRUTH BEFORE RESTORING (owner fix Nov 24 2026): the hourly digest
+    // showed ~100 "blocked stale next-stop clear" rows an hour across 8 devices.
+    // The loop was two devices disagreeing: one with a fresh copy clears the flag
+    // on a stop the server already finished, another with a stale local copy puts
+    // it straight back. Status alone cannot settle that, so the restore is only
+    // allowed to happen after the server confirms the stop is still open. A 404
+    // is terminal (drop the ghost row), a finished stop is never restored, and a
+    // network failure falls through to the old local-only behaviour so an offline
+    // driver still gets a next stop.
+    if (!skipServerWrite) {
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        const live = await base44.entities.Delivery.get(target.id);
+        if (live) {
+          const liveStatus = String(live.status || '').toLowerCase();
+          if (['completed', 'failed', 'cancelled', 'returned'].includes(liveStatus)) {
+            // The server says this stop is done: heal the local copy instead of
+            // re-flagging it, so the next pass picks the real next stop.
+            await updateDeliveryLocal(target.id, {
+              status: live.status,
+              isNextDelivery: false,
+              next_flag_owner: null,
+            }, { skipSmartRefresh: true }).catch(() => {});
+            console.warn(`[nextDeliveryGuard] stop ${target.id} is ${liveStatus} on the server — not restoring the flag`);
+            return null;
+          }
+        }
+      } catch (err) {
+        const { isEntityNotFoundError, dropDeadEntityMutation } = await import('./deadEntityGuard');
+        if (isEntityNotFoundError(err)) {
+          await dropDeadEntityMutation({ entity: 'Delivery', id: target.id }).catch(() => {});
+          console.warn(`[nextDeliveryGuard] stop ${target.id} no longer exists — dropping it instead of restoring the flag`);
+          return null;
+        }
+        // Offline / transient: keep the local-only behaviour below.
+      }
+    }
+
     // The restore itself transfers ownership to this device, so a following run
     // on the same route agrees with it instead of re-picking.
     const restorePayload = stampNextFlagOwner({ isNextDelivery: true });

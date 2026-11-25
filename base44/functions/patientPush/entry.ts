@@ -487,15 +487,52 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, ...result });
     }
 
-    const { patient_id, title, body, url, tag } = payload;
+    const { patient_id, title, body, url, tag, store_id, store_name } = payload;
     if (!patient_id || !title) {
       return Response.json({ ok: false, error: 'patient_id and title are required' }, { status: 400 });
     }
 
-    const subs = await base44.asServiceRole.entities.PushSubscription
-      .filter({ user_id: ownerKey(patient_id) })
-      .catch(() => []);
-    if (!subs || subs.length === 0) return Response.json({ ok: true, sent: 0, message: 'No patient devices registered' });
+    // ── Push fan-out (shared by 'send' and 'notify') ────────────────────────
+    // Returns how many devices the push service ACCEPTED. Web push has no
+    // receipt, so `sent` means "at least one device was reachable", not "the
+    // patient saw it". Dead endpoints (404/410) are pruned here.
+    const deliverPush = async (notification: any) => {
+      const subs = await base44.asServiceRole.entities.PushSubscription
+        .filter({ user_id: ownerKey(patient_id) })
+        .catch(() => []);
+      if (!subs || subs.length === 0) return { sent: 0, removed: 0, errors: [] as string[], reason: 'no_devices' };
+
+      const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
+      const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
+      const vapidSubject = Deno.env.get('VAPID_SUBJECT');
+      if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
+        return { sent: 0, removed: 0, errors: ['VAPID keys not configured'], reason: 'no_vapid' };
+      }
+
+      webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+      let sent = 0, removed = 0;
+      const errors: string[] = [];
+      await Promise.all(subs.map(async (sub: any) => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } },
+            JSON.stringify(notification)
+          );
+          sent++;
+          await base44.asServiceRole.entities.PushSubscription
+            .update(sub.id, { last_used_at: new Date().toISOString() })
+            .catch(() => {});
+        } catch (err: any) {
+          if (err?.statusCode === 404 || err?.statusCode === 410) {
+            await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
+            removed++;
+          } else {
+            errors.push(err?.message || String(err));
+          }
+        }
+      }));
+      return { sent, removed, errors, reason: null as string | null };
+    };
 
     const notification = {
       title,
@@ -506,37 +543,48 @@ Deno.serve(async (req) => {
       requireInteraction: false,
     };
 
-    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
-    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-    const vapidSubject = Deno.env.get('VAPID_SUBJECT');
-    if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
-      return Response.json({ ok: false, error: 'VAPID keys not configured' }, { status: 500 });
+    const result = await deliverPush(notification);
+
+    // ── 'notify': the one outbound path for delivery state messages ─────────
+    // OWNER RULES (Nov 24 2026):
+    //   1. the in-app message is written ONLY when at least one device accepted
+    //      the push, so patients without the app installed never accumulate
+    //      in-app noise;
+    //   2. there is exactly ONE push per state. The in-app row is created
+    //      directly here with no push of its own, so an app that pushes on new
+    //      messages cannot fire a second notification for the same event;
+    //   3. repeat calls are no-ops: an identical body already in this patient's
+    //      store thread within the last 12h is treated as sent.
+    if (action === 'notify') {
+      if (!result.sent) return Response.json({ ok: true, ...result, in_app: false });
+      const text = String(body || '').trim();
+      if (!text) return Response.json({ ok: true, ...result, in_app: false });
+
+      const patient = await base44.asServiceRole.entities.Patient.get(patient_id).catch(() => null);
+      const conversationId = `patient:${patient_id}`;
+      const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const recent = await base44.asServiceRole.entities.Message
+        .filter({ conversation_id: conversationId, content: text }, '-created_date', 5)
+        .catch(() => []);
+      const already = (recent || []).some((m: any) => String(m.created_date || '') >= since);
+      if (already) return Response.json({ ok: true, ...result, in_app: false, deduped: true });
+
+      const created = await base44.asServiceRole.entities.Message.create({
+        sender_id: `store:${store_id || patient?.store_id || ''}`,
+        sender_name: store_name || 'Your pharmacy',
+        receiver_id: conversationId,
+        conversation_id: conversationId,
+        content: text,
+        message_type: 'text',
+        read: false,
+        patient_id,
+        store_id: store_id || patient?.store_id || '',
+      }).catch(() => null);
+
+      return Response.json({ ok: true, ...result, in_app: !!created, message_id: created?.id || null });
     }
 
-    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-    let sent = 0, removed = 0;
-    const errors: string[] = [];
-    await Promise.all(subs.map(async (sub: any) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } },
-          JSON.stringify(notification)
-        );
-        sent++;
-        await base44.asServiceRole.entities.PushSubscription
-          .update(sub.id, { last_used_at: new Date().toISOString() })
-          .catch(() => {});
-      } catch (err: any) {
-        if (err?.statusCode === 404 || err?.statusCode === 410) {
-          await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
-          removed++;
-        } else {
-          errors.push(err?.message || String(err));
-        }
-      }
-    }));
-
-    return Response.json({ ok: true, sent, removed, errors });
+    return Response.json({ ok: true, ...result });
   } catch (error: any) {
     return Response.json({ ok: false, error: error?.message || 'Unknown error' }, { status: 500 });
   }
