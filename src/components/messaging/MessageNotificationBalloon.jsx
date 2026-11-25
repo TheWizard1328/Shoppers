@@ -216,7 +216,11 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           onClick={handleClick}
-          className="fixed top-[calc(var(--app-inset-top)+1rem)] right-4 z-[10002] max-w-sm w-full cursor-pointer"
+          /* OWNER REPORT (Nov 25 2026): on a phone the balloon's top edge and the
+             close X sat behind the mobile header bar. It now clears the 54px
+             header (68px from the inset) and rides above every app overlay
+             (dialogs top out at 99999, the portal debug badge at 2147483000). */
+          className="fixed top-[calc(var(--app-inset-top)+4.25rem)] md:top-[calc(var(--app-inset-top)+1rem)] right-4 z-[2147480000] max-w-sm w-full cursor-pointer"
         >
           <div 
             className="rounded-xl shadow-2xl overflow-hidden hover:shadow-xl transition-shadow bg-surface" style={{ border: '1px solid var(--border-slate-200)' }}
@@ -228,7 +232,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
                 <span className="text-white text-sm font-medium">New Message</span>
               </div>
               <button
-                onClick={handleDismiss}
+                onClick={(e) => { e.stopPropagation(); handleDismiss(e); }}
                 className="p-1 hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 rounded-full transition-colors"
               >
                 <X className="w-4 h-4 text-white" />
