@@ -27,6 +27,7 @@ import {
   tempMessageId,
   commitSentMessage,
   isVisibleToUser,
+  removeCachedMessages,
 } from './messageCache';
 import { searchPatientsIdb } from './patientSearchIdb';
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
@@ -72,6 +73,10 @@ export default function PatientThreadsPanel({
   // into one list, so a message sent to a driver looked like it went to the
   // pharmacy team, and every staff reply was forced into the store thread.
   const [driverDir, setDriverDir] = useState([]);
+  // OWNER REPORT (Nov 25 2026): an owner/dispatcher who is ALSO a driver sent from
+  // the pharmacy thread, so the patient saw "pharmacy" instead of them. Driver-role
+  // users can now pick which side of themselves the message comes from.
+  const [sendAsDriver, setSendAsDriver] = useState(false);
   const [storeRows, setStoreRows] = useState(stores || []);
   const unreadContributedRef = useRef(0);
   const endRef = useRef(null);
@@ -127,6 +132,16 @@ export default function PatientThreadsPanel({
 
   // Delivery.driver_id = AUTH user id, which is AppUser.user_id.
   const driverId = currentUser?.user_id || currentUser?.id;
+  // Both ids belong to this driver: a device whose AppUser row has no user_id
+  // writes under its AppUser.id, and those threads must still show up here.
+  const myDriverIds = useMemo(
+    () => [currentUser?.user_id, currentUser?.id].filter(Boolean).map(String),
+    [currentUser?.user_id, currentUser?.id],
+  );
+  const isMyDriverRow = useCallback(
+    (m) => myDriverIds.includes(String(m?.driver_id || '')),
+    [myDriverIds],
+  );
   const searchMode = isDriverMode ? 'driver' : (staffSeesAllStores(currentUser) ? 'admin' : 'store');
 
   // RATE-LIMIT SAFE (owner report Nov 4 2026): a failed read used to resolve to
@@ -180,7 +195,10 @@ export default function PatientThreadsPanel({
         // filter the pharmacy team received the driver's patient chat live.
         if (event?.type !== 'delete' && !isVisibleToUser(row, currentUser)) return;
         // WS receipt → IDB write → local repaint. No network read.
-        if (event?.type === 'delete') { /* handled below */ } else cacheMessages([row]).catch(() => {});
+        // OWNER SPEC (Nov 25 2026): a delete must be mirrored into IndexedDB on
+        // every device, otherwise the next read repaints the deleted row.
+        if (event?.type === 'delete') removeCachedMessages([row.id]).catch(() => {});
+        else cacheMessages([row]).catch(() => {});
         setMessages((prev) => {
           if (event?.type === 'delete') return prev.filter((m) => m.id !== row.id);
           if (prev.some((m) => m.id === row.id)) return prev;
@@ -197,7 +215,7 @@ export default function PatientThreadsPanel({
     const off = onMessagesChanged(async (detail) => {
       const rows = await readCachedPatientThread(selectedRef.current?.id, currentUser).catch(() => []);
       if (!selectedRef.current || rows.length === 0) { loadAllRef.current?.(); return; }
-      const list = isDriverMode ? rows.filter((m) => String(m.driver_id || '') === String(driverId || '')) : rows;
+      const list = isDriverMode ? rows.filter(isMyDriverRow) : rows;
       setThread(list);
       threadCache.set(selectedRef.current.id, { at: Date.now(), rows: list });
       if (detail?.sent || detail?.read) loadAllRef.current?.();
@@ -244,7 +262,7 @@ export default function PatientThreadsPanel({
     }
     // IDB FIRST — opening a thread never waits on (or spends) a network read.
     const cached = await readCachedPatientThread(patient.id, currentUser)
-      .then((rows) => (isDriverMode ? rows.filter((m) => String(m.driver_id || '') === String(driverId || '')) : rows))
+      .then((rows) => (isDriverMode ? rows.filter(isMyDriverRow) : rows))
       .catch(() => []);
     if (cached.length > 0) {
       setThread(cached);
@@ -255,7 +273,7 @@ export default function PatientThreadsPanel({
     }
     try {
       const rows = await loadPatientThread({ user: currentUser, patientId: patient.id });
-      const list = (rows || []).filter((m) => (isDriverMode ? String(m.driver_id || '') === String(driverId || '') : true));
+      const list = (rows || []).filter((m) => (isDriverMode ? isMyDriverRow(m) : true));
       if (list.length > 0 || cached.length === 0) {
         setThread(list);
         threadCache.set(patient.id, { at: Date.now(), rows: list });
@@ -308,7 +326,7 @@ export default function PatientThreadsPanel({
       id: localId,
       conversation_id: isDriverMode ? driverThreadConversationId(driverId, selected.id) : patientConversationId(selected.id),
       patient_id: selected.id,
-      driver_id: isDriverMode ? driverId : (replyTargetDriverRef.current || ''),
+      driver_id: (isDriverMode || sendAsDriver) ? driverId : (replyTargetDriverRef.current || ''),
       store_id: selected.store_id || '',
       sender_id: currentUser?.user_id || currentUser?.id || '',
       sender_name: currentUser?.full_name || currentUser?.user_name || 'Staff',
@@ -327,7 +345,7 @@ export default function PatientThreadsPanel({
     setInput('');
     try {
       const pickedDriver = replyTargetDriver;
-      const created = isDriverMode
+      const created = (isDriverMode || sendAsDriver)
         ? await sendDriverMessageToPatient({ user: currentUser, patient: selected, content: text, storeName })
         : pickedDriver
           ? await sendStaffMessageToDriverThread({
@@ -418,6 +436,8 @@ export default function PatientThreadsPanel({
     if (!window.confirm('Delete this message for everyone?')) return;
     try {
       await base44.entities.Message.delete(m.id);
+      await removeCachedMessages([m.id]).catch(() => {});
+      setThread((prev) => prev.filter((x) => x.id !== m.id));
       setMessages((prev) => prev.filter((x) => x.id !== m.id));
       // Last message gone → the conversation no longer exists, so close it.
       const remaining = (visibleThread || []).filter((v) => v.id !== m.id);
@@ -438,6 +458,7 @@ export default function PatientThreadsPanel({
         try { await base44.entities.Message.delete(m.id); deleted += 1; } catch { /* keep going */ }
       }
       const deletedIds = new Set(visibleThread.map((v) => v.id));
+      await removeCachedMessages([...deletedIds]).catch(() => {});
       setMessages((prev) => prev.filter((x) => !deletedIds.has(x.id)));
       // OWNER SPEC (Nov 24 2026): the thread and message panels must reflect the
       // delete immediately — an empty conversation must not stay on screen.
@@ -532,7 +553,23 @@ export default function PatientThreadsPanel({
           <div ref={endRef} />
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <div className="flex flex-col gap-1 px-3 py-2 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          {!isDriverMode && userHasRole(currentUser, 'driver') && (
+            <div className="flex items-center gap-1 text-[11px]">
+              <span className="text-slate-400 dark:text-slate-500">Send as</span>
+              <button
+                type="button"
+                onClick={() => setSendAsDriver(false)}
+                className={`px-2 py-0.5 rounded-full border ${!sendAsDriver ? 'bg-blue-600 text-white border-blue-600' : 'bg-transparent text-slate-500 border-slate-300 dark:border-slate-600'}`}
+              >Pharmacy</button>
+              <button
+                type="button"
+                onClick={() => setSendAsDriver(true)}
+                className={`px-2 py-0.5 rounded-full border ${sendAsDriver ? 'bg-blue-600 text-white border-blue-600' : 'bg-transparent text-slate-500 border-slate-300 dark:border-slate-600'}`}
+              >Me (driver)</button>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
           {/* OWNER SPEC (Nov 19 2026): composer grows downward with the text
               instead of scrolling sideways, capped then scrolls. */}
           <textarea
@@ -557,6 +594,7 @@ export default function PatientThreadsPanel({
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
+          </div>
         </div>
       </div>
   ) : (

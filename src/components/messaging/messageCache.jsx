@@ -32,8 +32,11 @@ const authIdOf = (user) => user?.user_id || user?.id || null;
 export function isVisibleToUser(message, user) {
   if (!message) return false;
   if (!message.driver_id) return true;
-  const mine = authIdOf(user);
-  return !!mine && String(message.driver_id) === String(mine);
+  // OWNER REPORT (Nov 25 2026): a device whose AppUser row has no user_id wrote
+  // rows under its AppUser.id, so the driver's own thread vanished from that
+  // device (and their own message looked like the pharmacy's). Match BOTH ids.
+  const mine = [user?.user_id, user?.id].filter(Boolean).map(String);
+  return mine.includes(String(message.driver_id));
 }
 
 export function filterVisible(rows, user) {
@@ -226,7 +229,7 @@ export async function loadPatientThreads({ user, storeIds = [], seeAllStores = f
   const cached = cachedAll.filter((m) => {
     if (!m?.patient_id) return false;
     if (!isVisibleToUser(m, user)) return false;
-    if (driverOnly) return String(m.driver_id || '') === String(uid || '');
+    if (driverOnly) return [user?.user_id, user?.id].filter(Boolean).map(String).includes(String(m.driver_id || ''));
     if (seeAllStores || storeIds.length === 0) return true;
     return storeIds.includes(m.store_id);
   });
@@ -250,8 +253,15 @@ async function refreshPatientThreads({ user, storeIds, seeAllStores, limit, driv
   const uid = authIdOf(user);
   try {
     if (driverOnly) {
-      const rows = await base44.entities.Message.filter({ driver_id: uid }, '-created_date', limit);
-      const list = (rows || []).filter((m) => m?.patient_id);
+      // Read BOTH ids: a device without user_id writes under its AppUser.id.
+      const ids = [user?.user_id, user?.id].filter(Boolean).map(String);
+      const seen = new Map();
+      for (const driverKey of (ids.length > 0 ? ids : [uid])) {
+        if (!driverKey) continue;
+        const rows = await base44.entities.Message.filter({ driver_id: driverKey }, '-created_date', limit).catch(() => []);
+        (rows || []).forEach((m) => { if (m?.patient_id && m?.id) seen.set(String(m.id), m); });
+      }
+      const list = Array.from(seen.values());
       await cacheMessages(list);
       return list;
     }
@@ -282,6 +292,13 @@ export async function loadPatientThread({ user, patientId, limit = 200, force = 
       const rows = await base44.entities.Message.filter({ patient_id: patientId }, '-created_date', limit);
       const list = (rows || []).filter((m) => m?.patient_id);
       await cacheMessages(list);
+      // RECONCILE (owner report Nov 25 2026): a delete made through the public
+      // portal runs with the service role, which does NOT broadcast, so other
+      // devices only learn about it here. Any cached row for this patient that the
+      // server no longer returns is removed from IndexedDB.
+      const serverIds = new Set((list || []).map((m) => String(m.id)));
+      const staleIds = cached.filter((m) => m?.id && !serverIds.has(String(m.id))).map((m) => m.id);
+      if (staleIds.length > 0) await removeCachedMessages(staleIds).catch(() => {});
       notifyMessagesChanged({ patientId });
       return filterVisible(list, user).sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
     } catch { return null; }
@@ -307,10 +324,29 @@ export async function commitSentMessage(row, localId = null) {
 }
 
 /** Mark cached rows read locally, then push the flag to the server quietly. */
+/**
+ * Delete rows from the local mirror. Used when a WebSocket delete arrives (or when
+ * a server reconcile proves a row is gone) so the thread cannot come back from IDB.
+ */
+export async function removeCachedMessages(ids = []) {
+  const list = (ids || []).filter(Boolean).map(String);
+  if (list.length === 0) return 0;
+  for (const id of list) {
+    await offlineDB.deleteRecord(STORE, id).catch(() => {});
+  }
+  notifyMessagesChanged({ deleted: list });
+  return list.length;
+}
+
 export async function markThreadRead(rows = []) {
   const pending = (rows || []).filter((m) => !m.read);
   if (pending.length === 0) return 0;
-  for (const m of pending) await patchCachedMessage(m.id, { read: true });
+  // Patch the cached copy, or insert it if the row was never cached — otherwise
+  // the next IDB read hands the badge its unread count straight back.
+  for (const m of pending) {
+    const patched = await patchCachedMessage(m.id, { read: true });
+    if (!patched) await cacheMessages([{ ...m, read: true }]).catch(() => {});
+  }
   notifyMessagesChanged({ read: true });
   await Promise.all(pending.map((m) => base44.entities.Message.update(m.id, { read: true }).catch(() => {})));
   return pending.length;

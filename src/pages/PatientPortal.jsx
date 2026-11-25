@@ -1483,7 +1483,9 @@ export default function PatientPortal({ embedded = false } = {}) {
       if (!cancelled) setUnreadMessages(count);
     };
     refresh();
-    const timer = setInterval(refresh, 60000);
+    // OWNER REPORT (Nov 25 2026): the badge lagged after messages were read, so the
+    // server count is re-read every 15s (and on focus) instead of once a minute.
+    const timer = setInterval(refresh, 15000);
     const onFocus = () => refresh();
     window.addEventListener('focus', onFocus);
     return () => {
