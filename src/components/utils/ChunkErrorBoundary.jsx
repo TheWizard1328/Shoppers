@@ -17,6 +17,7 @@
  */
 
 import { Component } from 'react';
+import { hardReload } from './hardReload';
 
 const RELOAD_FLAG = 'rxdeliver_chunk_reload_attempted';
 
@@ -158,7 +159,11 @@ export class ChunkErrorBoundary extends Component {
         // Kick off the purge + reload. Don't await here — return state immediately.
         (async () => {
           await purgeStaleServiceWorkerAndCaches();
-          window.location.reload();
+          // Cache-busting navigation (owner fix Nov 24 2026): a plain reload
+          // re-requested the same URL and came back from the HTTP/PWA cache
+          // holding the old index.html, so the recovery reload landed on the
+          // stale chunk again. `_b` is a URL the cache has never seen.
+          hardReload();
         })();
         return { crashed: false, chunkError: true };
       }
@@ -175,7 +180,7 @@ export class ChunkErrorBoundary extends Component {
   handleManualReload = async () => {
     sessionStorage.removeItem(RELOAD_FLAG);
     await purgeStaleServiceWorkerAndCaches();
-    window.location.reload();
+    hardReload();
   };
 
   render() {

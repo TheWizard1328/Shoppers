@@ -23,7 +23,7 @@
 
 import { offlineDB } from './offlineDatabase';
 import { updateDeliveryLocal } from './offlineMutations';
-import { canThisDeviceRestoreNextFlag, stampNextFlagOwner, parseFlagOwner } from './nextFlagOwnership';
+import { canThisDeviceRestoreNextFlag, stampNextFlagOwner, parseFlagOwner, getFlagOwnerDeviceId } from './nextFlagOwnership';
 import { isEntityDead } from './deadEntityGuard';
 
 const TERMINAL = ['completed', 'failed', 'cancelled'];
@@ -182,7 +182,21 @@ export async function clearDuplicateNextFlags({
       return ra.order - rb.order;                                    // then route order
     });
     const keep = sorted[0];
+    // ONLY THE OWNER MAY CLEAR (owner direction Nov 24 2026): the hourly digest
+    // showed dashboards clearing and restoring the same next flag every 30-55
+    // seconds across nine devices, with no 404s involved. Each device ranked the
+    // duplicates from its own snapshot, so two devices with slightly different
+    // copies picked different winners and undid each other forever. A loser whose
+    // next_flag_owner belongs to ANOTHER device is now left alone: its owner
+    // settles it. A loser with no claim at all, or one this device owns, is still
+    // cleared here so a genuinely two-flagged route never survives.
+    const myDeviceId = getFlagOwnerDeviceId();
     for (const d of sorted.slice(1)) {
+      const claim = parseFlagOwner(d.next_flag_owner);
+      if (claim?.deviceId && claim.deviceId !== myDeviceId) {
+        console.warn(`[NextDeliveryGuard] stop ${d.id} holds a claim from another device (${claim.deviceId}) — leaving the clear to its owner`);
+        continue;
+      }
       // RELEASE THE CLAIM TOO (owner report Nov 22 2026): clearing only the flag
       // left next_flag_owner on the record, so newestRouteFlagOwner kept seeing a
       // stale claim from a finished stop and every OTHER device refused to

@@ -42,6 +42,8 @@ import { isEditorPreview } from '@/lib/utils'
 // looping. Without this guard, a persistently-stale SW serving an old index.html
 // keeps 404-ing the same chunk and this handler reloads every 1.5s forever, which
 // surfaces as the "dashboard refreshes every second until white screen" boot loop.
+import { hardReload } from '@/components/utils/hardReload';
+
 const CHUNK_RELOAD_FLAG = 'rxdeliver_chunk_reload_attempted';
 const chunkReloadAlreadyTried = () => {
   try { return sessionStorage.getItem(CHUNK_RELOAD_FLAG) === '1'; } catch { return false; }
@@ -69,7 +71,7 @@ window.addEventListener('error', (event) => {
     console.warn('⚠️ [ChunkLoad] Stale chunk detected — reloading once for fresh build');
     markChunkReloadTried();
     // Small delay so any in-flight saves can complete
-    setTimeout(() => window.location.reload(), 1500);
+    hardReload(1500);
   }
 });
 window.addEventListener('unhandledrejection', (event) => {
@@ -86,7 +88,7 @@ window.addEventListener('unhandledrejection', (event) => {
     }
     console.warn('⚠️ [ChunkLoad] Stale chunk (unhandledrejection) — reloading once for fresh build');
     markChunkReloadTried();
-    setTimeout(() => window.location.reload(), 1500);
+    hardReload(1500);
   }
 });
 
