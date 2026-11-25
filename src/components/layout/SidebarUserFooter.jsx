@@ -372,7 +372,8 @@ export default function SidebarUserFooter({
   onOpenInviteQR,
   onOpenDriverChat,
   stores,
-  filteredDeliveries
+  filteredDeliveries,
+  onCloseSidebar
 }) {
   const [selectedDriverId, setSelectedDriverId] = useState(() => globalFilters.getSelectedDriverId() || 'all');
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
@@ -712,7 +713,8 @@ export default function SidebarUserFooter({
         open={testAsOpen}
         onOpenChange={setTestAsOpen}
         appUsers={appUsers}
-        stores={stores} />
+        stores={stores}
+        onSelect={() => onCloseSidebar?.()} />
     </div>);
 
 }

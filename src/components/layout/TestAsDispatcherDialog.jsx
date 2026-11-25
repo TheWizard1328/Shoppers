@@ -12,7 +12,7 @@ import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
  * Simulates a dispatcher view on ANY device — APK, browser PWA, desktop —
  * with a hard write guard so test clicks can't change real data.
  */
-export default function TestAsDispatcherDialog({ open, onOpenChange, appUsers, stores }) {
+export default function TestAsDispatcherDialog({ open, onOpenChange, appUsers, stores, onSelect }) {
   const active = isTestModeActive();
   const cfg = active ? getTestModeConfig() : null;
 
@@ -49,13 +49,27 @@ export default function TestAsDispatcherDialog({ open, onOpenChange, appUsers, s
       });
   }, [appUsers, storeSortOrderById]);
 
-  const mirrorFrom = (au) => activateTestMode({
-    store_ids: Array.isArray(au?.store_ids) ? au.store_ids : [],
-    city_ids: Array.isArray(au?.city_ids) ? au.city_ids : (au?.city_id ? [au.city_id] : []),
-    mirrored_from: au?.user_name || null,
-  });
+  // OWNER SPEC (Nov 24 2026): picking a dispatcher (and so a store) must close
+  // this dialog AND the sidebar behind it. activateTestMode reloads the page, but
+  // closing first means the drawer never lingers over a half-reloaded app.
+  const closeAll = () => {
+    onOpenChange?.(false);
+    try { onSelect?.(); } catch { /* sidebar close is best effort */ }
+  };
 
-  const activateGeneric = () => activateTestMode({ store_ids: [], city_ids: [], mirrored_from: null });
+  const mirrorFrom = (au) => {
+    closeAll();
+    activateTestMode({
+      store_ids: Array.isArray(au?.store_ids) ? au.store_ids : [],
+      city_ids: Array.isArray(au?.city_ids) ? au.city_ids : (au?.city_id ? [au.city_id] : []),
+      mirrored_from: au?.user_name || null,
+    });
+  };
+
+  const activateGeneric = () => {
+    closeAll();
+    activateTestMode({ store_ids: [], city_ids: [], mirrored_from: null });
+  };
 
   const storeLabel = (au) => {
     const ids = Array.isArray(au?.store_ids) ? au.store_ids : [];

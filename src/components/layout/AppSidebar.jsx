@@ -959,7 +959,8 @@ export default function AppSidebar({
             setSidebarOpen(false);
           }}
           stores={stores}
-          filteredDeliveries={filteredDeliveries} />
+          filteredDeliveries={filteredDeliveries}
+          onCloseSidebar={() => setSidebarOpen(false)} />
 
   </div>
     </>);
