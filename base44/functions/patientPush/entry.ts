@@ -635,6 +635,21 @@ Deno.serve(async (req) => {
       requireInteraction: false,
     };
 
+    // 'notify' dedupes BEFORE pushing, so the same state can never buzz a patient
+    // twice just because two devices noticed it (owner report Nov 25 2026).
+    if (action === 'notify') {
+      const earlyText = String(body || '').trim();
+      if (earlyText) {
+        const earlySince = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+        const earlyRecent = await base44.asServiceRole.entities.Message
+          .filter({ conversation_id: `patient:${patient_id}`, content: earlyText }, '-created_date', 5)
+          .catch(() => []);
+        if ((earlyRecent || []).some((m: any) => String(m.created_date || '') >= earlySince)) {
+          return Response.json({ ok: true, sent: 0, removed: 0, errors: [], in_app: false, deduped: true });
+        }
+      }
+    }
+
     const result = await deliverPush(notification);
 
     // ── 'notify': the one outbound path for delivery state messages ─────────

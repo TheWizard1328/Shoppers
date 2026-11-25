@@ -136,7 +136,11 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
   const evaluate = useRef(null);
 
   evaluate.current = async () => {
-    if (!enabledRef.current) return;
+    // OWNER REPORT (Nov 25 2026): a dispatcher or admin adding a pending stop
+    // notified nobody, because this whole pass was primary-device only. The
+    // "created as pending" notice now runs on every device (the server dedupes the
+    // same body for 12h); the live-route states stay primary-device only.
+    const primaryDevice = !!enabledRef.current;
     const list = Array.isArray(deliveriesRef.current) ? deliveriesRef.current : [];
     const people = Array.isArray(patientsRef.current) ? patientsRef.current : [];
     if (list.length === 0) return;
@@ -191,7 +195,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
       }
 
       // ── 2. Picked up (covers staged -> in_transit jumps) ────────────────
-      if ((status === 'in_transit' || status === 'en_route') && !entry.pickup && eta != null) {
+      if (primaryDevice && (status === 'in_transit' || status === 'en_route') && !entry.pickup && eta != null) {
         const body = buildPatientDeliveryMessage({
           state: 'pickup',
           patientName,
@@ -203,7 +207,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
       }
 
       // ── 4. Arrival window moved later than the one already sent ─────────
-      if (entry.pickup && eta != null) {
+      if (primaryDevice && entry.pickup && eta != null) {
         const newEnd = eta + 30;
         const sentEnd = Number(entry.etaEnd || 0);
         if (sentEnd && newEnd > sentEnd) {
