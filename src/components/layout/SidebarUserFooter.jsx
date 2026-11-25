@@ -619,8 +619,12 @@ export default function SidebarUserFooter({
             className={`flex items-center gap-3 flex-1 min-w-0 rounded-lg py-1 -mx-1 px-1 transition-colors ${canOpenTestDialog || (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin')) ? 'cursor-pointer hover:bg-slate-100 dark:bg-transparent dark:hover:bg-slate-800 active:bg-slate-200' : ''}`}
             onClick={() => {
               if (canOpenTestDialog) {
+                // Close the mobile sidebar the instant the user info is tapped
+                // (owner spec Nov 24 2026), then open the dispatcher list.
+                onCloseSidebar?.();
                 setTestAsOpen(true);
               } else if (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin')) {
+                onCloseSidebar?.();
                 setShowLogoutConfirm(true);
               }
             }}
