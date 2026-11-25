@@ -26,6 +26,7 @@ import {
   markThreadRead,
   tempMessageId,
   commitSentMessage,
+  isVisibleToUser,
 } from './messageCache';
 import { searchPatientsIdb } from './patientSearchIdb';
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
@@ -174,6 +175,10 @@ export default function PatientThreadsPanel({
       unsub = base44.entities.Message.subscribe((event) => {
         const row = event?.data || event?.payload || event;
         if (!row?.patient_id) return;
+        // OWNER SPEC (Nov 24 2026): a driver↔patient thread is private to that
+        // driver. The websocket fires for every Message row, so without this
+        // filter the pharmacy team received the driver's patient chat live.
+        if (event?.type !== 'delete' && !isVisibleToUser(row, currentUser)) return;
         // WS receipt → IDB write → local repaint. No network read.
         if (event?.type === 'delete') { /* handled below */ } else cacheMessages([row]).catch(() => {});
         setMessages((prev) => {
@@ -414,6 +419,14 @@ export default function PatientThreadsPanel({
     try {
       await base44.entities.Message.delete(m.id);
       setMessages((prev) => prev.filter((x) => x.id !== m.id));
+      // Last message gone → the conversation no longer exists, so close it.
+      const remaining = (visibleThread || []).filter((v) => v.id !== m.id);
+      if (remaining.length === 0) {
+        setSelected(null);
+        setThread([]);
+        setInput('');
+        loadAllRef.current?.();
+      }
     } catch { window.alert('Could not delete that message.'); }
   };
   const deleteVisibleThread = async () => {
@@ -424,8 +437,15 @@ export default function PatientThreadsPanel({
       for (const m of visibleThread) {
         try { await base44.entities.Message.delete(m.id); deleted += 1; } catch { /* keep going */ }
       }
-      setMessages((prev) => prev.filter((x) => !visibleThread.some((v) => v.id === x.id)));
-
+      const deletedIds = new Set(visibleThread.map((v) => v.id));
+      setMessages((prev) => prev.filter((x) => !deletedIds.has(x.id)));
+      // OWNER SPEC (Nov 24 2026): the thread and message panels must reflect the
+      // delete immediately — an empty conversation must not stay on screen.
+      setSelected(null);
+      setThread([]);
+      setInput('');
+      setError('');
+      loadAllRef.current?.();
     } catch { window.alert('Could not delete that thread.'); }
   };
 

@@ -133,6 +133,30 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
     return () => { try { unsub?.(); } catch { /* noop */ } };
   }, [patientId]);
 
+  // LIVE FALLBACK (owner report Nov 24 2026): the portal is a public page with no
+  // Base44 session, so its Message websocket can stay silent. While the sheet is
+  // open the thread is re-read on a short timer and merged, which keeps pharmacy
+  // and driver replies (and owner deletes) arriving without a refresh.
+  useEffect(() => {
+    if (!open || !patientId) return undefined;
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const rows = await base44.entities.Message.filter({ patient_id: patientId }, '-created_date', 200);
+        if (cancelled || !Array.isArray(rows)) return;
+        const next = rows.slice().reverse();
+        setMessages((prev) => {
+          if (prev.length === next.length && next.every((row, i) => row.id === prev[i]?.id && row.read === prev[i]?.read)) {
+            return prev;
+          }
+          return next;
+        });
+      } catch { /* offline — keep what is shown */ }
+    };
+    const timer = setInterval(sync, 10000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [open, patientId]);
+
   // Refresh duty status while the sheet is open so a driver going off duty
   // shows up without reopening the portal.
   useEffect(() => {
@@ -330,8 +354,26 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
         byId.set(key, { ...d, is_prior: true });
       }
     }
+    // OWNER SPEC (Nov 24 2026): a thread whose driver is no longer active must
+    // stay in the list so its history can still be read. The server directory
+    // only returns ACTIVE drivers, so any driver that appears in this patient's
+    // own messages is added back here and marked unavailable (read only).
+    for (const m of messages || []) {
+      const id = m?.driver_id ? String(m.driver_id) : '';
+      if (!id || byId.has(id)) continue;
+      const fromPatient = String(m.sender_id || '').startsWith('patient:');
+      byId.set(id, {
+        driver_id: id,
+        driver_name: (fromPatient ? m.receiver_name : m.sender_name) || 'Driver',
+        duty_status: 'off_duty',
+        is_prior: true,
+        is_current: false,
+        is_active: false,
+        from_history: true,
+      });
+    }
     return Array.from(byId.values());
-  }, [directoryDrivers, drivers]);
+  }, [directoryDrivers, drivers, messages]);
 
   const visibleDrivers = (needle
     ? driverRows.filter((d) => {
@@ -347,6 +389,15 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
   });
 
   const hasNoMatches = visibleDrivers.length === 0 && visibleStores.length === 0;
+
+  // OWNER SPEC (Nov 24 2026): a thread with a driver who is no longer active keeps
+  // its history but cannot be written to. `is_active` comes from the directory
+  // (AppUser active check); a driver missing from it counts as unavailable.
+  const activeDriverRow = active?.kind === 'driver'
+    ? (driverRows || []).find((d) => String(d.driver_id) === String(active.driver?.driver_id))
+    : null;
+  const driverThreadReadOnly = active?.kind === 'driver'
+    && (activeDriverRow ? activeDriverRow.is_active === false : true);
 
   // Closed sheet: bail AFTER every hook has run (conditional hooks would break
   // the component the first time the sheet is reopened).
@@ -418,10 +469,13 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
     <div className="fixed inset-0 z-[1200]" onClick={onClose}>
       {/* No dark backdrop: the map stays readable behind the drop-down. */}
       <div
-        className="fixed w-[min(380px,calc(100vw-1rem))] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden origin-top-right animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-150"
+        className="fixed w-[min(380px,calc(100vw-24px))] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden origin-top-right animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-150"
         style={{
           top: anchor?.top ?? 64,
-          right: anchor?.right ?? 8,
+          // OWNER REPORT (Nov 24 2026): the sheet sat 10-20px off the left of the
+          // screen because it hung off the header button's right edge. It is now
+          // pinned to a 12px margin on both sides at every width.
+          right: 12,
           height: `min(70vh, 560px)`,
           maxHeight: `calc(100vh - ${(anchor?.top ?? 64) + 12}px)`,
         }}
@@ -643,13 +697,14 @@ export default function PatientMessaging({ patient, open, onClose, onUnreadChang
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-                placeholder="Type a message..."
+                onKeyDown={(e) => { if (e.key === 'Enter' && !driverThreadReadOnly) handleSend(); }}
+                disabled={driverThreadReadOnly}
+                placeholder={driverThreadReadOnly ? 'This driver is no longer available' : 'Type a message...'}
                 className="flex-1 h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-green-500"
               />
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || sending}
+                disabled={!input.trim() || sending || driverThreadReadOnly}
                 className="h-10 w-10 rounded-lg bg-green-600 text-white flex items-center justify-center disabled:opacity-50"
                 aria-label="Send message"
               >
