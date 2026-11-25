@@ -271,7 +271,10 @@ Deno.serve(async (req) => {
         return Response.json({ ok: true, removed: doomed.length });
       }
 
-      if (!endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      // APK devices register a native FCM token (endpoint fcm://<token>) and carry
+      // no Web Push keys — those are only used by the VAPID send path below.
+      const isFcm = String(endpoint || '').startsWith('fcm://');
+      if (!endpoint || (!isFcm && (!subscription?.keys?.p256dh || !subscription?.keys?.auth))) {
         return Response.json({ ok: false, error: 'A valid push subscription is required' }, { status: 400 });
       }
 
@@ -279,8 +282,8 @@ Deno.serve(async (req) => {
         user_id: userKey,
         user_name: patient.full_name || 'Patient',
         endpoint,
-        p256dh_key: subscription.keys.p256dh,
-        auth_key: subscription.keys.auth,
+        p256dh_key: subscription?.keys?.p256dh || '',
+        auth_key: subscription?.keys?.auth || '',
         device_identifier: device_identifier || '',
         user_agent: user_agent || '',
         last_used_at: new Date().toISOString(),

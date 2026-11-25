@@ -194,7 +194,7 @@ export default function PatientNotificationToggle({ patient }) {
 
           {state === 'unsupported' && (
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              This browser cannot show notifications. Open the portal in Chrome or Safari (or the RxDeliver app) to turn them on.
+              This browser cannot show notifications. Open the portal in Chrome or Safari, or in the RxDeliver app, to turn them on.
             </p>
           )}
         </motion.div>

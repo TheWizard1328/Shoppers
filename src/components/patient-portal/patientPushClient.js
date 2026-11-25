@@ -1,4 +1,14 @@
 import { base44 } from '@/api/base44Client';
+import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/locationProviders/capacitorRuntime';
+
+// OWNER REPORT (Nov 25 2026): inside the APK the portal said "This browser cannot
+// show notifications" because Android WebView has no Push API. The APK ships the
+// Capacitor PushNotifications plugin (real FCM), so the portal registers an
+// fcm:// subscription against the patient instead.
+const PATIENT_FCM_TOKEN_KEY = 'rxdeliver_patient_fcm_token';
+export const isNativeAndroid = () => {
+  try { return isCapacitorNativeApp() && getCapacitorPlatform() === 'android'; } catch { return false; }
+};
 
 /**
  * Patient portal push notifications (owner build Nov 2 2026).
@@ -49,6 +59,7 @@ export function isStandalonePwa() {
 }
 
 export function pushSupported() {
+  if (isNativeAndroid()) return true;
   return typeof window !== 'undefined'
     && 'serviceWorker' in navigator
     && 'PushManager' in window
@@ -63,7 +74,13 @@ async function getRegistration() {
     if (tile) return tile;
     await new Promise((r) => setTimeout(r, 250));
   }
-  return navigator.serviceWorker.ready;
+  // NEVER wait forever: `navigator.serviceWorker.ready` does not resolve at all
+  // when no worker controls the page, which left the portal stuck on
+  // "Checking this device..." on iOS. Give it a hard ceiling.
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((resolve) => setTimeout(() => resolve(null), 4000)),
+  ]).catch(() => null);
 }
 
 const urlBase64ToUint8Array = (base64String) => {
@@ -77,6 +94,18 @@ const urlBase64ToUint8Array = (base64String) => {
 
 /** 'unsupported' | 'blocked' | 'off' | 'on' | 'needs-install' */
 export async function getPatientPushState() {
+  if (isNativeAndroid()) {
+    try {
+      const { PushNotifications } = await import('@capacitor/push-notifications');
+      const status = await PushNotifications.checkPermissions();
+      if (status?.receive === 'denied') return 'blocked';
+      const token = localStorage.getItem(PATIENT_FCM_TOKEN_KEY);
+      if (status?.receive === 'granted' && token) return 'on';
+      return 'off';
+    } catch {
+      return 'off';
+    }
+  }
   if (!pushSupported()) {
     return isIosDevice() && !isStandalonePwa() ? 'needs-install' : 'unsupported';
   }
@@ -95,6 +124,44 @@ export async function getPatientPushState() {
 /** Ask permission, subscribe this device and register it against the patient. */
 export async function enablePatientPush(patient) {
   if (!patient?.id) return { ok: false, reason: 'no_patient' };
+
+  // ── APK (Capacitor + FCM) ────────────────────────────────────────────────
+  if (isNativeAndroid()) {
+    try {
+      const { PushNotifications } = await import('@capacitor/push-notifications');
+      let perm = await PushNotifications.checkPermissions();
+      if (perm?.receive !== 'granted') perm = await PushNotifications.requestPermissions();
+      if (perm?.receive !== 'granted') return { ok: false, reason: 'permission' };
+
+      const token = await new Promise((resolve) => {
+        let settled = false;
+        const done = (value) => { if (!settled) { settled = true; resolve(value); } };
+        try {
+          PushNotifications.addListener('registration', (t) => done(t?.value || '')).catch(() => {});
+          PushNotifications.addListener('registrationError', () => done('')).catch(() => {});
+          PushNotifications.register().catch(() => done(''));
+        } catch { done(''); }
+        setTimeout(() => done(''), 15000);
+      });
+      if (!token) return { ok: false, reason: 'no_token' };
+
+      const res = await base44.functions.invoke('patientPush', {
+        action: 'register',
+        patient_id: patient.id,
+        subscription: { endpoint: `fcm://${token}`, keys: { p256dh: '', auth: '' } },
+        device_identifier: getPatientDeviceId(),
+        user_agent: navigator.userAgent || '',
+      });
+      const ok = res?.data?.ok === true || res?.ok === true;
+      if (ok) {
+        try { localStorage.setItem(PATIENT_FCM_TOKEN_KEY, token); } catch { /* private mode */ }
+      }
+      return { ok, reason: ok ? null : (res?.data?.error || 'register_failed') };
+    } catch (error) {
+      return { ok: false, reason: error?.message || 'error' };
+    }
+  }
+
   if (!pushSupported()) return { ok: false, reason: 'unsupported' };
   if (isIosDevice() && !isStandalonePwa()) return { ok: false, reason: 'needs_install' };
 
@@ -136,6 +203,22 @@ export async function enablePatientPush(patient) {
 /** Remove this device's subscription for the patient. */
 export async function disablePatientPush(patient) {
   if (!patient?.id) return { ok: false };
+  if (isNativeAndroid()) {
+    try {
+      const token = localStorage.getItem(PATIENT_FCM_TOKEN_KEY);
+      if (token) {
+        await base44.functions.invoke('patientPush', {
+          action: 'unregister',
+          patient_id: patient.id,
+          subscription: { endpoint: `fcm://${token}` },
+        }).catch(() => {});
+      }
+      localStorage.removeItem(PATIENT_FCM_TOKEN_KEY);
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  }
   try {
     const reg = await getRegistration();
     const sub = await reg?.pushManager?.getSubscription();
