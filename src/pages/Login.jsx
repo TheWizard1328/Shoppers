@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { LogIn, Mail, Lock, Loader2, CheckCircle, HeartPulse, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import { initEncryption } from "@/components/utils/idbCrypto";
+import { PatientSessionManager } from '@/components/patient-portal/PatientSessionManager';
 import GoogleIcon from "@/components/GoogleIcon";
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
@@ -43,6 +44,27 @@ import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capac
 const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/native-oauth-callback" : "/";
 
 export default function Login() {
+  // OWNER REQUEST (Nov 25 2026): a patient who fully closes and reopens the app
+  // landed back here and had to tap "I'm a Patient" again, even though the portal
+  // session was remembered. If this device holds a valid patient session and no
+  // staff user is signed in, go straight into the portal. Staff devices keep the
+  // normal login screen (Robert tests patient flows from his own phone).
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!PatientSessionManager.isValid()) return;
+      try {
+        const me = await base44.auth.me();
+        if (me) return; // a real account is signed in — not a patient-only device
+      } catch { /* unauthenticated: patient device */ }
+      if (!cancelled) {
+        try { window.location.replace('/patient-portal'); } catch { /* ignore */ }
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, []);
+
   const passwordInputRef = useRef(null);
 
   // ── CAPS-LOCK-SAFE SCANNER INPUT (owner report Oct 26 2026) ─────────────
