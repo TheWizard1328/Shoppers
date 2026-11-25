@@ -7,7 +7,23 @@ import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/l
 // fcm:// subscription against the patient instead.
 const PATIENT_FCM_TOKEN_KEY = 'rxdeliver_patient_fcm_token';
 export const isNativeAndroid = () => {
-  try { return isCapacitorNativeApp() && getCapacitorPlatform() === 'android'; } catch { return false; }
+  // OWNER REPORT (Nov 25 2026): the APK still fell through to the web path and
+  // reported no_push_manager, so Capacitor's own detection is not trusted alone.
+  // Any native marker means "this is the APK, use FCM".
+  try {
+    const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+    const platform = String(cap?.getPlatform?.() || cap?.platform || '').toLowerCase();
+    if (platform === 'android') return true;
+    if (cap?.isNativePlatform?.() === true) return true;
+  } catch { /* fall through */ }
+  try {
+    if (isCapacitorNativeApp() && getCapacitorPlatform() === 'android') return true;
+  } catch { /* fall through */ }
+  try {
+    if (typeof window !== 'undefined' && (window.AndroidNative || window.__RXDELIVER_NATIVE__)) return true;
+    if (typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '') && /; wv\)/.test(navigator.userAgent || '')) return true;
+  } catch { /* fall through */ }
+  return false;
 };
 
 /** The Capacitor push plugin, via the bundle or the runtime bridge. */
