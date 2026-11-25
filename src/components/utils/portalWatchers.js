@@ -145,6 +145,19 @@ export const isDeliveryInStoreScope = (delivery, appUser) => {
 };
 
 /** True while this delivery's patient is watching AND is inside the viewer's store scope. */
+/**
+ * OWNER REQUEST (Nov 25 2026): a store dispatcher must see the same
+ * "patient is viewing" visuals a driver gets for the same patient. Watchers are
+ * scoped by the presence row's own store_id/driver_id, so a dispatcher whose
+ * store_ids own that delivery counts it even when the patient's route is not the
+ * one currently selected on the map.
+ */
+export function countWatchersInScope(watchers, appUser) {
+  if (!appUser) return 0;
+  const list = Array.isArray(watchers) ? watchers : Array.from(portalWatchersStore.getWatchers().values());
+  return list.filter((w) => isDeliveryInStoreScope({ store_id: w?.store_id, driver_id: w?.driver_id }, appUser)).length;
+}
+
 export function isWatcherVisibleForDelivery(delivery, appUser) {
   if (!delivery?.patient_id || !_watchers.has(delivery.patient_id)) return false;
   return isDeliveryInStoreScope(delivery, appUser);

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
-import { usePortalWatchCount, useAllPortalWatchers } from '@/components/utils/portalWatchers';
+import { usePortalWatchCount, useAllPortalWatchers, isDeliveryInStoreScope } from '@/components/utils/portalWatchers';
 
 export default function MapViewCycleFAB({
   currentUser = null, filteredDeliveries = [], onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false, bottomNavHeight = 0, hideForExpandedCard = false }) {
@@ -45,14 +45,18 @@ export default function MapViewCycleFAB({
   const [showWatchersBalloon, setShowWatchersBalloon] = useState(false);
   // Hover balloon list: every watcher for the owner, otherwise only the watchers
   // already inside this viewer's scope (the same set the badge counts).
-  const balloonWatchers = React.useMemo(() => {
-    if (!_fabIsAdmin) {
-      const visiblePatientIds = new Set((filteredDeliveries || []).map((d) => d?.patient_id).filter(Boolean));
-      return allWatchers.filter((w) => visiblePatientIds.has(w.patient_id));
-    }
-    return allWatchers;
-  }, [allWatchers, _fabIsAdmin, filteredDeliveries]);
-  const hasAnyWatcher = _fabIsAdmin ? allWatchers.length > 0 : watchingCount > 0;
+  // OWNER REQUEST (Nov 25 2026): a dispatcher's halo/balloon now comes from the
+  // watchers whose presence row belongs to one of THEIR stores (or a driver's
+  // own route), not only from the route currently drawn on the map.
+  const scopedWatchers = React.useMemo(() => {
+    if (_fabIsAdmin) return allWatchers;
+    const visiblePatientIds = new Set((filteredDeliveries || []).map((d) => d?.patient_id).filter(Boolean));
+    return allWatchers.filter((w) => visiblePatientIds.has(w.patient_id)
+      || isDeliveryInStoreScope({ store_id: w?.store_id, driver_id: w?.driver_id }, _fabViewerAppUser));
+  }, [allWatchers, _fabIsAdmin, filteredDeliveries, _fabViewerAppUser]);
+  const balloonWatchers = scopedWatchers;
+  const scopedWatchCount = _fabIsAdmin ? watchingCount : Math.max(watchingCount, scopedWatchers.length);
+  const hasAnyWatcher = _fabIsAdmin ? allWatchers.length > 0 : scopedWatchCount > 0;
   const storeAbbrevFor = React.useCallback((storeId) => {
     const store = (_fabStores || []).find((st) => String(st?.id) === String(storeId));
     const raw = store?.abbreviation || store?.store_abbreviation || '';
@@ -311,12 +315,12 @@ export default function MapViewCycleFAB({
             {currentPhase}
           </span>
           {/* Watching-patient count in the top-right corner (blue, mirrors the phase badge) */}
-          {watchingCount > 0 && (
+          {scopedWatchCount > 0 && (
             <span
               className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-blue-500 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center"
-              title={`${watchingCount} patient${watchingCount === 1 ? ' is' : 's are'} watching the portal right now`}
+              title={`${scopedWatchCount} patient${scopedWatchCount === 1 ? ' is' : 's are'} watching the portal right now`}
             >
-              {watchingCount}
+              {scopedWatchCount}
             </span>
           )}
           {getIcon()}
