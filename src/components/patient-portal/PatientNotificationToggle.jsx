@@ -7,7 +7,8 @@ import {
   enablePatientPush,
   disablePatientPush,
   isIosDevice,
-  isStandalonePwa } from
+  isStandalonePwa,
+  getPushDiagnostics } from
 './patientPushClient';
 
 /**
@@ -77,7 +78,7 @@ export default function PatientNotificationToggle({ patient }) {
     if (res.reason === 'permission') setState('blocked');
     else if (res.reason === 'needs_install') setState('needs-install');
     else if (res.reason === 'ios_unsupported_browser') setState('unsupported');
-    setNotice(NOTICE[res.reason] || `Could not turn notifications on (${res.reason || 'unknown'}).`);
+    setNotice(`${NOTICE[res.reason] || `Could not turn notifications on (${res.reason || 'unknown'}).`} · ${getPushDiagnostics()}`);
     refresh();
   };
 

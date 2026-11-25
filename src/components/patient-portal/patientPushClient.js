@@ -130,6 +130,22 @@ const urlBase64ToUint8Array = (base64String) => {
   return out;
 };
 
+/** One-line device report so a failed tap can be diagnosed on the phone itself. */
+export function getPushDiagnostics() {
+  const out = [];
+  try {
+    const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+    out.push(`cap=${cap ? 1 : 0}`);
+    out.push(`plat=${String(cap?.getPlatform?.() || cap?.platform || 'none')}`);
+    out.push(`native=${cap?.isNativePlatform?.() ? 1 : 0}`);
+    out.push(`and=${typeof window !== 'undefined' && window.AndroidNative ? 1 : 0}`);
+    out.push(`pm=${typeof window !== 'undefined' && 'PushManager' in window ? 1 : 0}`);
+    out.push(`nt=${typeof window !== 'undefined' && 'Notification' in window ? 1 : 0}`);
+    out.push(`sw=${typeof navigator !== 'undefined' && 'serviceWorker' in navigator ? 1 : 0}`);
+  } catch { /* ignore */ }
+  return out.join(' ');
+}
+
 /** 'unsupported' | 'blocked' | 'off' | 'on' | 'needs-install' */
 export async function getPatientPushState() {
   if (isNativeAndroid()) {
