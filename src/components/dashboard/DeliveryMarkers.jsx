@@ -445,17 +445,6 @@ function DeliveryMarkers({
     const metersPerPixel = 156543.03392 / Math.pow(2, currentZoom);
     const haloRadius = Math.max(4, (26 / 2 + 6) * metersPerPixel);
     return [
-      // OWNER REQUEST (Nov 25 2026): the blue "patient is viewing" ring was only
-      // baked into the full pin icon, so a store dispatcher (who sees OTHER
-      // drivers' stops as simple circles) never got it. Draw it as its own ring
-      // so the visual is identical for every role that is allowed to see it.
-      showWatchHalo && <Circle
-        key={`delivery-watch-${delivery.id}`}
-        center={[markerLatitude, markerLongitude]}
-        radius={haloRadius * 1.15}
-        pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.9, fillColor: '#3b82f6', fillOpacity: 0.12 }}
-        interactive={false}
-      />,
       isHighlighted && !isFanned && <Circle key={`delivery-halo-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={haloRadius} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
       isHighlighted && !isFanned && delivery.store_id && (() => {
         const deliveryStore = stores.find(s => s?.id === delivery.store_id);
