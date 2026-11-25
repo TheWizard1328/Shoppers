@@ -1804,6 +1804,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               pickupStops={pickupStops}
               puidGroups={puidGroups}
               stores={stores}
+              allDeliveries={deliveries}
               onCollapsedHeight={setFloatCardHeight}
               remainingStops={liveRemainingStops?.[todayDelivery.id] ?? null} />
             

@@ -144,9 +144,9 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
         return !['completed', 'failed', 'cancelled'].includes(String(rec.status || '').toLowerCase());
       }).length;
     }
-    if (stopsTillPickup == null && Number.isFinite(pickupOrder)) {
-      stopsTillPickup = Math.max(0, pickupOrder - 1);
-    }
+    // NO blind fallback: pickupOrder - 1 counts FINISHED stops too, which is how
+    // the card read 6 while the marker (real count) read 3. When there is no
+    // route pool the pill falls back to remainingStops instead of guessing.
   }
 
   // ── TRANSFER HISTORY ─────────────────────────────────────────────────────
