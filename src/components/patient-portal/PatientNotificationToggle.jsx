@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, BellOff, BellRing, Loader2, Share, X } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import {
   getPatientPushState,
   enablePatientPush,
@@ -62,6 +63,29 @@ export default function PatientNotificationToggle({ patient }) {
     no_push_manager: 'This build cannot use web notifications. Update the RxDeliver app and try again.',
     push_plugin_missing: 'This build of the app has no notification plugin. Update the RxDeliver app, then try again.',
     no_vapid_key: 'Notifications are not configured on the server yet.',
+  };
+
+  // OWNER REQUEST (Nov 25 2026): a one-tap test so a device can prove it really
+  // shows an alert, instead of waiting for a delivery push to guess.
+  const handleTest = async () => {
+    setBusy(true);
+    setNotice('');
+    try {
+      const res = await base44.functions.invoke('patientPush', {
+        action: 'test',
+        patient_id: patient?.id,
+        title: 'RxDeliver test',
+        body: 'Test notification from your pharmacy',
+      });
+      const data = res?.data || res || {};
+      const sent = Number(data?.sent || 0);
+      setNotice(sent > 0
+        ? 'Test sent. It should arrive in a moment.'
+        : `No device accepted it (${data?.reason || data?.errors?.[0] || 'unknown'}).`);
+    } catch (err) {
+      setNotice(`Test failed: ${err?.message || 'unknown error'}`);
+    }
+    setBusy(false);
   };
 
   const handleEnable = async () => {
@@ -177,6 +201,14 @@ export default function PatientNotificationToggle({ patient }) {
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 This device gets a phone alert when your pharmacy replies or when your delivery is on the way.
               </p>
+              <button
+                onClick={handleTest}
+                disabled={busy}
+                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-60"
+              >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+                Send a test notification
+              </button>
               <button
                 onClick={handleDisable}
                 disabled={busy}

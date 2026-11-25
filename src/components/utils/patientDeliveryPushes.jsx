@@ -179,7 +179,11 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
               patientName,
               window: windowText(pickupMinutes),
             });
-            await pushPatient(delivery.patient_id, title, body, `rx-pending-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name, sender_name: delivery.driver_name });
+            // The notice is credited to the driver who owns the stop, so it never
+          // reads as a pharmacy-team message he did not send.
+          const creatorName = String(delivery.driver_name || '').trim()
+            || String(userRef.current?.user_name || userRef.current?.full_name || '').trim();
+          await pushPatient(delivery.patient_id, title, body, `rx-pending-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name, sender_name: creatorName });
             entry.pending = true;
             entry.etaEnd = pickupMinutes + 30;
           }

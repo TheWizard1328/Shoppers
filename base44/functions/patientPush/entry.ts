@@ -510,14 +510,34 @@ Deno.serve(async (req) => {
       const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
       const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
       const vapidSubject = Deno.env.get('VAPID_SUBJECT');
-      if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
-        return { sent: 0, removed: 0, errors: ['VAPID keys not configured'], reason: 'no_vapid' };
-      }
+      const hasVapid = !!(vapidPublicKey && vapidPrivateKey && vapidSubject);
+      if (hasVapid) webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
-      webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
       let sent = 0, removed = 0;
       const errors: string[] = [];
       await Promise.all(subs.map(async (sub: any) => {
+        // OWNER REPORT (Nov 25 2026): the delivery notices never reached the
+        // Android app because every endpoint was handed to web-push, including the
+        // APK's fcm:// token. FCM tokens now go through FCM.
+        if (String(sub.endpoint || '').startsWith('fcm://')) {
+          const token = String(sub.endpoint).slice('fcm://'.length);
+          const r = token
+            ? await sendFcmPush(token, { ...notification, patient_id })
+            : { ok: false, status: 'NO_TOKEN' } as { ok: boolean; status?: string };
+          if (r.ok) {
+            sent++;
+            await base44.asServiceRole.entities.PushSubscription
+              .update(sub.id, { last_used_at: new Date().toISOString() })
+              .catch(() => {});
+          } else if (r.status === 'NOT_FOUND' || r.status === 'UNREGISTERED') {
+            await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
+            removed++;
+          } else {
+            errors.push(`fcm:${r.status || 'error'}`);
+          }
+          return;
+        }
+        if (!hasVapid) { errors.push('VAPID keys not configured'); return; }
         try {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } },
@@ -560,6 +580,21 @@ Deno.serve(async (req) => {
     //      messages cannot fire a second notification for the same event;
     //   3. repeat calls are no-ops: an identical body already in this patient's
     //      store thread within the last 12h is treated as sent.
+    // OWNER REPORT (Nov 25 2026): a one-tap test so a patient (or the owner
+    // testing her devices) can prove the alert path without waiting for a stop.
+    if (action === 'test') {
+      const result = await deliverPush({
+        title: 'RxDeliver test',
+        body: 'Test notification from your pharmacy',
+        url: '/patient-portal',
+        tag: 'rxdeliver-test',
+        timestamp: Date.now(),
+        requireInteraction: false,
+        patient_id,
+      });
+      return Response.json({ ok: true, ...result });
+    }
+
     if (action === 'notify') {
       if (!result.sent) return Response.json({ ok: true, ...result, in_app: false });
       const text = String(body || '').trim();

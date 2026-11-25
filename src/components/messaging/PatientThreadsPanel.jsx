@@ -30,6 +30,7 @@ import {
   removeCachedMessages,
 } from './messageCache';
 import { searchPatientsIdb } from './patientSearchIdb';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 
 /**
@@ -112,6 +113,33 @@ export default function PatientThreadsPanel({
   // A staff member sees a patient ONLY once a thread exists with them: the list
   // is built from thread messages, so the whole patient roster is never loaded
   // (that lookup per store was hammering the online patient table).
+  // OWNER REPORT (Nov 25 2026): the driver's thread list showed "Patient" instead
+  // of the patient's name. A row written without a real name (a notice row, or a
+  // reply whose receiver_name fell back to the literal "Patient") used to win, so
+  // the list had nothing better. Placeholder names are now ignored and the name is
+  // resolved from the patients already cached on this device.
+  const nameIndex = useRef(new Map());
+  const [, setNameIndexVersion] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    offlineDB.getAll(offlineDB.STORES.PATIENTS).then((rows) => {
+      if (cancelled) return;
+      const map = new Map();
+      (rows || []).forEach((p) => {
+        const nm = String(p?.full_name || '').trim();
+        if (p?.id && nm) map.set(String(p.id), nm);
+      });
+      nameIndex.current = map;
+      setNameIndexVersion((v) => v + 1);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const isPlaceholderName = (name) => {
+    const nm = String(name || '').trim();
+    return !nm || /^(patient|driver|unknown)$/i.test(nm);
+  };
+
   const patients = useMemo(() => {
     const byId = new Map();
     for (const m of messages || []) {
@@ -119,12 +147,18 @@ export default function PatientThreadsPanel({
       if (!pid) continue;
       const nameFromRow = isPatientSender(m.sender_id) ? m.sender_name : m.receiver_name;
       const entry = byId.get(pid) || { id: pid, full_name: '', phone: '', store_id: m.store_id || '' };
-      if (!entry.full_name && nameFromRow) entry.full_name = nameFromRow;
+      if (isPlaceholderName(entry.full_name) && !isPlaceholderName(nameFromRow)) entry.full_name = nameFromRow;
       if (!entry.store_id && m.store_id) entry.store_id = m.store_id;
       byId.set(pid, entry);
     }
+    for (const entry of byId.values()) {
+      if (isPlaceholderName(entry.full_name)) {
+        const cached = nameIndex.current.get(String(entry.id));
+        if (cached) entry.full_name = cached;
+      }
+    }
     return Array.from(byId.values());
-  }, [messages]);
+  }, [messages, nameIndexVersion]);
 
   // Delivery.driver_id = AUTH user id, which is AppUser.user_id.
   const driverId = currentUser?.user_id || currentUser?.id;
