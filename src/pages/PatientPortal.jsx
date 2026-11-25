@@ -569,15 +569,26 @@ export default function PatientPortal({ embedded = false } = {}) {
   // Inner fit paddings handed to every auto-fit call: top clears the floating
   // today card WHEN IT IS SHOWING (otherwise just the base 115), bottom clears
   // the tracking badge that now lives down there.
+  // OWNER REQUEST (Nov 25 2026): the map's bottom buffer must also clear the
+  // "Tracking driver" pill, so the auto-fit frame grows by the pill's real
+  // height (measured, 26px fallback) plus the 10px it floats above the edge.
+  const trackingPillRef = useRef(null);
+  const [trackingPillHeight, setTrackingPillHeight] = useState(26);
+  useEffect(() => {
+    const el = trackingPillRef.current;
+    const h = el?.offsetHeight;
+    if (h > 0) setTrackingPillHeight((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+  }, [showLiveTracking, driverLocation, trackingMode]);
+
   const mapPad = useMemo(() => ({
     left: 20,
     right: 20,
-    bottom: 35,
+    bottom: 35 + (showLiveTracking && driverLocation ? trackingPillHeight + 10 : 0),
     // Card showing (sidebar hidden on a narrow screen): card height + 32
     // (was + 52, cut by 20 per owner tweak Nov 2 2026). Sidebar visible: 35,
     // identical to the bottom padding.
     top: showFloatTodayCard && floatCardHeight ? floatCardHeight + 32 : PORTAL_PAD_TOP_DEFAULT
-  }), [showFloatTodayCard, floatCardHeight]);
+  }), [showFloatTodayCard, floatCardHeight, showLiveTracking, driverLocation, trackingPillHeight]);
   const [driverLocation, setDriverLocation] = useState(null);
 
   // ── Dark mode map tiles (owner Oct 23 2026): follow the app's theme ────────
@@ -1818,6 +1829,7 @@ export default function PatientPortal({ embedded = false } = {}) {
                    canvas shrink so it never covers the HERE attribution. */}
             {showLiveTracking && driverLocation &&
             <div
+              ref={trackingPillRef}
               className="absolute inset-x-0 z-[1000] pointer-events-none flex justify-center px-2"
               style={{ bottom: 'calc(var(--portal-map-shrink, 0px) + 10px)' }}>
               <div className={`whitespace-nowrap text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
