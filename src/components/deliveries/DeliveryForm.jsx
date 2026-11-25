@@ -77,6 +77,7 @@ import DeliveryFormView from './DeliveryFormView';
 import { isAdminUser } from '@/components/utils/pastDateAddGuard';
 import { syncDeliverySquareCod } from '../utils/squareCodSync';
 import { calculateDistanceKmSafe as calculateDistance } from '@/components/utils/geoUtils';
+import { resolveHereDistanceKm } from '@/components/utils/hereDistance';
 import { edmontonTodayKey } from '@/components/utils/albertaTime';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={!!checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400 dark:text-slate-400' : ''}`}>{label}</Label></div>);
@@ -355,6 +356,7 @@ export default function DeliveryForm({
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null, transferPickupId: null });
   const [isDeletingPending, setIsDeletingPending] = useState(false);
   const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
+  const transferDistanceTokenRef = useRef(0);
   const { deviceType } = useDevice();
   const isMobileDevice = deviceType === 'Mobile';
   const shouldAutoFocusFields = !isMobileDevice || (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && (window.matchMedia('(pointer: fine)').matches || window.matchMedia('(any-pointer: fine)').matches) && (window.matchMedia('(hover: hover)').matches || window.matchMedia('(any-hover: hover)').matches));
@@ -1167,7 +1169,21 @@ export default function DeliveryForm({
     setNewPatientMode('transfer');
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
+    const distanceToken = ++transferDistanceTokenRef.current;
     await handlePatientSelect(draft, false);
+    // OWNER RULE (Nov 24 2026): the form's Dist from store is the HERE road
+    // distance. The straight-line stamp above only holds the field until HERE answers.
+    resolveHereDistanceKm(targetStore.latitude, targetStore.longitude, patient.latitude, patient.longitude)
+      .then((hereKm) => {
+        if (distanceToken !== transferDistanceTokenRef.current || hereKm === null) return;
+        setSelectedPatient((prev) => (prev && prev._transferSource?.id === patient.id ? { ...prev, distance_from_store: hereKm } : prev));
+        setFormData((prev) => (
+          prev.patient_name === draft.full_name && prev.store_id === targetStore.id
+            ? { ...prev, distance_from_store: hereKm }
+            : prev
+        ));
+      })
+      .catch(() => {});
     // handlePatientSelect re-locks the search in add_to_route mode, which made the
     // no-match panel (Other Stores / Add New Patient) reappear over the filled form.
     // A transfer is a finished choice, so the panel closes and stays closed.

@@ -1,4 +1,5 @@
 import { buildTransferPatientPayload } from './patientTransferHelpers';
+import { resolveHereDistanceKm } from '@/components/utils/hereDistance';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { addMinutes, format } from 'date-fns';
 
@@ -109,6 +110,12 @@ export const createPatientFromDraft = async ({
     const targetStore = store || { id: formData.store_id, latitude: null, longitude: null };
     const payload = buildTransferPatientPayload({ source, targetStore });
     if (!payload) throw new Error('Transfer details are incomplete.');
+    // OWNER RULE (Nov 24 2026): the stored distance is the HERE road distance.
+    // buildTransferPatientPayload stamps the straight line; replace it before the write.
+    const hereKm = await resolveHereDistanceKm(
+      targetStore.latitude, targetStore.longitude, source.latitude, source.longitude,
+    );
+    if (hereKm !== null) payload.distance_from_store = hereKm;
     const patient = await createPatientLocal(payload);
     if (updatePatientLocal && source.id) {
       await updatePatientLocal(source.id, { status: 'inactive' }).catch(() => {});
@@ -119,24 +126,6 @@ export const createPatientFromDraft = async ({
       store_id: patient.store_id || prev.store_id,
       distance_from_store: patient.distance_from_store ?? prev.distance_from_store,
     }));
-    // Heal the straight-line stamp to the real road distance from the new store.
-    try {
-      const sLat = Number(targetStore.latitude);
-      const sLng = Number(targetStore.longitude);
-      const pLat = Number(source.latitude);
-      const pLng = Number(source.longitude);
-      if ([sLat, sLng, pLat, pLng].every(Number.isFinite) && updatePatientLocal) {
-        const { base44 } = await import('@/api/base44Client');
-        base44.functions.invoke('getGoogleDrivingDistance', {
-          originLat: sLat, originLng: sLng, destLat: pLat, destLng: pLng,
-        }).then(async (res) => {
-          const km = Number(res?.data?.distance_km ?? res?.distance_km);
-          if (Number.isFinite(km) && km > 0) {
-            await updatePatientLocal(patient.id, { distance_from_store: Math.round(km * 100) / 100 }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
-    } catch (_) { /* offline — the straight-line stamp stands */ }
     return { patient, isNewPatient: true };
   }
 
