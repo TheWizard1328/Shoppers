@@ -259,6 +259,80 @@ export async function enablePatientPush(patient) {
   }
 }
 
+/** Silent re-registration on portal boot.
+ *  OWNER REPORT (Nov 25 2026): an Android PWA showed notifications as OFF again
+ *  after the portal restarted — the toggle only ever read state, so a dropped
+ *  subscription (or a not-yet-ready service worker) read as off until the patient
+ *  tapped the button again. This repairs the device WITHOUT a prompt: if the
+ *  permission is already granted it re-subscribes when needed and re-registers
+ *  with the server, so the toggle stays green across restarts.
+ */
+export async function ensurePatientPushRegistered(patient) {
+  if (!patient?.id) return { ok: false, reason: 'no_patient' };
+
+  if (isNativeAndroid()) {
+    try {
+      const { PushNotifications } = await getNativePushPlugin();
+      const perm = await PushNotifications.checkPermissions();
+      if (perm?.receive !== 'granted') return { ok: false, reason: 'permission' };
+      const cached = localStorage.getItem(PATIENT_FCM_TOKEN_KEY);
+      if (!cached) return { ok: false, reason: 'no_token' };
+      const res = await base44.functions.invoke('patientPush', {
+        action: 'register',
+        patient_id: patient.id,
+        subscription: { endpoint: `fcm://${cached}`, keys: { p256dh: '', auth: '' } },
+        device_identifier: getPatientDeviceId(),
+        user_agent: navigator.userAgent || '',
+      });
+      const ok = res?.data?.ok === true || res?.ok === true;
+      return { ok, reason: ok ? null : (res?.data?.error || 'register_failed') };
+    } catch (error) {
+      return { ok: false, reason: error?.message || 'error' };
+    }
+  }
+
+  if (!pushSupported() || (isIosDevice() && !isStandalonePwa())) return { ok: false, reason: 'unsupported' };
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+    return { ok: false, reason: 'permission' };
+  }
+
+  try {
+    // Wait for the service worker to be ready instead of giving up on a boot race.
+    let reg = await getRegistration();
+    if (!reg?.pushManager && 'serviceWorker' in navigator) {
+      reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((resolve) => setTimeout(() => resolve(null), 4000)),
+      ]);
+    }
+    if (!reg?.pushManager) return { ok: false, reason: 'no_push_manager' };
+
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const keyRes = await base44.functions.invoke('patientPush', { action: 'vapid' });
+      const publicKey = keyRes?.data?.publicKey || keyRes?.publicKey;
+      if (!publicKey) return { ok: false, reason: 'no_vapid_key' };
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+    if (!sub) return { ok: false, reason: 'no_subscription' };
+
+    const res = await base44.functions.invoke('patientPush', {
+      action: 'register',
+      patient_id: patient.id,
+      subscription: { endpoint: sub.endpoint, keys: { p256dh: sub.toJSON().keys.p256dh, auth: sub.toJSON().keys.auth } },
+      device_identifier: getPatientDeviceId(),
+      user_agent: navigator.userAgent || '',
+    });
+    const ok = res?.data?.ok === true || res?.ok === true;
+    return { ok, reason: ok ? null : (res?.data?.error || 'register_failed') };
+  } catch (error) {
+    return { ok: false, reason: error?.message || 'error' };
+  }
+}
+
 /** Remove this device's subscription for the patient. */
 export async function disablePatientPush(patient) {
   if (!patient?.id) return { ok: false };

@@ -1477,8 +1477,14 @@ export default function PatientPortal({ embedded = false } = {}) {
     }
 
     const DONE = ['completed', 'failed', 'cancelled'];
+    // OWNER REPORT (Nov 25 2026): a freshly added PENDING stop has no stop_order
+    // yet, and Number(null) is 0, so it slipped under the cap and dragged the
+    // frame out to future pickups. Only ordered, ACTIVE stops may frame.
+    const ACTIVE_FOR_FIT = ['in_transit', 'en_route'];
     for (const d of routeDeliveries || []) {
       if (DONE.includes(d.status)) continue; // finished stop — never a fit point
+      if (!ACTIVE_FOR_FIT.includes(String(d?.status || '').toLowerCase())) continue; // pending never frames
+      if (d.stop_order == null || d.stop_order === '' || !Number.isFinite(Number(d.stop_order))) continue;
       if (Number(d.stop_order) >= boundCapOrder) continue; // nothing past the cap
 
       let pt = null;

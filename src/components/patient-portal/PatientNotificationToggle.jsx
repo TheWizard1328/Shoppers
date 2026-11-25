@@ -12,6 +12,7 @@ import {
   disablePatientPush,
   isIosDevice,
   isStandalonePwa,
+  ensurePatientPushRegistered,
   getPushDiagnostics } from
 './patientPushClient';
 
@@ -46,6 +47,18 @@ export default function PatientNotificationToggle({ patient }) {
   useEffect(() => {
     refresh();
   }, [refresh, patient?.id]);
+
+  // OWNER REPORT (Nov 25 2026): the portal came back with notifications OFF on an
+  // Android PWA after every restart. Repair the registration silently on boot so
+  // an already-granted device stays registered and the toggle stays green.
+  useEffect(() => {
+    if (!patient?.id) return undefined;
+    let cancelled = false;
+    ensurePatientPushRegistered(patient)
+      .then(() => { if (!cancelled) refresh(); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [patient?.id, refresh]);
 
   // Re-read the state whenever the patient comes back to the tab — permission may
   // have been changed in the browser/app settings while they were away.
