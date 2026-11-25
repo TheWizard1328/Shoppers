@@ -119,7 +119,7 @@ export default function PatientThreadsPanel({
   // the list had nothing better. Placeholder names are now ignored and the name is
   // resolved from the patients already cached on this device.
   const nameIndex = useRef(new Map());
-  const [, setNameIndexVersion] = useState(0);
+  const [nameIndexVersion, setNameIndexVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     offlineDB.getAll(offlineDB.STORES.PATIENTS).then((rows) => {
