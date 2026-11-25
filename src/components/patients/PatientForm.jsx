@@ -327,7 +327,9 @@ export default function PatientForm({
 
       // Generate new patient ID for duplicate modes
       let newPID = patient.patient_id || "";
-      if (duplicateMode === 'newAddress' || duplicateMode === 'duplicate') {
+      // 'transfer' (cross-store transfer, Nov 24 2026) is a NEW record too, so it
+      // gets its own pharmacy identifier like a duplicate does.
+      if (duplicateMode === 'newAddress' || duplicateMode === 'duplicate' || duplicateMode === 'transfer') {
         newPID = generatePatientId(allPatientsRef.current.map((p) => p.patient_id));
       }
 
