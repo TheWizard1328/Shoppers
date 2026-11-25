@@ -124,7 +124,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
           'bg-slate-700 border-slate-600 text-slate-200' :
           'bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300';
       return (
-        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${cls}`}>
+        <span className={`inline-flex items-center justify-center w-full px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight text-center ${cls}`}>
           {label}
         </span>);
     })() : null;
@@ -177,22 +177,29 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
               both flush to the same right edge) and the chevron owns a column of its
               own, centred against the stack. The old invisible-chevron spacer is
               gone because nothing has to be balanced any more. */}
+          {/* BADGE COLUMN (owner request Nov 25 2026): "in the today card can we
+              make sure the status badge, the ETA and the number of stops away are
+              all properly aligned and preferably all the same width." All three
+              share ONE fixed-width column (status, ETA, stops) so their edges line
+              up exactly; the stops line wraps rather than widening the column and
+              the chevron keeps its own column. */}
           <div className="flex items-start gap-1.5 flex-shrink-0">
-            <div className="flex flex-col items-end gap-1">
-              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
+            <div className="flex flex-col items-stretch gap-1 w-[128px] flex-shrink-0">
+              <span className={`inline-flex items-center justify-center gap-1 w-full text-xs font-medium px-2 py-0.5 rounded-full border ${
               `${config.bg} ${config.border} ${config.color}`}`
               }>
                 <Icon className="w-3 h-3" />
                 {config.label}
               </span>
               {subBadge && (subBadge.pill ?
-              <span className={`inline-flex items-center justify-center rounded-full border font-semibold leading-tight tabular-nums whitespace-nowrap text-xs px-2 py-0.5 ${subBadge.pillCls}`}>
+              <span className={`inline-flex items-center justify-center w-full rounded-full border font-semibold leading-tight tabular-nums text-center text-xs px-2 py-0.5 ${subBadge.pillCls}`}>
                   {subBadge.text}
                 </span> :
-              <span className={`text-xs font-medium leading-tight text-right whitespace-nowrap ${subBadge.color}`}>
+              <span className={`inline-flex items-center justify-center w-full rounded-full border font-semibold leading-tight tabular-nums text-center text-xs px-2 py-0.5 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 ${subBadge.color}`}>
                   {subBadge.text}
                 </span>)
               }
+              {stopsPill}
             </div>
             <div className="flex items-center self-stretch pt-0.5">
               {expanded ?
@@ -210,11 +217,9 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
           <span className={`font-semibold text-xs flex-shrink-0 text-slate-800 dark:text-slate-200`}>
             {dateStr}
           </span>
-          <span className="flex-1 flex items-center justify-center min-w-0">
-            {stopsPill}
-          </span>
-          {/* The time / ETA badge moved up into the right-hand badge stack
-              (owner request Nov 23 2026), so this row is date + stops only. */}
+          {/* The stops-away count moved up into the right-hand badge column
+              (owner request Nov 25 2026) so it lines up with the status badge and
+              the ETA at the same width; this row carries the date alone. */}
         </div>
       </button>
 
