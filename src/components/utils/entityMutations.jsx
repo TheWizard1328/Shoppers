@@ -690,6 +690,30 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
     ? window.__appDeliveries.find(d => d?.id === deliveryId)
     : null;
 
+  // OWNER RULE (Nov 25 2026): a stop TRANSFERRED TO ANOTHER DATE takes that
+  // date's windows — the patient's own window wins outright, otherwise 5 minutes
+  // after the driver's first stop that date (or the store pickup, whichever is
+  // later) — never the times the record was carrying from the old date.
+  try {
+    const { hasDateChange, applyDateTransferWindows } = await import('./dateTransferWindows');
+    // The stop is not always in the state mirror (another driver's date being
+    // written from a bulk edit) — fall back to the cached record so a date move
+    // is never missed.
+    let existingForMove = inMemory;
+    if (!existingForMove) {
+      try { existingForMove = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId); } catch (_) { existingForMove = null; }
+    }
+    if (hasDateChange(existingForMove, sanitizedUpdates)) {
+      const windowFix = await applyDateTransferWindows({ existing: existingForMove, updates: sanitizedUpdates });
+      if (windowFix) {
+        Object.assign(sanitizedUpdates, windowFix);
+        console.log('[EntityMutations] date transfer — windows repopulated', deliveryId, windowFix.delivery_time_start);
+      }
+    }
+  } catch (error) {
+    console.warn('[EntityMutations] date-transfer window resolve failed:', error?.message || error);
+  }
+
   // Owner rule Oct 30 2026 + Nov 2 2026: a stop moved to another date or driver
   // must not carry the old leg — deviation waypoints AND the polyline state are
   // cleared before the move lands.
