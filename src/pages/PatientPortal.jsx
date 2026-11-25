@@ -1412,13 +1412,11 @@ export default function PatientPortal({ embedded = false } = {}) {
       return nearest >= leg.length - 1 ? [] : leg.slice(nearest);
     };
 
+    // OWNER RULE (Nov 25 2026, screenshot): the frame is built from POINTS only.
+    // Leg geometry was still a fit source, and a leg that swings away from the
+    // three markers dragged the centre off them (crosshairs sat left of the
+    // truck, store and home). No polyline is sampled here any more.
     const pts = [];
-    // Legs beyond the current stop stay whole: they run from an ACTIVE stop to
-    // an ACTIVE stop, so nothing finished is anchored.
-    (staticPolylineSegments || []).forEach((leg) => sampleLeg(leg, pts));
-    sampleLeg(trimBehindDriver(currentLegCoords), pts);
-    // firstLegCoords (store → first stop) is deliberately NOT a fit source: it is
-    // the leg behind the driver, the very "dead anchor" the Oct 23 fix removed.
 
     // Stop positions on top of the painted geometry: legs are painted only for
     // stops that already have one, so this still covers a stop the route has not
