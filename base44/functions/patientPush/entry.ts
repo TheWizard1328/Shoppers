@@ -561,11 +561,36 @@ Deno.serve(async (req) => {
     // Returns how many devices the push service ACCEPTED. Web push has no
     // receipt, so `sent` means "at least one device was reachable", not "the
     // patient saw it". Dead endpoints (404/410) are pruned here.
-    const deliverPush = async (notification: any) => {
-      const subs = await base44.asServiceRole.entities.PushSubscription
+    const deliverPush = async (notification: any, opts: any = {}) => {
+      const allSubs = await base44.asServiceRole.entities.PushSubscription
         .filter({ user_id: ownerKey(patient_id) })
         .catch(() => []);
-      if (!subs || subs.length === 0) return { sent: 0, removed: 0, errors: [] as string[], reason: 'no_devices' };
+      if (!allSubs || allSubs.length === 0) return { sent: 0, removed: 0, errors: [] as string[], reason: 'no_devices' };
+
+      // ── PATIENT-ONLY NOTICES (owner report Nov 25 2026) ────────────────────
+      // A delivery notice is the PATIENT's business. One physical phone holds a
+      // single FCM token, so a device that also signs in as staff/driver can be
+      // registered BOTH as `patient:<id>` (portal test session) and as that
+      // staff user. Sending the notice to that endpoint showed the patient's
+      // delay message to the driver. Any endpoint that also carries a non-patient
+      // registration is dropped for automated delivery notices.
+      let subs = allSubs;
+      if (opts.patientOnly) {
+        const kept: any[] = [];
+        for (const sub of allSubs) {
+          if (!sub?.endpoint) continue;
+          const sameEndpoint = await base44.asServiceRole.entities.PushSubscription
+            .filter({ endpoint: sub.endpoint })
+            .catch(() => []);
+          const staffOwned = (sameEndpoint || []).some(
+            (r: any) => r?.user_id && !String(r.user_id).startsWith('patient:')
+          );
+          if (staffOwned) continue;
+          kept.push(sub);
+        }
+        subs = kept;
+        if (subs.length === 0) return { sent: 0, removed: 0, errors: [] as string[], reason: 'staff_device_only' };
+      }
 
       const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
       const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
@@ -650,7 +675,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const result = await deliverPush(notification);
+    const result = await deliverPush(notification, { patientOnly: action === 'notify' });
 
     // ── 'notify': the one outbound path for delivery state messages ─────────
     // OWNER RULES (Nov 24 2026):

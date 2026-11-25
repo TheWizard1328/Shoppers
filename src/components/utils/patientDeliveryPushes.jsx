@@ -210,7 +210,15 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
       if (primaryDevice && entry.pickup && eta != null) {
         const newEnd = eta + 30;
         const sentEnd = Number(entry.etaEnd || 0);
-        if (sentEnd && newEnd > sentEnd) {
+        // OWNER REPORT (Nov 25 2026): Katelyn got three "slightly delayed"
+        // notices in six minutes because the old test fired on ANY minute of
+        // slip. A delay notice now needs a REAL slip of at least 15 minutes on
+        // top of what she was last told, and at most one every 20 minutes.
+        const DELAY_SLIP_MIN = 15;
+        const DELAY_COOLDOWN_MS = 20 * 60 * 1000;
+        const slippedEnough = sentEnd && newEnd - sentEnd >= DELAY_SLIP_MIN;
+        const cooledDown = !entry.delayedAt || now - Number(entry.delayedAt) >= DELAY_COOLDOWN_MS;
+        if (slippedEnough && cooledDown) {
           const body = buildPatientDeliveryMessage({
             state: 'delayed',
             patientName,
