@@ -40,6 +40,9 @@ import { BALANCE_LEVELS } from './useSquareBalancesSummary';
 
 const DISMISS_KEY = 'rxdeliver_sq_lowbal_dismiss';
 const PUSH_DEDUP_KEY = 'square_low_balance_alert';
+// Fresh-compute imports (owner report Nov 25 2026): a push must quote the number
+// the Square Balances page shows, never a stale pipeline snapshot.
+import { refreshSquareBalancesNow, getSquareBalancesSnapshot } from './useSquareBalancesSummary';
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;   // dismissal lasts a day (or until the state worsens)
 const PUSH_CARD_COOLDOWN_MS = 60 * 60 * 1000; // min gap between pushes for one card (owner spec Oct 13 2026)
 const PUSH_BALANCE_CHANGE_MIN = 5;            // $ — DOWNWARD drop that warrants a push (jitter never fires)
@@ -339,12 +342,35 @@ export default function SquareLowBalanceAlert({ ready, byLocId, currentUser, sid
         // read its claim and stay silent.
         await new Promise((r) => { setTimeout(r, Math.floor(Math.random() * PUSH_STAGGER_MAX_MS)); });
         if (cancelled) return;
+        // ── VERIFY BEFORE QUOTING (owner report Nov 25 2026) ────────────────
+        // "I keep getting notifications for stores having balances below the
+        // actual amount I'm seeing in the app — Bonnie Doon said $28 but the app
+        // shows $54." The cards used to come straight from the shared snapshot,
+        // which can be minutes old (60s cache, duty gate, boot IDB hydration).
+        // Force one fresh compute and quote THAT; if the card is no longer low,
+        // nothing pushes and the dedup record just stores the true balance.
+        let verifiedCards = lowCardsRef.current || [];
+        // The Square Balances page is the number the owner watches, so a snapshot
+        // IT published in the last 5 minutes is already the truth — never
+        // overwrite that with the pipeline's gated compute. Anything else gets
+        // one forced recompute before a number is quoted.
+        const _snap0 = getSquareBalancesSnapshot();
+        const _pageFresh = _snap0?.publishedFrom === 'balances_page' &&
+          (Date.now() - Number(_snap0?.publishedAt || 0)) < 5 * 60 * 1000;
+        try {
+          if (!_pageFresh) await refreshSquareBalancesNow();
+          const snap = getSquareBalancesSnapshot();
+          if (snap?.byLocId && typeof snap.byLocId.size === 'number' && snap.byLocId.size > 0) {
+            verifiedCards = computeLowBalanceCards(snap.byLocId);
+          }
+        } catch (_) { /* keep the snapshot's cards if the refresh fails */ }
+        if (cancelled) return;
         const { ok, rec, stale } = await readPushDedupRecord();
         if (!ok) return; // unreadable record → never push (restart-spam root cause)
         if (cancelled) return;
         const prevCards = rec?.setting_value?.cards || null;
         const now = Date.now();
-        const cards = lowCardsRef.current || [];
+        const cards = verifiedCards;
         const { pushCards, nextCards } = computeLowBalancePushes(cards, prevCards, now);
         if (cancelled) return;
         const prevSnapshot = prevCards ? JSON.stringify(prevCards) : '';

@@ -2307,6 +2307,12 @@ const storeApply = (data) => {
     storeNames: data.storeNames,
     dailyRemainingByStore: data.dailyRemainingByStore,
     payoutsByLoc: data.payoutsByLoc || new Map(),
+    // PROVENANCE (owner report Nov 25 2026): the Square Balances page publishes
+    // its own fresh math through publishFromBalancesPage. Tagging the snapshot
+    // lets a push tell "the owner's page computed this" apart from "the gated
+    // pipeline guessed this", so it never re-quotes a stale number.
+    publishedFrom: data.publishedFrom || null,
+    publishedAt: Number(data.publishedAt || 0),
   };
   storeSubs.forEach((fn) => { try { fn(); } catch {} });
 };
@@ -2669,6 +2675,15 @@ const storeReload = (force = false, attempt = 0, opts = {}) => {
   return storeReloadInFlight;
 };
 
+// FORCED RELOAD + SNAPSHOT READ (owner report Nov 25 2026): the low-balance
+// push quoted "Bonnie Doon card is at $28" while the Square Balances page showed
+// $54. The push reads whatever the shared pipeline holds, and that pipeline is
+// duty-gated, cached up to 60s and boot-hydrated from an IDB snapshot, so it can
+// lag the page's fresh math. Exported so a push can re-verify the exact number
+// it is about to quote instead of trusting a stale snapshot.
+export const refreshSquareBalancesNow = () => storeReload(true, 0, { manual: true });
+export const getSquareBalancesSnapshot = () => storeCurrent;
+
 const applyRemoteSharedSnapshot = (rec) => {
   try {
     const ver = Number(rec?.version || 0);
@@ -2732,6 +2747,8 @@ export const publishFromBalancesPage = async ({ byLocId, payoutsByLoc = null, de
     dailyRemainingByStore: base.dailyRemainingByStore,
     payoutsByLoc: payoutsByLoc || base.payoutsByLoc,
     deliveryCredits, sales, payouts, codOutstandingDetailed, config, configRecordId,
+    publishedFrom: 'balances_page',
+    publishedAt: Date.now(),
   };
   const ver = Date.now();
   if (ver > storeSharedVersion) storeSharedVersion = ver;
