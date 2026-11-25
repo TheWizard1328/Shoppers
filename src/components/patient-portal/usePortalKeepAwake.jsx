@@ -37,10 +37,19 @@ export function usePortalKeepAwake() {
 
     const publish = () => {
       if (stopped) return;
-      setState({
-        lock: !!(wakeLock && !wakeLock.released),
-        video: !!(videoEl && videoEl.isConnected && !videoEl.paused)
-      });
+      const lockHeld = !!(wakeLock && !wakeLock.released);
+      const videoOn = !!(videoEl && videoEl.isConnected && !videoEl.paused);
+      setState({ lock: lockHeld, video: videoOn });
+      // Read by the bell panel's "Screen wake:" line.
+      try {
+        window.__rxKeepAwake = {
+          lock: lockHeld,
+          video: videoOn,
+          ios: /iphone|ipad|ipod/i.test(navigator.userAgent),
+          forced: true,
+          at: Date.now(),
+        };
+      } catch { /* no window */ }
     };
 
     const startVideo = () => {

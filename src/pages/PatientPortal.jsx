@@ -22,7 +22,6 @@ import { patientPortalPing } from '@/functions/patientPortalPing';
 import UpdateInfoBalloon from '@/components/common/UpdateInfoBalloon';
 import { useWebUpdateCheck } from '@/components/utils/useWebUpdateCheck';
 import { initInteractionIdleTracker, getIdleMs } from '@/components/utils/interactionIdleTracker';
-import { useWakeLockAndVisibility } from '@/components/layout/useWakeLockAndVisibility';
 import { usePortalKeepAwake } from '@/components/patient-portal/usePortalKeepAwake';
 import { BAKED_APK_DIGIT, WEB_VERSION, formatVersionDigits } from '@/version';
 import { clearUserCache } from '@/components/utils/auth';
@@ -739,7 +738,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   // w321: the portal gets its OWN barrier (see usePortalKeepAwake). The shared
   // Layout hook is left mounted for its visibility/sync behaviour, but the screen
   // itself is held by the portal hook, which has no app-shell guards at all.
-  useWakeLockAndVisibility({ forceKeepAwake: true });
+  // ONE keep-awake path on the portal (owner question Nov 25 2026: how many are
+  // there?). The driver app uses useWakeLockAndVisibility inside Layout; the portal
+  // renders outside Layout, so it runs its own dedicated barrier below. Calling the
+  // shared hook here too meant two locks and two barrier videos fighting, so that
+  // duplicate call is gone.
   const keepAwake = usePortalKeepAwake();
   useEffect(() => {
     // Idle measurement lives in the shared tracker (Layout owns the same one;
@@ -1017,9 +1020,11 @@ export default function PatientPortal({ embedded = false } = {}) {
   // included (Phoenix Campbell: 5 in transit + 3 en-route pickups = 8, her own
   // pending stop excluded, and the card shows the same 8 as the map badge).
   const countStopsRemaining = useCallback((routeDeliveries, patientDelivery) => {
-    const TERMINAL = ['completed', 'failed', 'cancelled'];
+    // OWNER RULE (Nov 25 2026): only ACTIVE stops count — a pending stop is not on
+    // the road yet, so it must never inflate the "stops remaining" number.
+    const ACTIVE = ['in_transit', 'en_route'];
     return (routeDeliveries || []).filter(
-      (d) => d && d.id !== patientDelivery?.id && !TERMINAL.includes(d.status)
+      (d) => d && d.id !== patientDelivery?.id && ACTIVE.includes(String(d.status || '').toLowerCase())
     ).length;
   }, []);
 
