@@ -192,10 +192,15 @@ const notifyImpactWhileHidden = () => {
       if (typeof Notification === 'undefined') return;
       if (Notification.permission === 'default') await Notification.requestPermission();
       if (Notification.permission !== 'granted') return;
+      // OWNER REPORT (Nov 26 2026): the in-app siren is the ONLY sound. This OS
+      // notification was unsilent with renotify, so the device played its own
+      // alert tone over the siren (and kept alerting after the alert resolved on
+      // the tablet). Silent, no renotify, still sticky so it cannot be missed.
       const options = {
         body: 'Tap to open RxDeliver and confirm your emergency.',
         tag: 'rx-emergency-impact',
-        renotify: true,
+        renotify: false,
+        silent: true,
         requireInteraction: true,
         vibrate: [700, 250, 700, 250],
         data: { __emergency_impact: true }

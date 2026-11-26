@@ -79,7 +79,27 @@ export const startEmergencyAlarm = async () => {
   } catch { /* non-fatal */ }
 };
 
+// OWNER REPORT (Nov 26 2026): "my tablet runs the in-app crash clip but also keeps
+// playing its default notification sound until I pull down the shade and cancel."
+// The OS notification outlived the alert, so the device kept alerting after the
+// siren stopped. Closing the emergency notifications is part of stopping the alarm.
+const closeEmergencyNotifications = () => {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker?.getRegistration) return;
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg?.getNotifications) return;
+      reg.getNotifications({ includeTriggered: true }).then((list) => {
+        for (const n of (list || [])) {
+          const tag = String(n?.tag || '');
+          if (tag.startsWith('rx-emergency')) { try { n.close(); } catch { /* ignore */ } }
+        }
+      }).catch(() => null);
+    }).catch(() => null);
+  } catch { /* ignore */ }
+};
+
 export const stopEmergencyAlarm = () => {
+  closeEmergencyNotifications();
   running = false;
   if (toneTimer) { clearInterval(toneTimer); toneTimer = null; }
   if (vibrateTimer) { clearInterval(vibrateTimer); vibrateTimer = null; }
