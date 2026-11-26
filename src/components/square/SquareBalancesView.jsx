@@ -173,6 +173,21 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
   // PENDING SWIPES SECTION (owner request Nov 23 2026): sits directly above
   // Collected with the same header + card styling as the other sections.
   pendingSwipes = null, onDismissSwipe = null }) {
+  // OWNER REQUEST (Nov 26 2026): a card whose delivery is NOT today shows its
+  // delivery date under the time, on the fee row, left justified — and only
+  // when the row is not today's delivery.
+  const todayKey = edmontonBusinessDayKey(new Date());
+  const dayOfRow = (r) => {
+    const raw = String(r?.date || '');
+    if (raw) return raw.slice(0, 10);
+    const sub = String(r?.sub || '');
+    return /^\d{4}-\d{2}-\d{2}/.test(sub) ? sub.slice(0, 10) : '';
+  };
+  const pastDayLabel = (r) => {
+    const d = dayOfRow(r);
+    if (!d || d === todayKey) return '';
+    return `${d.slice(5, 7)}/${d.slice(8, 10)}`;
+  };
   // OWNER SPEC (Oct 8 2026, night): a 'Cash' badge on a COLLECTED row OR an
   // uncollected cash-awaiting-square row is clickable — the owner can
   // correct the recorded tender to Debit or Credit (which re-does the
@@ -474,7 +489,12 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
                             / loan split is now its OWN last row on the card, spaced out
                             instead of being squeezed between the date and the net amount. */}
               {showNetAmount && isOwner && r.feeParts &&
-                  <div className="flex items-center justify-center gap-2 text-[12px] tabular-nums text-slate-500 dark:text-slate-400">
+                  <div className="relative flex items-center justify-center gap-2 text-[12px] tabular-nums text-slate-500 dark:text-slate-400">
+                  {/* OWNER REQUEST (Nov 26 2026): delivery date, left justified under
+                      the time and on the fee row, absolutely placed so the S/F/L split
+                      stays exactly centred. Past deliveries only. */}
+                  {!!pastDayLabel(r) &&
+                      <span className="absolute left-0 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{pastDayLabel(r)}</span>}
                   <span>S: {r.feeParts.fee.toFixed(2)}</span>
                   <span className="text-slate-300 dark:text-slate-600">·</span>
                   <span>F: {r.feeParts.folder.toFixed(2)}</span>
