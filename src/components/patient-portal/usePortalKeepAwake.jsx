@@ -39,13 +39,23 @@ export function usePortalKeepAwake() {
       if (stopped) return;
       const lockHeld = !!(wakeLock && !wakeLock.released);
       const videoOn = !!(videoEl && videoEl.isConnected && !videoEl.paused);
-      setState({ lock: lockHeld, video: videoOn });
+      // OWNER REQUEST (Nov 25 2026): he tests the iPhone's screen-off bug on this
+      // badge, so it also reports the video's readyState, whether it is actually
+      // ADVANCING (a stalled WebKit video stays unpaused but stops counting), and
+      // whether this browser even has the Wake Lock API.
+      const ready = videoEl ? videoEl.readyState : -1;
+      const clock = videoEl && Number.isFinite(videoEl.currentTime) ? Math.round(videoEl.currentTime * 10) / 10 : 0;
+      const hasWakeLock = typeof navigator !== 'undefined' && 'wakeLock' in navigator;
+      setState({ lock: lockHeld, video: videoOn, ready, clock, hasWakeLock });
       // Read by the bell panel's "Screen wake:" line.
       try {
         window.__rxKeepAwake = {
           lock: lockHeld,
           video: videoOn,
           ios: /iphone|ipad|ipod/i.test(navigator.userAgent),
+          ready,
+          clock,
+          hasWakeLock,
           forced: true,
           at: Date.now(),
         };
