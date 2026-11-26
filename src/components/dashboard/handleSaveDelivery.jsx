@@ -24,6 +24,12 @@ function addMinutes(time, mins) {
 }
 
 export async function handleSaveDelivery(deliveryData, ctx) {
+  // OWNER RULE (Nov 25 2026): a stop transferred to ANOTHER DATE keeps its
+  // delivery start AND end BLANK — the patient window must not be copied back on
+  // by this save. DeliveryForm marks such a save; the marker is captured here and
+  // stripped so it is never written to IDB or the server.
+  const blankWindowOnTransfer = deliveryData?._blankWindowOnTransfer === true;
+  if (blankWindowOnTransfer) delete deliveryData._blankWindowOnTransfer;
   const {
     editingDelivery, drivers, deliveries, patients, stores, currentUser, selectedDate,
     updateDeliveriesLocally, applyDeliveryChangesLocally, refreshData, setShowDeliveryForm, setEditingDelivery,
@@ -377,6 +383,12 @@ export async function handleSaveDelivery(deliveryData, ctx) {
           stop.time_window_start = next.time_window_start;
           stop.time_window_end = next.time_window_end;
         }
+        // OWNER RULE (Nov 25 2026): a stop TRANSFERRED to another date keeps its
+        // window BLANK. The fallbacks below were refilling delivery_time_start
+        // AND delivery_time_end from the patient window on the very save that
+        // moved the stop, which is why Lothar's move to tomorrow came back with
+        // the patient's window. `_blankWindowOnTransfer` marks that save.
+        if (blankWindowOnTransfer && stop.id === editingDelivery?.id) continue;
         // Window rules (confirmed Sep 4 2026): patient window if present;
         // otherwise the assigned pickup's start +5 min (or the pickup's
         // estimated_arrival +5 when that's LATER); otherwise leave BLANK —

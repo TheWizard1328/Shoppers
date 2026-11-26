@@ -1669,7 +1669,13 @@ export default function DeliveryForm({
             // OWNER DECISION (Nov 25 2026): a date change leaves the start BLANK
             // (unless the patient has her own window) so the new date's optimizer
             // places the stop freely instead of clamping it to a fixed time.
-            if (placement.clearStart) dataToSave.delivery_time_start = '';
+            if (placement.clearStart) {
+              dataToSave.delivery_time_start = '';
+              dataToSave.delivery_time_end = '';
+              // Save-time signal: handleSaveDelivery must not refill these from
+              // the patient window (owner report Nov 25 2026).
+              dataToSave._blankWindowOnTransfer = true;
+            }
             else if (placement.delivery_time_start) dataToSave.delivery_time_start = placement.delivery_time_start;
             dataToSave.delivery_time_end = '';
             if (placement.delivery_notes) dataToSave.delivery_notes = placement.delivery_notes;
