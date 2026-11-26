@@ -36,7 +36,7 @@ import { format, addDays, differenceInCalendarDays, getDay, isSameDay, startOfWe
 import PatientCard from "../components/patients/PatientCard";
 import PatientForm from "../components/patients/PatientForm";
 import PatientDetails from "../components/patients/PatientDetails";
-import MobilePatientDetailsSheet from "../components/patients/MobilePatientDetailsSheet";
+import PatientHistoryPanel from "../components/dashboard/PatientHistoryPanel";
 
 import DeliveryForm from "../components/deliveries/DeliveryForm";
 import { getData, invalidate } from "../components/utils/dataManager";
@@ -2262,12 +2262,14 @@ export default function Patients() {
 
       {/* Floating Import Progress Indicator */}
 
-      {/* Mobile-only: slide-up patient details sheet when a patient is selected */}
+      {/* Mobile-only: the SAME slide-out patient panel the dashboard's stop card
+          menu opens (owner request Nov 26 2026). The local slide-up sheet kept
+          losing its top edge behind the mobile header; PatientHistoryPanel is the
+          proven one (fixed right drawer, z-52000, above header and bottom nav) and
+          fetches its own deliveries, so the page only passes the patient. */}
       {isMobile &&
-      <MobilePatientDetailsSheet
+      <PatientHistoryPanel
         patient={selectedPatient}
-        deliveries={selectedPatient ? getPatientDeliveries(selectedPatient.id) : []}
-        deliveryStats={selectedPatient ? getDeliveryStats(selectedPatient.id) : null}
         currentUser={currentUser}
         onClose={() => setSelectedPatient(null)}
         onEditDelivery={(delivery) => {
@@ -2275,11 +2277,7 @@ export default function Patients() {
           setPatientForNewDelivery(selectedPatient);
           setShowDeliveryForm(true);
           setSelectedPatient(null);
-        }}
-        allPatients={allPatients}
-        stores={stores}
-        drivers={drivers}
-        allDeliveries={deliveries} />
+        }} />
 
       }
 
