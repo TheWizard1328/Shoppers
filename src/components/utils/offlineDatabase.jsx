@@ -1,5 +1,9 @@
 import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoActive, hasDegradedRecords, resetDecryptFailCounters } from './idbCrypto';
 import { edmontonTodayKey } from '@/components/utils/albertaTime';
+// Ghost rows (server 404) must never be restored: the restore itself was the
+// "blocked stale next-stop clear" row count in every hourly digest (owner fix
+// Nov 26 2026). deadEntityGuard has no static imports, so this cannot cycle.
+import { isEntityDead } from './deadEntityGuard';
 /**
  * Offline Database Manager using IndexedDB
  * Stores Patient and Delivery entities locally for offline access
@@ -665,6 +669,7 @@ const _restoreStompedNextFlags = async (records) => {
   const restored = new Map(); // id -> true
   for (const rec of candidates) {
     const key = String(rec.id);
+    if (isEntityDead(key)) continue; // server says it is gone — never restore its flag
     const prev = existingById.get(key);
     if (!prev || prev.isNextDelivery !== true) continue;
     if (!_nextFlagActive(prev)) continue; // finished stop — clearing is correct

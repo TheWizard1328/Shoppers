@@ -846,6 +846,9 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       import('@/api/base44Client').then(({ base44 }) => {
         base44.entities.Delivery.update(deliveryId, serverPatch)
           .then(async () => {
+            // A write that lands proves the record is alive again: only a SUCCESS
+            // may clear the dead mark (owner report Nov 26 2026).
+            import('./deadEntityGuard').then(({ clearEntityDead }) => clearEntityDead(deliveryId)).catch(() => {});
             await offlineDB.removePendingMutation(pendingMutationId);
             if (!(await hasPendingEntityMutation('Delivery', deliveryId))) {
               window.dispatchEvent(new CustomEvent('deliveryUpdated', {
@@ -862,7 +865,10 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
               await dropDeadEntityMutation({ entity: 'Delivery', id: deliveryId, mutationId: pendingMutationId });
               return;
             }
-            clearEntityDead(deliveryId);
+            // NEVER clear the dead mark on a failure (owner report Nov 26 2026):
+            // a device that was merely offline used to un-mark a genuinely
+            // deleted stop, so the next guard pass picked it again, 404'd and
+            // re-queued the write — the 44-an-hour ghost churn.
             console.warn('[Sync] Background sync failed; durable mutation retained:', error.message);
           });
       }).catch(() => {});

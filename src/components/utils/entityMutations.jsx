@@ -797,6 +797,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
                 estimated_duration_minutes: backendDelivery?.estimated_duration_minutes ?? toStore.estimated_duration_minutes
               };
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [deliveryToStore]);
+          import('./deadEntityGuard').then(({ clearEntityDead }) => clearEntityDead(deliveryId)).catch(() => {});
           refreshOfflineEntitySnapshots('Delivery', deliveryToStore).catch(() => {});
           import('./dataManager').then(({ updateCache }) => updateCache('Delivery', deliveryId, deliveryToStore));
           notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: deliveryToStore });
@@ -810,7 +811,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
             await dropDeadEntityMutation({ entity: 'Delivery', id: deliveryId });
             return;
           }
-          clearEntityDead(deliveryId);
+          // Same rule as the background path: only a SUCCESS clears the dead mark.
           console.warn('⚠️ [EntityMutations] Delivery upload failed; durable mutation retained:', error.message);
         });
     }
