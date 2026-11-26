@@ -384,6 +384,41 @@ export const processPendingMutationsInternal = async () => {
           }
         }
 
+        // ── STALE-MOVE GUARD (owner report Nov 26 2026) ──────────────────────
+        // "the transferred delivery keeps moving then returning back to its
+        // original date... then out of no where it transfers on its own — like a
+        // delayed mutation record that caught up." A queued Delivery update
+        // captured BEFORE a transfer still carries the old delivery_date (and the
+        // window it had then). Replaying it moved the stop back, made it vanish
+        // from the new date, or re-applied the patient window after the clear.
+        // Once a record is marked transferred, a queued replay may not touch its
+        // date or its windows — the transfer owns those.
+        if (mutation.entity === 'Delivery' && finalPayload && typeof finalPayload === 'object') {
+          const touchesMove = ('delivery_date' in finalPayload) || ('delivery_time_start' in finalPayload)
+            || ('delivery_time_end' in finalPayload) || ('time_window_start' in finalPayload)
+            || ('time_window_end' in finalPayload) || ('delivery_time_eta' in finalPayload);
+          if (touchesMove) {
+            try {
+              const localRec = await offlineDB.getById(offlineDB.STORES.DELIVERIES, mutation.recordId);
+              const localTransferred = String(localRec?.delivery_notes || '').includes('Delivery Transferred');
+              const dateMoved = localRec && String(localRec.delivery_date || '') !== String(finalPayload.delivery_date || localRec.delivery_date || '');
+              const windowCleared = localRec && !String(localRec.delivery_time_start || '').trim()
+                && !!String(finalPayload.delivery_time_start || '').trim();
+              if (localTransferred && (dateMoved || windowCleared)) {
+                const { delivery_date: _d, delivery_time_start: _s, delivery_time_end: _e,
+                  time_window_start: _ws, time_window_end: _we, delivery_time_eta: _eta, ...rest } = finalPayload;
+                finalPayload = rest;
+                console.log(`🛡️ [OfflineSync] Dropped stale date/window fields from queued replay for ${mutation.recordId} (transfer owns the move)`);
+                if (Object.keys(finalPayload).length === 0) {
+                  await offlineDB.removePendingMutation(mutation.mutationId);
+                  successCount++;
+                  continue;
+                }
+              }
+            } catch (_) { /* local read failed — fail open */ }
+          }
+        }
+
         await Entity.update(mutation.recordId, finalPayload);
 
         // Driver status changes have backend side effects beyond AppUser.update:
