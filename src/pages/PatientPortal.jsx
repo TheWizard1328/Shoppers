@@ -2064,6 +2064,21 @@ export default function PatientPortal({ embedded = false } = {}) {
         KA L{keepAwake.lock ? 1 : 0} V{keepAwake.video ? 1 : 0} R{keepAwake.ready ?? -1} T{keepAwake.clock ?? 0}{keepAwake.hasWakeLock === false ? ' NW' : ''}{keepAwake.stalled ? ' STALL' : ''}{keepAwake.lockErr ? ` E:${keepAwake.lockErr}` : ''}
       </div>
 
+      {/* KEEP-SCREEN-ON PROMPT (owner report Nov 26 2026): on iOS the Screen Wake
+          Lock is refused until the page has had one real gesture, so a fresh start
+          would sleep the screen even though the hook asks at mount and retries
+          forever. This shows ONLY while the lock is missing, and the tap it asks
+          for is the same gesture that already fixes it — one tap, then it is gone. */}
+      {keepAwake.needsTap && !keepAwake.lock && (
+        <button
+          type="button"
+          aria-label="Keep screen on"
+          className="fixed left-1/2 -translate-x-1/2 z-[2147483000] rounded-full bg-slate-900/90 px-3 py-1.5 text-[11px] font-medium text-white shadow-lg"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+          Tap once to keep your screen on
+        </button>
+      )}
+
       <PatientMessageBalloon
         messages={messageToasts}
         onOpen={(msg) => {

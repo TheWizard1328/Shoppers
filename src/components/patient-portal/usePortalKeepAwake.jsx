@@ -28,6 +28,12 @@ const RETRY_LADDER_MS = [
 
 export function usePortalKeepAwake() {
   const [state, setState] = useState({ lock: false, video: false });
+  // OWNER REPORT (Nov 26 2026): a fresh start / refresh leaves the iPhone screen
+  // sleeping until the patient touches anywhere. iOS grants the Screen Wake Lock
+  // only to a page that has had a real user gesture — no script can fake one — so
+  // the hook asks at mount (and forever after) and this flag tells the portal to
+  // offer ONE obvious tap instead of letting the screen go dark.
+  const [needsTap, setNeedsTap] = useState(false);
 
   useEffect(() => {
     let videoEl = null;
@@ -159,6 +165,7 @@ export function usePortalKeepAwake() {
     };
 
     // First render: both paths immediately.
+    const mountedAt = Date.now();
     armBoth();
     RETRY_LADDER_MS.forEach((ms) => timers.push(setTimeout(armBoth, ms)));
 
@@ -182,6 +189,11 @@ export function usePortalKeepAwake() {
       lastClock = live;
       startVideo();
       if (!wakeLock || wakeLock.released) void requestLock();
+      // iOS: NotAllowedError means "this page has had no gesture yet". Surface the
+      // one-tap prompt after a short grace period (a launch tap can still land).
+      const held = !!(wakeLock && !wakeLock.released);
+      if (held) setNeedsTap(false);
+      else if (lockErr === 'NA' && Date.now() - mountedAt > 3500) setNeedsTap(true);
       publish();
     }, 1000);
 
@@ -195,6 +207,9 @@ export function usePortalKeepAwake() {
     window.addEventListener('touchstart', armBoth, { passive: true });
     window.addEventListener('click', armBoth, { passive: true });
     window.addEventListener('keydown', armBoth, { passive: true });
+    // A scroll or a drag is a gesture too — anything that can carry activation.
+    window.addEventListener('touchmove', armBoth, { passive: true });
+    window.addEventListener('scroll', armBoth, { passive: true, capture: true });
 
     return () => {
       stopped = true;
@@ -207,10 +222,12 @@ export function usePortalKeepAwake() {
       window.removeEventListener('touchstart', armBoth);
       window.removeEventListener('click', armBoth);
       window.removeEventListener('keydown', armBoth);
+      window.removeEventListener('touchmove', armBoth);
+      window.removeEventListener('scroll', armBoth, { capture: true });
       try { if (wakeLock) wakeLock.release(); } catch { /* already gone */ }
       try { if (videoEl) { videoEl.pause(); videoEl.remove(); } } catch { /* detached */ }
     };
   }, []);
 
-  return state;
+  return { ...state, needsTap };
 }
