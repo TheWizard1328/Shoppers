@@ -702,7 +702,25 @@ Deno.serve(async (req) => {
           .filter({ conversation_id: `patient:${patient_id}`, group_name: noticeTag }, '-created_date', 5)
           .catch(() => []);
         if ((tagRecent || []).some((m: any) => String(m.created_date || '') >= earlySince)) {
-          return Response.json({ ok: true, sent: 0, removed: 0, errors: [], in_app: false, deduped: true });
+          return Response.json({ ok: true, sent: 0, removed: 0, errors: [], in_app: false, deduped: true, push_version: 2 });
+        }
+        // SECOND NET (owner report Nov 26 2026, MaryAnn Samchuk: four "has been
+        // picked up" notices in one day). Rows written before the tag was stored
+        // carry no group_name, so a tag-only check cannot see them. The state's
+        // fixed phrase is matched instead, which ignores the ETA wording.
+        const statePhrase = noticeTag.startsWith('rx-pickup-') ? 'has been picked up by the driver'
+          : noticeTag.startsWith('rx-pending-') ? 'is ready and awaiting pickup'
+            : noticeTag.startsWith('rx-moved-') ? 'has moved your Rx'
+              : noticeTag.startsWith('rx-handoff-') ? 'is now with'
+                : '';
+        if (statePhrase) {
+          const phraseRecent = await base44.asServiceRole.entities.Message
+            .filter({ conversation_id: `patient:${patient_id}` }, '-created_date', 20)
+            .catch(() => []);
+          if ((phraseRecent || []).some((m: any) => String(m.created_date || '') >= earlySince
+            && String(m.content || '').includes(statePhrase))) {
+            return Response.json({ ok: true, sent: 0, removed: 0, errors: [], in_app: false, deduped: true, push_version: 2 });
+          }
         }
       }
       if (earlyText) {
@@ -716,6 +734,7 @@ Deno.serve(async (req) => {
     }
 
     const result = await deliverPush(notification, { patientOnly: action === 'notify' });
+    const PUSH_VERSION = 2;
 
     // ── 'notify': the one outbound path for delivery state messages ─────────
     // OWNER RULES (Nov 24 2026):
@@ -728,9 +747,9 @@ Deno.serve(async (req) => {
     //   3. repeat calls are no-ops: an identical body already in this patient's
     //      store thread within the last 12h is treated as sent.
     if (action === 'notify') {
-      if (!result.sent) return Response.json({ ok: true, ...result, in_app: false });
+      if (!result.sent) return Response.json({ ok: true, ...result, in_app: false, push_version: PUSH_VERSION });
       const text = String(body || '').trim();
-      if (!text) return Response.json({ ok: true, ...result, in_app: false });
+      if (!text) return Response.json({ ok: true, ...result, in_app: false, push_version: PUSH_VERSION });
 
       const patient = await base44.asServiceRole.entities.Patient.get(patient_id).catch(() => null);
       const conversationId = `patient:${patient_id}`;
@@ -739,7 +758,7 @@ Deno.serve(async (req) => {
         .filter({ conversation_id: conversationId, content: text }, '-created_date', 5)
         .catch(() => []);
       const already = (recent || []).some((m: any) => String(m.created_date || '') >= since);
-      if (already) return Response.json({ ok: true, ...result, in_app: false, deduped: true });
+      if (already) return Response.json({ ok: true, ...result, in_app: false, deduped: true, push_version: PUSH_VERSION });
 
       const created = await base44.asServiceRole.entities.Message.create({
         sender_id: `store:${store_id || patient?.store_id || ''}`,
@@ -757,10 +776,10 @@ Deno.serve(async (req) => {
         group_name: tagLocked ? noticeTag : '',
       }).catch(() => null);
 
-      return Response.json({ ok: true, ...result, in_app: !!created, message_id: created?.id || null });
+      return Response.json({ ok: true, ...result, in_app: !!created, message_id: created?.id || null, push_version: PUSH_VERSION });
     }
 
-    return Response.json({ ok: true, ...result });
+    return Response.json({ ok: true, ...result, push_version: PUSH_VERSION });
   } catch (error: any) {
     return Response.json({ ok: false, error: error?.message || 'Unknown error' }, { status: 500 });
   }

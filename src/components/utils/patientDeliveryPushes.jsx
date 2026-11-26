@@ -336,7 +336,11 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
       // dashboard opened hours later from re-announcing an old pickup, the status
       // change has to be recent; the window falls back to the parent pickup's ETA
       // when the stop itself has none yet.
-      if (!entry.pickup && (status === 'in_transit' || status === 'en_route')) {
+      // A stop that already carries an actual_delivery_time has been collected:
+      // that is never "picked up" news (owner report Nov 26 2026 — MaryAnn got
+      // four picked-up notices in one day as her ETA was re-optimized).
+      const collected = !!delivery.actual_delivery_time;
+      if (!entry.pickup && !collected && (status === 'in_transit' || status === 'en_route')) {
         const changedMs = delivery.updated_date ? Date.parse(delivery.updated_date) : 0;
         const fresh = !changedMs || now - changedMs <= PICKUP_FRESH_MS;
         const parentPickup = delivery.puid ? pickupByPuid.get(String(delivery.puid)) : null;
@@ -373,9 +377,9 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
         // ALREADY PICKED UP (owner report Nov 26 2026): seed the baseline
         // silently on every device so a stop collected earlier can only ever
         // produce the delayed notice, never a second "has been picked up".
-        if (alreadyPickedUp && !entry.pickup && pickupMinutes != null) {
+        if (alreadyPickedUp && !entry.pickup) {
           entry.pickup = true;
-          entry.etaEnd = pickupMinutes + 30;
+          if (pickupMinutes != null) entry.etaEnd = pickupMinutes + 30;
         }
       }
 
@@ -391,7 +395,11 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
         const DELAY_COOLDOWN_MS = 20 * 60 * 1000;
         const slippedEnough = sentEnd && newEnd - sentEnd >= DELAY_SLIP_MIN;
         const cooledDown = !entry.delayedAt || now - Number(entry.delayedAt) >= DELAY_COOLDOWN_MS;
-        if (slippedEnough && cooledDown) {
+        // No baseline yet (a pickup adopted without an ETA): record this window
+        // silently so the NEXT real slip can send the delayed notice.
+        if (!sentEnd) {
+          entry.etaEnd = newEnd;
+        } else if (slippedEnough && cooledDown) {
           const body = buildPatientDeliveryMessage({
             state: 'delayed',
             patientName,
