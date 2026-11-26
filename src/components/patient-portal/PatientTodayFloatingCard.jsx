@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Sun, X, CalendarDays } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import PatientDeliveryCard from './PatientDeliveryCard';
-import { buildDeliveryCardProps } from './deliveryCardHelpers';
+import { buildDeliveryCardProps, panelTone, PANEL_TONE_CLASSES } from './deliveryCardHelpers';
 import { isPatientViewOverlayActive, requestExitPatientView } from './patientViewExit';
 
 /**
@@ -56,6 +56,11 @@ export default function PatientTodayFloatingCard({ puidGroups, delivery, pickupS
 
   const cardProps = buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap, allDeliveries, routeDeliveries });
   if (!cardProps) return null;
+  // PANEL TONE (owner request Nov 26 2026): the floating panel itself carries the
+  // state colour, not just the card inside it — orange pending pickup, blue
+  // picked up, green next delivery, red failed.
+  const _tone = panelTone(delivery);
+  const _toneCls = _tone ? PANEL_TONE_CLASSES[_tone] : null;
 
   // ── HEADER LABEL FOR THE DATE ACTUALLY SHOWN ───────────────────────────────
   const dayKeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
