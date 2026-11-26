@@ -2015,16 +2015,6 @@ export default function PatientPortal({ embedded = false } = {}) {
         </div>
       </div>
 
-      {/* TEMPORARY KEEP-AWAKE DIAGNOSTIC (w321): a 3-character read-out so the owner
-          can say whether the lock and the barrier video are actually live on the
-          iPhone. Removed as soon as he reports back. */}
-      <div
-        className="fixed left-1 bottom-1 z-[2147483000] rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono leading-none text-white"
-        style={{ pointerEvents: 'none' }}
-        aria-hidden="true">
-        KA L{keepAwake.lock ? 1 : 0} V{keepAwake.video ? 1 : 0}
-      </div>
-
       <PatientMessageBalloon
         messages={messageToasts}
         onOpen={(msg) => {
