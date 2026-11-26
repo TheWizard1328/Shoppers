@@ -580,11 +580,35 @@ export default function PatientPortal({ embedded = false } = {}) {
     };
   }, []);
 
-  const showFloatTodayCard = !!(
-  todayDelivery &&
-  todayDelivery.delivery_date === liveDay &&
-  !sidebarOpen &&
-  isNarrowScreen);
+  // ── FUTURE DELIVERY FOCUS (owner request Nov 25 2026) ──────────────────────
+  // "if a patient logs in and they've got no deliveries for today or their
+  // delivery for today is complete and there happens to be a delivery in the
+  // system for a future date, show the delivery card … in the top right corner
+  // of the screen". So: the nearest upcoming delivery (ascending by date, never
+  // a cancelled or failed one) becomes the floating card whenever today's own
+  // delivery is missing or already finished. A finished delivery after 9:00 PM
+  // lands in exactly the same branch, which is the owner's second rule.
+  const futureDeliveries = useMemo(() => {
+    const terminal = ['completed', 'failed', 'cancelled'];
+    return (deliveries || []).
+    filter((d) => d && d.delivery_date && String(d.delivery_date).slice(0, 10) > liveDay).
+    filter((d) => !terminal.includes(String(d.status || '').toLowerCase())).
+    sort((a, b) => String(a.delivery_date).localeCompare(String(b.delivery_date)));
+  }, [deliveries, liveDay]);
+
+  const todaySettled = !!todayDelivery &&
+  ['completed', 'failed', 'cancelled'].includes(String(todayDelivery.status || '').toLowerCase());
+
+  // Today's card keeps its place while the delivery is still live; the moment it
+  // is finished (or there is nothing today) the upcoming card takes the slot.
+  // Nothing upcoming: fall back to today's own (finished) card rather than
+  // leaving the corner empty.
+  const floatDelivery = todayDelivery && !todaySettled ?
+  todayDelivery :
+  futureDeliveries[0] || todayDelivery;
+  const floatIsFuture = !!floatDelivery && floatDelivery !== todayDelivery;
+
+  const showFloatTodayCard = !!(floatDelivery && !sidebarOpen && isNarrowScreen);
 
 
   // Inner fit paddings handed to every auto-fit call: top clears the floating
@@ -1881,15 +1905,18 @@ export default function PatientPortal({ embedded = false } = {}) {
                  TODAY only, so tomorrow this card simply stops rendering and the
                  delivery lives in the sidebar history. */}
           {showFloatTodayCard &&
-          <div className="absolute top-2 left-2 z-[900] md:hidden">
+          <div className={`absolute top-2 z-[900] md:hidden ${floatIsFuture ? 'right-2' : 'left-2'}`}>
+              {/* OWNER REQUEST (Nov 25 2026): an UPCOMING delivery sits in the TOP
+                  RIGHT corner, today's own card keeps its top-left spot. The two
+                  never render together, so the corner never collides. */}
               <PatientTodayFloatingCard
-              delivery={todayDelivery}
+              delivery={floatDelivery}
               pickupStops={pickupStops}
               puidGroups={puidGroups}
               stores={stores}
               allDeliveries={deliveries}
               onCollapsedHeight={setFloatCardHeight}
-              remainingStops={liveRemainingStops?.[todayDelivery.id] ?? null} />
+              remainingStops={liveRemainingStops?.[floatDelivery.id] ?? null} />
             
             </div>
           }

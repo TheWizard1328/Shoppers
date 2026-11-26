@@ -19,7 +19,22 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
   (b.delivery_date || '').localeCompare(a.delivery_date || '')
   );
 
-  const displayed = showAll ? sorted : sorted.slice(0, 10);
+  // ── UPCOMING FIRST (owner request Nov 25 2026) ─────────────────────────────
+  // "we will show the future delivery cards in the sidebar above the current
+  // date delivery card". The list is already newest-first, so upcoming dates
+  // landed on top by accident; they are now pulled into their own labelled block
+  // so an upcoming stop never reads as history, and today's card sits directly
+  // under them.
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const upcoming = sorted.filter((d) =>
+  String(d?.delivery_date || '').slice(0, 10) > todayKey &&
+  !['cancelled', 'failed'].includes(String(d?.status || '').toLowerCase())
+  );
+  const upcomingIds = new Set(upcoming.map((d) => d.id));
+  const history = sorted.filter((d) => !upcomingIds.has(d.id));
+
+  const displayed = showAll ? history : history.slice(0, 10);
 
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to sign out?')) {
@@ -72,22 +87,46 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
 
         {/* Delivery History */}
         <div className="flex-1 overflow-y-auto px-2 py-2">
+          {/* UPCOMING BLOCK — future-dated stops, above today's own card. */}
+          {upcoming.length > 0 &&
+          <>
+              <div className="flex items-center gap-2 px-1 mb-2">
+                <Package className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                  Upcoming
+                </p>
+                <span className="ml-auto text-xs bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-full px-2 py-0.5 font-medium">
+                  {upcoming.length}
+                </span>
+              </div>
+              <div className="space-y-2 mb-3">
+                {upcoming.map((delivery) =>
+              <PatientDeliveryCard
+                key={delivery.id}
+                {...buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap })}
+                remainingStops={liveRemainingStops?.[delivery.id] ?? null} />
+
+              )}
+              </div>
+            </>
+          }
+
           <div className="flex items-center gap-2 px-1 mb-3">
             <Package className="w-4 h-4 text-slate-400 dark:text-slate-400" />
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
               Delivery History
             </p>
-            {sorted.length > 0 &&
+            {history.length > 0 &&
             <span className="ml-auto text-xs bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200 rounded-full px-2 py-0.5 font-medium">
-                {sorted.length}
+                {history.length}
               </span>
             }
           </div>
 
-          {sorted.length === 0 ?
+          {history.length === 0 ?
           <div className="text-center py-8 px-4">
               <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-400 dark:text-slate-400">No past deliveries yet.</p>
+              <p className="text-sm text-slate-400 dark:text-slate-400">{upcoming.length > 0 ? 'No past deliveries yet.' : 'No deliveries yet.'}</p>
             </div> :
 
           <div className="space-y-2 relative">
@@ -99,7 +138,7 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
 
             )}
 
-              {sorted.length > 10 &&
+              {history.length > 10 &&
             <button
               onClick={() => setShowAll((v) => !v)}
               className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 py-2 mt-1">
@@ -107,7 +146,7 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
                   {showAll ?
               <><ChevronUp className="w-3.5 h-3.5" /> Show Less</> :
 
-              <><ChevronDown className="w-3.5 h-3.5" /> Show {sorted.length - 10} More</>
+              <><ChevronDown className="w-3.5 h-3.5" /> Show {history.length - 10} More</>
               }
                 </button>
             }
