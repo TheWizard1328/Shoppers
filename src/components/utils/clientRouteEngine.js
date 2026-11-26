@@ -2873,7 +2873,12 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
       // stamped onto a delivery dated TODAY. Any other date keeps whatever the
       // record holds (blank for a transferred stop) so that day's optimizer is
       // free to place it. This is the third refill source found.
-      const _notToday = String(d.delivery_date || '') !== new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+      // OWNER RULE (Nov 26 2026, unstarted routes): a BLANK delivery start is
+      // blank. The optimizer must not refill it from the patient's standing
+      // window on ANY date — that is what ETA'd the flagged stop at 18:00 on a
+      // route nobody has started yet.
+      const _notToday = String(d.delivery_date || '') !== new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' })
+        || !String(d.delivery_time_start || '').trim();
       if (_notToday) {
         newStart = d.delivery_time_start;
         newEnd = d.delivery_time_end;
