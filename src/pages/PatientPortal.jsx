@@ -1236,6 +1236,9 @@ export default function PatientPortal({ embedded = false } = {}) {
   // ahead), so the badge read 6 while the card read 3. One value now feeds both.
   const markerStopsCount = useMemo(() => {
     if (!todayDelivery) return stopsRemaining;
+    // OWNER REPORT (Nov 26 2026): the marker showed 5 while the stop is the
+    // route's FIRST, NEXT stop. Being next wins outright — no badge at all.
+    if (todayDelivery.isNextDelivery === true) return 0;
     try {
       const storeMap = {};
       (stores || []).forEach((st) => { storeMap[st.id] = st.name; });
