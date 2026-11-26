@@ -55,12 +55,19 @@ const useHeaderTop = (dep) => {
 };
 
 function BalloonBox({ message, onOpen, onDismiss, onRead }) {
-  const timerRef = useRef(null);
+  // OWNER BUG (Nov 26 2026): "these message bubble balloons are showing up and
+  // staying open all the time." The 10s timer lived in an effect that depended
+  // on onDismiss — an inline arrow in PatientPortal, so a brand-new function on
+  // every portal render (and the portal re-renders every few seconds on its live
+  // sync). Each render cleared the timeout and started a fresh 10s, so the box
+  // never expired. The callback now rides in a ref and the timer is keyed to the
+  // message id ONLY, so one box = one 10-second life.
+  const dismissRef = useRef(onDismiss);
+  useEffect(() => { dismissRef.current = onDismiss; }, [onDismiss]);
   useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => { onDismiss?.(message); }, AUTO_DISMISS_MS);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [message?.id, onDismiss]);
+    const timer = setTimeout(() => { dismissRef.current?.(message); }, AUTO_DISMISS_MS);
+    return () => clearTimeout(timer);
+  }, [message?.id]);
 
   // OWNER REQUEST (Nov 26 2026): "show the entire message so that the card will
   // expand to show the entire message for that thread" — no preview slice, no
