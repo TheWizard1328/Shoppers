@@ -1838,6 +1838,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           storeAbbrev: sInfo?.abbreviation || null,
           storeColor: sInfo?.color || null,
           amount: gross,
+          // OWNER REQUEST (Nov 26 2026): carry the DELIVERY's date so a card for
+          // a past delivery can print its date under the time. Falls back to the
+          // collection day when the record has no delivery_date.
+          date: String(d?.delivery_date || '').slice(0, 10) || doneDay || spendDay || '',
           // OWNER REPORT (Nov 17 2026): collection times read in UTC. Always
           // format the moment in Edmonton local time.
           sub: (() => {
@@ -2061,6 +2065,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           const names = [...new Set(group.map((r) => r.patientName).filter(Boolean))];
           const mergedRow = {
             key: `tx-${sq}`,
+            date: group.find((r) => r.date)?.date || null,
             delivery_id: null, // combined card — per-delivery actions don't apply
             combinedCount: group.length,
             combinedItems: group.map((r) => ({ storeAbbrev: r.storeAbbrev || null, storeColor: r.storeColor || null, patientName: r.patientName || null, amount: r.amount, sub: r.sub || null })),
