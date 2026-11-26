@@ -2054,12 +2054,14 @@ export default function PatientPortal({ embedded = false } = {}) {
           playing, R = video readyState (-1 = no element), T = the video's clock
           (it must keep counting, a frozen T is a stalled WebKit video), NW = this
           browser has no Wake Lock API at all (the iPhone case), STALL = the clock
-          stopped advancing and the barrier video is being rebuilt. */}
+          stopped advancing and the barrier video is being rebuilt, E:xx = the
+          wake lock request was refused (NA = NotAllowed, NS = NotSupported,
+          SE = Security, AB = Abort). */}
       <div
         className="fixed left-1 bottom-1 z-[2147483000] rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono leading-none text-white"
         style={{ pointerEvents: 'none' }}
         aria-hidden="true">
-        KA L{keepAwake.lock ? 1 : 0} V{keepAwake.video ? 1 : 0} R{keepAwake.ready ?? -1} T{keepAwake.clock ?? 0}{keepAwake.hasWakeLock === false ? ' NW' : ''}{keepAwake.stalled ? ' STALL' : ''}
+        KA L{keepAwake.lock ? 1 : 0} V{keepAwake.video ? 1 : 0} R{keepAwake.ready ?? -1} T{keepAwake.clock ?? 0}{keepAwake.hasWakeLock === false ? ' NW' : ''}{keepAwake.stalled ? ' STALL' : ''}{keepAwake.lockErr ? ` E:${keepAwake.lockErr}` : ''}
       </div>
 
       <PatientMessageBalloon

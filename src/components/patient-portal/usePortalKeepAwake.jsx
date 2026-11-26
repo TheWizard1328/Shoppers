@@ -40,6 +40,18 @@ export function usePortalKeepAwake() {
     // were down. A WebKit video that is paused internally stays "playing" in JS
     // but its clock freezes, so the watchdog now measures advance and rebuilds
     // the element when it stops.
+    // OWNER REPORT (Nov 26 2026): the video clock DOES advance (T swings 0.2 to
+    // 2.0, its 2s loop), so only the wake lock is missing on the iPhone. Record
+    // WHY the request is refused so the badge names the real cause.
+    let lockErr = '';
+    const shortErr = (e) => {
+      const n = String(e?.name || 'ERR');
+      if (n === 'NotAllowedError') return 'NA';
+      if (n === 'NotSupportedError') return 'NS';
+      if (n === 'SecurityError') return 'SE';
+      if (n === 'AbortError') return 'AB';
+      return n.slice(0, 4);
+    };
     let lastClock = -1;
     let stalledTicks = 0;
     let stalled = false;
@@ -54,7 +66,7 @@ export function usePortalKeepAwake() {
       const ready = videoEl ? videoEl.readyState : -1;
       const clock = videoEl && Number.isFinite(videoEl.currentTime) ? Math.round(videoEl.currentTime * 10) / 10 : 0;
       const hasWakeLock = typeof navigator !== 'undefined' && 'wakeLock' in navigator;
-      setState({ lock: lockHeld, video: videoOn, ready, clock, hasWakeLock, stalled });
+      setState({ lock: lockHeld, video: videoOn, ready, clock, hasWakeLock, stalled, lockErr });
       // Read by the bell panel's "Screen wake:" line.
       try {
         window.__rxKeepAwake = {
@@ -65,6 +77,7 @@ export function usePortalKeepAwake() {
           clock,
           hasWakeLock,
           stalled,
+          lockErr,
           forced: true,
           at: Date.now(),
         };
@@ -118,6 +131,7 @@ export function usePortalKeepAwake() {
       try {
         if (wakeLock && !wakeLock.released) { publish(); return; }
         wakeLock = await navigator.wakeLock.request('screen');
+        lockErr = '';
         wakeLock.addEventListener('release', () => {
           wakeLock = null;
           publish();
@@ -125,7 +139,7 @@ export function usePortalKeepAwake() {
             setTimeout(() => { void requestLock(); }, 200);
           }
         });
-      } catch { wakeLock = null; }
+      } catch (e) { wakeLock = null; lockErr = shortErr(e); }
       publish();
     };
 
