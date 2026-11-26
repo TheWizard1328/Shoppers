@@ -60,8 +60,15 @@ export default function MapController({
       // Cancel any in-flight programmatic animation so the user's pinch-zoom
       // doesn't fight with a GPS-triggered setView/fitBounds still playing.
       mapInstance.stop();
-      markUserMapControlActive();
-      if (onMapInteraction) {
+      // OWNER REPORT (Nov 26 2026): a pinch to zoom unlocked the FAB, which
+      // dropped the map out of Phase 2 and killed the turn auto-zoom and
+      // heads-up rotation for 5 minutes — the "pinch broke the next-turn view"
+      // report. A pinch is a view adjustment, not a route detour: it holds the
+      // GPS refit just long enough for the zoom to be seen, and leaves the FAB
+      // locked. A drag still unlocks exactly as before.
+      const isPinch = window.__rxPinchGesture === true;
+      markUserMapControlActive(isPinch ? 2500 : window._isUserTouchingMap === true ? 1500 : 4000);
+      if (!isPinch && onMapInteraction) {
         onMapInteraction(true);
       }
     },

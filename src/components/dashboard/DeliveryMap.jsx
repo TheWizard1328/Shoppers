@@ -2451,10 +2451,12 @@ function DeliveryMap({
         rotate={true}
         bearing={0}
         rotateControl={false}
-        // OWNER REQUEST (Nov 26 2026): the driver may pinch to rotate the map.
-        // A manual rotation drops heads-up (see the bearing effect) and raises the
-        // compass, whose tap returns the map to north-up.
-        touchRotate={true}
+        // OWNER REQUEST (Nov 26 2026): the driver may pinch to rotate the map,
+        // but a single pinch must do ONE thing. leaflet-rotate's own touchRotate
+        // drove zoom AND rotation off the same pinch (a pinch to zoom also
+        // twisted the map), so it is off and a classifier below commits each
+        // pinch to either zoom or rotate.
+        touchRotate={false}
         shiftKeyRotate={false}
         onClick={() => setFannedLocationKey(null)}
         whenReady={(instance) => {
@@ -2502,6 +2504,70 @@ function DeliveryMap({
           };
           requestAnimationFrame(settleMap);
           setTimeout(settleMap, 250);
+
+          // ── TWO-FINGER GESTURE SPLIT (owner report Nov 26 2026) ─────────
+          // "pinch to zoom and pinch to rotate keep combining into a single pinch
+          // command". Each pinch now commits to ONE gesture, decided once from
+          // whichever the fingers changed more (scale % vs angle deg) and held
+          // for the rest of that pinch: zoom leaves Leaflet's TouchZoom alone,
+          // rotate suppresses it and drives setBearing here. Rotation still
+          // latches heads-up off (the 'rotate' listener) and raises the compass.
+          try {
+            const gc = mapInst.getContainer();
+            const wrapDeg = (deg) => { const v = deg % 360; return v > 180 ? v - 360 : v < -180 ? v + 360 : v; };
+            let gs = null;
+            let zoomSuppressed = false;
+            const twoDist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+            const twoAngle = (t) => Math.atan2(t[1].clientY - t[0].clientY, t[1].clientX - t[0].clientX) * 180 / Math.PI;
+            const releaseTouchZoom = () => {
+              if (!zoomSuppressed) return;
+              zoomSuppressed = false;
+              try { mapInst.touchZoom?.enable?.(); } catch { /* ignore */ }
+            };
+            const onTS = (e) => {
+              if (e.touches.length !== 2) return;
+              const b = typeof mapInst.getBearing === 'function' ? Number(mapInst.getBearing()) || 0 : 0;
+              gs = { mode: null, d0: twoDist(e.touches), a0: twoAngle(e.touches), b0: b };
+              // Tells MapController's zoomstart that this zoom is a PINCH, so it
+              // holds the refit without unlocking the FAB (which is what killed
+              // the turn auto-zoom and heads-up rotation for 5 minutes).
+              window.__rxPinchGesture = true;
+            };
+            const onTM = (e) => {
+              if (!gs || e.touches.length !== 2) return;
+              const d = twoDist(e.touches);
+              const a = twoAngle(e.touches);
+              const scalePct = gs.d0 > 0 ? Math.abs(d / gs.d0 - 1) * 100 : 0;
+              const rotDeg = Math.abs(wrapDeg(a - gs.a0));
+              if (!gs.mode) {
+                if (scalePct < 4 && rotDeg < 5) return;   // undecided: let it ride
+                gs.mode = rotDeg > scalePct * 1.6 ? 'rotate' : 'zoom';
+                if (gs.mode === 'rotate') {
+                  try { mapInst.touchZoom?.disable?.(); zoomSuppressed = true; } catch { /* ignore */ }
+                }
+              }
+              if (gs.mode !== 'rotate') return;           // a zoom pinch stays a zoom
+              if (e.cancelable) e.preventDefault();
+              // Hold the GPS refit off while the driver is twisting the map.
+              window._userMapControlUntil = Date.now() + 1200;
+              const next = wrapDeg(gs.b0 + wrapDeg(a - gs.a0));
+              try { mapInst.setBearing(next); } catch { /* ignore */ }
+              window.__mapBearing = next;
+            };
+            const onTE = (e) => {
+              if (e.touches && e.touches.length >= 2) return;
+              releaseTouchZoom();
+              gs = null;
+              setTimeout(() => { window.__rxPinchGesture = false; }, 400);
+            };
+            gc.addEventListener('touchstart', onTS, { passive: true });
+            gc.addEventListener('touchmove', onTM, { passive: false });
+            gc.addEventListener('touchend', onTE, { passive: true });
+            gc.addEventListener('touchcancel', onTE, { passive: true });
+            // Safety net: a gesture that ends off-map must never leave pinch-zoom
+            // disabled (that would read as "pinch to zoom stopped working").
+            setInterval(() => { if (!gs) releaseTouchZoom(); }, 1500);
+          } catch { /* gesture split is optional */ }
 
           // ── EMERGENCY LONG-PRESS (owner spec Nov 14 2026) ──────────────
           // A 5-second press on the map arms the emergency screen. The map has
