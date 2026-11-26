@@ -1631,7 +1631,9 @@ export default function DeliveryForm({
       const travelModeOnly = !!delivery && travelModeChanged && !driverChanged && !dateChanged && !timeWindowChanged && !statusChangedToInTransit && !statusChangedToCompletion && !actualDeliveryTimeChanged;
       const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
       const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
-      if (dateChanged) { dataToSave.status = 'in_transit'; dataToSave.time_window_start = '10:00'; }
+      // OWNER RULE (Nov 26 2026): a date move clears the windows — never stamp a
+      // hardcoded '10:00' window (it floored the sort and the ETA ladder).
+      if (dateChanged) { dataToSave.status = 'in_transit'; dataToSave.time_window_start = ''; dataToSave.time_window_end = ''; }
       // Reassignment (driver or date change) resets stale attempt timestamps: the
       // arrival/actual-delivery times belong to the previous attempt context and
       // must not carry over to the new driver/date. Completed stops keep their

@@ -121,12 +121,15 @@ const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
 // later stop was sequenced after it. Such a stop is sequenced purely by
 // geography from the origin.
 const _isTransferredOtherDate = (delivery) => {
-  if (!String(delivery?.delivery_notes || '').includes('Delivery Transferred')) return false;
+  const ownBlank = !String(delivery?.delivery_time_start || '').trim();
+  if (!ownBlank) return false;
   // OWNER RULE (Nov 26 2026): the guard follows the BLANK START, not the date.
-  // A transferred stop whose own start is blank must never pick the patient's
-  // standing window back up during optimization — not even once its date has
-  // become today.
-  return !String(delivery?.delivery_time_start || '').trim();
+  if (String(delivery?.delivery_notes || '').includes('Delivery Transferred')) return true;
+  // OWNER RULE (Nov 26 2026, move-to-today): an IN-HAND stop (already on the
+  // vehicle) with a blank start has no appointment promise left to honour, so it
+  // must not take the patient window either. Without this, the first pass sorted
+  // it on the patient's 18:00 and the later re-ETA to ~10:00 kept that position.
+  return ['in_transit', 'en_route'].includes(String(delivery?.status || '').toLowerCase());
 };
 
 const getEffectiveWindowStart = (delivery, patient = null) => {
