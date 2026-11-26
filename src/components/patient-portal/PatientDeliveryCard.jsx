@@ -72,10 +72,13 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
     const windowText = pickupWindowStart && pickupWindowEnd
       ? `${pickupWindowStart} – ${pickupWindowEnd}`
       : (pickupWindowStart || null);
+    // OWNER REQUEST (Nov 26 2026): the badge between the status and the stop
+    // count must read plain "ETA <time>" — the word "Pickup" in front of it was
+    // noise in a 128px column.
     if (pickupEta) {
-      subBadge = { text: `Pickup ETA ${pickupEta}`, color: 'text-amber-600 dark:text-amber-400' };
+      subBadge = { text: `ETA ${pickupEta}`, color: 'text-amber-600 dark:text-amber-400' };
     } else if (windowText) {
-      subBadge = { text: `Pickup ${windowText}`, color: 'text-amber-600 dark:text-amber-400' };
+      subBadge = { text: `ETA ${windowText}`, color: 'text-amber-600 dark:text-amber-400' };
     }
   } else if (['in_transit', 'en_route'].includes(delivery.status) && delivery.delivery_time_eta) {
     // Owner request (Sep 29 2026): when the ETA equals the delivery window START
