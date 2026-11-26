@@ -12,9 +12,16 @@ import { base44 } from '@/api/base44Client';
  *   next     "Dear <name>, Your Rx is next for delivery with an ETA of <eta>"
  *   delayed  "Dear <name>, Your Rx delivery is slightly delayed but should arrive
  *            now by <eta> - <+30 min>"
+ *   moved    "Dear <name>, Your driver has moved your Rx to <date>. Your new
+ *            delivery window will be confirmed when your driver is on duty."
+ *            (added Nov 25 2026, owner-approved copy, no reason ever given)
+ *   handoff  "Dear <name>, Your Rx delivery is now with <driver>, ETA <eta> -
+ *            <+30 min>" (added Nov 25 2026, owner-approved copy)
  *
  * Delivery rules:
- *   • Only today's active stops for a real patient (store pickups are skipped).
+ *   • Only today's active stops for a real patient (store pickups are skipped);
+ *     the moved check also looks at stops that just left today or sit on a
+ *     future date, because that is what a move looks like.
  *   • Everything is evaluated after a settle window, so a route optimization
  *     that lands right after a status change still supplies the final ETA.
  *   • The "next" push waits 30s and re-checks the flag, so a re-optimize that
@@ -28,6 +35,9 @@ const LEDGER_KEY = 'rxdeliver:patientDeliveryPushes';
 const SETTLE_MS = 45000;
 const NEXT_STABLE_MS = 30000;
 const PENDING_FRESH_MS = 10 * 60 * 1000;
+// A moved / handed-off stop only notifies while the change is still news; a
+// device that has been offline for days must not announce last week's edits.
+const CHANGE_FRESH_MS = 2 * 60 * 60 * 1000;
 const ACTIVE = new Set(['pending', 'in_transit', 'en_route']);
 
 function readLedger() {
@@ -73,17 +83,30 @@ function windowText(startMinutes) {
   return `${fmtMinutes(startMinutes)} - ${fmtMinutes(startMinutes + 30)}`;
 }
 
-export function buildPatientDeliveryMessage({ state, patientName, etaText, window }) {
+export function buildPatientDeliveryMessage({ state, patientName, etaText, window, dateText, driverName }) {
   const name = String(patientName || '').trim().split(/\s+/)[0] || 'there';
   switch (state) {
     case 'pending':
-      return `Dear ${name}, Your Rx delivery is ready and awaiting pickup by the driver at ${window}`;
+      // OWNER REPORT (Nov 25 2026): a pending stop with no window anywhere used
+      // to send NOTHING at all. The approved line still goes out, just without a
+      // time it cannot honestly quote.
+      return window
+        ? `Dear ${name}, Your Rx delivery is ready and awaiting pickup by the driver at ${window}`
+        : `Dear ${name}, Your Rx delivery is ready and awaiting pickup by the driver`;
     case 'pickup':
       return `Dear ${name}, Your Rx delivery has been picked up by the driver and ETA is ${window}`;
     case 'next':
       return `Dear ${name}, Your Rx is next for delivery with an ETA of ${etaText}`;
     case 'delayed':
       return `Dear ${name}, Your Rx delivery is slightly delayed but should arrive now by ${window}`;
+    // OWNER APPROVED COPY (Nov 25 2026): the driver moved the stop to another
+    // date. The window is deliberately left for "when your driver is on duty",
+    // and no reason is ever given.
+    case 'moved':
+      return `Dear ${name}, Your driver has moved your Rx to ${dateText}. Your new delivery window will be confirmed when your driver is on duty.`;
+    // OWNER APPROVED COPY (Nov 25 2026): the stop was passed to another driver.
+    case 'handoff':
+      return `Dear ${name}, Your Rx delivery is now with ${driverName}, ETA ${window}`;
     default:
       return '';
   }
@@ -115,10 +138,39 @@ function albertaTodayKey() {
   return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+/** YYYY-MM-DD for tomorrow in Edmonton, so a move can say "Tomorrow". */
+function albertaTomorrowKey() {
+  return new Date(Date.now() - 6 * 60 * 60 * 1000 + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** "Tomorrow" / "Thu, Nov 27" for the moved notice. */
+function dateLabel(dateKey) {
+  const key = String(dateKey || '').slice(0, 10);
+  if (!key) return 'a new date';
+  if (key === albertaTodayKey()) return 'today';
+  if (key === albertaTomorrowKey()) return 'Tomorrow';
+  const ms = Date.parse(`${key}T12:00:00Z`);
+  if (!Number.isFinite(ms)) return key;
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Edmonton',
+    }).format(new Date(ms));
+  } catch {
+    return key;
+  }
+}
+
+/** First name for the handoff line ("now with Sarah, ETA 2:10 - 2:40 PM"). */
+function firstNameOf(value) {
+  return String(value || '').trim().split(/\s+/)[0] || '';
+}
+
 /**
  * Watches the dashboard's deliveries and sends the four patient pushes.
- * Mount once (Dashboard). `enabled` should be the primary-device flag so only
- * the device actually driving the route notifies patients.
+ * Mount once (Dashboard). The pass runs on every device (a dispatcher adding a
+ * stop must still reach the patient); `enabled` (primary-device flag) now only
+ * gates the live-route states — picked up, next, delayed — so one phone does not
+ * narrate the route three times over.
  */
 export function usePatientDeliveryPushes({ deliveries, patients, currentUser, enabled }) {
   const deliveriesRef = useRef(deliveries);
@@ -162,14 +214,67 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
 
     for (const delivery of list) {
       if (!delivery?.id || !delivery.patient_id) continue;
-      if (String(delivery.delivery_date || '') !== today) continue;
-      const status = String(delivery.status || '').toLowerCase();
-      if (!ACTIVE.has(status)) continue;
 
       const entry = ledger[delivery.id] || {};
       const patientName = nameById.get(String(delivery.patient_id)) || delivery.patient_name || '';
       const title = delivery.store_name || 'Your pharmacy';
       const eta = etaMinutes(delivery);
+      const status = String(delivery.status || '').toLowerCase();
+      const dateKey = String(delivery.delivery_date || '').slice(0, 10);
+      const driverId = String(delivery.driver_id || '');
+
+      // ── 5. MOVED TO A NEW DATE (owner request Nov 25 2026) ───────────────
+      // Checked BEFORE the today filter: the whole point is a stop that just
+      // left today (or moved between future dates). The ledger remembers the
+      // date this device last saw, so a change is detectable from any path that
+      // writes delivery_date (bulk edit, transfer dialog, stop card, offline).
+      if (entry.date && dateKey && entry.date !== dateKey && ACTIVE.has(status)) {
+        const changedMs = delivery.updated_date ? Date.parse(delivery.updated_date) : 0;
+        const fresh = !changedMs || now - changedMs <= CHANGE_FRESH_MS;
+        if (fresh) {
+          const body = buildPatientDeliveryMessage({
+            state: 'moved',
+            patientName,
+            dateText: dateLabel(dateKey),
+          });
+          await pushPatient(delivery.patient_id, title, body, `rx-moved-${delivery.id}-${dateKey}`, {
+            store_id: delivery.store_id,
+            store_name: delivery.store_name,
+            sender_name: String(delivery.driver_name || '').trim(),
+          });
+        }
+      }
+      if (dateKey) entry.date = dateKey;
+
+      // ── 6. HANDED OFF TO ANOTHER DRIVER (owner request Nov 25 2026) ──────
+      // Only a real reassignment from one driver to a DIFFERENT one counts:
+      // unassigned -> driver (that is a dispatcher assigning, and the patient
+      // already hears about a new stop) and driver -> unassigned are skipped.
+      if (entry.driverId && driverId && entry.driverId !== driverId && ACTIVE.has(status)
+        && dateKey === today) {
+        const changedMs = delivery.updated_date ? Date.parse(delivery.updated_date) : 0;
+        const fresh = !changedMs || now - changedMs <= CHANGE_FRESH_MS;
+        const newDriver = firstNameOf(delivery.driver_name);
+        const windowMinutes = eta;
+        if (fresh && newDriver && windowMinutes != null) {
+          const body = buildPatientDeliveryMessage({
+            state: 'handoff',
+            patientName,
+            driverName: newDriver,
+            window: windowText(windowMinutes),
+          });
+          await pushPatient(delivery.patient_id, title, body, `rx-handoff-${delivery.id}-${driverId}`, {
+            store_id: delivery.store_id,
+            store_name: delivery.store_name,
+            sender_name: String(delivery.driver_name || '').trim(),
+          });
+        }
+      }
+      if (driverId) entry.driverId = driverId;
+      ledger[delivery.id] = entry;
+
+      if (dateKey !== today) continue;
+      if (!ACTIVE.has(status)) continue;
 
       // ── 1. Created as pending ──────────────────────────────────────────
       if (status === 'pending' && !entry.pending) {
@@ -177,11 +282,11 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
         if (createdMs && now - createdMs <= PENDING_FRESH_MS) {
           const parentPickup = delivery.puid ? pickupByPuid.get(String(delivery.puid)) : null;
           const pickupMinutes = etaMinutes(parentPickup) ?? eta;
-          if (pickupMinutes != null) {
+          {
             const body = buildPatientDeliveryMessage({
               state: 'pending',
               patientName,
-              window: windowText(pickupMinutes),
+              window: pickupMinutes != null ? windowText(pickupMinutes) : null,
             });
             // The notice is credited to the driver who owns the stop, so it never
           // reads as a pharmacy-team message he did not send.
@@ -189,7 +294,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
             || String(userRef.current?.user_name || userRef.current?.full_name || '').trim();
           await pushPatient(delivery.patient_id, title, body, `rx-pending-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name, sender_name: creatorName });
             entry.pending = true;
-            entry.etaEnd = pickupMinutes + 30;
+            if (pickupMinutes != null) entry.etaEnd = pickupMinutes + 30;
           }
         }
       }
@@ -284,14 +389,19 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
   // and evaluate() never ran. The window is now armed once per burst: the first
   // change schedules it, later changes ride along, and it always fires.
   useEffect(() => {
-    if (!enabled) return undefined;
+    // OWNER REPORT (Nov 25 2026): the "delivery created" notice never reached a
+    // patient when a DISPATCHER (or a non-primary driver device) added the stop,
+    // because this whole pass was primary-device only. Every dashboard now runs
+    // the pass; the live-route states stay primary-device only inside evaluate(),
+    // and the server dedupes a body it already pushed in the last 12h, so several
+    // devices cannot double-notify.
     if (settleTimerRef.current) return undefined;
     settleTimerRef.current = setTimeout(() => {
       settleTimerRef.current = null;
       evaluate.current?.().catch(() => {});
     }, SETTLE_MS);
     return undefined;
-  }, [deliveries, patients, enabled]);
+  }, [deliveries, patients]);
 
   useEffect(() => () => {
     for (const timer of nextTimersRef.current.values()) clearTimeout(timer);
