@@ -29,6 +29,42 @@ export function useStopCardDutyToggle({
       return;
     }
 
+    // OWNER RULE (Nov 26 2026): the Start button must NOT put a driver on duty
+    // earlier than 1 HOUR before their first stop's delivery start, and never
+    // when every stop for that day is already finished. Read the route from IDB
+    // so this holds on any device, not just the one holding the live mirror.
+    try {
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const routeDriverId = delivery?.driver_id || currentUser?.id || null;
+      const routeRows = routeDriverId
+        ? (await offlineDB.getByCompoundIndex(offlineDB.STORES.DELIVERIES, 'date_driver', [delivery?.delivery_date, routeDriverId]).catch(() => null))
+        : null;
+      const rows = (routeRows && routeRows.length ? routeRows : (window.__appDeliveries || [])
+        .filter((d) => d && d.driver_id === routeDriverId && d.delivery_date === delivery?.delivery_date));
+      const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+      const activeRows = (rows || []).filter((d) => d && !TERMINAL.has(String(d.status || '').toLowerCase()));
+      if ((rows || []).length > 0 && activeRows.length === 0) {
+        console.log('[ensureDriverOnline] Skipped — every stop for this day is finished');
+        return;
+      }
+      const toMin = (v) => {
+        const m = String(v || '').match(/(\d{1,2}):(\d{2})/);
+        return m ? (Number(m[1]) * 60 + Number(m[2])) : null;
+      };
+      const starts = activeRows.map((d) => toMin(d.delivery_time_start)).filter((n) => Number.isFinite(n));
+      if (starts.length > 0) {
+        const firstStart = Math.min(...starts);
+        const now = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        if (nowMin < firstStart - 60) {
+          console.log(`[ensureDriverOnline] Skipped — first stop starts ${Math.floor(firstStart / 60)}:${String(firstStart % 60).padStart(2, '0')}, more than an hour away (now ${Math.floor(nowMin / 60)}:${String(nowMin % 60).padStart(2, '0')})`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[ensureDriverOnline] duty-window check skipped:', err?.message || err);
+    }
+
     // ── Resolve the TARGET driver ──────────────────────────────────────────────
     // Self case: the acting user starting their own stop → toggle themselves.
     // Admin case (Start/Restart only, allowAdminToggleForDriver): an admin,
