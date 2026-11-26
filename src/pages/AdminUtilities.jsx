@@ -34,7 +34,6 @@ import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
 import EmergencyAlertsTab from '../components/admin/EmergencyAlertsTab';
-import EmergencySettingsPanel from '../components/admin/EmergencySettingsPanel';
 import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';
 import DeliveryRouteDataCell from '../components/admin/DeliveryRouteDataCell';
 import { ResizableColumnHeader, ColumnVisibilityControl } from '../components/admin/AdminTableControls';
@@ -1917,10 +1916,9 @@ export default function AdminUtilities() {
                   {!TEMP_MONITORING_DISABLED && (<TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>)}
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
                   <TabsContent value="alerts" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}>
-                    {/* Emergency System settings card pinned at the top of the Alerts
-                        page (owner request Nov 14 2026) so scope + switches and the
-                        alert history live together. */}
-                    <EmergencySettingsPanel />
+                    {/* OWNER REQUEST (Nov 26 2026): the Emergency System settings
+                        card moved to its own sidebar page (Admin > Crash Detection);
+                        this tab keeps the alert history only. */}
                     <EmergencyAlertsTab />
                   </TabsContent>
                   {!TEMP_MONITORING_DISABLED && (<TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent>)}</Tabs>

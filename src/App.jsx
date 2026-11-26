@@ -24,6 +24,7 @@ const OAuthCallback = lazy(() => import('@/pages/OAuthCallback'));
 // Lazy-load pages that are imported directly (not in pages.config.js)
 const SquareSyncAudit = lazyReact(() => import('@/pages/SquareSyncAudit'));
 const StatHolidays = lazyReact(() => import('@/pages/StatHolidays'));
+const CrashDetectionSettings = lazyReact(() => import('@/pages/CrashDetectionSettings'));
 const SecureDocViewer = lazyReact(() => import('@/pages/SecureDocViewer'));
 const Companies = lazyReact(() => import('@/pages/Companies'));
 const DriverActivity = lazyReact(() => import('@/pages/DriverActivity'));
@@ -160,6 +161,14 @@ const AuthenticatedApp = () => {
           element={
             <LayoutWrapper currentPageName="DriverScheduleCalendar">
               <LazyPageWrapper><DriverScheduleCalendar /></LazyPageWrapper>
+            </LayoutWrapper>
+          }
+        />
+        <Route
+          path="/CrashDetectionSettings"
+          element={
+            <LayoutWrapper currentPageName="CrashDetectionSettings">
+              <LazyPageWrapper><CrashDetectionSettings /></LazyPageWrapper>
             </LayoutWrapper>
           }
         />

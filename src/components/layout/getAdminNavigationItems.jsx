@@ -1,5 +1,5 @@
 import { createPageUrl } from '@/utils';
-import { Building, Building2, BarChart3, Truck, Users2, FileText, CreditCard, MapPinned, ReceiptText, CalendarDays } from 'lucide-react';
+import { Building, Building2, BarChart3, Truck, Users2, FileText, CreditCard, MapPinned, ReceiptText, CalendarDays, ShieldAlert } from 'lucide-react';
 import { isAppOwner } from '@/components/utils/userRoles';
 
 export default function getAdminNavigationItems({
@@ -38,6 +38,14 @@ export default function getAdminNavigationItems({
 
   if (currentUser && (isAppOwner(currentUser) || isAdmin)) {
     items.push(
+      {
+        // OWNER REQUEST (Nov 26 2026): crash detection settings moved out of
+        // Admin Utilities > Alerts into their own link, just above Stat Holidays.
+        title: 'Crash Detection',
+        pageName: 'CrashDetectionSettings',
+        url: createPageUrl('CrashDetectionSettings'),
+        icon: ShieldAlert
+      },
       {
         title: 'Stat Holidays',
         pageName: 'StatHolidays',
