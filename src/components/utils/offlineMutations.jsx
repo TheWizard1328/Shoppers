@@ -49,10 +49,16 @@ const getMeaningfulDeliveryUpdates = async (existingDelivery, updates = {}) => {
       // start/end. Any writer that tries to put a window back on it is dropped
       // here, so no path (save, future-route sync, optimizer, stale tab) can
       // refill it. Clearing to '' is always allowed.
+      // IMPORTANT: judge the MERGED record, not the stored one — on the save that
+      // performs the move the stored row still carries the OLD date (today), so
+      // checking existingDelivery alone let the refill through.
+      const _mergedDate = String(sanitizedUpdates?.delivery_date ?? existingDelivery?.delivery_date ?? '');
+      const _mergedStatus = String(sanitizedUpdates?.status ?? existingDelivery?.status ?? '').toLowerCase();
+      const _mergedNotes = String(sanitizedUpdates?.delivery_notes ?? existingDelivery?.delivery_notes ?? '');
       if ((key === 'delivery_time_start' || key === 'delivery_time_end') && value
-          && String(existingDelivery?.delivery_date || '') !== new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' })
-          && ['in_transit', 'en_route'].includes(String(existingDelivery?.status || '').toLowerCase())
-          && String(existingDelivery?.delivery_notes || '').includes('Delivery Transferred')) {
+          && _mergedDate !== new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' })
+          && ['in_transit', 'en_route'].includes(_mergedStatus)
+          && _mergedNotes.includes('Delivery Transferred')) {
         console.warn('[WINDOW-GATE] dropped', key, '=', value, 'on transferred stop', existingDelivery?.id);
         return acc;
       }

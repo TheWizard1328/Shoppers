@@ -851,6 +851,38 @@ const _enforceBlankTransferredWindow = (record) => {
   }
 };
 
+/**
+ * OWNER REPORT (Nov 25 2026): after a date transfer the stop vanished from the
+ * new date until the app was refreshed. A local bulk write built from a
+ * pre-transfer snapshot put the old delivery_date back into IndexedDB while the
+ * server already held the new one. Any bulk write whose incoming record is
+ * OLDER than the stored copy keeps the stored delivery_date.
+ */
+const _protectTransferredDate = async (records) => {
+  const out = [];
+  for (const rec of records) {
+    try {
+      if (!rec || !rec.id || !String(rec.delivery_notes || '').includes('Delivery Transferred')) { out.push(rec); continue; }
+      const stored = await getById(STORES.DELIVERIES, rec.id);
+      if (!stored) { out.push(rec); continue; }
+      const storedDate = String(stored.delivery_date || '');
+      const incomingDate = String(rec.delivery_date || '');
+      if (!storedDate || !incomingDate || storedDate === incomingDate) { out.push(rec); continue; }
+      const storedMs = new Date(stored.updated_date || 0).getTime();
+      const incomingMs = new Date(rec.updated_date || 0).getTime();
+      if (Number.isFinite(storedMs) && storedMs > incomingMs) {
+        console.warn('[WINDOW-GATE] kept stored date', storedDate, 'over stale', incomingDate, 'on', rec.id);
+        out.push({ ...rec, delivery_date: storedDate });
+      } else {
+        out.push(rec);
+      }
+    } catch (_) {
+      out.push(rec);
+    }
+  }
+  return out;
+};
+
 const bulkSave = async (storeName, records) => {
   if (!records || records.length === 0) {
     return { success: true, count: 0 };
@@ -883,6 +915,11 @@ const bulkSave = async (storeName, records) => {
     // TRANSFERRED to another date and already in hand keeps a blank window,
     // whatever path (engine commit, batch save, optimistic update) wrote it.
     try { records = records.map(_enforceBlankTransferredWindow); } catch (_) { /* keep originals */ }
+    // A STALE SNAPSHOT must never move a transferred stop back to its old date
+    // (owner report Nov 25 2026: the stop "disappeared" from tomorrow until the
+    // app was refreshed, because a local bulk write carrying the pre-transfer
+    // date landed after the move). Keep the newer stored date.
+    try { records = await _protectTransferredDate(records); } catch (_) { /* keep originals */ }
   }
 
   const isPHI = isPHIStore(storeName);
