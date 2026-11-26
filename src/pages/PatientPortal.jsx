@@ -1240,7 +1240,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       const storeMap = {};
       (stores || []).forEach((st) => { storeMap[st.id] = st.name; });
       const cardProps = buildDeliveryCardProps(todayDelivery, {
-        pickupStops, puidGroups, storeMap, allDeliveries: deliveries,
+        pickupStops, puidGroups, storeMap, allDeliveries: deliveries, routeDeliveries,
       });
       // PENDING shows the card's "till pickup" number, in transit shows "away".
       const pendingNow = todayDelivery.status === 'pending';
@@ -1250,7 +1250,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       if (between != null && Number.isFinite(Number(between))) return Number(between);
     } catch { /* fall back below */ }
     return stopsRemaining;
-  }, [todayDelivery, stopsRemaining, stores, pickupStops, puidGroups, deliveries]);
+  }, [todayDelivery, stopsRemaining, stores, pickupStops, puidGroups, deliveries, routeDeliveries]);
 
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
   const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, markerStopsCount);
@@ -1913,6 +1913,7 @@ export default function PatientPortal({ embedded = false } = {}) {
               puidGroups={puidGroups}
               stores={stores}
               allDeliveries={deliveries}
+              routeDeliveries={routeDeliveries}
               onCollapsedHeight={setFloatCardHeight}
               remainingStops={liveRemainingStops?.[floatDelivery.id] ?? null} />
             

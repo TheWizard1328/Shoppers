@@ -32,7 +32,7 @@ const dayKey = (record) => String(record?.delivery_date || '').slice(0, 10);
  * three days back, plus a wider fallback) and both drivers are reported: who
  * collected it and who delivered it.
  */
-export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap, allDeliveries } = {}) {
+export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap, allDeliveries, routeDeliveries } = {}) {
   if (!delivery) return null;
 
   const storeName = (storeMap || {})[delivery.store_id] || null;
@@ -97,6 +97,32 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
   if (sameRoute && pickupStop.stop_order != null && delivery.stop_order != null) {
     // Same route: exact, from the route order.
     stopsBetween = Math.max(0, Number(delivery.stop_order) - Number(pickupStop.stop_order) - 1);
+    // OWNER REPORT (Nov 25 2026): a delivery transferred back to today was
+    // re-pointed at a pickup collected at 10:20 AM (stop 1), so the gap to her
+    // stop 40 read "38 stops away" although every stop in between was already
+    // finished and she was effectively next. Standing rule: never count finished
+    // stops. While IN TRANSIT the number is the stops between pickup and her
+    // stop that are still UNFINISHED; the order gap is only the fallback when
+    // the route is not available to inspect.
+    const liveStatus = String(delivery.status || '').toLowerCase();
+    if (liveStatus === 'in_transit' || liveStatus === 'en_route') {
+      // The driver's whole route (when the portal has it) beats the puid group,
+      // which only holds the stops that share her pickup.
+      const routeSource = Array.isArray(routeDeliveries) && routeDeliveries.length > 0
+        ? routeDeliveries
+        : (group.length > 0 ? group : (Array.isArray(allDeliveries) ? allDeliveries : []));
+      const routePool = routeSource
+        .filter((rec) => rec && rec.id !== delivery.id && rec.driver_id === delivery.driver_id && dayKey(rec) === deliveryDay);
+      if (routePool.length > 0) {
+        const lo = Number(pickupStop.stop_order);
+        const hi = Number(delivery.stop_order);
+        stopsBetween = routePool.filter((rec) => {
+          const order = Number(rec.stop_order);
+          if (!Number.isFinite(order) || order <= lo || order >= hi) return false;
+          return !['completed', 'failed', 'cancelled'].includes(String(rec.status || '').toLowerCase());
+        }).length;
+      }
+    }
   } else if (pickupTime && deliveryTime) {
     // Transferred: count the DELIVERING driver's stops finished between the real
     // pickup and this delivery (owner rule Nov 3 2026 — use actual times).
