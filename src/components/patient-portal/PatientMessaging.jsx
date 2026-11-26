@@ -42,6 +42,23 @@ export async function loadPatientUnreadCount(patientId) {
 }
 
 /**
+ * OWNER REQUEST (Nov 25 2026): the portal pops a panel for EVERY unread incoming
+ * message (newest first), including on first load, so this returns the unread
+ * incoming rows rather than only the newest one.
+ */
+export async function loadUnreadIncomingMessages(patientId, limit = 5) {
+  if (!patientId) return [];
+  try {
+    const rows = await base44.entities.Message.filter({ patient_id: patientId, read: false }, '-created_date', 50);
+    const mine = patientSender(patientId);
+    const list = Array.isArray(rows) ? rows : (rows?.items || []);
+    return list.filter((m) => m && m.id && m.sender_id !== mine).slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * OWNER REQUEST (Nov 25 2026): the portal needs the newest UNREAD incoming
  * message so it can pop the same "new message" panel staff devices get. Returns
  * the newest row sent by someone other than the patient, or null.

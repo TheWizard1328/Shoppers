@@ -10,7 +10,7 @@ import PatientPortalGuard from '@/components/patient-portal/PatientPortalGuard';
 import PatientSidebar from '@/components/patient-portal/PatientSidebar';
 import PatientTodayFloatingCard from '@/components/patient-portal/PatientTodayFloatingCard';
 import MapCrosshair from '@/components/dashboard/MapCrosshair';
-import PatientMessaging, { loadPatientUnreadCount, loadLatestIncomingMessage } from '@/components/patient-portal/PatientMessaging';
+import PatientMessaging, { loadPatientUnreadCount, loadUnreadIncomingMessages } from '@/components/patient-portal/PatientMessaging';
 import PatientMessageBalloon from '@/components/patient-portal/PatientMessageBalloon';
 import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
 import { resolveLinkedPatientIds } from '@/components/utils/patientLinkedRecords';
@@ -527,9 +527,10 @@ export default function PatientPortal({ embedded = false } = {}) {
   const [unreadMessages, setUnreadMessages] = useState(0);
   // OWNER REQUEST (Nov 25 2026): pop the same "new message" panel staff devices
   // get when a patient receives an in-app message while looking at the portal.
-  const [messageToast, setMessageToast] = useState(null);
-  const seenToastIdRef = useRef('');
-  const firstToastPassRef = useRef(true);
+  // OWNER REQUEST (Nov 25 2026): one box per unread message (newest first), and
+  // they appear on first load too, not only when a new one arrives mid-session.
+  const [messageToasts, setMessageToasts] = useState([]);
+  const seenToastIdsRef = useRef(new Set());
   const [deliveries, setDeliveries] = useState([]);
   const [pickupStops, setPickupStops] = useState([]);
   // Every record sharing each puid (pickup + its deliveries) — lets a transferred
@@ -1619,31 +1620,38 @@ export default function PatientPortal({ embedded = false } = {}) {
   }, []);
 
   useEffect(() => {
-    if (messagingOpen && messageToast) setMessageToast(null);
-  }, [messagingOpen, messageToast]);
+    if (messagingOpen && messageToasts.length) {
+      messageToasts.forEach((m) => seenToastIdsRef.current.add(m.id));
+      setMessageToasts([]);
+    }
+  }, [messagingOpen, messageToasts]);
 
   useEffect(() => {
     if (!patient?.id) return undefined;
     let cancelled = false;
     const refresh = async () => {
-      const [count, latest] = await Promise.all([
+      const [count, unread] = await Promise.all([
         loadPatientUnreadCount(patient.id),
-        loadLatestIncomingMessage(patient.id)
+        loadUnreadIncomingMessages(patient.id, 5)
       ]);
       if (cancelled) return;
       setUnreadMessages(count);
       // The public portal has no Base44 session, so the Message websocket stays
-      // silent here; this 4s live check is what brings the message in and pops
-      // the panel (the first pass only records what is already waiting, so a
-      // patient opening the portal is not greeted by a stale pop-up).
-      if (firstToastPassRef.current) {
-        firstToastPassRef.current = false;
-        seenToastIdRef.current = latest?.id || '';
-        return;
-      }
-      if (latest?.id && latest.id !== seenToastIdRef.current && !messagingOpen && !document.hidden) {
-        setMessageToast(latest);
-      }
+      // silent here; this 4s live check is what brings messages in and pops the
+      // panels. FIRST LOAD COUNTS TOO (owner request Nov 25 2026): any unread
+      // incoming message gets a box straight away, newest first.
+      if (messagingOpen) return;
+      const fresh = (unread || []).filter((m) => m?.id && !seenToastIdsRef.current.has(m.id));
+      if (fresh.length === 0) return;
+      setMessageToasts((prev) => {
+        const known = new Set(prev.map((m) => m.id));
+        const added = fresh.filter((m) => !known.has(m.id));
+        if (added.length === 0) return prev;
+        // Newest first, three boxes at most on screen.
+        return [...added, ...prev]
+          .sort((a, b) => String(b.created_date || '').localeCompare(String(a.created_date || '')))
+          .slice(0, 3);
+      });
     };
     refresh();
     // OWNER REPORT (Nov 25 2026): the badge lagged after messages were read, so the
@@ -1692,6 +1700,7 @@ export default function PatientPortal({ embedded = false } = {}) {
 
         {/* Top Bar */}
         <div
+          data-patient-header
           className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3 flex-shrink-0 z-10 py-4 px-4"
           /* Owner, Nov 23 2026 (w307): full-page header 10px shorter - 5px off the
              top of the buttons (12px -> 7px) and 5px off below them (py-4's 16px ->
@@ -1985,15 +1994,15 @@ export default function PatientPortal({ embedded = false } = {}) {
       </div>
 
       <PatientMessageBalloon
-        message={messageToast}
-        onOpen={() => {
-          seenToastIdRef.current = messageToast?.id || '';
-          setMessageToast(null);
+        messages={messageToasts}
+        onOpen={(msg) => {
+          if (msg?.id) seenToastIdsRef.current.add(msg.id);
+          setMessageToasts([]);
           setMessagingOpen(true);
         }}
-        onDismiss={() => {
-          seenToastIdRef.current = messageToast?.id || '';
-          setMessageToast(null);
+        onDismiss={(msg) => {
+          if (msg?.id) seenToastIdsRef.current.add(msg.id);
+          setMessageToasts((prev) => prev.filter((m) => m.id !== msg?.id));
         }} />
 
       <PatientMessaging
