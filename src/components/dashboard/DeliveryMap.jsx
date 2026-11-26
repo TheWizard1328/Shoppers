@@ -295,9 +295,35 @@ function DeliveryMap({
     //      get wrong; the map is simply at the new orientation.
     let applied = 0;
     let lockedKey = null;
+    // OWNER REQUEST (Nov 26 2026): heads-up only holds while the map-cycle FAB is
+    // in Phase 2 AND still locked. Leaving Phase 2, or unlocking it with a manual
+    // pan/zoom, snaps the map back to north-up instead of leaving it rotated.
+    const headsUpAllowed = () => {
+      try {
+        return window.__fabPhase === 2 && window.__fabIsLocked === true;
+      } catch {
+        return false;
+      }
+    };
+    // A pinch rotation (touchRotate) is the driver's own choice: hold it and stop
+    // re-orienting until the compass is tapped or the FAB changes phase.
+    let manualRotation = false;
+    let programmaticAt = 0;
     const step = () => {
       const map = headingMapRef.current;
       if (!map || typeof map.setBearing !== "function") return;
+      if (!headsUpAllowed()) {
+        // Fall back to north-up. Cleared latch so re-entering Phase 2 re-orients.
+        lockedKey = null;
+        manualRotation = false;
+        if (wrap(0 - applied) === 0 && Number(map.getBearing?.() || 0) === 0) return;
+        applied = 0;
+        programmaticAt = Date.now();
+        map.setBearing(0);
+        window.__mapBearing = 0;
+        return;
+      }
+      if (manualRotation) return;
       const headingState = getMapHeading() || {};
       const heading = headingState.heading;
       const key = headingState.key;
@@ -314,6 +340,7 @@ function DeliveryMap({
       if (target == null) return;          // latched: leave the map alone
       if (wrap(target - applied) === 0) return;
       applied = target;
+      programmaticAt = Date.now();
       map.setBearing(applied);
       // getBearing() reports the normalised 0-360 value the plugin applied.
       window.__mapBearing = typeof map.getBearing === "function" ? map.getBearing() : applied;
@@ -332,10 +359,40 @@ function DeliveryMap({
         return Number.isFinite(appliedNow) ? appliedNow : 0;
       };
     } catch { /* no window */ }
+    // Tap-to-north: the compass calls this. It also re-arms heads-up, so in
+    // Phase 2 the next turn latch turns the map to the travel direction again.
+    try {
+      window.__resetMapNorth = () => {
+        const m = headingMapRef.current;
+        manualRotation = false;
+        applied = 0;
+        lockedKey = null;
+        if (m && typeof m.setBearing === 'function') {
+          programmaticAt = Date.now();
+          m.setBearing(0);
+        }
+        window.__mapBearing = 0;
+      };
+      // Manual rotation detection: leaflet-rotate fires 'rotate' for a pinch. A
+      // change we did not just cause is the driver's, so hold it.
+      const onRotate = () => {
+        const m = headingMapRef.current;
+        if (!m || typeof m.getBearing !== 'function') return;
+        const live = Number(m.getBearing());
+        if (!Number.isFinite(live)) return;
+        if (Date.now() - programmaticAt < 600) return;
+        if (Math.abs(wrap(live - applied)) < 0.5) return;
+        manualRotation = true;
+        window.__mapBearing = live;
+      };
+      if (headingMapRef.current) headingMapRef.current.on('rotate', onRotate);
+    } catch { /* no window */ }
     const timer = setInterval(step, 120);
     return () => {
       clearInterval(timer);
       try { delete window.__getMapBearing; } catch { /* ignore */ }
+      try { delete window.__resetMapNorth; } catch { /* ignore */ }
+      try { headingMapRef.current?.off?.('rotate'); } catch { /* ignore */ }
     };
   }, [mapReady]);
   const fanCanvasRenderer = useRef(null);
@@ -2351,7 +2408,10 @@ function DeliveryMap({
         rotate={true}
         bearing={0}
         rotateControl={false}
-        touchRotate={false}
+        // OWNER REQUEST (Nov 26 2026): the driver may pinch to rotate the map.
+        // A manual rotation drops heads-up (see the bearing effect) and raises the
+        // compass, whose tap returns the map to north-up.
+        touchRotate={true}
         shiftKeyRotate={false}
         onClick={() => setFannedLocationKey(null)}
         whenReady={(instance) => {

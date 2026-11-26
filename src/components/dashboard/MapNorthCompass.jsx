@@ -37,26 +37,42 @@ function readBearing() {
   }
 }
 
-export default function MapNorthCompass({ visible = false, bottomPx = 0, rightPx = 12 }) {
+export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated = false, bottomPx = 0, rightPx = 12 }) {
   const [bearing, setBearing] = useState(() => readBearing());
 
+  // OWNER REQUEST (Nov 26 2026): the needle also appears whenever the map is NOT
+  // north-up (a pinch rotation, or a turn preview outside Phase 2), so it doubles
+  // as the "tap to go north again" control.
+  const poll = visible || alwaysShowWhenRotated;
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!poll) return undefined;
     setBearing(readBearing());
     const timer = setInterval(() => setBearing(readBearing()), POLL_MS);
     return () => clearInterval(timer);
-  }, [visible]);
+  }, [poll]);
 
-  if (!visible) return null;
+  const rotated = Math.abs(Number(bearing) || 0) > 0.5;
+  if (!visible && !(alwaysShowWhenRotated && rotated)) return null;
 
   // Screen angle of north = -bearing (the map is rotated clockwise by `bearing`).
   const rotation = -bearing;
 
+  const handleReset = () => {
+    try {
+      if (typeof window !== 'undefined' && typeof window.__resetMapNorth === 'function') {
+        window.__resetMapNorth();
+      }
+    } catch { /* no window */ }
+  };
+
   return (
-    <div
-      className="absolute z-[1000] pointer-events-none"
-      style={{ bottom: `${bottomPx}px`, right: `${rightPx}px` }}
-      aria-hidden="true">
+    <button
+      type="button"
+      onClick={handleReset}
+      aria-label="Re-orient the map north up"
+      title="North up"
+      className="absolute z-[1000] p-0 bg-transparent border-0 cursor-pointer"
+      style={{ bottom: `${bottomPx}px`, right: `${rightPx}px` }}>
       <div className="w-9 h-9 rounded-full bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center">
         <svg
           viewBox="0 0 36 36"
@@ -68,6 +84,6 @@ export default function MapNorthCompass({ visible = false, bottomPx = 0, rightPx
           <circle cx="18" cy="18" r="1.6" fill="#0f172a" opacity="0.55" />
         </svg>
       </div>
-    </div>
+    </button>
   );
 }

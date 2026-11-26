@@ -373,6 +373,10 @@ function Dashboard() {
     };
   }, [isDriver, currentUser?.id]);
   useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; window.__fabIsLocked = isMapViewLocked; }, [isMapViewLocked]);
+  // OWNER REQUEST (Nov 26 2026): the map's heads-up rotation must fall back to
+  // north-up the moment the FAB leaves Phase 2 or is unlocked by a manual pan or
+  // zoom, so DeliveryMap needs the live phase beside the lock flag it already reads.
+  useEffect(() => { window.__fabPhase = mapViewPhase; }, [mapViewPhase]);
 
   // ── Patient-portal watcher polling (owner spec Oct 23 2026) ─────────────────
   // One lightweight function call per minute per dashboard device; consumers
