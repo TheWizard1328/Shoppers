@@ -2774,7 +2774,16 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
           .map((t) => formatMinutesToTime(parseTimeToMinutes(t) + 5));
         return cands.includes(_ownStart);
       })();
-      if (patient?.time_window_start && _pickupDerived) {
+      // OWNER RULE (Nov 25 2026): a stop that is already IN HAND on a FUTURE date
+      // is a TRANSFERRED stop. Its window stays exactly as the transfer left it
+      // (blank) — the patient window and the pickup + 5 must NOT be stamped back
+      // on. This future-route sync was refilling Lothar's start with her window
+      // right after the move to tomorrow.
+      const _movedInHand = ['in_transit', 'en_route'].includes(String(d.status || '').toLowerCase());
+      if (_movedInHand) {
+        newStart = d.delivery_time_start;
+        newEnd = d.delivery_time_end;
+      } else if (patient?.time_window_start && _pickupDerived) {
         newStart = patient.time_window_start;
         if (patient.time_window_end) newEnd = patient.time_window_end;
       } else if (!d.delivery_time_start && Number.isFinite(pickupStartMin)) {
