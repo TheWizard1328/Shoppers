@@ -520,6 +520,17 @@ function decodePolyline(encoded) {
   return rescuePolylinePrecision(coords);
 }
 
+// OWNER BUG (Nov 26 2026): "these message bubble balloons are showing up and
+// staying open all the time." Two independent guarantees now live here:
+//  1. PORTAL_SHOWN_TOASTS is MODULE scope, so a re-mounted portal (or a second
+//     render pass) cannot forget a message it already showed and pop it again
+//     on the next 4s poll. It resets on a real page load, which is exactly when
+//     the unread boxes are supposed to appear again.
+//  2. Every box is stamped with a hard deadline and pruned by the parent, so a
+//     box can never outlive 10 seconds even if the child's timer is lost.
+const TOAST_MS = 10000;
+const PORTAL_SHOWN_TOASTS = new Set();
+
 export default function PatientPortal({ embedded = false } = {}) {
   const patient = PatientSessionManager.getPatient();
 
@@ -558,7 +569,27 @@ export default function PatientPortal({ embedded = false } = {}) {
   // OWNER REQUEST (Nov 25 2026): one box per unread message (newest first), and
   // they appear on first load too, not only when a new one arrives mid-session.
   const [messageToasts, setMessageToasts] = useState([]);
-  const seenToastIdsRef = useRef(new Set());
+  // id -> hard expiry timestamp (Date.now() + 10s) for every box on screen.
+  const toastDeadlinesRef = useRef({});
+  // Hard 10s cap enforced by the parent, independent of the child's own timer.
+  useEffect(() => {
+    if (!messageToasts.length) return undefined;
+    const tick = setInterval(() => {
+      const now = Date.now();
+      setMessageToasts((prev) => {
+        const live = prev.filter((m) => (toastDeadlinesRef.current[m.id] || 0) > now);
+        if (live.length === prev.length) return prev;
+        prev.forEach((m) => {
+          if (!live.some((x) => x.id === m.id)) {
+            PORTAL_SHOWN_TOASTS.add(m.id);
+            delete toastDeadlinesRef.current[m.id];
+          }
+        });
+        return live;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [messageToasts.length]);
   // OWNER REQUEST (Nov 25 2026): the header bell now has an in-app half, so the
   // pop-up boxes only appear while in-app alerts are on (the unread badge on the
   // bell and the messaging sheet stay live either way).
@@ -1695,7 +1726,7 @@ export default function PatientPortal({ embedded = false } = {}) {
   // 4s sync cannot pop the same message straight back up.
   const markToastRead = async (msg) => {
     if (!msg?.id || !patient?.id) return;
-    seenToastIdsRef.current.add(msg.id);
+    PORTAL_SHOWN_TOASTS.add(msg.id);
     setMessageToasts((prev) => prev.filter((m) => m.id !== msg.id));
     setUnreadMessages((c) => Math.max(0, c - 1));
     try {
@@ -1709,7 +1740,7 @@ export default function PatientPortal({ embedded = false } = {}) {
 
   useEffect(() => {
     if (messagingOpen && messageToasts.length) {
-      messageToasts.forEach((m) => seenToastIdsRef.current.add(m.id));
+      messageToasts.forEach((m) => PORTAL_SHOWN_TOASTS.add(m.id));
       setMessageToasts([]);
     }
   }, [messagingOpen, messageToasts]);
@@ -1729,12 +1760,15 @@ export default function PatientPortal({ embedded = false } = {}) {
       // panels. FIRST LOAD COUNTS TOO (owner request Nov 25 2026): any unread
       // incoming message gets a box straight away, newest first.
       if (messagingOpen || !inAppAlerts) return;
-      const fresh = (unread || []).filter((m) => m?.id && !seenToastIdsRef.current.has(m.id));
+      const fresh = (unread || []).filter((m) => m?.id && !PORTAL_SHOWN_TOASTS.has(m.id));
       if (fresh.length === 0) return;
       setMessageToasts((prev) => {
         const known = new Set(prev.map((m) => m.id));
         const added = fresh.filter((m) => !known.has(m.id));
         if (added.length === 0) return prev;
+        // Each new box gets its own 10-second deadline the moment it appears.
+        const stamp = Date.now() + TOAST_MS;
+        added.forEach((m) => { toastDeadlinesRef.current[m.id] = stamp; });
         // Newest first, three boxes at most on screen.
         return [...added, ...prev]
           .sort((a, b) => String(b.created_date || '').localeCompare(String(a.created_date || '')))
@@ -2112,12 +2146,12 @@ export default function PatientPortal({ embedded = false } = {}) {
       <PatientMessageBalloon
         messages={messageToasts}
         onOpen={(msg) => {
-          if (msg?.id) seenToastIdsRef.current.add(msg.id);
+          if (msg?.id) PORTAL_SHOWN_TOASTS.add(msg.id);
           setMessageToasts([]);
           setMessagingOpen(true);
         }}
         onDismiss={(msg) => {
-          if (msg?.id) seenToastIdsRef.current.add(msg.id);
+          if (msg?.id) PORTAL_SHOWN_TOASTS.add(msg.id);
           setMessageToasts((prev) => prev.filter((m) => m.id !== msg?.id));
         }}
         onRead={markToastRead} />
