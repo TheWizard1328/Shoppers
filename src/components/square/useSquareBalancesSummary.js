@@ -1949,10 +1949,19 @@ export function computePendingCodDeduction(outstandingItems, marksMap, excludeId
     // COD off the card (card spend already registered) until refunded.
     if (!['pending', 'in_transit', 'en_route', 'failed', 'completed'].includes(String(it?.status || ''))) continue;
     const id = it?.delivery_id ? String(it.delivery_id) : null;
-    if (id && excludeIds && excludeIds.has(id)) continue;
     const cents = Math.round(Number(it?.amount || 0) * 100);
     if (!(cents > 0)) continue;
     const mark = id ? marksMap?.[id] : null;
+    // A BADGE CLICK IS AUTHORITATIVE (owner report Nov 26 2026: "marking Not
+    // Tapped or Driver Tapped is supposed to add the COD back onto the card and
+    // marking Card Spend is supposed to deduct it — currently nothing happens").
+    // A click stamps touchedAt, so a delivery the owner has explicitly touched
+    // since the last true-up now outranks the true-up snapshot's neutral set:
+    // it was contributing ZERO to the estimate, so honouring the click can never
+    // double-count, and the card moves by exactly that COD on the click.
+    const clickedT = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
+    const clickedNow = clickedT != null && Number.isFinite(clickedT) && (tu == null || clickedT >= tu);
+    if (id && excludeIds && excludeIds.has(id) && !clickedNow) continue;
     const createdT = it?.created_date ? new Date(it.created_date).getTime() : null;
     const isNewSinceTrueUp = tu != null && createdT != null && createdT >= tu;
     // AMOUNT ENTERED SINCE TRUE-UP (owner report Oct 9 2026, the $29.26
@@ -1966,8 +1975,11 @@ export function computePendingCodDeduction(outstandingItems, marksMap, excludeId
     // reach here (skipped above).
     const inScopeAtTrueUp = tuCutoffDate != null && excludeIds != null && String(it?.date || '') >= tuCutoffDate;
     const amountAddedSinceTrueUp = !isNewSinceTrueUp && inScopeAtTrueUp;
-    const touchedT = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
-    const isTouchedSinceTrueUp = tu != null && touchedT != null && touchedT >= tu;
+    const touchedT = clickedT;
+    // No true-up at all (a store that has never trued up): the click still
+    // counts — the old rule needed a true-up timestamp and so ignored every
+    // toggle on such a store.
+    const isTouchedSinceTrueUp = clickedNow;
     // Same rule as the credit side: a card-spend stamp after the true-up is
     // NEW card activity, so its charge deducts even when the delivery itself
     // predates the true-up (it was drawer cash at true-up, not card money).

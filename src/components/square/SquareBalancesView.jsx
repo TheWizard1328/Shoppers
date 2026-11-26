@@ -1189,6 +1189,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         spendMarksRecordIdRef.current = created?.id || null;
       }
       toast.success(nextMode === 'driver_tapped' ? 'Driver Tapped' : nextMode === 'not_tapped' ? 'Not Tapped' : 'Card Spend');
+      // OWNER REPORT (Nov 26 2026): the card balance did not move on a toggle.
+      // The shared summary caches for 60s, so the marks write must force it.
+      try { window.dispatchEvent(new CustomEvent('squareBalancesRefreshed')); } catch { /* no window */ }
     } catch (e) {
       console.error('setCardSpendMode failed:', e);
       toast.error('Could not save the spend state');
@@ -1229,6 +1232,9 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         spendMarksRecordIdRef.current = created?.id || null;
       }
       toast.success(nextMode === 'driver_tapped' ? 'Driver Tapped' : nextMode === 'not_tapped' ? 'Not Tapped' : 'Card Spend');
+      // OWNER REPORT (Nov 26 2026): the card balance did not move on a toggle.
+      // The shared summary caches for 60s, so the marks write must force it.
+      try { window.dispatchEvent(new CustomEvent('squareBalancesRefreshed')); } catch { /* no window */ }
     } catch (e) {
       console.error('markCardSpend failed:', e);
       toast.error('Could not save the toggle');
