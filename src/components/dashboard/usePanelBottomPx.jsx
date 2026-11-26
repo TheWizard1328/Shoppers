@@ -20,20 +20,49 @@ import { useEffect, useRef, useState } from 'react';
  * measured — immersive mode slides it off screen, or it has not mounted yet —
  * every caller falls back to its own previous formula.
  */
+/**
+ * The FABs are `position: absolute` inside the map area, so a `bottom` value is
+ * measured from THAT box's edge, not from the viewport. Using window.innerHeight
+ * silently over-lifted every control by however much the map area ends above the
+ * bottom of the screen (the bottom nav sits over it).
+ */
+function readContainerBottom() {
+  try {
+    const area = document.querySelector('[data-map-area]');
+    if (area) {
+      const r = area.getBoundingClientRect();
+      if (r && r.height > 10) return r.bottom;
+    }
+  } catch { /* ignore */ }
+  return window.innerHeight;
+}
+
 function readPanelRect() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return null;
   try {
-    // Prefer the card strip itself: its height IS the remembered collapsed
-    // height, so "is a card expanded" is judged against the same number.
+    // OWNER CORRECTION (Nov 26 2026): "that fix actually moved them higher
+    // instead of lower towards the cards." The strip box is min-h-[70px], so its
+    // top edge can sit ABOVE the cards themselves — anchoring to it lifted the row
+    // away from the cards. Measure the real card tops instead: the row belongs
+    // 5px above the topmost visible stop card, which is the panel a driver sees.
+    const cards = Array.from(document.querySelectorAll('[id^="stop-card-"]'))
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r && r.height > 10 && r.width > 20 && r.top < window.innerHeight - 4);
+    if (cards.length) {
+      const top = Math.min(...cards.map((r) => r.top));
+      const bottom = Math.max(...cards.map((r) => r.bottom));
+      return { top, height: bottom - top, containerBottom: readContainerBottom() };
+    }
+
+    // Fallbacks: the card strip, then the panel container.
     const el = document.querySelector('[data-stop-cards-strip]') || document.querySelector('[data-stop-cards-panel]');
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     if (!rect || rect.height < 10 || rect.width < 10) return null;
     const style = window.getComputedStyle(el);
     if (style.visibility === 'hidden' || Number(style.opacity) < 0.05) return null;
-    // Immersive mode slides the panel below the fold — it is not a reference then.
     if (rect.top >= window.innerHeight - 2) return null;
-    return { top: rect.top, height: rect.height };
+    return { top: rect.top, height: rect.height, containerBottom: readContainerBottom() };
   } catch {
     return null;
   }
@@ -42,7 +71,7 @@ function readPanelRect() {
 export function measurePanelBottomPx(gapPx = 5) {
   const rect = readPanelRect();
   if (!rect) return null;
-  const px = Math.round(window.innerHeight - rect.top + gapPx);
+  const px = Math.round(rect.containerBottom - rect.top + gapPx);
   return px > 0 ? px : null;
 }
 
@@ -84,7 +113,7 @@ export function usePanelBottomPx(fallbackPx = 0, gapPx = 5, collapsedHeightPx = 
           // no expand event was seen — trust the remembered height and hold.
           next = lockedRef.current ?? fallbackPx;
         } else {
-          const measured = Math.round(window.innerHeight - rect.top + gapPx);
+          const measured = Math.round(rect.containerBottom - rect.top + gapPx);
           next = measured > 0 ? measured : fallbackPx;
           lockedRef.current = next;
         }

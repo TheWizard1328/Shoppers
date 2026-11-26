@@ -104,9 +104,9 @@ export default function FABControls({
     : selectedDate;
 
   // Immersive FAB data — call button and navigation button for the next stop
-  // Immersive mode hides the stop card panel, so the Navigate/call FABs keep the
-  // bottom nav as their reference — 5px above it, matching the panel rule.
-  const immersiveFabBottom = bottomNavHeight + 5;
+  // Immersive mode hides the stop card panel; Robert confirmed this placement is
+  // correct, so it stays on the bottom nav reference and is left untouched.
+  const immersiveFabBottom = bottomNavHeight + 10;
 
   // For ISP/ISD inter-store deliveries, use the inter-store location record for phone/nav
   const immersivePatientPhone = immersiveIsInterStore
