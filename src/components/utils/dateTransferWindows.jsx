@@ -75,8 +75,10 @@ export async function applyDateTransferWindows({ existing, updates }) {
   // and no pre-optimizer step may fill it — this function runs on the generic
   // delivery update path, i.e. BEFORE the route optimizer, which is why the
   // start kept reappearing and then being cleared again.
-  const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-  if (newDate !== todayKey) {
+  // OWNER RULE (Nov 26 2026, final): ANY date change clears the start, even when
+  // the target is today. Only a same-date driver move keeps the window, and that
+  // never reaches here (hasDateChange is false).
+  if (true) {
     if (!merged.delivery_time_start && !merged.delivery_time_end) return null;
     return { delivery_time_start: '', delivery_time_end: '' };
   }

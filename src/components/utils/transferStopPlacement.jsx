@@ -245,31 +245,22 @@ export async function resolveTransferPlacement({
   //   4. else blank.
   // A same-date driver move keeps the old rule: a past start is preserved,
   // otherwise now + 5.
-  const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
   const hhmm = (v) => {
     const str = String(v || '').trim();
     const m = str.match(/(\d{1,2}):(\d{1,2})/);
     return m ? `${m[1].padStart(2, '0')}:${m[2].padStart(2, '0')}` : '';
   };
-  const patientStart = hhmm(patient?.time_window_start);
-  const storePickups = skeleton.filter((p) => p.storeId && String(p.storeId) === String(delivery.store_id || ''));
-  const pickupPool = storePickups.length ? storePickups : skeleton;
-  const enRoutePickup = pickupPool.find((p) => ['en_route', 'in_transit'].includes(p.status) && p.start);
-  const finishedPickup = pickupPool.find((p) => p.status === 'completed' && p.actual);
-  const todayStart = patientStart
-    || (enRoutePickup ? hhmm(enRoutePickup.start) : '')
-    || (finishedPickup ? hhmm(finishedPickup.actual) : '');
   const existingStart = String(delivery.delivery_time_start || '').slice(0, 16);
   const existingMs = existingStart ? new Date(existingStart.replace(' ', 'T')).getTime() : NaN;
   const placement = { startTime: existingStart };
   let clearStart = false;
+  // OWNER RULE (Nov 26 2026, final): ANY move to a different date clears the
+  // start — including a move onto TODAY. Only a same-date driver move keeps the
+  // stop's own window. (Supersedes the Nov 25 "move to today pins the patient
+  // window" rule.)
   if (dateChanged) {
-    if (dayOf(nextDate) === todayKey && todayStart) {
-      placement.startTime = todayStart;
-    } else {
-      placement.startTime = '';
-      clearStart = true;
-    }
+    placement.startTime = '';
+    clearStart = true;
   } else if (!Number.isFinite(existingMs) || existingMs > Date.now()) {
     const bumped = new Date(Date.now() + 5 * 60 * 1000);
     placement.startTime = `${String(bumped.getHours()).padStart(2, '0')}:${String(bumped.getMinutes()).padStart(2, '0')}`;
