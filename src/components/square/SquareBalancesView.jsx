@@ -2826,11 +2826,22 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   // the same card matches its amount (owner rule Nov 22 2026).
   useEffect(() => {
     if (!ownerCanEdit || !manualSwipes.rows.length) return;
+    // OWNER REPORT (Nov 26 2026): "I add a second swipe log item and it appears
+    // then disappears." Two logged swipes of the same amount were both cleared by
+    // the SAME collected delivery, so the second one vanished the moment it was
+    // saved. One collection can only satisfy one swipe: a delivery claimed by one
+    // row is not offered to the next.
+    const claimedDeliveryIds = new Set();
     for (const swipe of manualSwipes.rows) {
       const collected = codCollectedTodayByLoc?.[swipe.location_id] || [];
       const cents = Math.round(Number(swipe.amount_cents || 0));
-      const hit = collected.find((r) => r?.delivery_id && Math.abs(Math.round(Number(r.amount || 0) * 100) - cents) <= 1);
-      if (hit) manualSwipes.close(swipe.id, 'matched', hit.delivery_id);
+      const hit = collected.find((r) => r?.delivery_id
+        && !claimedDeliveryIds.has(String(r.delivery_id))
+        && Math.abs(Math.round(Number(r.amount || 0) * 100) - cents) <= 1);
+      if (hit) {
+        claimedDeliveryIds.add(String(hit.delivery_id));
+        manualSwipes.close(swipe.id, 'matched', hit.delivery_id);
+      }
     }
   }, [ownerCanEdit, manualSwipes.rows, manualSwipes.close, codCollectedTodayByLoc]);
 
