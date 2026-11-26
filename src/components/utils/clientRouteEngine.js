@@ -1765,10 +1765,13 @@ let _inheritedWindowCount = 0;
       // definition (the transfer marks it in_transit). A stale copy that still
       // reads 'pending' made the pickup-before-pending rule chain it after its
       // 16:00-18:00 pickup, which is exactly the #5 position with an 18:00 ETA.
-      const _todayKeyForOrder = getEdmontonTodayDateString();
+      // OWNER RULE (Nov 26 2026): ONE rule for every date. A transferred stop with
+      // a blank start is in hand wherever it lands — today or a future date — so it
+      // is never chained behind its pickup on any date.
       const _orderingStatus = (st) => {
         const isTransferred = String(st.delivery_notes || '').includes('Delivery Transferred');
-        if (isTransferred && String(st.delivery_date || '').slice(0, 10) === _todayKeyForOrder) return 'in_transit';
+        const blankStart = !String(st.delivery_time_start || '').trim();
+        if (isTransferred && blankStart) return 'in_transit';
         return st.status;
       };
       const _ordered = sharedEnforcePickupBeforePending(
@@ -2213,7 +2216,7 @@ let _inheritedWindowCount = 0;
       // "pending" here, so it takes no pickup floor (the 18:00 source).
       const _isPendingStop = String(d.status || '').toLowerCase() === 'pending'
         && !(String(d.delivery_notes || '').includes('Delivery Transferred')
-          && String(d.delivery_date || '').slice(0, 10) === getEdmontonTodayDateString());
+          && !String(d.delivery_time_start || '').trim());
       const _puFloor = _pendingPickupFloor(stop, null);
       return {
         id: d.id,
