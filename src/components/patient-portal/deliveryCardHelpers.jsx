@@ -61,7 +61,9 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
   ) || null;
   // 1. Same day, same store, actually collected — the parcel left the pharmacy
   //    on the day it was delivered.
-  pickupStop = candidatePickups.find((rec) =>
+  //    BUG (Nov 26 2026): this line assigned unconditionally, so when it found
+  //    nothing it reset the rule-0 match back to null. Only fill a gap.
+  if (!pickupStop) pickupStop = candidatePickups.find((rec) =>
     rec.puid === delivery.puid &&
     dayKey(rec) === deliveryDay &&
     (!delivery.store_id || rec.store_id === delivery.store_id) &&
