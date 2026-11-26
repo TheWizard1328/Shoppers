@@ -295,35 +295,51 @@ function DeliveryMap({
     //      get wrong; the map is simply at the new orientation.
     let applied = 0;
     let lockedKey = null;
-    // OWNER REQUEST (Nov 26 2026): heads-up only holds while the map-cycle FAB is
-    // in Phase 2 AND still locked. Leaving Phase 2, or unlocking it with a manual
-    // pan/zoom, snaps the map back to north-up instead of leaving it rotated.
-    const headsUpAllowed = () => {
-      try {
-        return window.__fabPhase === 2 && window.__fabIsLocked === true;
-      } catch {
-        return false;
-      }
+    // OWNER REPORT (Nov 26 2026): pinch rotation snapped straight back to north in
+    // every phase. Cause: this gate ran on every tick and forced bearing 0 whenever
+    // heads-up was not allowed, which is always true outside Phase 2 — and it also
+    // wiped the driver's own rotation. The fallback is now EDGE triggered: it fires
+    // only when the FAB leaves Phase 2 or is unlocked by a manual pan/zoom.
+    const readPhase = () => {
+      try { return Number(window.__fabPhase); } catch { return NaN; }
     };
-    // A pinch rotation (touchRotate) is the driver's own choice: hold it and stop
-    // re-orienting until the compass is tapped or the FAB changes phase.
+    const readLocked = () => {
+      try { return window.__fabIsLocked === true; } catch { return false; }
+    };
+    // A pinch rotation (touchRotate) is the driver's own choice: hold it in every
+    // phase until the compass is tapped or the FAB changes phase.
     let manualRotation = false;
     let programmaticAt = 0;
+    let prevPhase = null;
+    let prevLocked = null;
     const step = () => {
       const map = headingMapRef.current;
       if (!map || typeof map.setBearing !== "function") return;
-      if (!headsUpAllowed()) {
-        // Fall back to north-up. Cleared latch so re-entering Phase 2 re-orients.
-        lockedKey = null;
+      const phase = readPhase();
+      const locked = readLocked();
+      const phase2Locked = phase === 2 && locked;
+      const leftPhase2 = prevPhase === 2 && phase !== 2;
+      const justUnlocked = prevLocked === true && locked === false;
+      const enteredPhase2 = phase2Locked && (prevPhase !== 2 || prevLocked !== true);
+      prevPhase = phase;
+      prevLocked = locked;
+      if (leftPhase2 || justUnlocked) {
+        // North-up fallback, once, on the transition only.
         manualRotation = false;
-        if (wrap(0 - applied) === 0 && Number(map.getBearing?.() || 0) === 0) return;
+        lockedKey = null;
         applied = 0;
         programmaticAt = Date.now();
         map.setBearing(0);
         window.__mapBearing = 0;
         return;
       }
-      if (manualRotation) return;
+      if (enteredPhase2) {
+        // Re-arm heads-up for the new turn preview.
+        manualRotation = false;
+        lockedKey = null;
+      }
+      if (manualRotation) return;   // hold whatever the driver pinched to
+      if (!phase2Locked) return;    // outside Phase 2 the map stays where it is
       const headingState = getMapHeading() || {};
       const heading = headingState.heading;
       const key = headingState.key;
@@ -380,7 +396,7 @@ function DeliveryMap({
         if (!m || typeof m.getBearing !== 'function') return;
         const live = Number(m.getBearing());
         if (!Number.isFinite(live)) return;
-        if (Date.now() - programmaticAt < 600) return;
+        if (Date.now() - programmaticAt < 900) return;
         if (Math.abs(wrap(live - applied)) < 0.5) return;
         manualRotation = true;
         window.__mapBearing = live;
