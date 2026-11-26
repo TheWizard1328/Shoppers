@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
 import PatientDetails from "./PatientDetails";
 
@@ -35,7 +36,15 @@ export default function MobilePatientDetailsSheet({
     if (isOpen) dragY.set(0);
   }, [isOpen, dragY]);
 
-  return (
+  // OWNER REPORT (Nov 26 2026): on the patient database page the sheet's X button
+  // sat under the mobile header and the bottom nav, so it could not be tapped.
+  // Cause: the sheet renders inside the page's motion wrapper, which is a
+  // transformed element and therefore its own stacking context — a fixed child is
+  // trapped inside it and the header (z-50) / bottom nav (z-150) paint on top no
+  // matter how high its own z-index is. Portalling to document.body puts the
+  // sheet at root level, where z-[1000] genuinely wins.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -46,7 +55,7 @@ export default function MobilePatientDetailsSheet({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[800] bg-black/40 lg:hidden"
+            className="fixed inset-0 z-[1000] bg-black/40 lg:hidden"
             onClick={onClose}
           />
 
@@ -68,7 +77,7 @@ export default function MobilePatientDetailsSheet({
               paddingBottom: "calc(var(--app-inset-bottom) + var(--actual-bottom-nav-height, 0px))",
               y: dragY,
             }}
-            className="fixed left-0 right-0 bottom-0 z-[810] rounded-t-2xl overflow-hidden flex flex-col lg:hidden"
+            className="fixed left-0 right-0 bottom-0 z-[1001] rounded-t-2xl overflow-hidden flex flex-col lg:hidden"
           >
             {/* Drag handle — drag down to dismiss */}
             <motion.div
@@ -108,6 +117,7 @@ export default function MobilePatientDetailsSheet({
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
