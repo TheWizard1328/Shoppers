@@ -965,10 +965,16 @@ let _inheritedWindowCount = 0;
   const _transferredInHand = optimizationStops.find((s) =>
     String(s.delivery?.delivery_notes || '').includes('Delivery Transferred')
     && ['in_transit', 'en_route'].includes(String(s.delivery?.status || '').toLowerCase()));
+  // OWNER REPORT (Nov 26 2026, Hamptons En Route held #1 so Lothar sat at #2):
+  // the claim holder being in hand does NOT keep the lock when the route has not
+  // really begun — nothing is finished yet and the driver is off duty / at home,
+  // so "in hand" only means "marked started", not "being driven to". The lock now
+  // holds only once a stop on the route has actually finished.
+  const _routeActuallyBegun = !!latestFinishedDelivery;
   const _routeHasTransferredStop = !!_transferredInHand
     && _transferredInHand.delivery.isNextDelivery !== true
     && !!explicitNextStop
-    && !['in_transit', 'en_route'].includes(String(explicitNextStop.delivery?.status || '').toLowerCase());
+    && !_routeActuallyBegun;
   if (_routeHasTransferredStop && explicitNextStop) {
     console.warn(`[clientRouteEngine] ${source} — transferred stop on route: releasing next-stop lock on ${explicitNextStop.delivery.id} so the optimizer re-decides`);
   }
@@ -2190,12 +2196,17 @@ let _inheritedWindowCount = 0;
       const _puFloor = _pendingPickupFloor(stop, null);
       return {
         id: d.id,
+        // OWNER RULE (Nov 26 2026): a stop with a BLANK delivery start carries NO
+        // floor. time_window_start is the denormalised PATIENT window, and passing
+        // it here floored Lothar's ETA at 18:00 and chained every later stop from
+        // it. Own start only; the engine's windowStart is already null for a
+        // transferred stop (getEffectiveWindowStart).
         windowFloorMinutes: _isPendingStop
           ? (Number.isFinite(_puFloor) ? _puFloor : null)
           : sharedWindowFloorMinutesOf({
           windowStart: stop.windowStart,
           deliveryTimeStart: d.delivery_time_start,
-          timeWindowStart: d.time_window_start,
+          timeWindowStart: String(d.delivery_time_start || '').trim() ? d.time_window_start : null,
         }),
         pickupFloorMinutes: pickupNotStarted ? sharedParseTimeToMinutes(d.delivery_time_start) : null,
         dwellMinutes: sharedDwellMinutes({ extraTime: d.extra_time, isPickup: !!stop.isPickup }),
@@ -2929,7 +2940,12 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   // applies only to the REMAINING blocks. Fallback: no flagged in-flight stop
   // but some other in-flight stop exists → pin the earliest by stop_order.
   const _inFlightStop = (d) => _IN_HAND_STATUSES.includes(String(d?.status || '').toLowerCase());
-  const _flaggedStarted = optimizableDeliveries.find(d => d?.isNextDelivery === true && _inFlightStop(d)) || null;
+  // OWNER RULE (Nov 26 2026): a stop TRANSFERRED onto this route that is already
+  // in hand pins first, like a Start click. Otherwise the earliest in-flight stop
+  // by stop_order won the pin and the moved stop could never take position 1.
+  const _transferredInHandPin = optimizableDeliveries.find((d) =>
+    String(d?.delivery_notes || '').includes('Delivery Transferred') && _inFlightStop(d)) || null;
+  const _flaggedStarted = optimizableDeliveries.find(d => d?.isNextDelivery === true && _inFlightStop(d)) || _transferredInHandPin || null;
   const _pinnedStop = _flaggedStarted || (optimizableDeliveries.some(_inFlightStop)
     ? optimizableDeliveries.filter(_inFlightStop).sort((a, b) => (Number(a?.stop_order) || 9999) - (Number(b?.stop_order) || 9999))[0]
     : null);
@@ -3002,9 +3018,11 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   for (let i = 0; i < orderedStops.length; i++) {
     const { delivery, isPickup } = orderedStops[i];
     if (isPickup) { const ps = parseTimeToMinutes(delivery.delivery_time_start || '00:00'); if (Number.isFinite(ps) && cumulativeTime < ps) cumulativeTime = ps; }
-    // Owner rule: delivery's OWN delivery_time_start wins; time_window_start
-    // (denormalized patient copy) is fallback only — same blank-guard pattern.
-    const ws = parseTimeToMinutes(delivery.delivery_time_start || delivery.time_window_start || '');
+    // OWNER RULE (Nov 26 2026): a BLANK delivery start is blank — it must not
+    // fall back to time_window_start (the denormalised patient copy). That
+    // fallback put Lothar's ETA at the patient's 18:00 and pushed every later
+    // stop behind it.
+    const ws = parseTimeToMinutes(delivery.delivery_time_start || '');
     if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
     etaMap.set(delivery.id, formatMinutesToTime(cumulativeTime));
     cumulativeTime += delivery.extra_time || (isPickup ? 15 : 5);

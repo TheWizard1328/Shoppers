@@ -158,7 +158,30 @@ export async function optimizeTransferredStopRoute({
   // OWNER RULE (Nov 3 2026): clear the stale next-delivery flag on the target
   // route BEFORE optimizing, or the engine pins that stop at position 1 and the
   // transferred stop stays last. The flag is restored right after the run.
-  const sweptIds = await sweepNextFlags(localRoute);
+  let sweptIds = await sweepNextFlags(localRoute);
+  // The sweep above only sees what IDB holds. Also read the target route from the
+  // server and clear any active flag it still carries, so a stale claim cannot be
+  // re-merged into the engine's input or restored by another device.
+  try {
+    const serverRoute = await base44.entities.Delivery.filter(
+      { driver_id: driverId, delivery_date: dayOf(deliveryDate) }, '-created_date', 500,
+    );
+    const serverFlagged = (Array.isArray(serverRoute) ? serverRoute : []).filter(
+      (d) => d && d.isNextDelivery === true && ACTIVE_ONLY.includes(String(d.status || '').toLowerCase())
+        && !sweptIds.includes(String(d.id)),
+    );
+    if (serverFlagged.length > 0) {
+      for (const row of serverFlagged) {
+        try { unlockDeliveryFields(row.id); } catch (_) { /* no lock */ }
+        try { await offlineDB.save(offlineDB.STORES.DELIVERIES, { ...row, isNextDelivery: false }); } catch (_) { /* best effort */ }
+      }
+      await commitDeliveryUpdatesSilently(serverFlagged.map((row) => ({ id: row.id, data: { isNextDelivery: false } })));
+      sweptIds = [...sweptIds, ...serverFlagged.map((row) => String(row.id))];
+      console.log(`[TransferOptimize] ${source} — also cleared ${serverFlagged.length} stale server-side next flag(s)`);
+    }
+  } catch (err) {
+    console.warn('[TransferOptimize] server next-flag sweep skipped:', err?.message || err);
+  }
   if (sweptIds.length > 0) {
     console.log(`[TransferOptimize] ${source} — swept stale isNextDelivery off ${sweptIds.length} stop(s) before sequencing`);
     localRoute = await readLocalRoute(driverId, deliveryDate);
@@ -184,7 +207,11 @@ export async function optimizeTransferredStopRoute({
         recalcTrackingNumbers,
         // Contest mode: with the flags swept, every active stop competes for
         // position 1 instead of a stale owner holding the lock.
-        clearNextDeliveryLock: sweptIds.length > 0,
+        // OWNER REPORT (Nov 26 2026): contest mode must NOT depend on the sweep
+        // having found a flag in local IDB. A stale flag held by the server copy,
+        // another device or a not-yet-merged row kept the lock ON and the moved
+        // stop went to #2 behind the old claim holder. A transfer always contests.
+        clearNextDeliveryLock: true,
         source: attempt === 1 ? source : `${source}_retry`,
       });
     } catch (err) {
