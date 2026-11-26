@@ -4,12 +4,25 @@ import PatientDeliveryCard from './PatientDeliveryCard';
 import { buildDeliveryCardProps } from './deliveryCardHelpers';
 import { PatientSessionManager } from './PatientSessionManager';
 import { isPatientViewOverlayActive, requestExitPatientView } from './patientViewExit';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 
 export default function PatientSidebar({ puidGroups, patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false, liveRemainingStops = null }) {
   const [showAll, setShowAll] = useState(false);
   // App-Owner preview only: the exit control lives here instead of a floating
   // top-right button that covered other portal controls (owner report Nov 3 2026).
   const [canExitPreview] = useState(isPatientViewOverlayActive);
+  // OWNER REQUEST (Nov 26 2026): the sign-out confirmation must be the app's own
+  // in-app panel, not the browser/OS confirm() dialog (window.confirm).
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   const storeMap = {};
   (stores || []).forEach((s) => {storeMap[s.id] = s.name;});
@@ -37,9 +50,12 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
   const displayed = showAll ? history : history.slice(0, 10);
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to sign out?')) {
-      PatientSessionManager.logout();
-    }
+    setShowSignOutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowSignOutConfirm(false);
+    PatientSessionManager.logout();
   };
 
   return (
@@ -200,6 +216,27 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
               third row, so the footer is just the two action buttons now. */}
         </div>
       </div>
+
+      {/* In-app sign-out confirmation (owner request Nov 26 2026) — never the
+          system dialog. z-[100010] keeps it above the sidebar (100001). */}
+      <AlertDialog open={showSignOutConfirm} onOpenChange={setShowSignOutConfirm}>
+        <AlertDialogContent className="z-[100010] max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to sign out of the patient portal?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay signed in</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmLogout}
+              className="bg-red-600 hover:bg-red-700 text-white">
+              Sign Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>);
 
 }
