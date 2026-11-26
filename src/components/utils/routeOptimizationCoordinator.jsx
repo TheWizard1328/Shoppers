@@ -111,6 +111,23 @@ async function _performRouteOptimizationInner({
     return { success: false, error: 'Missing driverId or deliveryDate' };
   }
 
+  // OWNER REPORT (Nov 26 2026, move to today): a transfer re-sequenced the route
+  // THREE times (#1, then #2 at 10:00, then #5 at 18:00) because the transfer's own
+  // run, a realtime echo and the debouncer each optimized the same route. The
+  // transfer owns that route for a short window; every other source stands down so
+  // exactly one pass decides the order.
+  const _routeKey = `${driverId}|${String(deliveryDate).slice(0, 10)}`;
+  const _isTransferSource = String(source || '').startsWith('transferred_stop') || String(source || '').includes('transfer');
+  if (_isTransferSource) {
+    _transferQuietUntil.set(_routeKey, Date.now() + 45000);
+  } else {
+    const _until = _transferQuietUntil.get(_routeKey) || 0;
+    if (_until > Date.now()) {
+      console.log(`[RouteOptimization] ${source} — skipped: a transfer owns ${_routeKey} for another ${Math.ceil((_until - Date.now()) / 1000)}s`);
+      return { success: true, skipped: true, reason: 'transfer_quiet_window' };
+    }
+  }
+
   // ── Early exit: if deliveries were provided and contain zero active stops, bail.
   // This prevents wasted HERE API calls when a delete leaves the route empty.
   // "Active" = not in a terminal status (completed/failed/cancelled).
@@ -887,6 +904,9 @@ async function _writeOptimizationAuditLog({ params, result, durationMs }) {
 // Public entry point: wraps the inner coordinator so EVERY optimization path
 // (all 31 call sites across the app already pass a `source` label) is audited
 // with outcome + duration, without touching any caller.
+// Transfer quiet window: one authoritative pass per route (see the guard in performRouteOptimization).
+const _transferQuietUntil = new Map();
+
 export async function performRouteOptimization(params) {
   const _t0 = Date.now();
   let result;

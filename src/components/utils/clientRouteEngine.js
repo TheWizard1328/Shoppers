@@ -2176,6 +2176,10 @@ let _inheritedWindowCount = 0;
       const d = stop?.delivery || {};
       if (String(d.status || '').toLowerCase() !== 'pending') return undefined;
       if (!d.patient_id || !d.puid) return undefined;
+      // OWNER RULE (Nov 26 2026): a TRANSFERRED stop with a blank start takes no
+      // pickup floor either — a stale pickup ETA (18:00) was flooring it there.
+      if (!String(d.delivery_time_start || '').trim()
+        && String(d.delivery_notes || '').includes('Delivery Transferred')) return undefined;
       const pickup = _findPickupFor(d);
       if (!pickup) return undefined;
       const candidates = [
