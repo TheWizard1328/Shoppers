@@ -312,9 +312,51 @@ function DeliveryMap({
     let programmaticAt = 0;
     let prevPhase = null;
     let prevLocked = null;
+    // OWNER REQUEST (Nov 26 2026): returning north-up is ANIMATED, not a snap, so
+    // the map swings back instead of jumping. One shared path for the FAB click,
+    // the phase/lock fallback and the compass tap.
+    let animating = false;
+    const goNorth = (duration = 340) => {
+      const m = headingMapRef.current;
+      manualRotation = false;
+      lockedKey = null;
+      if (!m || typeof m.setBearing !== "function") {
+        applied = 0;
+        window.__mapBearing = 0;
+        return;
+      }
+      const nowMs = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+      const from = wrap(Number(typeof m.getBearing === 'function' ? m.getBearing() : applied) || 0);
+      if (Math.abs(from) < 0.5) {
+        animating = false;
+        applied = 0;
+        programmaticAt = Date.now();
+        m.setBearing(0);
+        window.__mapBearing = 0;
+        return;
+      }
+      animating = true;
+      const t0 = nowMs();
+      const ease = (t) => 1 - Math.pow(1 - t, 3);
+      const frame = () => {
+        const p = Math.min(1, (nowMs() - t0) / duration);
+        const val = from * (1 - ease(p));
+        programmaticAt = Date.now();
+        try { m.setBearing(val); } catch { /* ignore */ }
+        window.__mapBearing = p < 1 ? val : 0;
+        if (p < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          animating = false;
+          applied = 0;
+        }
+      };
+      requestAnimationFrame(frame);
+    };
     const step = () => {
       const map = headingMapRef.current;
       if (!map || typeof map.setBearing !== "function") return;
+      if (animating) return;   // let the north-up swing finish undisturbed
       const phase = readPhase();
       const locked = readLocked();
       const phase2Locked = phase === 2 && locked;
@@ -324,13 +366,8 @@ function DeliveryMap({
       prevPhase = phase;
       prevLocked = locked;
       if (leftPhase2 || justUnlocked) {
-        // North-up fallback, once, on the transition only.
-        manualRotation = false;
-        lockedKey = null;
-        applied = 0;
-        programmaticAt = Date.now();
-        map.setBearing(0);
-        window.__mapBearing = 0;
+        // North-up fallback, once, on the transition only, animated.
+        goNorth();
         return;
       }
       if (enteredPhase2) {
@@ -378,17 +415,7 @@ function DeliveryMap({
     // Tap-to-north: the compass calls this. It also re-arms heads-up, so in
     // Phase 2 the next turn latch turns the map to the travel direction again.
     try {
-      window.__resetMapNorth = () => {
-        const m = headingMapRef.current;
-        manualRotation = false;
-        applied = 0;
-        lockedKey = null;
-        if (m && typeof m.setBearing === 'function') {
-          programmaticAt = Date.now();
-          m.setBearing(0);
-        }
-        window.__mapBearing = 0;
-      };
+      window.__resetMapNorth = () => goNorth();
       // Manual rotation detection: leaflet-rotate fires 'rotate' for a pinch. A
       // change we did not just cause is the driver's, so hold it.
       const onRotate = () => {
