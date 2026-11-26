@@ -280,7 +280,22 @@ function portalFit(map, points, pad = {}) {
   map.flyTo(center, targetZoom, { duration: 0.75 });
 }
 
-function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly = false, refitSignal = 0 }) {
+// OWNER REQUEST (Nov 26 2026): once the pickup is FINISHED the store is behind
+// the driver, so its corner must not widen (or re-centre) the auto zoom. Points
+// within this radius of the store are treated as "the store" and dropped from
+// every frame the patient's map builds.
+const STORE_FRAME_TRIM_M = 120;
+function nearStore(point, storeLatLng) {
+  if (!Array.isArray(point) || !storeLatLng) return false;
+  const lat = Number(point[0]);
+  const lng = Number(point[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  const dLat = (lat - storeLatLng[0]) * 111320;
+  const dLng = (lng - storeLatLng[1]) * 111320 * Math.cos((storeLatLng[0] * Math.PI) / 180);
+  return Math.hypot(dLat, dLng) <= STORE_FRAME_TRIM_M;
+}
+
+function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly = false, refitSignal = 0, pickupDone = false }) {
   const map = useMap();
   // ONE SIGNATURE PER FIT (owner report Nov 3 2026): the fit used to key off a
   // point COUNT plus the pad, so a coordinate that arrived in a later wave was
@@ -295,6 +310,7 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
   String(mapPad?.top ?? ''),
   String(mapPad?.bottom ?? ''),
   settledOnly ? 'settled' : 'live',
+  pickupDone ? 'picked' : 'pre',
   Array.isArray(routeCoords) ? routeCoords.length : 0].
   join('|');
   const fittedSignatureRef = useRef(null);
@@ -349,20 +365,28 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
     // Completed or failed delivery: pan/zoom to the patient's home and the pickup
     // location ONLY. The driver has already been here, so his position and the
     // remaining route must not stretch the frame.
+    // Pickup FINISHED (owner request Nov 26 2026): the store is behind the
+    // driver, so neither its marker nor the start of the painted leg may pull the
+    // frame back to the pharmacy. Everything within STORE_FRAME_TRIM_M goes.
+    const storePoint = pickupDone ? null : storeLatLng;
+    const rawRoute = Array.isArray(routeCoords) ? routeCoords : [];
+    const routePoints = pickupDone ? rawRoute.filter((pt) => !nearStore(pt, storeLatLng)) : rawRoute;
+
     if (settledOnly) {
-      const points = storeLatLng ? [patientLatLng, storeLatLng] : [patientLatLng];
+      const points = storePoint ? [patientLatLng, storePoint] : [patientLatLng];
       doFit(points, mapPad);
       return;
     }
 
-    const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
     if (showDriver && driverLatLng) {
       doFit([driverLatLng, patientLatLng, ...routePoints], mapPad);
-    } else if (storeLatLng) {
+    } else if (storePoint) {
       // Normal case: fit store + patient (+ any visible route geometry)
-      doFit([storeLatLng, patientLatLng, ...routePoints], mapPad);
+      doFit([storePoint, patientLatLng, ...routePoints], mapPad);
+    } else {
+      doFit([patientLatLng, ...routePoints], mapPad);
     }
-  }, [doFit, patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly]);
+  }, [doFit, patientLatLng, storeLatLng, driverLatLng, showDriver, routeCoords, mapPad, settledOnly, pickupDone]);
 
   useEffect(() => {
     // Must have the patient's location for any meaningful frame.
@@ -397,7 +421,7 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
 // auto-fit from pausing itself (fitBounds fires the same zoomstart/drag-adjacent
 // events a user gesture does — without the flag the tracker would disable
 // itself on every driver tick, which is exactly why tracking never stuck).
-function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, trackingMode, onDoubleTap, onUserInteract, routeCoords, mapPad }) {
+function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, trackingMode, onDoubleTap, onUserInteract, routeCoords, mapPad, pickupDone = false, storeLatLng = null }) {
   const map = useMap();
   const programmaticRef = useRef(false);
 
@@ -417,7 +441,10 @@ function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, tracking
     anchor,
     patientLatLng];
 
-    const routePoints = Array.isArray(routeCoords) ? routeCoords : [];
+    // Pickup finished: the pharmacy corner is behind the driver, so it is not a
+    // frame point any more (owner request Nov 26 2026).
+    const rawPoints = Array.isArray(routeCoords) ? routeCoords : [];
+    const routePoints = pickupDone ? rawPoints.filter((pt) => !nearStore(pt, storeLatLng)) : rawPoints;
     if (routePoints.length > 1) positions.push(...routePoints);
     programmaticRef.current = true;
     // Zoom clamps (owner feedback Oct 23 2026): minZoom is the floor that
@@ -440,7 +467,7 @@ function DriverTracker({ driverLocation, driverPaintPos, patientLatLng, tracking
     };
     // routeCoords identity changes only when the visible legs change (new stop
     // accepted, completion, regen) — refit then so the frame tracks the route.
-  }, [anchor?.[0], anchor?.[1], trackingMode, routeCoords, mapPad?.top, mapPad?.bottom]);
+  }, [anchor?.[0], anchor?.[1], trackingMode, routeCoords, mapPad?.top, mapPad?.bottom, pickupDone, storeLatLng?.[0], storeLatLng?.[1]]);
 
   // Double-tap resumes tracking immediately; USER zoom/drag starts the 10s
   // pause. Programmatic fits are flagged and ignored.
@@ -1981,7 +2008,8 @@ export default function PatientPortal({ embedded = false } = {}) {
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
                 mapPad={mapPad}
                 settledOnly={settledDelivery}
-                refitSignal={mapRefitSignal} />
+                refitSignal={mapRefitSignal}
+                pickupDone={pickupDone} />
               
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
@@ -1991,7 +2019,9 @@ export default function PatientPortal({ embedded = false } = {}) {
                 onDoubleTap={handleDoubleTap}
                 onUserInteract={handleUserInteract}
                 routeCoords={showLiveTracking ? visibleRouteCoords : ROUTE_COORDS_EMPTY}
-                mapPad={mapPad} />
+                mapPad={mapPad}
+                pickupDone={pickupDone}
+                storeLatLng={storeLatLng} />
               
 
               {/* Remaining legs (between the driver and the patient) — solid green, always visible */}
