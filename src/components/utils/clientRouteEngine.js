@@ -115,13 +115,26 @@ const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
 // it because each pass re-derived the same wrong window from the patient
 // record. The delivery's own window (when set) now wins; the patient's
 // default is only a FALLBACK for deliveries with no window of their own.
+// OWNER RULE (Nov 25 2026): a stop TRANSFERRED to another date carries NO window
+// of its own and must not inherit the patient's standing window either — the
+// inherited 18:00 became the route's anchor, so the stop ETAd at 18:00 and every
+// later stop was sequenced after it. Such a stop is sequenced purely by
+// geography from the origin.
+const _isTransferredOtherDate = (delivery) => {
+  if (!String(delivery?.delivery_notes || '').includes('Delivery Transferred')) return false;
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+  return String(delivery?.delivery_date || '') !== today;
+};
+
 const getEffectiveWindowStart = (delivery, patient = null) => {
+  if (_isTransferredOtherDate(delivery)) return null;
   const ownStart = delivery?.delivery_time_start || delivery?.time_window_start || null;
   if (ownStart) return ownStart;
   return patient?.time_window_start || null;
 };
 
 const getEffectiveWindowEnd = (delivery, patient = null) => {
+  if (_isTransferredOtherDate(delivery)) return null;
   const ownEnd = delivery?.delivery_time_end || delivery?.time_window_end || null;
   if (ownEnd) return ownEnd;
   return patient?.time_window_end || null;
@@ -937,7 +950,26 @@ let _inheritedWindowCount = 0;
   // swept all isNextDelivery flags to false and wants EVERY active stop — including
   // the previous next stop — to compete for position 1 on equal footing so a newly
   // created return stop can genuinely win the next-stop slot. Skip the lock entirely.
-  const lockedNextStop = !preserveExistingOrder && !clearNextDeliveryLock
+  // OWNER RULE (Nov 25 2026): a stop TRANSFERRED onto this route invalidates the
+  // route's existing next-stop claim — the claim belongs to the old order. Sweep
+  // it so every active stop competes for position 1 and the optimizer sets the
+  // flag itself after sequencing. Otherwise the old flag holder is locked first
+  // and the moved stop can never take position 1 (Lothar settled at #2).
+  // Only release the claim when the moved stop is IN HAND and the current claim
+  // belongs to a stop nobody has started yet (the route has not really begun).
+  // Once the flag holder is en_route/in_transit the driver is physically on that
+  // leg, so its claim stands.
+  const _transferredInHand = optimizationStops.find((s) =>
+    String(s.delivery?.delivery_notes || '').includes('Delivery Transferred')
+    && ['in_transit', 'en_route'].includes(String(s.delivery?.status || '').toLowerCase()));
+  const _routeHasTransferredStop = !!_transferredInHand
+    && _transferredInHand.delivery.isNextDelivery !== true
+    && !!explicitNextStop
+    && !['in_transit', 'en_route'].includes(String(explicitNextStop.delivery?.status || '').toLowerCase());
+  if (_routeHasTransferredStop && explicitNextStop) {
+    console.warn(`[clientRouteEngine] ${source} — transferred stop on route: releasing next-stop lock on ${explicitNextStop.delivery.id} so the optimizer re-decides`);
+  }
+  const lockedNextStop = !preserveExistingOrder && !clearNextDeliveryLock && !_routeHasTransferredStop
     ? (explicitNextIsActive ? explicitNextStop : (implicitNextStop || null))
     : null;
   const routeOriginStop = lockedNextStop || null;
@@ -2633,7 +2665,7 @@ let _inheritedWindowCount = 0;
     // ONLY when the delivery's own field is blank. The old version stamped the
     // patient window unconditionally for pending stops, overwriting per-
     // delivery windows a dispatcher had explicitly set.
-    if (stop.patient_id && isPending) {
+    if (stop.patient_id && isPending && !_isTransferredOtherDate(stop)) {
       const patient = patientMap.get(stop.patient_id);
       if (patient) {
         if (patient.time_window_start && !stop.delivery_time_start) {
