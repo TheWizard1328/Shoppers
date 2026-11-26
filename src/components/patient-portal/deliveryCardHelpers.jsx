@@ -259,3 +259,50 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
     transferredOn,
   };
 }
+
+/**
+ * PANEL TONE (owner request Nov 26 2026): the panel that holds the delivery card
+ * is colour coded by where the delivery actually is.
+ *   pending pickup  -> orange
+ *   picked up       -> blue
+ *   next delivery   -> green (wins over pending / picked up)
+ *   failed          -> red
+ * A completed or cancelled delivery keeps the plain card. `transferred` keeps its
+ * existing amber treatment, which outranks the tone.
+ */
+export function panelTone(delivery) {
+  const status = String(delivery?.status || '').toLowerCase();
+  if (status === 'failed') return 'failed';
+  if (status === 'completed' || status === 'cancelled') return null;
+  if (delivery?.isNextDelivery === true) return 'next';
+  if (status === 'in_transit' || status === 'en_route') return 'pickedup';
+  if (status === 'pending') return 'pending';
+  return null;
+}
+
+export const PANEL_TONE_CLASSES = {
+  pending: {
+    card: 'border-orange-300 bg-orange-50 dark:bg-orange-950/40 dark:border-orange-700 hover:border-orange-400',
+    cardExpanded: 'border-orange-400 bg-orange-50 dark:bg-orange-950/40 dark:border-orange-600 shadow-md',
+    wrap: 'border-orange-300 bg-orange-50/95 dark:bg-orange-950/60 dark:border-orange-700',
+    accent: '#f97316'
+  },
+  pickedup: {
+    card: 'border-blue-300 bg-blue-50 dark:bg-blue-950/40 dark:border-blue-700 hover:border-blue-400',
+    cardExpanded: 'border-blue-400 bg-blue-50 dark:bg-blue-950/40 dark:border-blue-600 shadow-md',
+    wrap: 'border-blue-300 bg-blue-50/95 dark:bg-blue-950/60 dark:border-blue-700',
+    accent: '#2563eb'
+  },
+  next: {
+    card: 'border-green-300 bg-green-50 dark:bg-green-950/40 dark:border-green-700 hover:border-green-400',
+    cardExpanded: 'border-green-400 bg-green-50 dark:bg-green-950/40 dark:border-green-600 shadow-md',
+    wrap: 'border-green-300 bg-green-50/95 dark:bg-green-950/60 dark:border-green-700',
+    accent: '#16a34a'
+  },
+  failed: {
+    card: 'border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-700 hover:border-red-400',
+    cardExpanded: 'border-red-400 bg-red-50 dark:bg-red-950/40 dark:border-red-600 shadow-md',
+    wrap: 'border-red-300 bg-red-50/95 dark:bg-red-950/60 dark:border-red-700',
+    accent: '#dc2626'
+  }
+};

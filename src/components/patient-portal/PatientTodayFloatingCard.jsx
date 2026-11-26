@@ -90,7 +90,8 @@ export default function PatientTodayFloatingCard({ puidGroups, delivery, pickupS
   return (
     <div
       ref={wrapRef}
-      className="w-[19rem] max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-lg border border-slate-200 dark:border-slate-700 p-2"
+      className={`w-[19rem] max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-xl backdrop-blur shadow-lg border p-2 ${
+      _toneCls ? _toneCls.wrap : 'bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-700'}`}
       // Grows with the expanded details, only scrolling once it fills the map
       // area (previously a fixed 55vh cap clipped the expansion).
       style={{ maxHeight: 'calc(100% - 1rem)' }}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
+import { panelTone, PANEL_TONE_CLASSES } from './deliveryCardHelpers';
 import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, User, Package, FileText, Camera, DollarSign, MapPin } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -26,6 +27,10 @@ function InfoRow({ icon: Icon, label, value }) {
 
 export default function PatientDeliveryCard({ delivery, storeName, pickupTime, pickupEta = null, pickupWindowStart = null, pickupWindowEnd = null, stopsBetween, stopsTillPickup = null, pickupDriverName = null, deliveredBy = null, pickupByOtherDriver = false, transferred = false, transferredFrom = null, transferredOn = null, remainingStops = null, expandInline = false, belowDateSlot = null }) {
   const [expanded, setExpanded] = useState(false);
+  // PANEL TONE (owner request Nov 26 2026): orange = pending pickup, blue =
+  // picked up, green = next delivery, red = failed.
+  const tone = panelTone(delivery);
+  const toneCls = tone ? PANEL_TONE_CLASSES[tone] : null;
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
 
@@ -159,10 +164,14 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
         // OWNER REPORT (Nov 25 2026): expanding the card turned its top section
         // black. It now stays the same light card it is when collapsed, just with
         // a firmer border and shadow to show it is open.
+        // STATE TONE (owner request Nov 26 2026) outranks the plain card.
+        toneCls ?
+        (expanded ? toneCls.cardExpanded : toneCls.card) :
         expanded ?
         'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-md' :
         'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:border-slate-600 hover:shadow-sm'}`
-        }>
+        }
+        style={toneCls ? { borderLeftWidth: '4px', borderLeftColor: toneCls.accent } : undefined}>
         
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0 py-1">
