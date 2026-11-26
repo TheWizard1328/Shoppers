@@ -2653,6 +2653,26 @@ let _inheritedWindowCount = 0;
     writeBatch.push({ id: stop.id, data: updateData });
   }
 
+  // OWNER RULE (Nov 25 2026): a stop TRANSFERRED to another date that is
+  // already in hand keeps a BLANK window. Strip any start/end the sequencing
+  // pipeline put on it before the batch reaches the commit.
+  {
+    const _todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+    for (const w of writeBatch) {
+      const src = allDeliveries.find(x => x.id === w.id) || (deliveries || []).find(x => x.id === w.id) || {};
+      const effNotes = String(w.data?.delivery_notes ?? src.delivery_notes ?? '');
+      const effStatus = String(w.data?.status ?? src.status ?? '').toLowerCase();
+      const effDate = String(w.data?.delivery_date ?? src.delivery_date ?? '');
+      if (!effNotes.includes('Delivery Transferred')) continue;
+      if (!['in_transit', 'en_route'].includes(effStatus)) continue;
+      if (effDate === _todayKey) continue;
+      if (w.data && (w.data.delivery_time_start || w.data.delivery_time_end)) {
+        console.warn('[WINDOW-GATE] stripped window from engine batch for transferred stop', w.id, w.data.delivery_time_start, w.data.delivery_time_end);
+        delete w.data.delivery_time_start;
+        delete w.data.delivery_time_end;
+      }
+    }
+  }
   const _polylineWriteCount = writeBatch.filter(w => w.data?.encoded_polyline != null).length;
   const _pendingClearCount = writeBatch.filter(w => w.data?.encoded_polyline === null).length;
   console.log(`[clientRouteEngine] ${source} — WRITE BATCH: ${writeBatch.length} updates, ${_polylineWriteCount} with polylines, ${_pendingClearCount} pending-cleared`);

@@ -828,6 +828,29 @@ const save = async (storeName, record) => {
 const BULK_SAVE_CHUNK_SIZE = 300;
 const DELIVERY_SAVE_CHUNK_SIZE = 100;
 
+/**
+ * OWNER RULE (Nov 25 2026): a stop that was TRANSFERRED to another date and is
+ * already in hand (in_transit / en_route) must keep a BLANK delivery window.
+ * The patient's standing window is never copied onto it, and no writer may put
+ * one back. Enforced on every bulk write to the deliveries store, because the
+ * optimizer commit path bypasses the single-record gateway in offlineMutations.
+ */
+const _enforceBlankTransferredWindow = (record) => {
+  try {
+    if (!record || !record.id) return record;
+    if (!String(record.delivery_notes || '').includes('Delivery Transferred')) return record;
+    const status = String(record.status || '').toLowerCase();
+    if (status !== 'in_transit' && status !== 'en_route') return record;
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+    if (String(record.delivery_date || '') === today) return record;
+    if (!record.delivery_time_start && !record.delivery_time_end) return record;
+    console.warn('[WINDOW-GATE] blanked refilled window on transferred stop', record.id, record.delivery_time_start, record.delivery_time_end);
+    return { ...record, delivery_time_start: '', delivery_time_end: '' };
+  } catch (_) {
+    return record;
+  }
+};
+
 const bulkSave = async (storeName, records) => {
   if (!records || records.length === 0) {
     return { success: true, count: 0 };
@@ -856,6 +879,10 @@ const bulkSave = async (storeName, records) => {
     // Stale-snapshot clear protection (owner report Nov 8 2026) — see
     // _restoreStompedNextFlags above.
     try { records = await _restoreStompedNextFlags(records); } catch (_) { /* keep originals */ }
+    // OWNER RULE (Nov 25 2026) — see _enforceBlankTransferredWindow: a stop
+    // TRANSFERRED to another date and already in hand keeps a blank window,
+    // whatever path (engine commit, batch save, optimistic update) wrote it.
+    try { records = records.map(_enforceBlankTransferredWindow); } catch (_) { /* keep originals */ }
   }
 
   const isPHI = isPHIStore(storeName);
