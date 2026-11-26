@@ -203,10 +203,14 @@ export async function resolveTransferPlacement({
   } catch (err) {
     console.warn('[transferPlacement] default pickup pre-creation failed:', err?.message || err);
   }
-  const skeleton = dedupePickups([...existingPickups, ...createdPickups]).map((p, i) => ({
+  const skeletonRows = dedupePickups([...existingPickups, ...createdPickups]);
+  const skeleton = skeletonRows.map((p, i) => ({
     stopId: p.stop_id || p.puid || p.id || null,
     start: p.delivery_time_start || '',
     order: Number(p.stop_order) || i + 1,
+    storeId: String(p.store_id || ''),
+    status: String(p.status || '').toLowerCase(),
+    actual: p.actual_delivery_time || p.arrival_time || '',
   }));
 
   // ── 2. PUID never changes (owner rule Nov 9 2026) ─────────────────────────
@@ -231,20 +235,37 @@ export async function resolveTransferPlacement({
   if (!point) return null;
 
   // ── 5. start time ──────────────────────────────────────────────────────────
-  // OWNER DECISION (Nov 25 2026): on a DATE change the start is left BLANK
-  // unless the patient has her own time window, so the optimizer for that date
-  // is free to place the moved stop wherever it is fastest. A fixed time (the
-  // old 09:00 lead, or transfer-time + 5) clamps the window and parks the stop
-  // last. A same-date driver move keeps the old rule: a collected stop must not
-  // look freshly scheduled, so a past start is preserved, otherwise now + 5.
-  const patientStart = String(patient?.time_window_start || '').trim().slice(0, 5);
+  // OWNER RULE (Nov 25 2026, second pass): on a DATE change the patient's window
+  // must NOT be copied onto the start. The start is left BLANK so the new date's
+  // optimizer places the stop freely — EXCEPT when the target date is TODAY
+  // (Edmonton), where the stop is live right now and the start is pinned to:
+  //   1. the patient's own time_window_start, if she has one,
+  //   2. else the store pickup's delivery_time_start when that pickup is en route,
+  //   3. else the pickup's actual_delivery_time when it is finished,
+  //   4. else blank.
+  // A same-date driver move keeps the old rule: a past start is preserved,
+  // otherwise now + 5.
+  const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+  const hhmm = (v) => {
+    const str = String(v || '').trim();
+    const m = str.match(/(\d{1,2}):(\d{1,2})/);
+    return m ? `${m[1].padStart(2, '0')}:${m[2].padStart(2, '0')}` : '';
+  };
+  const patientStart = hhmm(patient?.time_window_start);
+  const storePickups = skeleton.filter((p) => p.storeId && String(p.storeId) === String(delivery.store_id || ''));
+  const pickupPool = storePickups.length ? storePickups : skeleton;
+  const enRoutePickup = pickupPool.find((p) => ['en_route', 'in_transit'].includes(p.status) && p.start);
+  const finishedPickup = pickupPool.find((p) => p.status === 'completed' && p.actual);
+  const todayStart = patientStart
+    || (enRoutePickup ? hhmm(enRoutePickup.start) : '')
+    || (finishedPickup ? hhmm(finishedPickup.actual) : '');
   const existingStart = String(delivery.delivery_time_start || '').slice(0, 16);
   const existingMs = existingStart ? new Date(existingStart.replace(' ', 'T')).getTime() : NaN;
   const placement = { startTime: existingStart };
   let clearStart = false;
   if (dateChanged) {
-    if (patientStart) {
-      placement.startTime = patientStart;
+    if (dayOf(nextDate) === todayKey && todayStart) {
+      placement.startTime = todayStart;
     } else {
       placement.startTime = '';
       clearStart = true;
