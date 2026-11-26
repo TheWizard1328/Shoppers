@@ -38,7 +38,7 @@ function readBearing() {
   }
 }
 
-export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated = false, bottomPx = 0, rightPx = 12 }) {
+export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated = false, bottomPx = 0, rightPx = 12, leftPx = null }) {
   // OWNER REQUEST (Nov 26 2026): the needle is driven by the PHONE'S compass,
   // not the map's bearing, so it points at real north wherever the device is
   // facing. The map bearing is only a fallback for a device with no magnetometer
@@ -107,7 +107,11 @@ export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated
          z-[120] clears every map FAB (z-[100]) and still loses to the cards
          (700), the map header (230) and the sidebar (250). */
       className="absolute z-[120] p-0 bg-transparent border-0 cursor-pointer"
-      style={{ bottom: `${bottomPx}px`, right: `${rightPx}px` }}>
+      /* OWNER REQUEST (Nov 26 2026): the needle now lives on the LEFT, above the
+         bulk edit checkbox row — pass leftPx to anchor there instead of right. */
+      style={leftPx !== null && leftPx !== undefined
+        ? { bottom: `${bottomPx}px`, left: `${leftPx}px` }
+        : { bottom: `${bottomPx}px`, right: `${rightPx}px` }}>
       <div className="w-9 h-9 rounded-full bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center">
         <svg
           viewBox="0 0 36 36"

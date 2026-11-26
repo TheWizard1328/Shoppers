@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react"; // useMemo already imported
+import { usePanelBottomPx } from '@/components/dashboard/usePanelBottomPx';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { restartStatusForDelivery } from '@/components/utils/deliveryTypeUtils';
 import { PencilLine, Trash2, X, AlertTriangle } from "lucide-react";
@@ -46,6 +47,9 @@ export default function DashboardBulkEditControls({
   // Same convention as FABControls.tempBadgeBottom / LiveTempBadge — reads the live
   // CSS var so the pill tracks native bottom-nav height changes without a re-render.
   const bottomNavHeightForBulkEdit = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0;
+  // OWNER REQUEST (Nov 26 2026): anchor to the stop card panel's live top edge.
+  const fallbackPanelBottomForBulkEdit = (stopCardsBaseHeight || 0) + bottomNavHeightForBulkEdit + 10;
+  const panelBottomForBulkEdit = usePanelBottomPx(fallbackPanelBottomForBulkEdit, 5);
   const { appUsers, applyDeliveryChangesLocally } = useAppData();
   const effectiveDrivers = useMemo(() => {
     if (drivers && drivers.length > 0) return drivers;
@@ -527,7 +531,10 @@ export default function DashboardBulkEditControls({
           // Match the established "just above stop cards" baseline used by FABControls'
           // tempBadgeBottom / LiveTempBadge (stopCardsBaseHeight + bottomNavHeight + 10),
           // instead of the old ad-hoc +16 offset that drifted from the rest of the row.
-          bottom: `${(stopCardsBaseHeight || 0) + bottomNavHeightForBulkEdit + 10}px`,
+          // OWNER REQUEST (Nov 26 2026): same live panel anchor as the checkbox
+          // row, so this pill sits 5px above the panel instead of on a drifted
+          // remembered height.
+          bottom: `${panelBottomForBulkEdit}px`,
           // Fully opaque at all times — this pill previously sat at opacity-50, letting
           // the API usage counter/checkbox row bleed through behind it.
           background: 'var(--bg-white)'

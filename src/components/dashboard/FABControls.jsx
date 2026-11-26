@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { usePanelBottomPx } from '@/components/dashboard/usePanelBottomPx';
 import { openNavigationTo } from '../utils/mapHelpers';
 import { useOptimizationEngineMode } from '@/components/utils/serverOptimizationMode';
 import { AnimatePresence } from 'framer-motion';
@@ -84,8 +85,18 @@ export default function FABControls({
   // MapViewCycleFAB uses (stop cards + nav, or just nav), plus that FAB's real
   // 44px height (Button base min-h-11) and an 8px gap. APK + primary device
   // only — see TorchFAB.
-  const mapCycleFabBottom = ((hasVisibleCards && !immersiveHidden) ? stopCardsBaseHeight + bottomNavHeight : bottomNavHeight) + 10;
+  const fallbackMapCycleFabBottom = ((hasVisibleCards && !immersiveHidden) ? stopCardsBaseHeight + bottomNavHeight : bottomNavHeight) + 10;
+  // OWNER REQUEST (Nov 26 2026): the right-hand stack (flashlight + map-cycle
+  // FAB) and the compass must ride ~5px above the horizontal stop card panel,
+  // measured live from the panel's top edge — the remembered stopCardsBaseHeight
+  // had drifted upward and lifted the whole row.
+  const measuredPanelBottom = usePanelBottomPx(fallbackMapCycleFabBottom, 5);
+  const mapCycleFabBottom = (hasVisibleCards && !immersiveHidden) ? measuredPanelBottom : fallbackMapCycleFabBottom;
   const torchFabBottom = mapCycleFabBottom + 52;
+  // OWNER REQUEST (Nov 26 2026): the compass moved off the right stack to the
+  // LEFT, just above the bulk edit checkbox row, inset past the temperature bar.
+  const compassBottom = mapCycleFabBottom + 32;
+  const compassLeft = 44;
 
   // Compute selectedDate string for LiveTempBadge
   const selectedDateStr = selectedDate instanceof Date
@@ -93,7 +104,9 @@ export default function FABControls({
     : selectedDate;
 
   // Immersive FAB data — call button and navigation button for the next stop
-  const immersiveFabBottom = bottomNavHeight + 10;
+  // Immersive mode hides the stop card panel, so the Navigate/call FABs keep the
+  // bottom nav as their reference — 5px above it, matching the panel rule.
+  const immersiveFabBottom = bottomNavHeight + 5;
 
   // For ISP/ISD inter-store deliveries, use the inter-store location record for phone/nav
   const immersivePatientPhone = immersiveIsInterStore
@@ -229,8 +242,8 @@ export default function FABControls({
         /* OWNER REQUEST (Nov 26 2026): the needle ALSO shows whenever the map is
            rotated (pinch) in any phase or layout, and tapping it snaps north-up. */
         alwaysShowWhenRotated={true}
-        bottomPx={mapCycleFabBottom + 52}
-        rightPx={12}
+        bottomPx={compassBottom}
+        leftPx={compassLeft}
       />
       <RouteActionButtons
         key="route-action-buttons"

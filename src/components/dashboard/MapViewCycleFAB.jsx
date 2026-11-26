@@ -1,5 +1,6 @@
 import { useAppData } from '../utils/AppDataContext';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { usePanelBottomPx } from '@/components/dashboard/usePanelBottomPx';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
@@ -240,7 +241,13 @@ export default function MapViewCycleFAB({
 
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
   // Must also account for bottomNavHeight since stop cards sit above it
-  const bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
+  const fallbackBottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
+  // OWNER REQUEST (Nov 26 2026): sit ~5px above the horizontal stop card panel,
+  // measured from the panel's real top edge (the remembered height had drifted,
+  // lifting this FAB and its row-mates too high). Immersive mode keeps nav + 10
+  // because the panel is off screen then.
+  const measuredBottomPixels = usePanelBottomPx(fallbackBottomPixels, 5);
+  const bottomPixels = (hasVisibleCards && !immersiveHidden) ? measuredBottomPixels : fallbackBottomPixels;
   const fabPosition = 'absolute';
   const rightPixels = immersiveHidden ? 12 : 16;
 
