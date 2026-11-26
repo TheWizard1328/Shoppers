@@ -122,8 +122,11 @@ const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
 // geography from the origin.
 const _isTransferredOtherDate = (delivery) => {
   if (!String(delivery?.delivery_notes || '').includes('Delivery Transferred')) return false;
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-  return String(delivery?.delivery_date || '') !== today;
+  // OWNER RULE (Nov 26 2026): the guard follows the BLANK START, not the date.
+  // A transferred stop whose own start is blank must never pick the patient's
+  // standing window back up during optimization — not even once its date has
+  // become today.
+  return !String(delivery?.delivery_time_start || '').trim();
 };
 
 const getEffectiveWindowStart = (delivery, patient = null) => {

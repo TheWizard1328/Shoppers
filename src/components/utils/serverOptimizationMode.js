@@ -523,12 +523,17 @@ export const buildServerOptimizeRequest = async ({
         .map((t) => formatMinutesToTimeLocal(parseTimeToMinutesLocal(t) + 5));
       return cands.includes(_ownWinStart);
     })();
-    let windowStart = (patient?.time_window_start && _pickupDerived)
+    // OWNER RULE (Nov 26 2026): a stop TRANSFERRED to another date has a BLANK
+    // start and must NOT fall back to the patient's standing window when the
+    // route is optimized. The server payload carried that fallback too.
+    const _transferredOtherDate = String(d.delivery_notes || '').includes('Delivery Transferred')
+      && !String(d.delivery_time_start || '').trim();
+    let windowStart = _transferredOtherDate ? null : ((patient?.time_window_start && _pickupDerived)
       ? patient.time_window_start
-      : (d.delivery_time_start || d.time_window_start || patient?.time_window_start || null);
-    let windowEnd = (patient?.time_window_end && _pickupDerived)
+      : (d.delivery_time_start || d.time_window_start || patient?.time_window_start || null));
+    let windowEnd = _transferredOtherDate ? null : ((patient?.time_window_end && _pickupDerived)
       ? patient.time_window_end
-      : (d.delivery_time_end || d.time_window_end || patient?.time_window_end || null);
+      : (d.delivery_time_end || d.time_window_end || patient?.time_window_end || null));
     // ── PAST-WINDOW CLAMP + EXPIRED-END DROP (client parity, owner report
     // Nov 3 2026). clientRouteEngine collapses a past windowStart to 'now' on
     // today's routes and DROPS a windowEnd that has already passed ('fully
