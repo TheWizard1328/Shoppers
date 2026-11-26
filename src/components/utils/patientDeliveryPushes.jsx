@@ -17,6 +17,10 @@ import { base44 } from '@/api/base44Client';
  *            (added Nov 25 2026, owner-approved copy, no reason ever given)
  *   handoff  "Dear <name>, Your Rx delivery is now with <driver>, ETA <eta> -
  *            <+30 min>" (added Nov 25 2026, owner-approved copy)
+ *   arrived  "Dear <name>, Your driver has arrived at your location."
+ *            (added Nov 26 2026, owner request: fires from the SAME arrival
+ *            detection the driver's device uses to swap Navigate into Update GPS
+ *            and drop immersive mode — the live 100m proximity check)
  *
  * Delivery rules:
  *   • Only today's active stops for a real patient (store pickups are skipped);
@@ -107,6 +111,11 @@ export function buildPatientDeliveryMessage({ state, patientName, etaText, windo
     // OWNER APPROVED COPY (Nov 25 2026): the stop was passed to another driver.
     case 'handoff':
       return `Dear ${name}, Your Rx delivery is now with ${driverName}, ETA ${window}`;
+    // OWNER REQUEST (Nov 26 2026): the driver's device already knows the moment it
+    // arrives (the Navigate button becomes Update GPS and immersive mode drops).
+    // The patient hears about it once, from that same detection.
+    case 'arrived':
+      return `Dear ${name}, Your driver has arrived at your location.`;
     default:
       return '';
   }
@@ -447,3 +456,44 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
 }
 
 export default usePatientDeliveryPushes;
+
+
+/**
+ * OWNER REQUEST (Nov 26 2026): an arrival notice to the patient, fired from the
+ * exact same arrival detection the driver's device already uses — the live 100m
+ * proximity check that swaps the Navigate button into "Update GPS" and drops
+ * immersive mode. One notice per delivery, ever (local ledger keyed on the
+ * delivery id), only while the stop is actually in transit today.
+ */
+export async function sendPatientArrivalNotice({ delivery, patient, storeName }) {
+  try {
+    if (!delivery?.id || !patient?.id) return { skipped: 'missing' };
+    const status = String(delivery.status || '').toLowerCase();
+    if (!['in_transit', 'en_route'].includes(status)) return { skipped: 'status' };
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+    if (delivery.delivery_date && delivery.delivery_date !== today) return { skipped: 'date' };
+    const ledger = readLedger();
+    const key = `arrived:${delivery.id}`;
+    if (ledger[key]) return { skipped: 'already_sent' };
+    const body = buildPatientDeliveryMessage({
+      state: 'arrived',
+      patientName: patient.full_name || patient.name || '',
+    });
+    const res = await pushPatient(
+      patient.id,
+      'Your pharmacy',
+      body,
+      `arrival-${delivery.id}`,
+      {
+        store_id: delivery.store_id || '',
+        store_name: storeName || delivery.store_name || '',
+        sender_name: delivery.driver_name || '',
+      },
+    );
+    ledger[key] = Date.now();
+    writeLedger(ledger);
+    return res;
+  } catch (_) {
+    return { skipped: 'error' };
+  }
+}

@@ -4,6 +4,7 @@ import { useOptimizationEngineMode } from '@/components/utils/serverOptimization
 import { getAppSettingRows } from '@/components/utils/appSettingsCache';
 import { toEdmontonWall } from '../utils/albertaTime';
 import { haversineKm } from '@/components/utils/geoUtils';
+import { sendPatientArrivalNotice } from '@/components/utils/patientDeliveryPushes';
 import { handleQuickTravelModeChange } from '../dashboard/handleQuickTravelModeChange';
 import { pauseDeferredReoptimization, resumeDeferredReoptimization } from '../utils/deferredRouteReoptimization';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
@@ -794,6 +795,20 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   // the AccessCodeDialog the moment the driver is physically within 150m of the
   // stop (owner raised it from 100m so gates further out still pop). Fires once
   // per visit (10-min cooldown per patient), on the driver's primary device only.
+  // ── PATIENT ARRIVAL NOTICE (owner request Nov 26 2026) ────────────────────
+  // Robert: "using the exact same arrival detection that the driver's device
+  // already uses when it comes to the switching of the navigation button to the
+  // update GPS button and the deactivation of the immersive mode — that point is
+  // when there should be a message sent to the patient stating that the driver
+  // has arrived." That detection is isWithinActiveStopRange (<=100m live GPS).
+  // Driver's primary device only, active patient stop only, once per delivery.
+  useEffect(() => {
+    if (!isActivePatientStop || !isWithinActiveStopRange || !isNextDelivery) return;
+    if (delivery?.driver_id !== currentUser?.id || !isPrimaryDevice) return;
+    if (!patient?.id) return;
+    sendPatientArrivalNotice({ delivery, patient, storeName: store?.name });
+  }, [isActivePatientStop, isWithinActiveStopRange, isNextDelivery, delivery?.id, delivery?.driver_id, currentUser?.id, isPrimaryDevice, patient?.id]);
+
   const accessCodes = useMemo(() => {
     if (!patient?.notes || !delivery?.patient_id) return [];
     return parseAllAccessCodes(patient.notes)
