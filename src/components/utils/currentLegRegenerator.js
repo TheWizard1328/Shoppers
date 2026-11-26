@@ -304,7 +304,8 @@ async function _regenCurrentLegPolylineInner({
   if (Number.isFinite(seg.estimatedDurationMinutes) && seg.estimatedDurationMinutes > 0) {
     etaMinutes += Math.ceil(seg.estimatedDurationMinutes);
   }
-  const windowStartMin = parseTimeToMinutes(nextStop.delivery_time_start || nextStop.time_window_start);
+  // OWNER RULE (Nov 26 2026): own start only — a blank start takes no floor.
+  const windowStartMin = parseTimeToMinutes(nextStop.delivery_time_start || '');
   if (windowStartMin != null && etaMinutes < windowStartMin) etaMinutes = windowStartMin;
   const newEta = formatMinutesToTime(etaMinutes);
 

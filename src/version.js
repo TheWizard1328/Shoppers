@@ -64,7 +64,7 @@ export const APP_VERSION_MAJOR = resolveAppMajorVersion();
 export const APK_SUCCESS_BASELINE = 316;
 
 
-export const WEB_VERSION = 476;
+export const WEB_VERSION = 477;
 
 // ── BAKED APK DIGIT (owner spec Nov 6 2026) ─────────────────────────────────
 // The APK digit a WEB BUNDLE was published with. The APK build workflow rewrites

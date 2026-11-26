@@ -1395,7 +1395,7 @@ export function useStopCardStartActions({
         // never display before the stop's delivery start window. If the chain
         // arrives earlier, clamp the ETA UP to the window start and CONTINUE the
         // cascade from that window time (later stops inherit the wait).
-        const windowStartMin = toWindowMinutes(stop.delivery_time_start || stop.time_window_start);
+        const windowStartMin = toWindowMinutes(stop.delivery_time_start || '');
         if (!etaSkipWindowFloor && windowStartMin != null && currentEtaMinutes < windowStartMin) {
           currentEtaMinutes = windowStartMin;
         }

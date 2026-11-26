@@ -44,7 +44,10 @@ export const computeCascadeEtas = ({ anchorMinutes, stops, skipWindowFloor }) =>
     if (!stop?.id) continue;
     currentEtaMinutes += (stop.estimated_duration_minutes || 5);
     if (!skipWindowFloor) {
-      const windowStartMin = toWindowMinutes(stop.delivery_time_start || stop.time_window_start);
+      // OWNER RULE (Nov 26 2026): a BLANK delivery start is blank — never fall
+      // back to time_window_start (the patient-window copy). The Start button was
+      // ETA-ing the next stop at the patient's 18:00 through this fallback.
+      const windowStartMin = toWindowMinutes(stop.delivery_time_start || '');
       if (windowStartMin != null && currentEtaMinutes < windowStartMin) {
         currentEtaMinutes = windowStartMin;
       }
