@@ -62,7 +62,7 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
          stops it exactly where the box does.
          z-[100001]: above the tracking badge (z-1000) and above the overlay's
          Exit Patient View button (z-100000) — owner request. */
-        className={`absolute inset-y-0 left-0 w-72 max-h-full bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col z-[100001] transform transition-transform duration-300 ${
+        className={`absolute inset-y-0 left-0 w-72 max-h-full bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden z-[100001] transform transition-transform duration-300 ${
         isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`
         }>
         
@@ -85,8 +85,11 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
           </div>
         </div>
 
-        {/* Delivery History */}
-        <div className="flex-1 overflow-y-auto px-2 py-2">
+        {/* Delivery History — OWNER REQUEST (Nov 26 2026): the history cards
+            scroll between the header and the Sign Out footer. min-h-0 is what
+            makes that true: without it the flex child keeps min-height:auto and
+            the card list grows past the panel, shoving the footer out of view. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2 py-2">
           {/* UPCOMING BLOCK — future-dated stops, above today's own card. */}
           {upcoming.length > 0 &&
           <>
