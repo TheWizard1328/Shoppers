@@ -175,6 +175,25 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
     // route pool the pill falls back to remainingStops instead of guessing.
   }
 
+  // OWNER REPORT (Nov 26 2026, Marianne Samchuck): her PICKUP was the driver's
+  // next stop, yet the today card read "5 stops till pickup" and the home-marker
+  // badge read 6. The count is stop_order based, so a reordered pickup still
+  // reported its old gap. The pickup being next wins outright, the same rule the
+  // delivery already has: zero stops till pickup, so the card reads "Pickup is
+  // next" and the marker draws no count badge.
+  if (pickupStop) {
+    const routeAll = (Array.isArray(routeDeliveries) && routeDeliveries.length > 0
+      ? routeDeliveries
+      : (Array.isArray(allDeliveries) ? allDeliveries : []))
+      .filter((rec) => rec && rec.driver_id === pickupStop.driver_id
+        && dayKey(rec) === dayKey(pickupStop)
+        && !['completed', 'failed', 'cancelled'].includes(String(rec.status || '').toLowerCase()));
+    const nextOnRoute = routeAll.find((rec) => rec && rec.isNextDelivery === true) || null;
+    const pickupIsNext = pickupStop.isNextDelivery === true
+      || (nextOnRoute ? nextOnRoute.id === pickupStop.id : false);
+    if (pickupIsNext) stopsTillPickup = 0;
+  }
+
   // ── TRANSFER HISTORY ─────────────────────────────────────────────────────
   // A moved stop carries a driver note: "Delivery Transferred from <driver> on
   // <date>" (or "...from <date>" when the driver did not change).
