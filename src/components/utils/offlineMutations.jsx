@@ -44,6 +44,18 @@ const getMeaningfulDeliveryUpdates = async (existingDelivery, updates = {}) => {
   return Object.entries(sanitizedUpdates).reduce((acc, [key, value]) => {
     // Force-update fields always pass through (explicit user intent)
     if (FORCE_DELIVERY_UPDATE_FIELDS.has(key)) {
+      // OWNER RULE (Nov 25 2026) enforced at the gateway: a stop that was
+      // TRANSFERRED to another date and is already in hand keeps a BLANK
+      // start/end. Any writer that tries to put a window back on it is dropped
+      // here, so no path (save, future-route sync, optimizer, stale tab) can
+      // refill it. Clearing to '' is always allowed.
+      if ((key === 'delivery_time_start' || key === 'delivery_time_end') && value
+          && String(existingDelivery?.delivery_date || '') !== new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' })
+          && ['in_transit', 'en_route'].includes(String(existingDelivery?.status || '').toLowerCase())
+          && String(existingDelivery?.delivery_notes || '').includes('Delivery Transferred')) {
+        console.warn('[WINDOW-GATE] dropped', key, '=', value, 'on transferred stop', existingDelivery?.id);
+        return acc;
+      }
       // DIAGNOSTIC (Nov 25 2026): name the writer that puts a start/end back on
       // a delivery dated other than today.
       if ((key === 'delivery_time_start' || key === 'delivery_time_end') && value
