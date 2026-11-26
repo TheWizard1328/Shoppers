@@ -23,6 +23,7 @@ import { userHasRole, isAppOwner } from "../utils/userRoles";
 import { sortUsers } from "../utils/sorting";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
 import MapCrosshair from "./MapCrosshair";
+import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import { buildMapPadding } from "./DashboardHelpers";
 import { getRadiusFitZoom, DEFAULT_MAP_MAX_ZOOM, COMPLETED_ROUTE_RADIUS_KM } from "./completedRouteView";
 import MapController from "./MapController";
@@ -2528,10 +2529,6 @@ function DeliveryMap({
               if (e.touches.length !== 2) return;
               const b = typeof mapInst.getBearing === 'function' ? Number(mapInst.getBearing()) || 0 : 0;
               gs = { mode: null, d0: twoDist(e.touches), a0: twoAngle(e.touches), b0: b };
-              // Tells MapController's zoomstart that this zoom is a PINCH, so it
-              // holds the refit without unlocking the FAB (which is what killed
-              // the turn auto-zoom and heads-up rotation for 5 minutes).
-              window.__rxPinchGesture = true;
             };
             const onTM = (e) => {
               if (!gs || e.touches.length !== 2) return;
@@ -2545,6 +2542,14 @@ function DeliveryMap({
                 if (gs.mode === 'rotate') {
                   try { mapInst.touchZoom?.disable?.(); zoomSuppressed = true; } catch { /* ignore */ }
                 }
+                // OWNER CORRECTION (Nov 26 2026): BOTH pinches unlock the FAB —
+                // it is a manual gesture. A zoom pinch unlocks through Leaflet's
+                // zoomstart; a rotate pinch suppresses TouchZoom, so it has to
+                // unlock here or it would be the one gesture that leaves the FAB
+                // locked. Nothing re-locks it on a timer: only a FAB tap does.
+                window._userMapControlUntil = Date.now() + 4000;
+                window._lastUserGestureStart = Date.now();
+                try { fabControlEvents.notifyUserMapInteraction(); } catch { /* ignore */ }
               }
               if (gs.mode !== 'rotate') return;           // a zoom pinch stays a zoom
               if (e.cancelable) e.preventDefault();
@@ -2558,7 +2563,6 @@ function DeliveryMap({
               if (e.touches && e.touches.length >= 2) return;
               releaseTouchZoom();
               gs = null;
-              setTimeout(() => { window.__rxPinchGesture = false; }, 400);
             };
             gc.addEventListener('touchstart', onTS, { passive: true });
             gc.addEventListener('touchmove', onTM, { passive: false });

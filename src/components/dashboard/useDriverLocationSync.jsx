@@ -628,8 +628,11 @@ export default function useDriverLocationSync({
   // ─────────────────────────────────────────────────────────────────────────
   function _checkProximitySnap(newLocation, now) {
     if (!isPrimaryDeviceRef.current && !(window.__isPrimaryDevice === true)) return;
-    // Suppress for 5 minutes after any user interaction with the map
-    if (now - (lastUserInteractionRef?.current || 0) < 300000) return;
+    // OWNER RULE (Nov 26 2026): nothing re-locks the FAB on a timer. A driver
+    // who pinched, panned or zoomed stays in free-pan until they TAP the FAB.
+    // This used to expire after 5 minutes and snap Phase 2 back on, which is the
+    // "timing gate" that kept re-locking the map after a pinch.
+    if (mapUserUnlockedRef?.current) return;
     // Only snap once every 30 seconds
     if (now - (lastProximitySnapTimeRef?.current || 0) < 30000) return;
     // Suppress for 30s after a stop completion — prevents re-snapping to just-completed stop
