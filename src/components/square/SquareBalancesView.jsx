@@ -2831,13 +2831,33 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // the SAME collected delivery, so the second one vanished the moment it was
     // saved. One collection can only satisfy one swipe: a delivery claimed by one
     // row is not offered to the next.
+    // OWNER CORRECTION (Nov 26 2026): "the logs are there, they are just not
+    // showing on the cards because they are getting set to cleared instead of
+    // open." A logged swipe was being matched against collections that already
+    // existed BEFORE it was logged, so it cleared the instant it saved. A swipe
+    // may only be cleared by a collection that happened AFTER it was logged.
     const claimedDeliveryIds = new Set();
+    const loggedMs = (swipe) => {
+      const raw = swipe?.created_date || swipe?.swiped_at || null;
+      const ms = raw ? new Date(raw).getTime() : NaN;
+      return Number.isFinite(ms) ? ms : null;
+    };
+    const collectedMs = (row) => {
+      const raw = row?.collected_at || row?.collectedAt || row?.actual_delivery_time
+        || row?.updated_date || row?.created_date || null;
+      const ms = raw ? new Date(raw).getTime() : NaN;
+      return Number.isFinite(ms) ? ms : null;
+    };
     for (const swipe of manualSwipes.rows) {
       const collected = codCollectedTodayByLoc?.[swipe.location_id] || [];
       const cents = Math.round(Number(swipe.amount_cents || 0));
+      const swipeMs = loggedMs(swipe);
       const hit = collected.find((r) => r?.delivery_id
         && !claimedDeliveryIds.has(String(r.delivery_id))
-        && Math.abs(Math.round(Number(r.amount || 0) * 100) - cents) <= 1);
+        && Math.abs(Math.round(Number(r.amount || 0) * 100) - cents) <= 1
+        // Only a collection newer than the log itself can satisfy it. With no
+        // usable timestamps the log stays open (owner rule: it must be visible).
+        && swipeMs != null && collectedMs(r) != null && collectedMs(r) > swipeMs);
       if (hit) {
         claimedDeliveryIds.add(String(hit.delivery_id));
         manualSwipes.close(swipe.id, 'matched', hit.delivery_id);
