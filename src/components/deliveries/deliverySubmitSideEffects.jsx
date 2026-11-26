@@ -158,6 +158,26 @@ export async function runDeliverySubmitSideEffects({
         // forces a full pass and verifies the stop came back sequenced. Firing the
         // timer-based run here as well would only double the HERE calls.
         console.log('[DeliveryForm] transfer — new-route optimization handed to optimizeTransferredStopRoute');
+        // OWNER RULE (Nov 26 2026): a transfer must leave BOTH routes correct —
+        // the stop is gone from the old route, so that route needs its remaining
+        // stops re-sequenced and fully re-polylined too. The new route is handled
+        // by optimizeTransferredStopRoute; this is the source route.
+        setTimeout(async () => {
+          if (!oldDriverId || !oldDate) return;
+          try {
+            const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+            await performRouteOptimization({
+              driverId: oldDriverId,
+              deliveryDate: oldDate,
+              bypassDriverStatus: true,
+              forceRegenerate: true,
+              source: 'transfer_old_route',
+            });
+            console.log('[DeliveryForm] transfer — source route re-optimized and re-polylined', oldDate);
+          } catch (err) {
+            console.warn('[DeliveryForm] source route re-optimize skipped:', err?.message || err);
+          }
+        }, 4000);
       } else {
         setTimeout(async () => {
           try {
