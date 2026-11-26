@@ -606,8 +606,6 @@ export default function PatientPortal({ embedded = false } = {}) {
   const floatDelivery = todayDelivery && !todaySettled ?
   todayDelivery :
   futureDeliveries[0] || todayDelivery;
-  const floatIsFuture = !!floatDelivery && floatDelivery !== todayDelivery;
-
   const showFloatTodayCard = !!(floatDelivery && !sidebarOpen && isNarrowScreen);
 
 
@@ -1905,10 +1903,10 @@ export default function PatientPortal({ embedded = false } = {}) {
                  TODAY only, so tomorrow this card simply stops rendering and the
                  delivery lives in the sidebar history. */}
           {showFloatTodayCard &&
-          <div className={`absolute top-2 z-[900] md:hidden ${floatIsFuture ? 'right-2' : 'left-2'}`}>
-              {/* OWNER REQUEST (Nov 25 2026): an UPCOMING delivery sits in the TOP
-                  RIGHT corner, today's own card keeps its top-left spot. The two
-                  never render together, so the corner never collides. */}
+          <div className="absolute top-2 left-2 z-[900] md:hidden">
+              {/* OWNER CORRECTION (Nov 25 2026): "the patient today card is
+                  supposed to be in the upper left corner not the right" — the
+                  upcoming card takes the SAME top-left spot, it is the same card. */}
               <PatientTodayFloatingCard
               delivery={floatDelivery}
               pickupStops={pickupStops}

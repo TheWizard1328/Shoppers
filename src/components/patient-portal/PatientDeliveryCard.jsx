@@ -102,8 +102,10 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
   // the ETA and onto the SAME ROW as the date and the ETA, sitting between them.
   // Content rules are unchanged: per-card count of stops prior to this patient's
   // own stop, plus "you're next" as a status suffix.
+  // An UPCOMING stop that is flagged next has no live counts to quote, so the
+  // next flag alone must be enough to show the pill.
   const stopsPill = (['pending', 'en_route', 'in_transit'].includes(delivery.status) &&
-    (stopsBetween != null || remainingStops != null || stopsTillPickup != null)) ?
+    (delivery.isNextDelivery === true || stopsBetween != null || remainingStops != null || stopsTillPickup != null)) ?
     (() => {
       // OWNER RULE (Nov 25 2026): PENDING reads "x stops till pickup" (the stops
       // ahead of her pickup); once in transit it reads "x stops away".
@@ -115,7 +117,13 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
       const countLabel = isPendingNow
         ? (count === 0 ? 'Pickup is next' : `${count} stop${count === 1 ? '' : 's'} till pickup`)
         : (count === 0 ? 'Direct delivery' : `${count} stop${count === 1 ? '' : 's'} away`);
-      const label = isNext ? `${countLabel} \u00b7 you're next` : countLabel;
+      // EITHER/OR (owner correction Nov 25 2026): "5 stops away \u00b7 you're next"
+      // states two things at once and contradicts itself — a stop that IS next is
+      // zero stops away. Being next now wins outright; the count only shows when
+      // the patient is not next.
+      const label = isNext
+        ? (isPendingNow ? 'Pickup is next' : "You're next stop")
+        : countLabel;
       const cls = isNext ?
         expanded ?
           'bg-green-900/60 border-green-700 text-green-300' :

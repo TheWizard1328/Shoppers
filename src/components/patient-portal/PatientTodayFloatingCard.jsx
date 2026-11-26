@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Sun, X } from 'lucide-react';
+import { Sun, X, CalendarDays } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import PatientDeliveryCard from './PatientDeliveryCard';
 import { buildDeliveryCardProps } from './deliveryCardHelpers';
 import { isPatientViewOverlayActive, requestExitPatientView } from './patientViewExit';
@@ -56,6 +57,19 @@ export default function PatientTodayFloatingCard({ puidGroups, delivery, pickupS
   const cardProps = buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap, allDeliveries });
   if (!cardProps) return null;
 
+  // ── HEADER LABEL FOR THE DATE ACTUALLY SHOWN ───────────────────────────────
+  const dayKeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const nowDay = new Date();
+  const tomorrowDay = new Date(nowDay.getTime() + 24 * 60 * 60 * 1000);
+  const deliveryDay = String(delivery.delivery_date || '').slice(0, 10);
+  const todayKey = dayKeyOf(nowDay);
+  const isToday = !deliveryDay || deliveryDay === todayKey;
+  const headerLabel = isToday
+    ? 'Today'
+    : deliveryDay === dayKeyOf(tomorrowDay)
+      ? 'Tomorrow'
+      : format(parseISO(deliveryDay), 'EEE, MMM d');
+
   const exitSlot = canExitPreview ? (
     <span
       role="button"
@@ -81,10 +95,18 @@ export default function PatientTodayFloatingCard({ puidGroups, delivery, pickupS
       // area (previously a fixed 55vh cap clipped the expansion).
       style={{ maxHeight: 'calc(100% - 1rem)' }}
     >
+      {/* HEADER LABEL (owner correction Nov 25 2026): the card now floats an
+          UPCOMING delivery too, so a hardcoded "Today" lied about it. Today stays
+          "Today", tomorrow reads "Tomorrow", and anything further out shows its
+          real date. */}
       <div className="flex items-center gap-1.5 px-1 pb-1.5">
-        <Sun className="w-3.5 h-3.5 text-amber-500" />
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Today
+        {isToday ? (
+          <Sun className="w-3.5 h-3.5 text-amber-500" />
+        ) : (
+          <CalendarDays className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+        )}
+        <p className={`text-[11px] font-semibold uppercase tracking-wide ${isToday ? 'text-slate-500 dark:text-slate-400' : 'text-blue-600 dark:text-blue-400'}`}>
+          {headerLabel}
         </p>
       </div>
       <PatientDeliveryCard {...cardProps} remainingStops={remainingStops} expandInline belowDateSlot={exitSlot} />
