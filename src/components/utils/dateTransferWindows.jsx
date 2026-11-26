@@ -79,8 +79,10 @@ export async function applyDateTransferWindows({ existing, updates }) {
   // the target is today. Only a same-date driver move keeps the window, and that
   // never reaches here (hasDateChange is false).
   if (true) {
-    if (!merged.delivery_time_start && !merged.delivery_time_end) return null;
-    return { delivery_time_start: '', delivery_time_end: '' };
+    // Also drop the stale ETA: a cleared window must not keep the ETA that was
+    // computed from it (Lothar kept an 18:00 ETA after the move to today).
+    if (!merged.delivery_time_start && !merged.delivery_time_end && !merged.delivery_time_eta) return null;
+    return { delivery_time_start: '', delivery_time_end: '', delivery_time_eta: '' };
   }
 
   let patient = null;

@@ -1674,6 +1674,8 @@ export default function DeliveryForm({
             if (placement.clearStart) {
               dataToSave.delivery_time_start = '';
               dataToSave.delivery_time_end = '';
+              // A cleared window must not keep the ETA computed from it.
+              dataToSave.delivery_time_eta = '';
               // Save-time signal: handleSaveDelivery must not refill these from
               // the patient window (owner report Nov 25 2026).
               dataToSave._blankWindowOnTransfer = true;
