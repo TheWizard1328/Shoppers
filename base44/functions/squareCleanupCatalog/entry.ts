@@ -142,11 +142,20 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
   // Oct 28 $10.64 COD was rung on Nov 5 by mistake and refunded; the Square ORDER
   // still looks paid, so structured-name matching kept deleting the rebuilt item).
   const refundedSignatureSet = new Set();
+  // OWNER REPORT (Nov 26 2026): Amanda Klymchuk's Oct 28 COD item kept being
+  // cleared from the Catalogue API (and so from the Balances page) even after the
+  // name-based refunded-twin guard shipped. Cause: her refunded ring is still a
+  // COMPLETED Square order, so its catalog_object_id landed in
+  // paidCatalogObjectIds and the EXACT-ID branch deleted the item with no refund
+  // check at all. Refunded object ids are now collected here and excluded.
+  const refundedCatalogObjectIds = new Set();
   try {
     const txRows = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 4000).catch(() => []);
     for (const t of (Array.isArray(txRows) ? txRows : [])) {
       const st = String(t?.status || '').toLowerCase();
       if (!['refunded','refund','voided','cancelled','canceled'].includes(st) && !t?.refunded_at) continue;
+      const objId = t?.square_catalog_object_id || t?.catalog_object_id;
+      if (objId) refundedCatalogObjectIds.add(String(objId));
       const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
       if (sig && !sig.startsWith('::0')) refundedSignatureSet.add(sig);
     }
@@ -158,9 +167,12 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
   };
 
   // Find catalog items that have been paid — exact Square object ID match only.
-  const toDelete = (liveCatalogItems||[]).filter((item) => {
+  const toDeleteCandidates = (liveCatalogItems||[]).filter((item) => {
     if (!item?.id) return false;
     const varIds = (item?.item_data?.variations||[]).map((v)=>v?.id).filter(Boolean);
+    // A refunded ring is not a payment — never purge the item it references.
+    if (refundedCatalogObjectIds.has(String(item.id))) return false;
+    if (varIds.some((v) => refundedCatalogObjectIds.has(String(v)))) return false;
     if (paidCatalogObjectIds.has(item.id)) return true;
     if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
     // Structured name: require exact structural match with a paid order item (same date+store+patient)
@@ -171,6 +183,25 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
     }
     return false;
   });
+
+  // OWNER RULE (Nov 26 2026): an item that belongs to a delivery which is NOT
+  // collected (or whose collection was refunded) must never be purged. The item
+  // description carries our delivery id, so ask the delivery itself.
+  const toDelete = [];
+  for (const item of toDeleteCandidates) {
+    const dm = String(item?.item_data?.description || '').match(/delivery\s+([a-f0-9]{24})/i);
+    if (dm) {
+      try {
+        const rows = await base44.asServiceRole.entities.Delivery.filter({ id: dm[1] }, undefined, 1, 0);
+        const d = Array.isArray(rows) ? rows[0] : rows;
+        if (d && (d.cod_confirmed_collected !== true || d.cod_refunded_at)) {
+          console.log(`[squareCleanupCatalog] kept ${item?.item_data?.name} — delivery ${dm[1]} is uncollected`);
+          continue;
+        }
+      } catch { /* delivery read failed — fall through to the existing rules */ }
+    }
+    toDelete.push(item);
+  }
 
   if (!toDelete.length) return { success: true, deleted: [], message: 'No collected catalog items found' };
 

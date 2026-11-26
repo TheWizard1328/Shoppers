@@ -8,6 +8,17 @@ import { toast } from "sonner";
  * like every other edit form in the app. Owner only.
  */
 export default function LogSwipeDialog({ open, card, onClose, onSave, currentUserName }) {
+  const todayStr = () => {
+    // Square's app shows a swipe with no time, so the form asks for the date
+    // only (owner correction Nov 22 2026).
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  };
+  // OWNER REQUEST (Nov 26 2026): a store can have SEVERAL missing swipes. The
+  // form used to hold one amount and close on save, so only one entry could be
+  // logged per store at a time. It now stages a list and saves them all.
+  const [entries, setEntries] = useState([]);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [note, setNote] = useState('');
@@ -17,34 +28,51 @@ export default function LogSwipeDialog({ open, card, onClose, onSave, currentUse
     if (!open) return;
     setAmount('');
     setNote('');
-    // Square's app shows a swipe with no time, so the form asks for the date
-    // only (owner correction Nov 22 2026).
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    setDate(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
+    setEntries([]);
+    setDate(todayStr());
   }, [open]);
+
+  const fmtDraft = (cents) => `$${(Number(cents || 0) / 100).toFixed(2)}`;
 
   if (!open) return null;
 
+  const draftCents = Math.round(Number(String(amount).replace(/[^0-9.]/g, '')) * 100);
+  const draftValid = draftCents > 0;
+
+  const addEntry = () => {
+    if (!draftValid) {
+      toast.error('Enter the swipe amount');
+      return;
+    }
+    setEntries((prev) => [...prev, { cents: draftCents, date, note: note.trim() }]);
+    setAmount('');
+    setNote('');
+  };
+
   const submit = async () => {
-    const cents = Math.round(Number(String(amount).replace(/[^0-9.]/g, '')) * 100);
-    if (!(cents > 0)) {
+    // Whatever is still in the form counts as an entry, so one-shot logging
+    // keeps working exactly as before.
+    const queue = draftValid ? [...entries, { cents: draftCents, date, note: note.trim() }] : [...entries];
+    if (!queue.length) {
       toast.error('Enter the swipe amount');
       return;
     }
     setSaving(true);
     try {
-      await onSave({
-        // The app schema still requires store_id, and a logged swipe has no
-        // store yet (that is the whole point), so it is written as 'unassigned'.
-        store_id: 'unassigned',
-        location_id: card?.location_id || null,
-        amount_cents: cents,
-        swipe_date: date || null,
-        swiped_at: date ? new Date(`${date}T12:00:00`).toISOString() : new Date().toISOString(),
-        note: note.trim() || null,
-        created_by_name: currentUserName || null
-      });
+      for (const entry of queue) {
+        await onSave({
+          // The app schema still requires store_id, and a logged swipe has no
+          // store yet (that is the whole point), so it is written as 'unassigned'.
+          store_id: 'unassigned',
+          location_id: card?.location_id || null,
+          amount_cents: entry.cents,
+          swipe_date: entry.date || null,
+          swiped_at: entry.date ? new Date(`${entry.date}T12:00:00`).toISOString() : new Date().toISOString(),
+          note: entry.note || null,
+          created_by_name: currentUserName || null
+        });
+      }
+      if (queue.length > 1) toast.success(`${queue.length} swipes logged`);
       onClose();
     } catch (e) {
       console.error('[LogSwipe] save failed:', e);
@@ -81,9 +109,24 @@ export default function LogSwipeDialog({ open, card, onClose, onSave, currentUse
             <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">Note (optional)</label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Patient, till, anything you know" />
           </div>
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-            <Button type="button" onClick={submit} disabled={saving}>{saving ? 'Saving…' : 'Log swipe'}</Button>
+          {entries.length > 0 &&
+          <div className="space-y-1 rounded-lg border border-slate-200 dark:border-slate-700 p-2">
+            {entries.map((entry, i) =>
+            <div key={i} className="flex items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                <span className="tabular-nums font-medium">{fmtDraft(entry.cents)}</span>
+                <span className="truncate">{entry.date}{entry.note ? ` · ${entry.note}` : ''}</span>
+                <button type="button" className="shrink-0 text-slate-400 hover:text-red-600" onClick={() => setEntries((prev) => prev.filter((_, idx) => idx !== i))}>×</button>
+              </div>
+            )}
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">{entries.length} ready to log</div>
+          </div>
+          }
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <Button type="button" variant="ghost" onClick={addEntry} disabled={saving || !draftValid}>Add another</Button>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+              <Button type="button" onClick={submit} disabled={saving}>{saving ? 'Saving…' : (entries.length ? `Log ${entries.length + (draftValid ? 1 : 0)} swipes` : 'Log swipe')}</Button>
+            </div>
           </div>
         </div>
       </div>
