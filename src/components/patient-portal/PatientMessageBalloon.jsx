@@ -73,7 +73,7 @@ function BalloonBox({ message, onOpen, onDismiss, onRead }) {
           panels for the unread messages that once clicked on will actually mark
           the message as read and close that message bubble." Read marks just this
           message read and closes its box; the X still only dismisses. */}
-      <div className="w-full rounded-xl border border-blue-200 bg-white shadow-xl px-3 py-2.5 flex items-start gap-2.5">
+      <div className="w-full rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 shadow-xl px-3 py-2.5 flex items-start gap-2.5">
         <button
           type="button"
           onClick={() => onOpen?.(message)}
@@ -85,24 +85,24 @@ function BalloonBox({ message, onOpen, onDismiss, onRead }) {
           onClick={() => onOpen?.(message)}
           className="min-w-0 flex-1 text-left active:scale-[0.99] transition-transform">
           <span className="flex items-center gap-1.5">
-            <span className="truncate text-[13px] font-semibold text-slate-800">
+            <span className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
               {senderLabel(message)}
             </span>
-            <span className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-700">
+            <span className="shrink-0 rounded bg-blue-100 dark:bg-blue-950 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-700 dark:text-blue-300">
               New
             </span>
           </span>
-          <span className="mt-0.5 block truncate text-[12px] leading-snug text-slate-600">
+          <span className="mt-0.5 block truncate text-[12px] leading-snug text-slate-600 dark:text-slate-300">
             {preview || 'Sent you a message'}
           </span>
-          <span className="mt-1 block text-[10px] font-medium text-blue-600">Tap to open</span>
+          <span className="mt-1 block text-[10px] font-medium text-blue-600 dark:text-blue-400">Tap to open</span>
         </button>
         <span className="shrink-0 flex flex-col items-stretch gap-1">
           <button
             type="button"
             onClick={() => onRead?.(message)}
             aria-label="Mark read"
-            className="inline-flex items-center justify-center gap-1 rounded-full border border-blue-500 bg-blue-500 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white active:scale-[0.97] transition-transform">
+            className="inline-flex items-center justify-center gap-1 rounded-full border border-blue-500 dark:border-blue-500 bg-blue-500 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white active:scale-[0.97] transition-transform">
             <Check className="h-3 w-3" />
             Read
           </button>
@@ -110,7 +110,7 @@ function BalloonBox({ message, onOpen, onDismiss, onRead }) {
             type="button"
             onClick={() => onDismiss?.(message)}
             aria-label="Dismiss"
-            className="inline-flex items-center justify-center rounded-full border border-slate-200 p-1 text-slate-400 hover:text-slate-600">
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 p-1 text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <X className="h-3.5 w-3.5" />
           </button>
         </span>
