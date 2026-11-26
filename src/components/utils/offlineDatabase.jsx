@@ -640,6 +640,43 @@ const _restoreStompedNextFlags = async (records) => {
     candidates = candidates.filter((r) => !isEntityDead(r.id));
     if (candidates.length === 0) return _base;
   } catch (_) { /* guard unavailable — fall through with the full list */ }
+  // BREAK / OFF-DUTY GATE (owner fix Nov 26 2026): going on break or off duty
+  // clears the flag ON PURPOSE (DriverStatusToggle). This gate restores from the
+  // device's own IndexedDB copy and had no duty check at all, so the break clear
+  // was stomped straight back to true — on the driver's own device and on every
+  // watcher — which is the 463 "blocked stale next-stop clear" rows an hour
+  // across 9 devices. While the route's driver is on_break / off_duty, an empty
+  // flag is CORRECT: never restore it. Delivery.driver_id is AppUser.user_id,
+  // never AppUser.id, so resolve by the user_id index first.
+  try {
+    const _dutyCache = new Map();
+    const _dutySuppressed = async (driverId) => {
+      const key = String(driverId || '');
+      if (!key) return false;
+      if (_dutyCache.has(key)) return _dutyCache.get(key);
+      let suppressed = false;
+      try {
+        const rows = await getByIndex(STORES.APP_USERS, 'user_id', key);
+        const rec = (Array.isArray(rows) && rows[0]) || (await getById(STORES.APP_USERS, key));
+        const status = String(rec?.driver_status || '').toLowerCase();
+        if (status === 'on_break' || status === 'off_duty') {
+          // Safety valve: a stale copy must not disable the heal forever.
+          const stamp = rec?.driver_status_updated_at || rec?.updated_date || '';
+          const at = Date.parse(stamp);
+          suppressed = !Number.isFinite(at) || Date.now() - at <= 12 * 60 * 60 * 1000;
+        }
+      } catch (_) { suppressed = false; }
+      _dutyCache.set(key, suppressed);
+      return suppressed;
+    };
+    const _dutyKept = [];
+    for (const r of candidates) {
+      if (await _dutySuppressed(r?.driver_id)) continue;
+      _dutyKept.push(r);
+    }
+    candidates = _dutyKept;
+    if (candidates.length === 0) return _base;
+  } catch (_) { /* gate unavailable — fall through with the full list */ }
   // A write that promotes SOME stop to next is a legitimate advance — the
   // previous holder is meant to be cleared in that same payload.
   const claimants = list.filter((r) => r?.id && r.isNextDelivery === true && _nextFlagActive(r));

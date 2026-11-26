@@ -236,7 +236,17 @@ export async function clearDuplicateNextFlags({
  */
 async function routeIsDutySuppressed(driverId) {
   try {
-    const rec = await offlineDB.getById(offlineDB.STORES.APP_USERS, driverId).catch(() => null);
+    // ID MISMATCH FIX (owner report Nov 26 2026): callers pass the Delivery's
+    // driver_id, which is AppUser.user_id — NOT AppUser.id. Looking the id up as
+    // a primary key missed every time, so this break check never fired and the
+    // guard re-flagged a stop while its driver was on break. Resolve by user_id
+    // first, then fall back to the primary key.
+    let rec = null;
+    try {
+      const rows = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', String(driverId));
+      rec = (Array.isArray(rows) && rows[0]) || null;
+    } catch (_) { rec = null; }
+    if (!rec) rec = await offlineDB.getById(offlineDB.STORES.APP_USERS, driverId).catch(() => null);
     const status = String(rec?.driver_status || '').toLowerCase();
     if (status !== 'on_break' && status !== 'off_duty') return false;
     // Safety valve: a stale local copy must not disable the heal forever. A
