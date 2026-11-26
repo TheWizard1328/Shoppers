@@ -100,18 +100,18 @@ function BalloonBox({ message, onOpen, onDismiss, onRead }) {
         <span className="shrink-0 flex flex-col items-stretch gap-1">
           <button
             type="button"
+            onClick={() => onDismiss?.(message)}
+            aria-label="Dismiss"
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 p-1 text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <X className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
             onClick={() => onRead?.(message)}
             aria-label="Mark read"
             className="inline-flex items-center justify-center gap-1 rounded-full border border-blue-500 dark:border-blue-500 bg-blue-500 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white active:scale-[0.97] transition-transform">
             <Check className="h-3 w-3" />
             Read
-          </button>
-          <button
-            type="button"
-            onClick={() => onDismiss?.(message)}
-            aria-label="Dismiss"
-            className="inline-flex items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 p-1 text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-            <X className="h-3.5 w-3.5" />
           </button>
         </span>
       </div>
