@@ -67,17 +67,30 @@ export async function applyDateTransferWindows({ existing, updates }) {
   const merged = { ...(existing || {}), ...updates };
   const newDate = dayOf(merged.delivery_date);
   const patientId = merged.patient_id || null;
-  const driverId = String(merged.driver_id || '');
   const storeId = merged.store_id || null;
   const selfId = existing?.id || merged.id || null;
 
-  // ── 1. The patient's own window is the instruction ──────────────────────
+  // OWNER RULE (Nov 25 2026, final): a stop moved to ANY date other than today
+  // leaves delivery_time_start/end BLANK. The patient's window is never copied,
+  // and no pre-optimizer step may fill it — this function runs on the generic
+  // delivery update path, i.e. BEFORE the route optimizer, which is why the
+  // start kept reappearing and then being cleared again.
+  const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+  if (newDate !== todayKey) {
+    if (!merged.delivery_time_start && !merged.delivery_time_end) return null;
+    return { delivery_time_start: '', delivery_time_end: '' };
+  }
+
   let patient = null;
   if (patientId) {
     try {
       patient = await offlineDB.getById(offlineDB.STORES.PATIENTS, patientId);
     } catch (_) { patient = null; }
   }
+
+  // ── Moved to TODAY: pin the start ──────────────────────────────────────
+  // 1. the patient's own window, 2. else the store pickup's start while it is
+  // en route / in transit, 3. else the finished pickup's actual time, 4. blank.
   const patientStart = norm(patient?.time_window_start);
   if (patientStart) {
     const next = {
@@ -92,46 +105,29 @@ export async function applyDateTransferWindows({ existing, updates }) {
     return next;
   }
 
-  // ── 2/3. No patient window: derive from the new date's route ────────────
   let all = [];
   try {
     all = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
   } catch (_) { all = []; }
 
   const onDate = all.filter((d) => d && d.id !== selfId && dayOf(d.delivery_date) === newDate);
-
-  // First real stop of that driver's route on the new date.
-  const firstStop = onDate
-    .filter((d) => d.patient_id && !TERMINAL.has(String(d.status || ''))
-      && String(d.driver_id || '') === driverId && stopStartOf(d))
-    .sort((a, b) => {
-      const ao = Number(a.stop_order);
-      const bo = Number(b.stop_order);
-      if (Number.isFinite(ao) && Number.isFinite(bo) && ao !== bo) return ao - bo;
-      return String(a.delivery_time_start || '').localeCompare(String(b.delivery_time_start || ''));
-    })[0];
-  const firstStopPlus5 = firstStop ? addMinutesToTime(stopStartOf(firstStop), 5) : null;
-
-  // Assigned pickups for this patient's store on the new date (any driver —
-  // the pickup may not be assigned to this driver yet).
   const pickups = onDate
     .filter((d) => !d.patient_id && storeId && String(d.store_id || '') === String(storeId)
-      && !TERMINAL.has(String(d.status || '')) && stopStartOf(d));
-  const pickupTimes = pickups.map((p) => addMinutesToTime(stopStartOf(p), 5)).filter(Boolean);
-  const pickupPlus5 = pickupTimes.sort((a, b) => (minutesOf(a) ?? 0) - (minutesOf(b) ?? 0))[0] || null;
-
-  const resolved = laterOf(firstStopPlus5, pickupPlus5);
-  if (!resolved) return null;
-
-  // An end that now falls before the new start is stale (it came from the old
-  // date), so it is cleared instead of leaving an impossible window behind.
+      && !TERMINAL.has(String(d.status || '')));
+  const enRoutePickup = pickups.find((p) => ['en_route', 'in_transit'].includes(String(p.status || '').toLowerCase()) && stopStartOf(p));
+  const finishedPickup = pickups.find((p) => String(p.status || '').toLowerCase() === 'completed' && (p.actual_delivery_time || stopStartOf(p)));
+  const pinned = norm(enRoutePickup && stopStartOf(enRoutePickup))
+    || norm(finishedPickup && (finishedPickup.actual_delivery_time || stopStartOf(finishedPickup)))
+    || '';
+  if (!pinned) {
+    if (!merged.delivery_time_start && !merged.delivery_time_end) return null;
+    return { delivery_time_start: '', delivery_time_end: '' };
+  }
   const existingEnd = norm(merged.delivery_time_end);
-  const keepEnd = existingEnd && (minutesOf(existingEnd) ?? -1) >= (minutesOf(resolved) ?? 0);
+  const keepEnd = existingEnd && (minutesOf(existingEnd) ?? -1) >= (minutesOf(pinned) ?? 0);
   return {
-    delivery_time_start: resolved,
+    delivery_time_start: pinned,
     delivery_time_end: keepEnd ? existingEnd : '',
-    time_window_start: resolved,
-    time_window_end: keepEnd ? existingEnd : '',
   };
 }
 

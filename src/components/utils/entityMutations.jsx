@@ -707,7 +707,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       const windowFix = await applyDateTransferWindows({ existing: existingForMove, updates: sanitizedUpdates });
       if (windowFix) {
         Object.assign(sanitizedUpdates, windowFix);
-        console.log('[EntityMutations] date transfer — windows repopulated', deliveryId, windowFix.delivery_time_start);
+        console.log('[EntityMutations] date transfer — windows resolved (blank unless the target is today)', deliveryId, windowFix.delivery_time_start);
       }
     }
   } catch (error) {
