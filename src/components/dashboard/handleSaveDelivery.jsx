@@ -389,6 +389,11 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         // moved the stop, which is why Lothar's move to tomorrow came back with
         // the patient's window. `_blankWindowOnTransfer` marks that save.
         if (blankWindowOnTransfer && stop.id === editingDelivery?.id) continue;
+        // OWNER RULE (Nov 25 2026): only a stop dated TODAY may inherit the
+        // patient window (or the pickup + 5). Any other date keeps its own
+        // values, so a transferred stop stays blank.
+        const _stopDate = String(stop.delivery_date || deliveryDate || '');
+        if (_stopDate && _stopDate !== new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' })) continue;
         // Window rules (confirmed Sep 4 2026): patient window if present;
         // otherwise the assigned pickup's start +5 min (or the pickup's
         // estimated_arrival +5 when that's LATER); otherwise leave BLANK —

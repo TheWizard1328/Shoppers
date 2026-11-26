@@ -238,9 +238,12 @@ export const handleBatchSaveDelivery = async ({
         // otherwise the assigned pickup's start +5 min (or the pickup's
         // estimated_arrival +5 when that's LATER); otherwise leave BLANK —
         // Accept All stamps now+5 later. No hardcoded '10:00' fallback.
-        if (!stop.delivery_time_start && stopPatient?.time_window_start) {
+        // OWNER RULE (Nov 25 2026): the patient window is only stamped onto a
+        // delivery dated TODAY; any other date keeps its own (blank) window.
+        const _stopToday = String(stop.delivery_date || '') === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+        if (_stopToday && !stop.delivery_time_start && stopPatient?.time_window_start) {
           stop.delivery_time_start = stopPatient.time_window_start;
-        } else if (!stop.delivery_time_start) {
+        } else if (_stopToday && !stop.delivery_time_start) {
           const p5 = correspondingPickup?.delivery_time_start ? inheritStartAfterAccept(correspondingPickup.delivery_time_start) : null;
           const eta5 = correspondingPickup?.estimated_arrival ? addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
           if (p5 && eta5 && eta5 > p5) stop.delivery_time_start = eta5;
@@ -248,7 +251,7 @@ export const handleBatchSaveDelivery = async ({
           else if (eta5) stop.delivery_time_start = eta5;
         }
 
-        if (!stop.delivery_time_end && stopPatient?.time_window_end) {
+        if (_stopToday && !stop.delivery_time_end && stopPatient?.time_window_end) {
           stop.delivery_time_end = stopPatient.time_window_end;
         }
 

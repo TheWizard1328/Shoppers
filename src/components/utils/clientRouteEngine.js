@@ -2779,8 +2779,12 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
       // (blank) — the patient window and the pickup + 5 must NOT be stamped back
       // on. This future-route sync was refilling Lothar's start with her window
       // right after the move to tomorrow.
-      const _movedInHand = ['in_transit', 'en_route'].includes(String(d.status || '').toLowerCase());
-      if (_movedInHand) {
+      // OWNER RULE (Nov 25 2026, final form): the patient window may only be
+      // stamped onto a delivery dated TODAY. Any other date keeps whatever the
+      // record holds (blank for a transferred stop) so that day's optimizer is
+      // free to place it. This is the third refill source found.
+      const _notToday = String(d.delivery_date || '') !== new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+      if (_notToday) {
         newStart = d.delivery_time_start;
         newEnd = d.delivery_time_end;
       } else if (patient?.time_window_start && _pickupDerived) {
