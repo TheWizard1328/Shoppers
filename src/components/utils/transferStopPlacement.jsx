@@ -82,6 +82,43 @@ const pickupsForDay = (allDeliveries, targetDate, targetDriverId) => (allDeliver
   .sort((a, b) => (Number(a.stop_order) || 9999) - (Number(b.stop_order) || 9999));
 
 /**
+ * Every pickup the driver already has on a date, FINISHED ONES INCLUDED
+ * (owner report Nov 25 2026: transferring Lothar from yesterday to today
+ * recreated all four of his pickups although all four were already completed —
+ * "the pickup's status does not matter, as long as they exist").
+ *
+ * The panel's `allDeliveries` only carries the rows the dashboard is showing, so
+ * a completed pickup can be absent from it. This reads the date from the server
+ * by driver + date with NO status filter and merges it with the local rows.
+ */
+const fetchPickupsForDay = async (nextDate, targetDriverId) => {
+  try {
+    const rows = await base44.entities.Delivery.filter(
+      { driver_id: targetDriverId, delivery_date: nextDate },
+      '-created_date',
+      500,
+    );
+    return (Array.isArray(rows) ? rows : []).filter((d) => d
+      && !d.patient_id
+      && d.driver_id !== BOOKED_OFF
+      && !d.is_cycling_marker);
+  } catch (err) {
+    console.warn('[transferPlacement] pickup lookup failed:', err?.message || err);
+    return [];
+  }
+};
+
+const dedupePickups = (rows) => {
+  const seen = new Set();
+  return (rows || []).filter((d) => {
+    const key = String(d.stop_id || d.puid || d.id || '');
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => (Number(a.stop_order) || 9999) - (Number(b.stop_order) || 9999));
+};
+
+/**
  * Creates the driver's default pickups for a date that has none yet.
  * Owner rule: "if I had no stops tomorrow I would need all of my default pickups
  * created first before the stop is transferred."
@@ -147,20 +184,26 @@ export async function resolveTransferPlacement({
   // pickups must be created first, THEN the stop is transferred." The transferred
   // stop itself never gets a new PUID and never gets its own pickup created
   // (part 1): the day's default pickups are what make its route valid.
+  // OWNER RULE (Nov 25 2026): "as long as they exist the transferring of stops
+  // to another date should not be creating the default stops, only if the date
+  // the stops are being moved to has no pickups yet." So the test is whether the
+  // DATE has any pickup for this driver at all — not whether a particular
+  // store+slot is missing, and never whether those pickups are finished.
   let createdPickups = [];
+  let existingPickups = dedupePickups(pickupsForDay(allDeliveries, nextDate, targetDriverId));
   try {
-    const existing = pickupsForDay(allDeliveries, nextDate, targetDriverId);
-    const wanted = scheduledStoreSlots(stores, nextDate, targetDriverId);
-    const have = new Set(existing.map((p) => `${String(p.store_id || '')}:${String(p.ampm_deliveries || '')}`));
-    const missing = wanted.filter(({ store, slot }) => !have.has(`${String(store?.id || '')}:${String(slot || '')}`));
-    if (missing.length) {
+    const serverPickups = await fetchPickupsForDay(nextDate, targetDriverId);
+    existingPickups = dedupePickups([...existingPickups, ...serverPickups]);
+    if (existingPickups.length === 0) {
       createdPickups = await createDefaultPickups({ stores, targetDate: nextDate, targetDriverId, targetDriverName });
-      console.log(`[transferPlacement] created ${createdPickups.length} default pickup(s) for ${targetDriverName || targetDriverId} on ${nextDate} before transferring the stop`);
+      console.log(`[transferPlacement] created ${createdPickups.length} default pickup(s) for ${targetDriverName || targetDriverId} on ${nextDate} before transferring the stop (the date had none)`);
+    } else {
+      console.log(`[transferPlacement] ${existingPickups.length} pickup(s) already on ${nextDate} for ${targetDriverName || targetDriverId}; none created`);
     }
   } catch (err) {
     console.warn('[transferPlacement] default pickup pre-creation failed:', err?.message || err);
   }
-  const skeleton = pickupsForDay(allDeliveries.concat(createdPickups), nextDate, targetDriverId).map((p, i) => ({
+  const skeleton = dedupePickups([...existingPickups, ...createdPickups]).map((p, i) => ({
     stopId: p.stop_id || p.puid || p.id || null,
     start: p.delivery_time_start || '',
     order: Number(p.stop_order) || i + 1,
