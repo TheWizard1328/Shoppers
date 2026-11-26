@@ -187,13 +187,26 @@ export async function resolveTransferPlacement({
   const point = coordsOf({ ...delivery, latitude: delivery.latitude ?? patient?.latitude, longitude: delivery.longitude ?? patient?.longitude }, storesById);
   if (!point) return null;
 
-  // ── 5. start time (owner rule Nov 9 2026) ──────────────────────────────────
-  // Already in the past → leave it exactly as it is (a collected stop must not
-  // look freshly scheduled). Otherwise → transfer time + 5 minutes.
+  // ── 5. start time ──────────────────────────────────────────────────────────
+  // OWNER DECISION (Nov 25 2026): on a DATE change the start is left BLANK
+  // unless the patient has her own time window, so the optimizer for that date
+  // is free to place the moved stop wherever it is fastest. A fixed time (the
+  // old 09:00 lead, or transfer-time + 5) clamps the window and parks the stop
+  // last. A same-date driver move keeps the old rule: a collected stop must not
+  // look freshly scheduled, so a past start is preserved, otherwise now + 5.
+  const patientStart = String(patient?.time_window_start || '').trim().slice(0, 5);
   const existingStart = String(delivery.delivery_time_start || '').slice(0, 16);
   const existingMs = existingStart ? new Date(existingStart.replace(' ', 'T')).getTime() : NaN;
   const placement = { startTime: existingStart };
-  if (!Number.isFinite(existingMs) || existingMs > Date.now()) {
+  let clearStart = false;
+  if (dateChanged) {
+    if (patientStart) {
+      placement.startTime = patientStart;
+    } else {
+      placement.startTime = '';
+      clearStart = true;
+    }
+  } else if (!Number.isFinite(existingMs) || existingMs > Date.now()) {
     const bumped = new Date(Date.now() + 5 * 60 * 1000);
     placement.startTime = `${String(bumped.getHours()).padStart(2, '0')}:${String(bumped.getMinutes()).padStart(2, '0')}`;
   }
@@ -228,6 +241,7 @@ export async function resolveTransferPlacement({
   return {
     dateChanged,
     driverChanged,
+    clearStart,
     puid: nextPuid,
     delivery_time_start: startTime,
     delivery_time_end: '',

@@ -548,12 +548,52 @@ export function enforceInHandBeforeItsPickup(stops, adapters) {
     pickupKeyOf = (s) => s.stopId,
     startOf = (s) => s.deliveryTimeStart,
     parseStart = null,
+    latOf = (s) => s.lat,
+    lngOf = (s) => s.lng,
   } = adapters || {};
   const parse = parseStart || ((v) => {
     const m = String(v || '').trim().match(/^(\d{1,2}):(\d{2})/);
     return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
   });
   const IN_HAND = new Set(['en_route', 'in_transit']);
+  const ptOf = (s) => {
+    const lat = Number(latOf(s));
+    const lng = Number(lngOf(s));
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  };
+  const meters = (a, b) => {
+    if (!a || !b) return null;
+    const rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad;
+    const dLng = (b.lng - a.lng) * Math.cos(((a.lat + b.lat) / 2) * rad);
+    return Math.sqrt(dLat * dLat + dLng * dLng) * 6371000;
+  };
+  /**
+   * OWNER DIRECTIVE (Nov 25 2026): "if a stop is transferred to a new date and a
+   * pickup already exists for its store the pickup-before-delivery rule does not
+   * apply because the stop is already in transit, so it can be optimized
+   * anywhere on the road including before it's picked up if that makes the route
+   * shorter or faster." So the lift no longer drops the stop in the slot
+   * immediately before its pickup: it goes to the CHEAPEST slot of the run ahead
+   * of the pickup (never behind it). Without coordinates it falls back to the
+   * old immediately-before behaviour.
+   */
+  const cheapestSlotBefore = (list, stop, pickupIdx) => {
+    const stopPt = ptOf(stop);
+    if (!stopPt || pickupIdx <= 0) return pickupIdx;
+    let bestIdx = pickupIdx;
+    let bestCost = Infinity;
+    for (let pos = 0; pos < pickupIdx; pos++) {
+      const prev = pos > 0 ? ptOf(list[pos - 1]) : null;
+      const next = ptOf(list[pos]);
+      const toStop = meters(prev, stopPt) ?? meters(next, stopPt) ?? 0;
+      const fromStop = meters(stopPt, next) ?? 0;
+      const replaced = meters(prev, next) ?? 0;
+      const cost = toStop + fromStop - replaced;
+      if (cost < bestCost) { bestCost = cost; bestIdx = pos; }
+    }
+    return bestIdx;
+  };
   let ordered = [...(stops || [])];
   const pickupByKey = new Map(ordered.filter((s) => isPickupOf(s)).map((s) => [String(pickupKeyOf(s)), s]));
   if (pickupByKey.size === 0) return ordered;
@@ -576,7 +616,7 @@ export function enforceInHandBeforeItsPickup(stops, adapters) {
       if (!leads) continue;
       ordered.splice(i, 1);
       const target = ordered.findIndex((s) => idOf(s) === idOf(pickup));
-      ordered.splice(target, 0, stop);
+      ordered.splice(cheapestSlotBefore(ordered, stop, target), 0, stop);
       moved = true;
       break;
     }

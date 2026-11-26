@@ -380,7 +380,9 @@ export async function applyBulkEditStops({
       const transfer = placementById.get(deliveryId) || null;
       if (transfer) {
         if (transfer.puid && !nextUpdates.puid) nextUpdates.puid = transfer.puid;
-        if (!explicitStart) nextUpdates.delivery_time_start = transfer.delivery_time_start || '';
+        // OWNER DECISION (Nov 25 2026): a date change leaves the start blank
+        // (transfer.clearStart) unless the patient has her own window.
+        if (!explicitStart) nextUpdates.delivery_time_start = transfer.clearStart ? '' : (transfer.delivery_time_start || '');
         if (!explicitEnd) nextUpdates.delivery_time_end = '';
         nextUpdates.delivery_notes = transfer.delivery_notes;
       }

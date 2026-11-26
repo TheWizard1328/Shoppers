@@ -116,7 +116,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
       const isNext = delivery.isNextDelivery === true;
       const countLabel = isPendingNow
         ? (count === 0 ? 'Pickup is next' : `${count} stop${count === 1 ? '' : 's'} till pickup`)
-        : (count === 0 ? 'Direct delivery' : `${count} stop${count === 1 ? '' : 's'} away`);
+        : (count === 0 ? 'Next stop' : `${count} stop${count === 1 ? '' : 's'} away`);
       // EITHER/OR (owner correction Nov 25 2026): "5 stops away \u00b7 you're next"
       // states two things at once and contradicts itself — a stop that IS next is
       // zero stops away. Being next now wins outright; the count only shows when
@@ -259,7 +259,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, p
           <InfoRow
             icon={MapPin}
             label="Stops before you"
-            value={stopsBetween === 0 ? 'Direct delivery' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`} />
+            value={stopsBetween === 0 ? 'Next stop' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`} />
 
           }
             {actualTime && <InfoRow icon={delivery.status === 'failed' ? XCircle : CheckCircle} label={delivery.status === 'failed' ? 'Attempted at' : 'Delivered at'} value={actualTime} />}
