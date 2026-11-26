@@ -74,16 +74,14 @@ export default function MapViewCycleFAB({
   const watcherBalloonPrimedRef = useRef(false);
   useEffect(() => {
     const ids = (balloonWatchers || []).map((w) => String(w?.patient_id || '')).filter(Boolean);
-    if (!watcherBalloonPrimedRef.current) {
-      // The first snapshot after load is everyone already there, not a login.
-      watcherBalloonPrimedRef.current = true;
-      ids.forEach((id) => seenWatcherIdsRef.current.add(id));
-      return;
-    }
+    // OWNER SPEC (Nov 26 2026): a restart or app refresh also announces anyone
+    // already watching, for the same 5 seconds. Only a FAB tap never does.
+    const firstSnapshot = !watcherBalloonPrimedRef.current;
+    watcherBalloonPrimedRef.current = true;
     const live = new Set(ids);
     // Forget anyone who stopped watching so a later login announces again.
     Array.from(seenWatcherIdsRef.current).forEach((id) => { if (!live.has(id)) seenWatcherIdsRef.current.delete(id); });
-    const fresh = ids.filter((id) => !seenWatcherIdsRef.current.has(id));
+    const fresh = firstSnapshot ? ids : ids.filter((id) => !seenWatcherIdsRef.current.has(id));
     if (fresh.length === 0) return;
     fresh.forEach((id) => seenWatcherIdsRef.current.add(id));
     setShowWatchersBalloon(true);
