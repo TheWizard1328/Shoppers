@@ -685,10 +685,27 @@ Deno.serve(async (req) => {
 
     // 'notify' dedupes BEFORE pushing, so the same state can never buzz a patient
     // twice just because two devices noticed it (owner report Nov 25 2026).
+    const noticeTag = String(tag || '');
+    const tagLocked = /^rx-(pickup|pending|moved|handoff)-/.test(noticeTag);
     if (action === 'notify') {
       const earlyText = String(body || '').trim();
+      const earlySince = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      // OWNER REPORT (Nov 26 2026, Marianne Samchuck): she was told her Rx "has
+      // been picked up" three times — twice in one minute with different ETAs
+      // and again 75 minutes later — because the dedupe compared the exact body
+      // text, and every ETA change made a new body. A once-per-delivery state
+      // must dedupe on its TAG (delivery + state), never on the wording, so the
+      // tag is stored on the row and checked here. Delayed notices are exempt:
+      // they are meant to repeat when the window really slips.
+      if (tagLocked) {
+        const tagRecent = await base44.asServiceRole.entities.Message
+          .filter({ conversation_id: `patient:${patient_id}`, group_name: noticeTag }, '-created_date', 5)
+          .catch(() => []);
+        if ((tagRecent || []).some((m: any) => String(m.created_date || '') >= earlySince)) {
+          return Response.json({ ok: true, sent: 0, removed: 0, errors: [], in_app: false, deduped: true });
+        }
+      }
       if (earlyText) {
-        const earlySince = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
         const earlyRecent = await base44.asServiceRole.entities.Message
           .filter({ conversation_id: `patient:${patient_id}`, content: earlyText }, '-created_date', 5)
           .catch(() => []);
@@ -734,6 +751,10 @@ Deno.serve(async (req) => {
         read: false,
         patient_id,
         store_id: store_id || patient?.store_id || '',
+        // Hidden marker: the delivery+state tag, so a repeat of the same state
+        // for the same delivery is recognised even when the ETA wording changes.
+        // Non-group rows never render this (group_id is null).
+        group_name: tagLocked ? noticeTag : '',
       }).catch(() => null);
 
       return Response.json({ ok: true, ...result, in_app: !!created, message_id: created?.id || null });

@@ -42,6 +42,11 @@ const PENDING_FRESH_MS = 10 * 60 * 1000;
 // A moved / handed-off stop only notifies while the change is still news; a
 // device that has been offline for days must not announce last week's edits.
 const CHANGE_FRESH_MS = 2 * 60 * 60 * 1000;
+// A PICKUP is only news while it is fresh. Owner report (Nov 26 2026, Marianne
+// Samchuck): she was told her Rx had "been picked up" 75 minutes after the
+// driver collected it, because any re-optimize refreshed updated_date and the
+// 2h window let the pickup be re-announced with a new ETA.
+const PICKUP_FRESH_MS = 30 * 60 * 1000;
 const ACTIVE = new Set(['pending', 'in_transit', 'en_route']);
 
 function readLedger() {
@@ -241,6 +246,10 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
       // saw "in transit, never announced here" and treated the transfer as a
       // fresh pickup, then the delay check cascaded off it.
       const movedNow = !!(entry.date && dateKey && entry.date !== dateKey);
+      // The status this device saw last pass. A pickup notice is only allowed on
+      // a REAL transition into in_transit/en_route; a stop that was already
+      // picked up can only ever produce the delayed notice from here on.
+      const prevStatus = String(entry.status || '');
 
       // ── 5. MOVED TO A NEW DATE (owner request Nov 25 2026) ───────────────
       // Checked BEFORE the today filter: the whole point is a stop that just
@@ -290,6 +299,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
         }
       }
       if (driverId) entry.driverId = driverId;
+      entry.status = status;
       ledger[delivery.id] = entry;
 
       if (dateKey !== today) continue;
@@ -328,10 +338,15 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
       // when the stop itself has none yet.
       if (!entry.pickup && (status === 'in_transit' || status === 'en_route')) {
         const changedMs = delivery.updated_date ? Date.parse(delivery.updated_date) : 0;
-        const fresh = !changedMs || now - changedMs <= CHANGE_FRESH_MS;
+        const fresh = !changedMs || now - changedMs <= PICKUP_FRESH_MS;
         const parentPickup = delivery.puid ? pickupByPuid.get(String(delivery.puid)) : null;
         const pickupMinutes = eta ?? etaMinutes(parentPickup);
-        if (fresh && pickupMinutes != null && !movedNow) {
+        // Already collected: this device saw the picked-up status before, or the
+        // parent pickup stop is finished. Never announce a pickup again.
+        const alreadyPickedUp = prevStatus === 'in_transit' || prevStatus === 'en_route'
+          || !!(parentPickup && (parentPickup.actual_delivery_time
+            || ['completed', 'failed', 'cancelled'].includes(String(parentPickup.status || '').toLowerCase())));
+        if (fresh && pickupMinutes != null && !movedNow && !alreadyPickedUp) {
           const body = buildPatientDeliveryMessage({
             state: 'pickup',
             patientName,
@@ -352,6 +367,13 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
         // dashboard that happened to send the move notice cannot let the same
         // transfer announce a delay a moment later.
         if (movedNow && !entry.pickup && pickupMinutes != null) {
+          entry.pickup = true;
+          entry.etaEnd = pickupMinutes + 30;
+        }
+        // ALREADY PICKED UP (owner report Nov 26 2026): seed the baseline
+        // silently on every device so a stop collected earlier can only ever
+        // produce the delayed notice, never a second "has been picked up".
+        if (alreadyPickedUp && !entry.pickup && pickupMinutes != null) {
           entry.pickup = true;
           entry.etaEnd = pickupMinutes + 30;
         }
