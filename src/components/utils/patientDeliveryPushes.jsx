@@ -224,6 +224,14 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
       const status = String(delivery.status || '').toLowerCase();
       const dateKey = String(delivery.delivery_date || '').slice(0, 10);
       const driverId = String(delivery.driver_id || '');
+      // A stop whose DATE changed in this pass is a MOVE, and the move notice is
+      // the only thing the patient should hear about it (owner report Nov 25
+      // 2026: transferring a stop from tomorrow back to today also sent
+      // "picked up" and "slightly delayed"). A moved stop keeps whatever live
+      // status it already carried on its old route, so the pickup check below
+      // saw "in transit, never announced here" and treated the transfer as a
+      // fresh pickup, then the delay check cascaded off it.
+      const movedNow = !!(entry.date && dateKey && entry.date !== dateKey);
 
       // ── 5. MOVED TO A NEW DATE (owner request Nov 25 2026) ───────────────
       // Checked BEFORE the today filter: the whole point is a stop that just
@@ -314,7 +322,7 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
         const fresh = !changedMs || now - changedMs <= CHANGE_FRESH_MS;
         const parentPickup = delivery.puid ? pickupByPuid.get(String(delivery.puid)) : null;
         const pickupMinutes = eta ?? etaMinutes(parentPickup);
-        if (fresh && pickupMinutes != null) {
+        if (fresh && pickupMinutes != null && !movedNow) {
           const body = buildPatientDeliveryMessage({
             state: 'pickup',
             patientName,
@@ -331,10 +339,17 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
           entry.pickup = true;
           entry.etaEnd = pickupMinutes + 30;
         }
+        // A MOVE seeds the baseline on EVERY device (not just the primary), so a
+        // dashboard that happened to send the move notice cannot let the same
+        // transfer announce a delay a moment later.
+        if (movedNow && !entry.pickup && pickupMinutes != null) {
+          entry.pickup = true;
+          entry.etaEnd = pickupMinutes + 30;
+        }
       }
 
       // ── 4. Arrival window moved later than the one already sent ─────────
-      if (primaryDevice && entry.pickup && eta != null) {
+      if (primaryDevice && entry.pickup && eta != null && !movedNow) {
         const newEnd = eta + 30;
         const sentEnd = Number(entry.etaEnd || 0);
         // OWNER REPORT (Nov 25 2026): Katelyn got three "slightly delayed"
