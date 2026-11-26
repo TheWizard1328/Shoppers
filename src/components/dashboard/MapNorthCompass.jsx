@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { startDeviceCompass, requestCompassPermission, getCompassHeading } from '@/components/utils/deviceCompass';
 
 /**
  * MapNorthCompass — the two-pointed Google-Maps-style north needle that rides
@@ -38,26 +39,54 @@ function readBearing() {
 }
 
 export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated = false, bottomPx = 0, rightPx = 12 }) {
-  const [bearing, setBearing] = useState(() => readBearing());
+  // OWNER REQUEST (Nov 26 2026): the needle is driven by the PHONE'S compass,
+  // not the map's bearing, so it points at real north wherever the device is
+  // facing. The map bearing is only a fallback for a device with no magnetometer
+  // (or a refused iOS prompt), so the icon never freezes or lies.
+  const [rotation, setRotation] = useState(0);
+  const [source, setSource] = useState('map');
 
-  // OWNER REQUEST (Nov 26 2026): the needle also appears whenever the map is NOT
-  // north-up (a pinch rotation, or a turn preview outside Phase 2), so it doubles
-  // as the "tap to go north again" control.
-  const poll = visible || alwaysShowWhenRotated;
   useEffect(() => {
-    if (!poll) return undefined;
-    setBearing(readBearing());
-    const timer = setInterval(() => setBearing(readBearing()), POLL_MS);
+    // Android needs nothing; iOS needs one gesture, so the first touch anywhere
+    // on the map page asks. A refusal simply leaves the map-bearing fallback.
+    startDeviceCompass();
+    const ask = () => { requestCompassPermission(); };
+    try {
+      window.addEventListener('pointerdown', ask, { once: true, capture: true });
+      window.addEventListener('touchstart', ask, { once: true, capture: true, passive: true });
+    } catch { /* no window */ }
+    return () => {
+      try {
+        window.removeEventListener('pointerdown', ask, { capture: true });
+        window.removeEventListener('touchstart', ask, { capture: true });
+      } catch { /* no window */ }
+    };
+  }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      const heading = getCompassHeading();
+      if (heading != null) {
+        // Compass heading H = the device's top edge faces H. North therefore
+        // sits at -H on screen, so the red tip swings to true north.
+        setRotation(-heading);
+        setSource('device');
+      } else {
+        // Fallback: screen angle of north = -mapBearing.
+        setRotation(-readBearing());
+        setSource('map');
+      }
+    };
+    tick();
+    const timer = setInterval(tick, POLL_MS);
     return () => clearInterval(timer);
-  }, [poll]);
+  }, []);
 
-  const rotated = Math.abs(Number(bearing) || 0) > 0.5;
-  if (!visible && !(alwaysShowWhenRotated && rotated)) return null;
-
-  // Screen angle of north = -bearing (the map is rotated clockwise by `bearing`).
-  const rotation = -bearing;
-
+  // OWNER REQUEST (Nov 26 2026): the needle is ALWAYS visible above the map-cycle
+  // FAB, in every phase and layout, so it reads as the driver's compass.
   const handleReset = () => {
+    // Tapping still snaps the map north-up (and re-arms heads-up).
+    try { requestCompassPermission(); } catch { /* ignore */ }
     try {
       if (typeof window !== 'undefined' && typeof window.__resetMapNorth === 'function') {
         window.__resetMapNorth();
@@ -69,8 +98,8 @@ export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated
     <button
       type="button"
       onClick={handleReset}
-      aria-label="Re-orient the map north up"
-      title="North up"
+      aria-label={source === 'device' ? 'Device compass — tap to point the map north up' : 'North up'}
+      title={source === 'device' ? 'Compass — tap for north up' : 'North up'}
       className="absolute z-[1000] p-0 bg-transparent border-0 cursor-pointer"
       style={{ bottom: `${bottomPx}px`, right: `${rightPx}px` }}>
       <div className="w-9 h-9 rounded-full bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center">

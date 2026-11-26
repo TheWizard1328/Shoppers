@@ -223,7 +223,9 @@ export default function FABControls({
           shares this slot but is hidden in immersive mode, so they never clash. */}
       <MapNorthCompass
         key="map-north-compass"
-        visible={immersiveHidden === true && mapViewPhase === 2}
+        /* OWNER REQUEST (Nov 26 2026): always visible above the FAB, every phase
+           and layout, because it now reads the phone's compass. */
+        visible={true}
         /* OWNER REQUEST (Nov 26 2026): the needle ALSO shows whenever the map is
            rotated (pinch) in any phase or layout, and tapping it snaps north-up. */
         alwaysShowWhenRotated={true}
