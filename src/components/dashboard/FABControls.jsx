@@ -4,6 +4,7 @@ import { useOptimizationEngineMode } from '@/components/utils/serverOptimization
 import { AnimatePresence } from 'framer-motion';
 import { useDevice } from '@/components/utils/DeviceContext';
 import MapViewCycleFAB from '@/components/dashboard/MapViewCycleFAB';
+import MapNorthCompass from '@/components/dashboard/MapNorthCompass';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
 import TorchFAB from '@/components/dashboard/TorchFAB';
 import { Navigation } from 'lucide-react';
@@ -215,6 +216,16 @@ export default function FABControls({
         stopCardsHeight={stopCardsBaseHeight}
         immersiveHidden={immersiveHidden}
         hideForExpandedCard={isStopCardExpanded}
+      />
+      {/* OWNER REQUEST (Nov 25 2026): the north needle sits directly above the
+          map-cycle FAB and only while immersive mode is active AND the FAB is in
+          Phase 2 (the turn-zoom phase, where the map can be rotated). TorchFAB
+          shares this slot but is hidden in immersive mode, so they never clash. */}
+      <MapNorthCompass
+        key="map-north-compass"
+        visible={immersiveHidden === true && mapViewPhase === 2}
+        bottomPx={mapCycleFabBottom + 52}
+        rightPx={12}
       />
       <RouteActionButtons
         key="route-action-buttons"

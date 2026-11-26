@@ -318,8 +318,25 @@ function DeliveryMap({
       // getBearing() reports the normalised 0-360 value the plugin applied.
       window.__mapBearing = typeof map.getBearing === "function" ? map.getBearing() : applied;
     };
+    // OWNER REQUEST (Nov 25 2026): the immersive north needle above the map-cycle
+    // FAB reads the live rotation through this getter, so it always points at true
+    // north no matter which way the turn preview has the map facing.
+    try {
+      window.__getMapBearing = () => {
+        const m = headingMapRef.current;
+        if (m && typeof m.getBearing === 'function') {
+          const v = Number(m.getBearing());
+          if (Number.isFinite(v)) return v;
+        }
+        const appliedNow = Number(window.__mapBearing);
+        return Number.isFinite(appliedNow) ? appliedNow : 0;
+      };
+    } catch { /* no window */ }
     const timer = setInterval(step, 120);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      try { delete window.__getMapBearing; } catch { /* ignore */ }
+    };
   }, [mapReady]);
   const fanCanvasRenderer = useRef(null);
   const [fanRendererReady, setFanRendererReady] = useState(false);
