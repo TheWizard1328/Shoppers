@@ -55,6 +55,11 @@ let _cryptoKey = null;        // CryptoKey in memory — gone on page unload
 let _isInitialized = false;
 let _isEncrypting = false;    // Flag: is encryption active?
 let _encryptionBypassed = false; // Flag: encryption completely bypassed (e.g. App Owner)
+// Short fingerprint of the key material currently in use (Nov 26 2026). Stamped
+// on every encrypted wrapper as __kv so a record that cannot be decrypted can
+// be PROVEN to be an old-key row instead of guessed at. Not secret: 4 bytes of
+// SHA-256 over material that already sits in localStorage on this device.
+let _keyVersion = 'unknown';
 
 // ─── Salt Management ─────────────────────────────────────────────────────
 
@@ -113,6 +118,15 @@ const deriveKey = async () => {
 
   // Convert stable material to key material via PBKDF2
   const encoder = new TextEncoder();
+
+  // Key identity for diagnostics: records carry __kv, so an undecryptable row
+  // reports rowKeyVersion vs active instead of a bare "old key mismatch likely".
+  try {
+    const fp = await crypto.subtle.digest('SHA-256', encoder.encode(material));
+    _keyVersion = Array.from(new Uint8Array(fp)).slice(0, 4).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    _keyVersion = 'unknown';
+  }
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     encoder.encode(material),
@@ -321,7 +335,7 @@ export const encryptRecord = async (record) => {
     // The full record is inside __data (decrypted on read). The index fields
     // are copied as plaintext so IDB indexes still work. These fields are
     // NOT PHI — they're metadata needed for queries (delivery_date, driver_id, etc.).
-    const wrapper = { __encrypted: true, __data: encryptedBytes };
+    const wrapper = { __encrypted: true, __data: encryptedBytes, __kv: _keyVersion };
 
     // Determine which index fields to preserve based on the store.
     // We try all known PHI store field lists and use whichever fields exist.
@@ -397,7 +411,7 @@ export const decryptRecord = async (record) => {
     _decryptFailCount++;
     // Throttle console spam — log first 3, then every 50th
     if (_decryptFailLogged < 3 || _decryptFailCount % 50 === 0) {
-      console.warn('[IDB-Crypto] Decrypt failed (count: ' + _decryptFailCount + ') — returning degraded record. Old key mismatch likely.');
+      console.warn('[IDB-Crypto] Decrypt failed (count: ' + _decryptFailCount + ') — returning degraded record. rowKeyVersion=' + (record.__kv || 'none') + ' active=' + _keyVersion);
       _decryptFailLogged++;
     }
     // Return degraded wrapper instead of null — preserves index fields
@@ -447,6 +461,7 @@ export const resetDecryptFailCounters = () => {
 export const purgeUndecryptableRecords = async (storeName, clearStoreFn) => {
   if (_encryptionBypassed) return 0;
   let purgedCount = 0;
+  const purgedKeyVersions = new Set();
   try {
     const db = await openDbForPurge(storeName);
     if (!db) return 0;
@@ -465,6 +480,7 @@ export const purgeUndecryptableRecords = async (storeName, clearStoreFn) => {
           if (!encryptedBytes || !(encryptedBytes instanceof Uint8Array)) {
             store.delete(rec.id);
             purgedCount++;
+            purgedKeyVersions.add(rec.__kv || 'none');
             continue;
           }
           const iv = encryptedBytes.slice(0, IV_LENGTH);
@@ -473,17 +489,49 @@ export const purgeUndecryptableRecords = async (storeName, clearStoreFn) => {
         } catch {
           store.delete(rec.id);
           purgedCount++;
+          purgedKeyVersions.add(rec.__kv || 'none');
         }
       }
     }
     await new Promise((resolve) => { tx.oncomplete = () => resolve(); tx.onerror = () => resolve(); });
     if (purgedCount > 0) {
-      console.log(`[IDB-Crypto] Purged ${purgedCount} undecryptable records from ${storeName}`);
+      console.log(`[IDB-Crypto] Purged ${purgedCount} undecryptable records from ${storeName} (rowKeyVersions=${Array.from(purgedKeyVersions).join(',')} active=${_keyVersion})`);
     }
   } catch (e) {
     // non-fatal
   }
   return purgedCount;
+};
+
+/**
+ * SELF-HEAL (Nov 26 2026, owner hourly digest): a device can keep a handful of
+ * rows encrypted under a key it no longer has (key material regenerated after a
+ * storage eviction, or rows written by an older build). Every read decrypts the
+ * whole store, those rows fail forever, and the repair pass re-reads the same
+ * bad rows — the "N AppUser rows unreadable (PHI decrypt)" warning never clears.
+ *
+ * This purges ONLY rows that genuinely fail to decrypt (they can never yield
+ * data again) so the store stops paying for them on every read; the next server
+ * sync rewrites those records encrypted under the active key. Throttled per
+ * store per session so a device cannot thrash.
+ *
+ * @param {string} storeName — PHI store to heal (e.g. 'app_users')
+ * @param {object} [opts] — { minIntervalMs } default 30 minutes
+ * @returns {Promise<number>} — rows purged this call (0 when throttled)
+ */
+const _healAt = {};
+export const healUndecryptableStore = async (storeName, opts = {}) => {
+  if (_encryptionBypassed || !_isEncrypting || !_cryptoKey) return 0;
+  const minIntervalMs = opts.minIntervalMs ?? 30 * 60 * 1000;
+  const now = Date.now();
+  if (_healAt[storeName] && now - _healAt[storeName] < minIntervalMs) return 0;
+  _healAt[storeName] = now;
+  const purged = await purgeUndecryptableRecords(storeName, null);
+  if (purged > 0) {
+    resetDecryptFailCounters();
+    console.warn('[IDB-Crypto] Self-heal purged ' + purged + ' undecryptable ' + storeName + ' rows (active key ' + _keyVersion + ') — server sync will rewrite them');
+  }
+  return purged;
 };
 
 // Minimal IDB open for purge (avoids circular dependency with offlineDatabase)

@@ -123,8 +123,17 @@ class DriverLocationPoller {
          const nowMs = Date.now();
          if (!window.__appUserUnreadableAt || nowMs - window.__appUserUnreadableAt > 10 * 60 * 1000) {
            window.__appUserUnreadableAt = nowMs;
-           console.warn('[DriverLocationPoller] ' + unreadableIds.length + ' AppUser rows unreadable (PHI decrypt) - running mirror repair, not deleting them');
-           import('./appUserMirror').then((m) => m.runAppUserMirror({ reason: 'unreadable-appusers' })).catch(() => {});
+           console.warn('[DriverLocationPoller] ' + unreadableIds.length + ' AppUser rows unreadable (PHI decrypt) - healing local store, then mirror repair');
+           // HEAL FIRST (Nov 26 2026, owner hourly digest): only the repair ran,
+           // so rows encrypted under a key this device no longer has were re-read
+           // and re-warned about every cycle and the count never dropped. Purge
+           // exactly those undecryptable rows, then let the mirror rewrite them.
+           import('./idbCrypto')
+             .then((m) => m.healUndecryptableStore('app_users'))
+             .catch(() => 0)
+             .then(() => import('./appUserMirror'))
+             .then((m) => m.runAppUserMirror({ reason: 'unreadable-appusers' }))
+             .catch(() => {});
          }
        } catch (_) {}
      }
