@@ -224,9 +224,9 @@ export default function FABControls({
       <MapNorthCompass
         key="map-north-compass"
         visible={immersiveHidden === true && mapViewPhase === 2}
-        /* OWNER REQUEST (Nov 26 2026): outside Phase 2 the needle only shows when
-           the map is actually rotated (pinch), and tapping it snaps north-up. */
-        alwaysShowWhenRotated={immersiveHidden === true}
+        /* OWNER REQUEST (Nov 26 2026): the needle ALSO shows whenever the map is
+           rotated (pinch) in any phase or layout, and tapping it snaps north-up. */
+        alwaysShowWhenRotated={true}
         bottomPx={mapCycleFabBottom + 52}
         rightPx={12}
       />

@@ -1233,6 +1233,11 @@ function Dashboard() {
   const handleMapViewCycle = useCallback(() => {
     if (!isDriver && !isDispatcher && !isAdmin) return; if (isDispatcher && !isAdmin && _autoPhaseController) _autoPhaseController.setManualOverride();
 
+    // OWNER REQUEST (Nov 26 2026): north-up must happen FIRST in the click, not on
+    // the next 120ms tick after the phase change. Snap the bearing now so the map
+    // is already north before this cycle does its pan/zoom work.
+    try { if (typeof window.__resetMapNorth === 'function') window.__resetMapNorth(); } catch { /* no window */ }
+
     // Collapse any open stop card
     setIsExpanded(false);
     setSelectedCardId(null);
