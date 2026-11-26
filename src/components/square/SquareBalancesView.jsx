@@ -42,6 +42,12 @@ const SETTING_KEY = 'square_balances';
 // Orders/Payouts endpoints the sync pulls, so an auto badge can't fire until
 // it settles into a real Square payment. This record stores owner-marked
 // confirmations: { [delivery_id]: { at: ISO, by: user_id } }.
+// OWNER RULE (Nov 26 2026): only a TRUE Not Tapped mark sticks around past its
+// collection day. A Driver Tapped mark is a settled tap — its collected row
+// clears with the rest of the day's collected items, so it must never be
+// carried over just because the stored mark also carries notTapped:true.
+const isTrueNotTappedMark = (mark) => !!mark && mark.notTapped === true && mark.mode !== 'driver_tapped';
+
 const SPEND_MARKS_KEY = 'square_card_spend_marks';
 // DEFAULT_FOLDER_RATE + fee-sheet math now come from useSquareBalancesSummary.
 
@@ -1719,7 +1725,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // has passed. Look back a hard 7 days for marked rows and never further.
       const weekAgoEdm = edmontonBusinessDayKey(new Date(Date.now() - 7 * 86400000));
       const notTappedIds = Object.entries(manualSpendMarksRef.current || {})
-        .filter(([, v]) => v?.notTapped === true)
+        .filter(([, v]) => isTrueNotTappedMark(v))
         .map(([k]) => String(k))
         .filter((id) => !seenDelIds.has(id));
       if (notTappedIds.length) {
@@ -1752,7 +1758,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const spendDay = spendAt ? edmontonBusinessDayKey(parseAnyTimestamp(spendAt)) : null;
         const doneDay = doneAt ? edmontonBusinessDayKey(parseAnyTimestamp(doneAt)) : null;
         const spentToday = spendDay === today;
-        const markedNotTapped = manualSpendMarksRef.current?.[String(d.id)]?.notTapped === true;
+        const markedNotTapped = isTrueNotTappedMark(manualSpendMarksRef.current?.[String(d.id)]);
         const inKeepWindow = String(d.delivery_date || '') >= weekAgoEdm
           || (spendDay && spendDay >= weekAgoEdm)
           || (doneDay && doneDay >= weekAgoEdm);
@@ -3916,7 +3922,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
                       const id = it?.delivery_id ? String(it.delivery_id) : null;
                       if (!id || alreadyListed.has(id)) continue;
                       const mark = manualSpendMarksRef.current?.[id];
-                      if (mark?.notTapped !== true) continue;
+                      if (!isTrueNotTappedMark(mark)) continue;
                       const markAt = mark?.touchedAt ? new Date(mark.touchedAt).getTime() : null;
                       const spendAt = it?.spend_at ? new Date(it.spend_at).getTime() : null;
                       const superseded = spendAt != null && Number.isFinite(spendAt) && (markAt == null || !Number.isFinite(markAt) || spendAt >= markAt);
