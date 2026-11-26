@@ -30,6 +30,30 @@ export async function handleSaveDelivery(deliveryData, ctx) {
   // stripped so it is never written to IDB or the server.
   const blankWindowOnTransfer = deliveryData?._blankWindowOnTransfer === true;
   if (blankWindowOnTransfer) delete deliveryData._blankWindowOnTransfer;
+  // SELF-HEALING GUARD (Nov 25 2026): after a date transfer, keep watching the
+  // moved record for 30s. Some path still refills the blank start from the
+  // patient window; this restores blank and logs what it saw so the writer can
+  // be found, without Robert having to hunt through writers again.
+  const _transferGuardId = blankWindowOnTransfer ? (ctx?.editingDelivery?.id || null) : null;
+  if (_transferGuardId) {
+    const _gid = _transferGuardId;
+    const _today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+    let _checks = 0;
+    const _timer = setInterval(async () => {
+      _checks += 1;
+      if (_checks > 20) { clearInterval(_timer); return; }
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const rec = await offlineDB.getById(offlineDB.STORES.DELIVERIES, _gid);
+        if (!rec) return;
+        if (String(rec.delivery_date || '') === _today) { clearInterval(_timer); return; }
+        if (rec.delivery_time_start || rec.delivery_time_end) {
+          console.warn('[WINDOW-GUARD] refilled on transferred stop', _gid, 'start=', rec.delivery_time_start, 'end=', rec.delivery_time_end);
+          await updateDeliveryLocal(_gid, { delivery_time_start: '', delivery_time_end: '' }, { skipSmartRefresh: true });
+        }
+      } catch (_) { /* guard is best-effort */ }
+    }, 1500);
+  }
   const {
     editingDelivery, drivers, deliveries, patients, stores, currentUser, selectedDate,
     updateDeliveriesLocally, applyDeliveryChangesLocally, refreshData, setShowDeliveryForm, setEditingDelivery,

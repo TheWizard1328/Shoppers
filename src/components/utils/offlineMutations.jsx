@@ -44,6 +44,12 @@ const getMeaningfulDeliveryUpdates = async (existingDelivery, updates = {}) => {
   return Object.entries(sanitizedUpdates).reduce((acc, [key, value]) => {
     // Force-update fields always pass through (explicit user intent)
     if (FORCE_DELIVERY_UPDATE_FIELDS.has(key)) {
+      // DIAGNOSTIC (Nov 25 2026): name the writer that puts a start/end back on
+      // a delivery dated other than today.
+      if ((key === 'delivery_time_start' || key === 'delivery_time_end') && value
+          && String(existingDelivery?.delivery_date || '') !== new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' })) {
+        console.warn('[WINDOW-WRITE]', key, '=', value, 'on', existingDelivery?.id, existingDelivery?.delivery_date, new Error().stack);
+      }
       acc[key] = value;
       return acc;
     }
