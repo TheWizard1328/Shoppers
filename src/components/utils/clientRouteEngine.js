@@ -1761,13 +1761,23 @@ let _inheritedWindowCount = 0;
     // ETA ladder, so geometry, ETAs and stop_order all agree.
     {
       const _beforeIds = routeStops.map((s) => String(s.delivery?.id));
+      // OWNER RULE (Nov 26 2026): a stop TRANSFERRED onto TODAY is in hand by
+      // definition (the transfer marks it in_transit). A stale copy that still
+      // reads 'pending' made the pickup-before-pending rule chain it after its
+      // 16:00-18:00 pickup, which is exactly the #5 position with an 18:00 ETA.
+      const _todayKeyForOrder = getEdmontonTodayDateString();
+      const _orderingStatus = (st) => {
+        const isTransferred = String(st.delivery_notes || '').includes('Delivery Transferred');
+        if (isTransferred && String(st.delivery_date || '').slice(0, 10) === _todayKeyForOrder) return 'in_transit';
+        return st.status;
+      };
       const _ordered = sharedEnforcePickupBeforePending(
         routeStops.map((s) => s.delivery),
         {
           idOf: (st) => st.id,
           patientOf: (st) => st.patient_id,
           puidOf: (st) => st.puid,
-          statusOf: (st) => st.status,
+          statusOf: (st) => _orderingStatus(st),
           isPickupOf: (st) => !st.patient_id,
           pickupKeyOf: (st) => st.stop_id,
         },
@@ -2199,7 +2209,11 @@ let _inheritedWindowCount = 0;
       // arrives at the pickup's freshly computed ETA + dwell + travel. Any window
       // floor of its own would pull the ETA back to 12:05 and break the order, so
       // pending stops carry NO floor here.
-      const _isPendingStop = String(d.status || '').toLowerCase() === 'pending';
+      // Same override for the ETA ladder: a transferred-today stop is never
+      // "pending" here, so it takes no pickup floor (the 18:00 source).
+      const _isPendingStop = String(d.status || '').toLowerCase() === 'pending'
+        && !(String(d.delivery_notes || '').includes('Delivery Transferred')
+          && String(d.delivery_date || '').slice(0, 10) === getEdmontonTodayDateString());
       const _puFloor = _pendingPickupFloor(stop, null);
       return {
         id: d.id,
