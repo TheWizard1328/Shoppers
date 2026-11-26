@@ -100,10 +100,13 @@ export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated
       onClick={handleReset}
       aria-label={source === 'device' ? 'Device compass — tap to point the map north up' : 'North up'}
       title={source === 'device' ? 'Compass — tap for north up' : 'North up'}
-      /* OWNER REQUEST (Nov 26 2026): sit ONE step below the stop cards
-         (StopCardsSection is z-[10070]) so an expanded card always wins, while
-         the needle still rides far above the map-cycle FAB (z-[100]). */
-      className="absolute z-[10069] p-0 bg-transparent border-0 cursor-pointer"
+      /* OWNER REQUEST (Nov 26 2026, second try): the stop cards' z-[10070] is
+         TRAPPED inside their own wrapper (DashboardView's absolute
+         inset-x-0 bottom-0 z-[700]), so a sibling at z-[10069] painted OVER the
+         whole card layer. The needle must sit BELOW that container instead:
+         z-[120] clears every map FAB (z-[100]) and still loses to the cards
+         (700), the map header (230) and the sidebar (250). */
+      className="absolute z-[120] p-0 bg-transparent border-0 cursor-pointer"
       style={{ bottom: `${bottomPx}px`, right: `${rightPx}px` }}>
       <div className="w-9 h-9 rounded-full bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center">
         <svg

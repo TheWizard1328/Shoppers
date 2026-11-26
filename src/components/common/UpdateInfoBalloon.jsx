@@ -128,7 +128,10 @@ function UpdateInfoBalloon({ active, anchorSelector, direction = 'up', accent = 
         ...(direction === 'right' ? { top: `${pos.main.top}px` } : { left: `${pos.left}px` }),
         ...pos.main,
         width: `${BALLOON_WIDTH}px`,
-        zIndex: 1000000,
+        // OWNER REQUEST (Nov 26 2026): the update balloon must sit ABOVE the
+        // patient portal message balloons (PatientMessageBalloon is
+        // z-[2147482000]) so an update prompt is never buried by a message.
+        zIndex: 2147483000,
         background: '#1f2937',
         color: '#fff',
         borderRadius: '10px',
