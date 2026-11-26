@@ -294,6 +294,116 @@ const enforceWindowBands = (stops, nowMin) => {
   return keyed.sort((a, b) => a.b - b.b || a.i - b.i).map((x) => x.st);
 };
 
+// ─── START IS A FLOOR, NOT AN APPOINTMENT (owner rule Nov 26 2026) ──────────
+// "The route optimizer is using the delivery start times as an absolute time,
+// not 'can be done after that time'." A stop whose window has not opened yet
+// (Londonderry pickup, 16:00-18:00) is parked at the front of the route as soon
+// as the other stops carry no constraint, so the driver idles at the store until
+// the window opens while stops he could serve on the way wait behind it.
+// This pass rotates such a stop DOWN past the stops that are servable now, only
+// as far as the idle time it removes and only while it still lands inside its
+// own window (start = earliest, end = deadline). Legs for any new pair fall back
+// to a crow-flies estimate; the polyline pass rebuilds real geometry and ETAs.
+const OPEN_WAIT_MIN = 8;
+
+export function fillUnopenedWindowWait(stops, legs, nowMin) {
+  if (!Array.isArray(stops) || stops.length < 2) return { stops, legs };
+  const now = Number.isFinite(nowMin) ? nowMin : null;
+  if (now == null) return { stops, legs };
+  const idOf = (st) => String(st?.delivery?.stop_id || st?.delivery?.delivery_id || st?.delivery?.id || '');
+  const svc = (st) => Math.round(Number(st?.delivery?.extra_time || (st?.isPickup ? 15 : 5)));
+  const travelMin = (a, b) => (a && b && Number.isFinite(a.lat) && Number.isFinite(b.lat))
+    ? Math.ceil((calculateCrowFliesDistance(a.lat, a.lng, b.lat, b.lng) / 40) * 60 * 1.3) : 0;
+  const startOf = (st) => parseTimeToMinutes(st?.windowStart);
+  const endOf = (st) => parseTimeToMinutes(st?.windowEnd);
+  const servableNow = (st) => {
+    const s = startOf(st);
+    return !Number.isFinite(s) || s <= now + 1;
+  };
+  // Only stops that owe nothing to a pickup can be pulled forward: a pickup or
+  // an in-hand stop. A pending delivery stays behind its own store pickup.
+  const freeToMove = (st) => {
+    if (!st) return false;
+    const d = st.delivery || {};
+    if (st.isPickup === true || !d.patient_id) return true;
+    return ['en_route', 'in_transit'].includes(String(d.status || '').toLowerCase());
+  };
+
+  // HERE's own duration is reused whenever a pair survives the reorder; a new
+  // pair gets a crow-flies estimate. The polyline pass rebuilds real geometry
+  // and ETAs from the road, so this only has to be sane, not exact.
+  const pairSec = new Map();
+  for (let i = 0; i < stops.length; i += 1) {
+    pairSec.set(`${i === 0 ? 'origin' : idOf(stops[i - 1])}|${idOf(stops[i])}`, Math.max(0, Number(legs?.[i]?.duration || 0)));
+  }
+  const buildLegs = (order) => order.map((st, i) => {
+    const from = i === 0 ? null : order[i - 1];
+    const key = `${from ? idOf(from) : 'origin'}|${idOf(st)}`;
+    if (pairSec.has(key)) return { duration: pairSec.get(key), distance: Number(legs?.[i]?.distance || 0) };
+    if (!from) {
+      // No origin coords here — the original first leg is the best proxy for
+      // "get to the route from where the driver is".
+      const first = Math.max(0, Number(legs?.[0]?.duration || 0));
+      return { duration: first, distance: Number(legs?.[0]?.distance || 0) };
+    }
+    return {
+      duration: travelMin(from, st) * 60,
+      distance: calculateCrowFliesDistance(from.lat, from.lng, st.lat, st.lng) * 1000,
+    };
+  });
+  const arrivalsOf = (order, legsArr) => {
+    const out = [];
+    let t = now;
+    for (let i = 0; i < order.length; i += 1) {
+      t += Math.round(Math.max(0, Number(legsArr?.[i]?.duration || 0)) / 60);
+      out[i] = t;
+      t += svc(order[i]);
+    }
+    return out;
+  };
+
+  let order = stops.slice();
+  let curLegs = buildLegs(order);
+  let arr = arrivalsOf(order, curLegs);
+  let changed = false;
+
+  for (let i = 0; i < order.length - 1; i += 1) {
+    const ws = startOf(order[i]);
+    if (!Number.isFinite(ws) || ws <= now + 1) continue; // already open — nothing to fill
+    if (!(ws - arr[i] >= OPEN_WAIT_MIN)) continue; // no meaningful idle
+    const we = endOf(order[i]);
+    const label = idOf(order[i]);
+    let pos = i;
+    let moved = 0;
+    // Pull each following stop that can be served right now in front of it, as
+    // long as the windowed stop still lands inside its own window.
+    while (pos + 1 < order.length) {
+      const nxt = order[pos + 1];
+      if (!servableNow(nxt) || !freeToMove(nxt)) break;
+      const trial = order.slice();
+      const [self] = trial.splice(pos, 1);
+      trial.splice(pos + 1, 0, self);
+      const trialLegs = buildLegs(trial);
+      const trialArr = arrivalsOf(trial, trialLegs);
+      const landed = trialArr[pos + 1];
+      if (Number.isFinite(we) && landed > we - 2) break; // would miss the deadline
+      order = trial;
+      curLegs = trialLegs;
+      arr = trialArr;
+      pos += 1;
+      moved += 1;
+      changed = true;
+      if (landed >= ws - 5) break; // the wait is filled — stop pulling stops forward
+    }
+    if (moved > 0) {
+      console.warn(`🍞 [StartFloor] ${label} opens ${Math.floor(ws / 60)}:${String(ws % 60).padStart(2, '0')} — ${moved} stop(s) that are servable now moved ahead of it instead of idling`);
+      i = pos;
+    }
+  }
+  if (!changed) return { stops, legs };
+  return { stops: order, legs: curLegs };
+}
+
 async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode, deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows, windowSway = 0, driverId = null, userName = null }) {
   const params = new URLSearchParams();
   params.set('apiKey', hereApiKey);
@@ -1167,7 +1277,11 @@ let _inheritedWindowCount = 0;
       }
       return { duration: Number(ic?.time || 0), distance: Number(ic?.distance || 0) };
     });
-    return { orderedStops: enforceWindowBands(ordered.map(i => i.stop), currentMinutes), legs };
+    // OWNER RULE (Nov 26 2026): a start time is a floor, never an appointment —
+    // fill the idle wait at a not-yet-open stop with the stops behind it.
+    const _banded = enforceWindowBands(ordered.map(i => i.stop), currentMinutes);
+    const _filled = fillUnopenedWindowWait(_banded, legs, currentMinutes);
+    return { orderedStops: _filled.stops, legs: _filled.legs };
   };
 
   if (preserveExistingOrder) {

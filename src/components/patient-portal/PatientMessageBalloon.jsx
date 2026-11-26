@@ -19,7 +19,9 @@ import { motion, AnimatePresence } from 'framer-motion';
  * centred on phones, always measured BELOW the real header height, and it holds
  * several boxes (newest first) when more than one message is unread.
  */
-const AUTO_DISMISS_MS = 15000;
+// OWNER REQUEST (Nov 26 2026): each box may sit on the patient's screen for a
+// MAXIMUM of 10 seconds.
+const AUTO_DISMISS_MS = 10000;
 const MAX_BOXES = 3;
 
 const senderLabel = (message) => {
@@ -60,7 +62,11 @@ function BalloonBox({ message, onOpen, onDismiss, onRead }) {
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [message?.id, onDismiss]);
 
-  const preview = String(message?.content || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  // OWNER REQUEST (Nov 26 2026): "show the entire message so that the card will
+  // expand to show the entire message for that thread" — no preview slice, no
+  // single-line truncation. Newlines are kept so a multi-paragraph message still
+  // reads properly; the box grows to fit.
+  const preview = String(message?.content || '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
 
   return (
     <motion.div
@@ -92,7 +98,7 @@ function BalloonBox({ message, onOpen, onDismiss, onRead }) {
               New
             </span>
           </span>
-          <span className="mt-0.5 block truncate text-[12px] leading-snug text-slate-600 dark:text-slate-300">
+          <span className="mt-0.5 block whitespace-pre-wrap break-words text-[12px] leading-snug text-slate-600 dark:text-slate-300">
             {preview || 'Sent you a message'}
           </span>
           <span className="mt-1 block text-[10px] font-medium text-blue-600 dark:text-blue-400">Tap to open</span>
