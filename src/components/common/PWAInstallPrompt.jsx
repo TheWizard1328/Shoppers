@@ -6,6 +6,35 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function PWAInstallPrompt({ storageKey = 'pwa_install_dismissed' }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
+  // OWNER REPORT (Nov 25 2026): the Install panel sat at inset-bottom + 1rem,
+  // which on a phone is exactly where the mobile bottom nav lives, so the nav
+  // row (Dashboard / Balances / Patients / Routes) was half hidden behind the
+  // card. The panel now measures that nav and lifts clear of it, instead of
+  // guessing a fixed offset that breaks on another layout.
+  const [navLift, setNavLift] = useState(0);
+
+  useEffect(() => {
+    if (!showPrompt) return undefined;
+    const measure = () => {
+      const nav = document.querySelector('[data-mobile-bottom-nav]');
+      const narrow = typeof window !== 'undefined' && window.matchMedia
+        ? window.matchMedia('(max-width: 767px)').matches
+        : false;
+      const h = nav ? Math.round(nav.getBoundingClientRect().height || 0) : 0;
+      setNavLift(narrow && h > 0 ? h : 0);
+    };
+    measure();
+    // The nav mounts with the layout, so one delayed pass catches it when the
+    // prompt appears before the nav has been measured.
+    const late = setTimeout(measure, 400);
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    return () => {
+      clearTimeout(late);
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    };
+  }, [showPrompt]);
 
   useEffect(() => {
     // Check if already dismissed
@@ -56,7 +85,10 @@ export default function PWAInstallPrompt({ storageKey = 'pwa_install_dismissed' 
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="fixed bottom-[calc(var(--app-inset-bottom)+1rem)] left-4 right-4 md:left-auto md:right-4 md:w-96 z-[10000]"
+          /* z-[10005]: above the mobile bottom nav (z-150) and the nudge stack,
+             so the panel is never drawn behind the bar it now clears. */
+          style={{ bottom: `calc(var(--app-inset-bottom) + 1rem + ${navLift}px)` }}
+          className="fixed left-4 right-4 md:left-auto md:right-4 md:w-96 z-[10005]"
         >
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border-2 border-emerald-500 p-4">
             <div className="flex items-start gap-3">
