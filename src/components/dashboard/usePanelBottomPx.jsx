@@ -26,6 +26,15 @@ import { useEffect, useRef, useState } from 'react';
  * silently over-lifted every control by however much the map area ends above the
  * bottom of the screen (the bottom nav sits over it).
  */
+/**
+ * OWNER REQUEST (Nov 26 2026): "Why don't we just move everything down about 20
+ * pixels to start when the stop cards are visible. When the stop cards aren't
+ * visible it's all fine." The measurement alone kept landing on the same value
+ * the old formula produced, so this is an explicit nudge applied ONLY while the
+ * stop card panel is on screen — immersive mode (no cards) keeps its own value.
+ */
+const CARD_VISIBLE_NUDGE_PX = 20;
+
 function readContainerBottom() {
   try {
     // OWNER REPORT (Nov 26 2026): "right back where we started with that huge gap
@@ -84,7 +93,7 @@ function readPanelRect() {
 export function measurePanelBottomPx(gapPx = 5) {
   const rect = readPanelRect();
   if (!rect) return null;
-  const px = Math.round(rect.containerBottom - rect.top + gapPx);
+  const px = Math.round(rect.containerBottom - rect.top + gapPx + CARD_VISIBLE_NUDGE_PX);
   return px > 0 ? px : null;
 }
 
@@ -126,7 +135,7 @@ export function usePanelBottomPx(fallbackPx = 0, gapPx = 5, collapsedHeightPx = 
           // no expand event was seen — trust the remembered height and hold.
           next = lockedRef.current ?? fallbackPx;
         } else {
-          const measured = Math.round(rect.containerBottom - rect.top + gapPx);
+          const measured = Math.round(rect.containerBottom - rect.top + gapPx + CARD_VISIBLE_NUDGE_PX);
           next = measured > 0 ? measured : fallbackPx;
           lockedRef.current = next;
         }
