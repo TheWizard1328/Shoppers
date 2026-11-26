@@ -49,7 +49,7 @@ export default function DashboardBulkEditControls({
   const bottomNavHeightForBulkEdit = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0;
   // OWNER REQUEST (Nov 26 2026): anchor to the stop card panel's live top edge.
   const fallbackPanelBottomForBulkEdit = (stopCardsBaseHeight || 0) + bottomNavHeightForBulkEdit + 10;
-  const panelBottomForBulkEdit = usePanelBottomPx(fallbackPanelBottomForBulkEdit, 5);
+  const panelBottomForBulkEdit = usePanelBottomPx(fallbackPanelBottomForBulkEdit, 5, stopCardsBaseHeight || 0);
   const { appUsers, applyDeliveryChangesLocally } = useAppData();
   const effectiveDrivers = useMemo(() => {
     if (drivers && drivers.length > 0) return drivers;

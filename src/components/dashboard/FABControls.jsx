@@ -90,7 +90,7 @@ export default function FABControls({
   // FAB) and the compass must ride ~5px above the horizontal stop card panel,
   // measured live from the panel's top edge — the remembered stopCardsBaseHeight
   // had drifted upward and lifted the whole row.
-  const measuredPanelBottom = usePanelBottomPx(fallbackMapCycleFabBottom, 5);
+  const measuredPanelBottom = usePanelBottomPx(fallbackMapCycleFabBottom, 5, stopCardsBaseHeight);
   const mapCycleFabBottom = (hasVisibleCards && !immersiveHidden) ? measuredPanelBottom : fallbackMapCycleFabBottom;
   const torchFabBottom = mapCycleFabBottom + 52;
   // OWNER REQUEST (Nov 26 2026): the compass moved off the right stack to the

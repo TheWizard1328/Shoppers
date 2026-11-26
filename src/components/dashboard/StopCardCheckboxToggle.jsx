@@ -24,7 +24,7 @@ export default function StopCardCheckboxToggle({
   // OWNER REQUEST (Nov 26 2026): this row (checkbox + Google API counter) sits
   // ~5px above the horizontal stop card panel, measured from the panel's live
   // top edge instead of the remembered height that had drifted upward.
-  const measuredBottomPixels = usePanelBottomPx(fallbackBottomPixels, 5);
+  const measuredBottomPixels = usePanelBottomPx(fallbackBottomPixels, 5, stopCardsHeight);
   const bottomPixels = (hasVisibleCards && !immersiveHidden) ? measuredBottomPixels : fallbackBottomPixels;
   // This pill is shorter (py-1, ~26px tall) than its taller row-mates on the
   // same bottom line — the "Tap to pair" pill and the round FAB buttons

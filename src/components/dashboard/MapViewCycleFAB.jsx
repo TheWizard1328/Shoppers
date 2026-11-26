@@ -246,7 +246,7 @@ export default function MapViewCycleFAB({
   // measured from the panel's real top edge (the remembered height had drifted,
   // lifting this FAB and its row-mates too high). Immersive mode keeps nav + 10
   // because the panel is off screen then.
-  const measuredBottomPixels = usePanelBottomPx(fallbackBottomPixels, 5);
+  const measuredBottomPixels = usePanelBottomPx(fallbackBottomPixels, 5, stopCardsHeight);
   const bottomPixels = (hasVisibleCards && !immersiveHidden) ? measuredBottomPixels : fallbackBottomPixels;
   const fabPosition = 'absolute';
   const rightPixels = immersiveHidden ? 12 : 16;

@@ -590,7 +590,11 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   return (
     <div
-      ref={setRefs} className="flex gap-1.5 overflow-x-auto overflow-y-visible items-end min-h-[70px] pointer-events-auto z-[200]"
+      ref={setRefs}
+      /* OWNER REQUEST (Nov 26 2026): the map FAB row measures this strip's top
+         edge (the collapsed card panel) to sit 5px above it. */
+      data-stop-cards-strip="true"
+      className="flex gap-1.5 overflow-x-auto overflow-y-visible items-end min-h-[70px] pointer-events-auto z-[200]"
       style={{
         position: 'static',
         display: 'flex',
