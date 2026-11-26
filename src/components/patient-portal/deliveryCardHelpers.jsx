@@ -48,6 +48,17 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
 
   // ── PICKUP RESOLUTION, best match first ──────────────────────────────────
   let pickupStop = null;
+  // 0. NOT YET COLLECTED (owner report Nov 26 2026, Marianne Samchuck): every
+  //    rule below demanded actual_delivery_time, so a parcel whose pickup was
+  //    still en route resolved NO pickup at all — the card then fell back to the
+  //    whole active route (7) and the marker to the tracking number (6). A
+  //    same-puid, same-day, same-store pickup that is still active IS her pickup.
+  pickupStop = candidatePickups.find((rec) =>
+    rec.puid === delivery.puid &&
+    dayKey(rec) === deliveryDay &&
+    (!delivery.store_id || rec.store_id === delivery.store_id) &&
+    !['completed', 'failed', 'cancelled'].includes(String(rec.status || '').toLowerCase())
+  ) || null;
   // 1. Same day, same store, actually collected — the parcel left the pharmacy
   //    on the day it was delivered.
   pickupStop = candidatePickups.find((rec) =>
@@ -167,6 +178,9 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
       stopsTillPickup = pool.filter((rec) => {
         const order = Number(rec.stop_order);
         if (!Number.isFinite(order) || order >= pickupOrder) return false;
+        // A cycling/route marker (no patient, no store, no puid) is not a stop
+        // the patient is waiting behind.
+        if (!rec.patient_id && !rec.store_id && !rec.puid) return false;
         return !['completed', 'failed', 'cancelled'].includes(String(rec.status || '').toLowerCase());
       }).length;
     }

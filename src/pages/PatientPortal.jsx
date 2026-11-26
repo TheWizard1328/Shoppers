@@ -1249,6 +1249,10 @@ export default function PatientPortal({ embedded = false } = {}) {
       const pendingNow = todayDelivery.status === 'pending';
       const shown = pendingNow ? cardProps?.stopsTillPickup : cardProps?.stopsBetween;
       if (shown != null && Number.isFinite(Number(shown))) return Number(shown);
+      // OWNER RULE (Nov 26 2026): a PENDING delivery must never take a count
+      // derived from the tracking number — that is how the badge read 6 while
+      // the card read 7. Fall straight to the live route total instead.
+      if (pendingNow) return stopsRemaining;
       const between = cardProps?.stopsBetween;
       if (between != null && Number.isFinite(Number(between))) return Number(between);
     } catch { /* fall back below */ }
