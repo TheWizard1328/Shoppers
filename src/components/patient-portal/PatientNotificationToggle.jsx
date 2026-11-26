@@ -1,72 +1,92 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, BellOff, BellRing, Loader2, Share, X } from 'lucide-react';
+import { Bell, BellOff, BellRing, Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { WEB_VERSION, BAKED_APK_DIGIT, formatVersionDigits } from '@/version';
-
-const APP_BUILD_LABEL = formatVersionDigits(BAKED_APK_DIGIT, WEB_VERSION);
 import {
   getPatientPushState,
   enablePatientPush,
   disablePatientPush,
-  isIosDevice,
-  isStandalonePwa,
   ensurePatientPushRegistered,
   getPushDiagnostics } from
 './patientPushClient';
+import { getInAppNotifications, setInAppNotifications } from './patientInAppNotifPref';
+
+const APP_BUILD_LABEL = formatVersionDigits(BAKED_APK_DIGIT, WEB_VERSION);
+const BALLOON_MS = 5000;
+const BALLOON_MS_ERROR = 9000;
 
 /**
- * Patient notifications control (owner request Nov 3 2026).
+ * Patient notifications control (owner request Nov 3 2026, reworked Nov 25 2026).
  *
- * The one-off banner could only ever ask ONCE and then vanished for good, so a
- * patient who dismissed it, blocked the prompt, or later wanted it off had no way
- * back in. This is the permanent control: a bell in the portal header that shows
- * the live state of THIS device and lets the patient turn notifications on or off
- * at any time.
+ * OWNER REQUEST (Nov 25 2026): "instead of it opening up a drop-down dialog to
+ * select the turn on notifications and turn off notifications let's give this
+ * button a three-way touch activation. The dot for the status of the
+ * notifications let's give it three different colors. Red if the actual app
+ * notifications are off and the in app notifications are off as well. Orange if
+ * the actual RxDeliver application notifications are on but the in-app
+ * notifications are off. Green if they're both on. Toggling between the three
+ * states will change the dot and give a brief 5 second pop down balloon stating
+ * what's happening."
  *
- * States come straight from patientPushClient:
- *   on            green bell  — this device is subscribed
- *   off           amber bell  — supported, permission not granted yet
- *   blocked       red bell    — permission denied in the browser/app settings
- *   needs-install grey bell   — iPhone without Add to Home Screen
- *   unsupported   grey bell   — no web push in this browser (e.g. some APK WebViews)
+ * So one tap cycles:  red (both off)  →  orange (phone alerts on, in-app off)
+ *                     →  green (both on)  →  red (both off again).
+ *
+ * Device push state still comes straight from patientPushClient:
+ *   on / off / blocked / needs-install / unsupported.
+ * The in-app half lives in patientInAppNotifPref (localStorage, default on).
+ *
+ * Kept from the old panel: the silent boot repair (an Android PWA used to come
+ * back unsubscribed after every restart) and the failure explanations, which now
+ * land in the balloon. A long press (700ms) on the bell still sends the test
+ * notification the old panel had a button for.
  */
 export default function PatientNotificationToggle({ patient }) {
   const [state, setState] = useState(null);
+  const [inApp, setInApp] = useState(() => getInAppNotifications());
   const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
-  // OWNER REPORT (Nov 25 2026): a failed turn-on used to be silent — the panel just
-  // re-read the state and looked like the tap did nothing. Every reason is shown.
-  const [notice, setNotice] = useState('');
+  const [balloon, setBalloon] = useState(null); // { tone, title, message, ms }
+  const [anchor, setAnchor] = useState({ top: 64, right: 12 });
+  const btnRef = useRef(null);
+  const hideTimer = useRef(null);
+  const longPressTimer = useRef(null);
+  const longPressFired = useRef(false);
 
   const refresh = useCallback(() => {
     getPatientPushState().then(setState).catch(() => setState('unsupported'));
   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh, patient?.id]);
+  useEffect(() => { refresh(); }, [refresh, patient?.id]);
 
-  // OWNER REPORT (Nov 25 2026): the portal came back with notifications OFF on an
-  // Android PWA after every restart. Repair the registration silently on boot so
-  // an already-granted device stays registered and the toggle stays green.
+  // The portal came back with notifications OFF on an Android PWA after every
+  // restart — repair the registration silently on boot.
   useEffect(() => {
     if (!patient?.id) return undefined;
     let cancelled = false;
-    ensurePatientPushRegistered(patient)
-      .then(() => { if (!cancelled) refresh(); })
-      .catch(() => {});
+    ensurePatientPushRegistered(patient).
+    then(() => { if (!cancelled) refresh(); }).
+    catch(() => {});
     return () => { cancelled = true; };
   }, [patient?.id, refresh]);
 
-  // Re-read the state whenever the patient comes back to the tab — permission may
-  // have been changed in the browser/app settings while they were away.
+  // Permission may change in the browser/app settings while the patient is away.
   useEffect(() => {
     const onVisible = () => {if (document.visibilityState === 'visible') refresh();};
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [refresh]);
+
+  // Another tab (or this one) flipping the in-app half keeps the dot honest.
+  useEffect(() => {
+    const onChange = () => setInApp(getInAppNotifications());
+    window.addEventListener('storage', onChange);
+    window.addEventListener('rx-patient-inapp-pref', onChange);
+    return () => {
+      window.removeEventListener('storage', onChange);
+      window.removeEventListener('rx-patient-inapp-pref', onChange);
+    };
+  }, []);
 
   const NOTICE = {
     permission: 'Notifications were not allowed. Turn them on for this site in your settings, then try again.',
@@ -77,241 +97,214 @@ export default function PatientNotificationToggle({ patient }) {
     no_token: 'The phone did not return a notification token. Check that notifications are allowed for the RxDeliver app, then try again.',
     register_failed: 'The server could not save this device for notifications. Try again in a moment.',
     no_push_manager: 'This build cannot use web notifications. Update the RxDeliver app and try again.',
-    push_plugin_missing: 'This build of the app has no notification plugin. Update the RxDeliver app, then try again.',
-    no_vapid_key: 'Notifications are not configured on the server yet.',
+    no_vapid_key: 'Notifications are not configured on the server yet.' };
+
+  const showBalloon = useCallback((next) => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setBalloon(next);
+    hideTimer.current = setTimeout(() => setBalloon(null), next.ms || BALLOON_MS);
+  }, []);
+
+  useEffect(() => () => { if (hideTimer.current) clearTimeout(hideTimer.current); }, []);
+
+  const pushOn = state === 'on';
+  const bothOn = pushOn && inApp;
+  // Red = both off · amber = phone alerts on, in-app off · green = both on.
+  const tone = bothOn ? 'green' : pushOn ? 'amber' : 'red';
+  const dotClass =
+  tone === 'green' ? 'bg-green-500' :
+  tone === 'amber' ? 'bg-amber-500' :
+  'bg-red-500';
+  const Icon = tone === 'green' ? BellRing : tone === 'amber' ? Bell : BellOff;
+
+  const announce = (nextTone) => {
+    showBalloon({
+      tone: nextTone,
+      title: nextTone === 'green' ? 'All notifications on' : nextTone === 'amber' ? 'Phone alerts on' : 'Notifications off',
+      message: nextTone === 'green' ?
+      'System notifications: ON · In-app alerts: ON' :
+      nextTone === 'amber' ?
+      'System notifications: ON · In-app alerts: OFF' :
+      'System notifications: OFF · In-app alerts: OFF' });
+
   };
-
-  // OWNER REQUEST (Nov 25 2026): a one-tap test so a device can prove it really
-  // shows an alert, instead of waiting for a delivery push to guess.
-  const handleTest = async () => {
-    setBusy(true);
-    setNotice('');
-    try {
-      // OWNER REPORT (Nov 25 2026): 'test' is now a public action (above the
-      // auth.me() gate), because a patient is not a Base44 user. 'send' stays
-      // staff-only, so the test must not ride it.
-      const res = await base44.functions.invoke('patientPush', {
-        action: 'test',
-        patient_id: patient?.id,
-        title: 'RxDeliver test',
-        body: 'Test notification from your pharmacy',
-      });
-      const data = res?.data || res || {};
-      const sent = Number(data?.sent || 0);
-      const why = data?.errors?.[0] || data?.reason || 'unknown';
-      setNotice(sent > 0
-        ? 'Test sent. It should arrive in a moment.'
-        : `No device accepted it (${why}).`);
-    } catch (err) {
-      // OWNER REPORT (Nov 25 2026): the notice said only "status code 500", which
-      // could not tell a stale bundle apart from a real server error. The build
-      // that ran the tap is now part of the message.
-      const status = err?.response?.status || err?.status || '';
-      const detail = err?.response?.data?.error || err?.response?.data?.errors?.[0] || err?.message || 'unknown error';
-      setNotice(`Test failed on ${APP_BUILD_LABEL}${status ? ` (${status})` : ''}: ${detail}`);
-    }
-    setBusy(false);
-  };
-
-  const handleEnable = async () => {
-    setBusy(true);
-    setNotice('');
-    let res = { ok: false, reason: 'error' };
-    try {
-      res = await enablePatientPush(patient);
-    } catch (err) {
-      res = { ok: false, reason: err?.message || 'error' };
-    }
-    setBusy(false);
-    if (res.ok) { setState('on'); setNotice(''); return; }
-    if (res.reason === 'permission') setState('blocked');
-    else if (res.reason === 'needs_install') setState('needs-install');
-    else if (res.reason === 'ios_unsupported_browser') setState('unsupported');
-    setNotice(`${NOTICE[res.reason] || `Could not turn notifications on (${res.reason || 'unknown'}).`} · ${getPushDiagnostics()}`);
-    refresh();
-  };
-
-  const handleDisable = async () => {
-    setBusy(true);
-    await disablePatientPush(patient);
-    setBusy(false);
-    refresh();
-  };
-
-  const iosNeedsInstall = state === 'needs-install' || state !== 'on' && isIosDevice() && !isStandalonePwa();
-
-  const Icon = state === 'on' ? BellRing : state === 'off' ? Bell : BellOff;
-  const dotClass = state === 'on' ?
-  'bg-green-500' :
-  state === 'off' || state === 'blocked' ?
-  'bg-amber-500' :
-  'bg-slate-400';
-  const title = state === 'on' ?
-  'Notifications are on' :
-  state === 'blocked' ?
-  'Notifications are blocked' :
-  'Turn on notifications';
-
-  // ── SLIDE-OUT ANCHOR (owner request Nov 3 2026) ──────────────────────────
-  // The old panel was an in-flow popover inside the header, which sits in a
-  // z-10 stacking context, so the Leaflet map painted straight over it. The
-  // panel is now rendered into document.body with a fixed position measured
-  // from the bell, giving it its own top layer, and it slides out from this
-  // top corner instead of floating over the page.
-  const btnRef = useRef(null);
-  const [anchor, setAnchor] = useState({ top: 64, right: 12 });
 
   const measure = useCallback(() => {
     const rect = btnRef.current?.getBoundingClientRect();
     if (!rect) return;
     setAnchor({
       top: Math.round(rect.bottom + 8),
-      right: Math.max(8, Math.round(window.innerWidth - rect.right)),
-    });
+      right: Math.max(8, Math.round(window.innerWidth - rect.right)) });
+
   }, []);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!balloon) return undefined;
     measure();
-    const onScrollOrResize = () => measure();
-    window.addEventListener('resize', onScrollOrResize);
-    window.addEventListener('scroll', onScrollOrResize, true);
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    const onDown = (e) => {
-      if (btnRef.current?.contains(e.target)) return;
-      if (e.target?.closest?.('[data-patient-notify-panel]')) return;
-      setOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('touchstart', onDown);
-    return () => {
-      window.removeEventListener('resize', onScrollOrResize);
-      window.removeEventListener('scroll', onScrollOrResize, true);
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('touchstart', onDown);
-    };
-  }, [open, measure]);
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [balloon, measure]);
 
-  const panel = (
+  // OWNER REQUEST (Nov 25 2026): one tap = next state in the three-way cycle.
+  const cycle = async () => {
+    if (busy) return;
+    // iPhone without Add to Home Screen / no web push: explain, do not cycle.
+    if (state === 'needs-install' || state === 'unsupported') {
+      showBalloon({
+        tone: 'red',
+        title: 'Notifications unavailable',
+        message: NOTICE[state] || NOTICE.unsupported,
+        ms: BALLOON_MS_ERROR });
+
+      return;
+    }
+
+    if (!pushOn) {
+      // RED → ORANGE: ask the phone for permission and subscribe this device.
+      setBusy(true);
+      let res = { ok: false, reason: 'error' };
+      try {
+        res = await enablePatientPush(patient);
+      } catch (err) {
+        res = { ok: false, reason: err?.message || 'error' };
+      }
+      setBusy(false);
+      if (res.ok) {
+        setState('on');
+        // In-app starts OFF so the patient sees the middle (orange) state.
+        setInAppNotifications(false);
+        setInApp(false);
+        announce('amber');
+        return;
+      }
+      if (res.reason === 'permission') setState('blocked');
+      else if (res.reason === 'needs_install') setState('needs-install');
+      else if (res.reason === 'ios_unsupported_browser') setState('unsupported');
+      showBalloon({
+        tone: 'red',
+        title: 'Could not turn alerts on',
+        message: `${NOTICE[res.reason] || `Could not turn notifications on (${res.reason || 'unknown'}).`} · ${getPushDiagnostics()}`,
+        ms: BALLOON_MS_ERROR });
+
+      refresh();
+      return;
+    }
+
+    if (!inApp) {
+      // ORANGE → GREEN: in-app pop-ups back on.
+      setInAppNotifications(true);
+      setInApp(true);
+      announce('green');
+      return;
+    }
+
+    // GREEN → RED: turn both halves off on this device.
+    setBusy(true);
+    setInAppNotifications(false);
+    setInApp(false);
+    await disablePatientPush(patient);
+    setBusy(false);
+    refresh();
+    announce('red');
+  };
+
+  // Long press keeps the old panel's test button reachable (owner kept asking
+  // whether a device really shows alerts).
+  const sendTest = async () => {
+    showBalloon({ tone: 'amber', title: 'Sending test', message: 'Test notification on its way to this device…' });
+    try {
+      const res = await base44.functions.invoke('patientPush', {
+        action: 'test',
+        patient_id: patient?.id,
+        title: 'RxDeliver test',
+        body: 'Test notification from your pharmacy' });
+
+      const data = res?.data || res || {};
+      const sent = Number(data?.sent || 0);
+      const why = data?.errors?.[0] || data?.reason || 'unknown';
+      showBalloon({
+        tone: sent > 0 ? 'green' : 'red',
+        title: sent > 0 ? 'Test sent' : 'Test not delivered',
+        message: sent > 0 ? 'It should arrive in a moment.' : `No device accepted it (${why}).`,
+        ms: sent > 0 ? BALLOON_MS : BALLOON_MS_ERROR });
+
+    } catch (err) {
+      const detail = err?.response?.data?.error || err?.message || 'unknown error';
+      showBalloon({ tone: 'red', title: 'Test failed', message: `${APP_BUILD_LABEL}: ${detail}`, ms: BALLOON_MS_ERROR });
+    }
+  };
+
+  const onPressStart = () => {
+    longPressFired.current = false;
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      sendTest();
+    }, 700);
+  };
+  const onPressEnd = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  };
+
+  const toneStyles =
+  balloon?.tone === 'green' ?
+  { ring: 'border-green-300 dark:border-green-800', dot: 'bg-green-500', text: 'text-green-700 dark:text-green-400' } :
+  balloon?.tone === 'amber' ?
+  { ring: 'border-amber-300 dark:border-amber-800', dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-400' } :
+  { ring: 'border-red-300 dark:border-red-800', dot: 'bg-red-500', text: 'text-red-700 dark:text-red-400' };
+
+  const title =
+  tone === 'green' ? 'Notifications on' :
+  tone === 'amber' ? 'Phone alerts on, in-app off' :
+  'Notifications off';
+
+  const pop = (
     <AnimatePresence>
-      {open && (
-        <motion.div
-          data-patient-notify-panel="true"
-          initial={{ opacity: 0, y: -14, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -14, scale: 0.96 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          style={{ position: 'fixed', top: anchor.top, right: anchor.right, zIndex: 2147483000, transformOrigin: 'top right' }}
-          className="w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Notifications</p>
-            <button
-              onClick={() => setOpen(false)}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-              aria-label="Close"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+      {balloon &&
+      <motion.div
+        initial={{ opacity: 0, y: -14, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -14, scale: 0.96 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        style={{ position: 'fixed', top: anchor.top, right: anchor.right, zIndex: 2147483000, transformOrigin: 'top right' }}
+        onClick={() => setBalloon(null)}
+        className={`w-[250px] max-w-[calc(100vw-1.5rem)] rounded-xl border ${toneStyles.ring} bg-white dark:bg-slate-900 shadow-2xl px-3 py-2.5`}>
+
+          <div className="flex items-start gap-2">
+            <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${toneStyles.dot}`} />
+            <div className="min-w-0">
+              <p className={`text-[13px] font-semibold leading-tight ${toneStyles.text}`}>{balloon.title}</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-slate-600 dark:text-slate-300">{balloon.message}</p>
+            </div>
           </div>
-
-          {state === null && (
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Checking this device…</p>
-          )}
-
-          {state === 'on' && (
-            <>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                This device gets a phone alert when your pharmacy replies or when your delivery is on the way.
-              </p>
-              {/* OWNER REPORT (Nov 25 2026): the portal screen still slept. This
-                  readout says whether the wake lock or the barrier video is
-                  actually holding, so a device can be diagnosed without a console. */}
-              <p className="mt-1 text-[10px] leading-tight text-slate-400 dark:text-slate-500">
-                {(() => {
-                  const k = typeof window !== 'undefined' ? window.__rxKeepAwake : null;
-                  if (!k) return 'Screen wake: not armed yet';
-                  return `Screen wake: ${k.lock ? 'lock held' : 'no lock'} · ${k.video ? 'video on' : 'no video'}${k.ios ? ' · iOS' : ''}`;
-                })()}
-              </p>
-              <button
-                onClick={handleTest}
-                disabled={busy}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-60"
-              >
-                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
-                Send a test notification
-              </button>
-              <button
-                onClick={handleDisable}
-                disabled={busy}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60"
-              >
-                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellOff className="w-4 h-4" />}
-                Turn off on this device
-              </button>
-            </>
-          )}
-
-          {(state === 'off' || state === 'blocked') && (
-            <>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                {state === 'blocked'
-                  ? 'Your browser or app has notifications blocked for this site. Allow them in the site settings (the padlock next to the address), then try again.'
-                  : 'Turn these on to get a phone alert when your pharmacy replies or your delivery is on the way.'}
-              </p>
-              <button
-                onClick={handleEnable}
-                disabled={busy}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-60"
-              >
-                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
-                {state === 'blocked' ? 'Try again' : 'Turn on notifications'}
-              </button>
-            </>
-          )}
-
-          {!!notice && (
-            <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">{notice}</p>
-          )}
-
-          {iosNeedsInstall && (
-            <>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                On iPhone, notifications only work after adding this page to your Home Screen.
-              </p>
-              <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-                <Share className="w-3.5 h-3.5" /> Share, then Add to Home Screen
-              </p>
-            </>
-          )}
-
-          {state === 'unsupported' && (
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              This browser cannot show notifications. Open the portal in Chrome or Safari, or in the RxDeliver app, to turn them on.
-            </p>
-          )}
         </motion.div>
-      )}
-    </AnimatePresence>
-  );
+      }
+    </AnimatePresence>);
+
 
   return (
     <div className="relative">
       <button
         ref={btnRef}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => { if (!longPressFired.current) cycle(); }}
+        onTouchStart={onPressStart}
+        onTouchEnd={onPressEnd}
+        onTouchCancel={onPressEnd}
+        onMouseDown={onPressStart}
+        onMouseUp={onPressEnd}
+        onMouseLeave={onPressEnd}
+        onContextMenu={(e) => e.preventDefault()}
         className="relative w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
         title={title}
-        aria-label={title}
-        aria-expanded={open}
-      >
-        <Icon className={`w-4 h-4 ${state === 'on' ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`} />
+        aria-label={`${title}. Tap to change.`}>
+
+        {busy ?
+        <Loader2 className="w-4 h-4 animate-spin text-slate-500 dark:text-slate-400" /> :
+        <Icon className={`w-4 h-4 ${tone === 'green' ? 'text-green-600 dark:text-green-400' : tone === 'amber' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`} />}
         <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-900 ${dotClass}`} />
       </button>
-      {typeof document !== 'undefined' ? createPortal(panel, document.body) : null}
-    </div>
-  );
+      {typeof document !== 'undefined' ? createPortal(pop, document.body) : null}
+    </div>);
+
 }

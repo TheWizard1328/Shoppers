@@ -15,6 +15,7 @@ import PatientMessageBalloon from '@/components/patient-portal/PatientMessageBal
 import PatientNotifyPrompt from '@/components/patient-portal/PatientNotifyPrompt';
 import { resolveLinkedPatientIds } from '@/components/utils/patientLinkedRecords';
 import PatientNotificationToggle from '@/components/patient-portal/PatientNotificationToggle';
+import { getInAppNotifications, INAPP_PREF_EVENT } from '@/components/patient-portal/patientInAppNotifPref';
 import { format } from 'date-fns';
 import { isPatientViewOverlayActive, requestExitPatientView } from '../components/patient-portal/patientViewExit';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
@@ -531,6 +532,19 @@ export default function PatientPortal({ embedded = false } = {}) {
   // they appear on first load too, not only when a new one arrives mid-session.
   const [messageToasts, setMessageToasts] = useState([]);
   const seenToastIdsRef = useRef(new Set());
+  // OWNER REQUEST (Nov 25 2026): the header bell now has an in-app half, so the
+  // pop-up boxes only appear while in-app alerts are on (the unread badge on the
+  // bell and the messaging sheet stay live either way).
+  const [inAppAlerts, setInAppAlerts] = useState(() => getInAppNotifications());
+  useEffect(() => {
+    const sync = () => setInAppAlerts(getInAppNotifications());
+    window.addEventListener(INAPP_PREF_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(INAPP_PREF_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
   const [deliveries, setDeliveries] = useState([]);
   const [pickupStops, setPickupStops] = useState([]);
   // Every record sharing each puid (pickup + its deliveries) — lets a transferred
@@ -1658,7 +1672,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       // silent here; this 4s live check is what brings messages in and pops the
       // panels. FIRST LOAD COUNTS TOO (owner request Nov 25 2026): any unread
       // incoming message gets a box straight away, newest first.
-      if (messagingOpen) return;
+      if (messagingOpen || !inAppAlerts) return;
       const fresh = (unread || []).filter((m) => m?.id && !seenToastIdsRef.current.has(m.id));
       if (fresh.length === 0) return;
       setMessageToasts((prev) => {
@@ -1682,7 +1696,7 @@ export default function PatientPortal({ embedded = false } = {}) {
       clearInterval(timer);
       window.removeEventListener('focus', onFocus);
     };
-  }, [patient?.id, messagingOpen]);
+  }, [patient?.id, messagingOpen, inAppAlerts]);
 
   return (
     // Height: --portal-vh (index.css) instead of a raw 100dvh (owner, Nov 23
