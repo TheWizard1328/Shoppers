@@ -35,6 +35,14 @@ export function usePortalKeepAwake() {
     let stopped = false;
     const timers = [];
 
+    // OWNER REPORT (Nov 26 2026): fresh restart on the iPhone read "L0 ... T0.2"
+    // — no wake lock AND a video clock that was not counting, so both barriers
+    // were down. A WebKit video that is paused internally stays "playing" in JS
+    // but its clock freezes, so the watchdog now measures advance and rebuilds
+    // the element when it stops.
+    let lastClock = -1;
+    let stalledTicks = 0;
+    let stalled = false;
     const publish = () => {
       if (stopped) return;
       const lockHeld = !!(wakeLock && !wakeLock.released);
@@ -46,7 +54,7 @@ export function usePortalKeepAwake() {
       const ready = videoEl ? videoEl.readyState : -1;
       const clock = videoEl && Number.isFinite(videoEl.currentTime) ? Math.round(videoEl.currentTime * 10) / 10 : 0;
       const hasWakeLock = typeof navigator !== 'undefined' && 'wakeLock' in navigator;
-      setState({ lock: lockHeld, video: videoOn, ready, clock, hasWakeLock });
+      setState({ lock: lockHeld, video: videoOn, ready, clock, hasWakeLock, stalled });
       // Read by the bell panel's "Screen wake:" line.
       try {
         window.__rxKeepAwake = {
@@ -56,6 +64,7 @@ export function usePortalKeepAwake() {
           ready,
           clock,
           hasWakeLock,
+          stalled,
           forced: true,
           at: Date.now(),
         };
@@ -83,7 +92,10 @@ export function usePortalKeepAwake() {
         v.src = KEEP_AWAKE_VIDEO_SRC;
         // Laid out on screen (iOS suspends a video it thinks is hidden) but invisible
         // to the patient, above every portal overlay (map cards, sheets, dialogs).
-        v.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:2147483647;';
+        // OWNER REPORT (Nov 26 2026): iOS suspends a 2x2 element it decides is
+        // effectively hidden. A real 96x96 box at 1% opacity is invisible to the
+        // patient but keeps WebKit's video pipeline alive.
+        v.style.cssText = 'position:fixed;top:0;left:0;width:96px;height:96px;opacity:0.01;pointer-events:none;z-index:2147483647;';
         document.body.appendChild(v);
         videoEl = v;
         const play = () => {
@@ -94,7 +106,7 @@ export function usePortalKeepAwake() {
         v.addEventListener('pause', play);
         v.addEventListener('loadeddata', play);
         v.addEventListener('canplay', play);
-        v.addEventListener('playing', publish);
+        v.addEventListener('playing', () => { publish(); void requestLock(); });
         try { window.requestAnimationFrame(play); } catch { /* older webview */ }
       } catch { videoEl = null; }
       publish();
@@ -117,6 +129,16 @@ export function usePortalKeepAwake() {
       publish();
     };
 
+    // A stalled element never recovers from play(): rebuild it from scratch.
+    const rebuildVideo = () => {
+      try { if (videoEl) { videoEl.pause(); videoEl.remove(); } } catch { /* detached */ }
+      videoEl = null;
+      lastClock = -1;
+      stalled = false;
+      stalledTicks = 0;
+      startVideo();
+    };
+
     const armBoth = () => {
       startVideo();
       void requestLock();
@@ -129,6 +151,21 @@ export function usePortalKeepAwake() {
     // 1s watchdog: repair a silent WebKit pause / dropped lock within a second.
     const watchdog = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
+      const live = videoEl && videoEl.isConnected && !videoEl.paused ? Math.round((videoEl.currentTime || 0) * 10) / 10 : -1;
+      if (live >= 0 && live === lastClock) {
+        stalledTicks += 1;
+        if (stalledTicks >= 2) {
+          stalled = true;
+          publish();
+          rebuildVideo();
+          void requestLock();
+          return;
+        }
+      } else {
+        stalledTicks = 0;
+        stalled = false;
+      }
+      lastClock = live;
       startVideo();
       if (!wakeLock || wakeLock.released) void requestLock();
       publish();
