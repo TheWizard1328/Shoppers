@@ -64,6 +64,38 @@ export default function MapViewCycleFAB({
     ? watchingCount
     : Math.max(watchingCount, scopedWatchers.length);
   const hasAnyWatcher = (_fabIsAdmin && !_fabStoreBound) ? allWatchers.length > 0 : scopedWatchCount > 0;
+  // ── NEW-VIEWER ANNOUNCEMENT (owner spec Nov 26 2026) ──────────────────────
+  // The balloon is no longer a hover tooltip that can stick open on a touch
+  // screen. It announces a patient who has JUST opened the portal and clears
+  // itself after 5 seconds. A patient who was already watching never raises it,
+  // and a patient who leaves and comes back announces again.
+  const watcherBalloonTimerRef = useRef(null);
+  const seenWatcherIdsRef = useRef(new Set());
+  const watcherBalloonPrimedRef = useRef(false);
+  useEffect(() => {
+    const ids = (balloonWatchers || []).map((w) => String(w?.patient_id || '')).filter(Boolean);
+    if (!watcherBalloonPrimedRef.current) {
+      // The first snapshot after load is everyone already there, not a login.
+      watcherBalloonPrimedRef.current = true;
+      ids.forEach((id) => seenWatcherIdsRef.current.add(id));
+      return;
+    }
+    const live = new Set(ids);
+    // Forget anyone who stopped watching so a later login announces again.
+    Array.from(seenWatcherIdsRef.current).forEach((id) => { if (!live.has(id)) seenWatcherIdsRef.current.delete(id); });
+    const fresh = ids.filter((id) => !seenWatcherIdsRef.current.has(id));
+    if (fresh.length === 0) return;
+    fresh.forEach((id) => seenWatcherIdsRef.current.add(id));
+    setShowWatchersBalloon(true);
+    if (watcherBalloonTimerRef.current) clearTimeout(watcherBalloonTimerRef.current);
+    watcherBalloonTimerRef.current = setTimeout(() => {
+      watcherBalloonTimerRef.current = null;
+      setShowWatchersBalloon(false);
+    }, 5000);
+  }, [balloonWatchers]);
+  useEffect(() => () => {
+    if (watcherBalloonTimerRef.current) clearTimeout(watcherBalloonTimerRef.current);
+  }, []);
   const storeAbbrevFor = React.useCallback((storeId) => {
     const store = (_fabStores || []).find((st) => String(st?.id) === String(storeId));
     const raw = store?.abbreviation || store?.store_abbreviation || '';
@@ -297,9 +329,8 @@ export default function MapViewCycleFAB({
           }}
           title={getTooltip()}
           aria-label={getTooltip()}
-          onPointerEnter={() => { if (balloonWatchers.length > 0) setShowWatchersBalloon(true); }}
+          onPointerEnter={(e) => { if (e?.pointerType === 'mouse' && balloonWatchers.length > 0) setShowWatchersBalloon(true); }}
           onPointerLeave={() => setShowWatchersBalloon(false)}
-          onFocus={() => { if (balloonWatchers.length > 0) setShowWatchersBalloon(true); }}
           onBlur={() => setShowWatchersBalloon(false)}
           data-fab-temporarily-deactivated={isTemporarilyDeactivated ? 'true' : 'false'}
           className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
