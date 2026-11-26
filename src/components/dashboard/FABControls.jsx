@@ -96,7 +96,9 @@ export default function FABControls({
   // OWNER REQUEST (Nov 26 2026): the compass moved off the right stack to the
   // LEFT, just above the bulk edit checkbox row, inset past the temperature bar.
   const compassBottom = mapCycleFabBottom + 32;
-  const compassLeft = 44;
+  // OWNER REQUEST (Nov 26 2026): pull the needle in to about a third of the old
+  // inset so it sits close to the temperature bar without touching it.
+  const compassLeft = 26;
 
   // Compute selectedDate string for LiveTempBadge
   const selectedDateStr = selectedDate instanceof Date

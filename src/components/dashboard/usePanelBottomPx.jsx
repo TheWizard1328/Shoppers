@@ -28,12 +28,25 @@ import { useEffect, useRef, useState } from 'react';
  */
 function readContainerBottom() {
   try {
+    // OWNER REPORT (Nov 26 2026): "right back where we started with that huge gap
+    // between them and the stop card container." An absolute element resolves its
+    // `bottom` against its OFFSET PARENT, and FABControls/StopCardCheckboxToggle
+    // are siblings of the map area, NOT children of it — so measuring the map area
+    // (or the viewport) shifted every control up by the nav height. Ask the map
+    // cycle FAB itself which box it is positioned against; every control on this
+    // row shares that containing block.
+    const fab = document.querySelector('[data-map-cycle-fab]');
+    const op = fab && fab.offsetParent;
+    if (op) {
+      const r = op.getBoundingClientRect();
+      if (r && r.height > 10) return r.bottom;
+    }
     const area = document.querySelector('[data-map-area]');
     if (area) {
       const r = area.getBoundingClientRect();
       if (r && r.height > 10) return r.bottom;
     }
-  } catch { /* ignore */ }
+  } catch { /* fall through */ }
   return window.innerHeight;
 }
 
