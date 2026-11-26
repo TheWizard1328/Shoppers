@@ -187,6 +187,26 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
   const transferredFrom = transferMatch && transferMatch[2] ? transferMatch[1] : null;
   const transferredOn = transferMatch ? (transferMatch[2] || transferMatch[1]) : null;
 
+  // OWNER REPORT (Nov 26 2026): "Lothar's home marker and the today drop-down
+  // show 5 stops before his delivery yet everywhere else shows he's next." The
+  // count was derived from stop_order alone, so a stop that had been reordered
+  // (order 5) but is the route's NEXT stop still reported the old gap. Being
+  // next wins outright: zero stops before her, on the card and on the marker.
+  if (delivery?.isNextDelivery === true) {
+    stopsBetween = 0;
+    stopsTillPickup = 0;
+  } else if (['in_transit', 'en_route'].includes(String(delivery?.status || '').toLowerCase())
+    && Number.isFinite(stopsBetween) && Number(stopsBetween) > 0) {
+    // An in-transit stop with nothing unfinished ahead of it is next in effect.
+    const aheadPool = (Array.isArray(routeDeliveries) && routeDeliveries.length > 0
+      ? routeDeliveries
+      : (Array.isArray(allDeliveries) ? allDeliveries : []))
+      .filter((rec) => rec && rec.id !== delivery.id
+        && rec.driver_id === delivery.driver_id && dayKey(rec) === deliveryDay
+        && !['completed', 'failed', 'cancelled'].includes(String(rec.status || '').toLowerCase()));
+    if (aheadPool.length === 0) stopsBetween = 0;
+  }
+
   return {
     delivery,
     storeName,
