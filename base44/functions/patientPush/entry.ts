@@ -408,10 +408,16 @@ Deno.serve(async (req) => {
       if (driver_id) threadFilter.driver_id = driver_id;
 
       if (action === 'patientMarkRead') {
+        // SINGLE MESSAGE (owner request Nov 25 2026): the portal's unread-message
+        // boxes each carry a Read button, so the patient can clear one message
+        // without opening the thread. message_id narrows the receipt to that row.
+        const messageId = payload.message_id ? String(payload.message_id) : '';
         const rows = await base44.asServiceRole.entities.Message
           .filter(threadFilter, '-created_date', 100)
           .catch(() => []);
-        const unread = (rows || []).filter((m: any) => m.sender_id !== patientSenderId);
+        const unread = (rows || [])
+          .filter((m: any) => m.sender_id !== patientSenderId)
+          .filter((m: any) => !messageId || String(m.id) === messageId);
         for (const m of unread) {
           await base44.asServiceRole.entities.Message.update(m.id, { read: true }).catch(() => {});
         }

@@ -1619,6 +1619,24 @@ export default function PatientPortal({ embedded = false } = {}) {
     };
   }, []);
 
+  // OWNER REQUEST (Nov 25 2026): the Read button on an unread-message box marks
+  // that ONE message read (service-role receipt through patientPush, because the
+  // portal has no Base44 session) and closes its box. The id is remembered so the
+  // 4s sync cannot pop the same message straight back up.
+  const markToastRead = async (msg) => {
+    if (!msg?.id || !patient?.id) return;
+    seenToastIdsRef.current.add(msg.id);
+    setMessageToasts((prev) => prev.filter((m) => m.id !== msg.id));
+    setUnreadMessages((c) => Math.max(0, c - 1));
+    try {
+      await base44.functions.invoke('patientPush', {
+        action: 'patientMarkRead',
+        patient_id: patient.id,
+        message_id: msg.id
+      });
+    } catch { /* the box is already closed; the next sync re-reads the badge */ }
+  };
+
   useEffect(() => {
     if (messagingOpen && messageToasts.length) {
       messageToasts.forEach((m) => seenToastIdsRef.current.add(m.id));
@@ -2003,7 +2021,8 @@ export default function PatientPortal({ embedded = false } = {}) {
         onDismiss={(msg) => {
           if (msg?.id) seenToastIdsRef.current.add(msg.id);
           setMessageToasts((prev) => prev.filter((m) => m.id !== msg?.id));
-        }} />
+        }}
+        onRead={markToastRead} />
 
       <PatientMessaging
         patient={patient}

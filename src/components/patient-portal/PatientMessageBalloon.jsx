@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, MessageSquare } from 'lucide-react';
+import { X, Check, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
@@ -52,7 +52,7 @@ const useHeaderTop = (dep) => {
   return top;
 };
 
-function BalloonBox({ message, onOpen, onDismiss }) {
+function BalloonBox({ message, onOpen, onDismiss, onRead }) {
   const timerRef = useRef(null);
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -69,14 +69,21 @@ function BalloonBox({ message, onOpen, onDismiss }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -12, scale: 0.98 }}
       transition={{ type: 'spring', stiffness: 320, damping: 28 }}>
-      <button
-        type="button"
-        onClick={() => onOpen?.(message)}
-        className="w-full text-left rounded-xl border border-blue-200 bg-white shadow-xl px-3 py-2.5 flex items-start gap-2.5 active:scale-[0.99] transition-transform">
-        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
+      {/* OWNER REQUEST (Nov 25 2026): "there is a read button on each of these
+          panels for the unread messages that once clicked on will actually mark
+          the message as read and close that message bubble." Read marks just this
+          message read and closes its box; the X still only dismisses. */}
+      <div className="w-full rounded-xl border border-blue-200 bg-white shadow-xl px-3 py-2.5 flex items-start gap-2.5">
+        <button
+          type="button"
+          onClick={() => onOpen?.(message)}
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white active:scale-[0.97] transition-transform">
           <MessageSquare className="h-4 w-4" />
-        </span>
-        <span className="min-w-0 flex-1">
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpen?.(message)}
+          className="min-w-0 flex-1 text-left active:scale-[0.99] transition-transform">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-semibold text-slate-800">
               {senderLabel(message)}
@@ -89,22 +96,30 @@ function BalloonBox({ message, onOpen, onDismiss }) {
             {preview || 'Sent you a message'}
           </span>
           <span className="mt-1 block text-[10px] font-medium text-blue-600">Tap to open</span>
+        </button>
+        <span className="shrink-0 flex flex-col items-stretch gap-1">
+          <button
+            type="button"
+            onClick={() => onRead?.(message)}
+            aria-label="Mark read"
+            className="inline-flex items-center justify-center gap-1 rounded-full border border-blue-500 bg-blue-500 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white active:scale-[0.97] transition-transform">
+            <Check className="h-3 w-3" />
+            Read
+          </button>
+          <button
+            type="button"
+            onClick={() => onDismiss?.(message)}
+            aria-label="Dismiss"
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 p-1 text-slate-400 hover:text-slate-600">
+            <X className="h-3.5 w-3.5" />
+          </button>
         </span>
-        <span
-          role="button"
-          tabIndex={0}
-          aria-label="Dismiss"
-          onClick={(e) => { e.stopPropagation(); onDismiss?.(message); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onDismiss?.(message); } }}
-          className="mt-0.5 shrink-0 rounded p-1 text-slate-400 hover:text-slate-600">
-          <X className="h-4 w-4" />
-        </span>
-      </button>
+      </div>
     </motion.div>
   );
 }
 
-export default function PatientMessageBalloon({ messages = [], message = null, onOpen, onDismiss }) {
+export default function PatientMessageBalloon({ messages = [], message = null, onOpen, onDismiss, onRead }) {
   const list = useMemo(() => {
     const arr = Array.isArray(messages) ? messages : (message ? [message] : []);
     const seen = new Set();
@@ -121,7 +136,7 @@ export default function PatientMessageBalloon({ messages = [], message = null, o
       <div className="flex flex-col gap-2 pointer-events-auto">
         <AnimatePresence initial={false}>
           {list.map((m) => (
-            <BalloonBox key={m.id} message={m} onOpen={onOpen} onDismiss={onDismiss} />
+            <BalloonBox key={m.id} message={m} onOpen={onOpen} onDismiss={onDismiss} onRead={onRead} />
           ))}
         </AnimatePresence>
       </div>
