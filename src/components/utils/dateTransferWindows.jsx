@@ -82,7 +82,16 @@ export async function applyDateTransferWindows({ existing, updates }) {
     // Also drop the stale ETA: a cleared window must not keep the ETA that was
     // computed from it (Lothar kept an 18:00 ETA after the move to today).
     if (!merged.delivery_time_start && !merged.delivery_time_end && !merged.delivery_time_eta) return null;
-    return { delivery_time_start: '', delivery_time_end: '', delivery_time_eta: '' };
+    // Also clear the denormalised patient window: several ETA readers
+    // (recalculateRemainingETAs, etaCascadeUtil, currentLegRegenerator) still
+    // consult time_window_start, so leaving it behind re-created the 18:00.
+    return {
+      delivery_time_start: '',
+      delivery_time_end: '',
+      delivery_time_eta: '',
+      time_window_start: '',
+      time_window_end: '',
+    };
   }
 
   let patient = null;
