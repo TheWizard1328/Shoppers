@@ -71,7 +71,13 @@ export default function MobilePatientDetailsSheet({
               // in-app bottom nav) padding so the sheet isn't clipped and the
               // header / drag-handle stay reachable. --actual-bottom-nav-height is
               // published by Layout; --native-safe-* are set by the native shell.
-              maxHeight: "calc(100dvh - var(--app-inset-top))",
+              // OWNER REPORT (Nov 26 2026): the sheet's top (and its drag handle)
+              // still slid up under the mobile header, because the cap only
+              // subtracted the status-bar inset. Layout already measures the
+              // header's real bottom edge into --drawer-top (same variable the
+              // mobile sidebar uses), so the sheet now stops exactly below the
+              // header. Fallback to the inset when that variable is unset.
+              maxHeight: "calc(100dvh - max(var(--drawer-top, 0px), var(--app-inset-top, 0px)))",
               background: "var(--bg-slate-100)",
               boxShadow: "0 -4px 32px rgba(0,0,0,0.18)",
               paddingBottom: "calc(var(--app-inset-bottom) + var(--actual-bottom-nav-height, 0px))",
