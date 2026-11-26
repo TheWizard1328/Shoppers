@@ -167,10 +167,12 @@ function firstNameOf(value) {
 
 /**
  * Watches the dashboard's deliveries and sends the four patient pushes.
- * Mount once (Dashboard). The pass runs on every device (a dispatcher adding a
- * stop must still reach the patient); `enabled` (primary-device flag) now only
- * gates the live-route states — picked up, next, delayed — so one phone does not
- * narrate the route three times over.
+ * Mount once (Dashboard). The pass runs on every device, because a dispatcher or
+ * an admin adding a stop must reach the patient just like the driver's own
+ * phone does — that covers created-pending, moved, handoff and picked up (all
+ * deduped server-side). `enabled` (primary-device flag) now only gates the two
+ * narration states, next and delayed, so one phone does not narrate the route
+ * three times over.
  */
 export function usePatientDeliveryPushes({ deliveries, patients, currentUser, enabled }) {
   const deliveriesRef = useRef(deliveries);
@@ -300,15 +302,35 @@ export function usePatientDeliveryPushes({ deliveries, patients, currentUser, en
       }
 
       // ── 2. Picked up (covers staged -> in_transit jumps) ────────────────
-      if (primaryDevice && (status === 'in_transit' || status === 'en_route') && !entry.pickup && eta != null) {
-        const body = buildPatientDeliveryMessage({
-          state: 'pickup',
-          patientName,
-          window: windowText(eta),
-        });
-        await pushPatient(delivery.patient_id, title, body, `rx-pickup-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name });
-        entry.pickup = true;
-        entry.etaEnd = eta + 30;
+      // OWNER REQUEST (Nov 25 2026): a stop can be added straight to a driver's
+      // route as in_transit from three places — a dispatcher, an admin, or the
+      // driver — and all three must reach the patient. So this state is no longer
+      // primary-device only (the server dedupes one body per 12h). To stop a
+      // dashboard opened hours later from re-announcing an old pickup, the status
+      // change has to be recent; the window falls back to the parent pickup's ETA
+      // when the stop itself has none yet.
+      if (!entry.pickup && (status === 'in_transit' || status === 'en_route')) {
+        const changedMs = delivery.updated_date ? Date.parse(delivery.updated_date) : 0;
+        const fresh = !changedMs || now - changedMs <= CHANGE_FRESH_MS;
+        const parentPickup = delivery.puid ? pickupByPuid.get(String(delivery.puid)) : null;
+        const pickupMinutes = eta ?? etaMinutes(parentPickup);
+        if (fresh && pickupMinutes != null) {
+          const body = buildPatientDeliveryMessage({
+            state: 'pickup',
+            patientName,
+            window: windowText(pickupMinutes),
+          });
+          await pushPatient(delivery.patient_id, title, body, `rx-pickup-${delivery.id}`, { store_id: delivery.store_id, store_name: delivery.store_name });
+          entry.pickup = true;
+          entry.etaEnd = pickupMinutes + 30;
+        }
+        // The primary device ADOPTS the picked-up state even when another device
+        // sent the notice, because the delayed check below is keyed on it — a
+        // dispatcher's push must not cost the driver's phone its delay notices.
+        if (primaryDevice && !entry.pickup && pickupMinutes != null) {
+          entry.pickup = true;
+          entry.etaEnd = pickupMinutes + 30;
+        }
       }
 
       // ── 4. Arrival window moved later than the one already sent ─────────
