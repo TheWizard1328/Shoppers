@@ -1133,7 +1133,14 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         const amount = Math.round(monthlyAppFeeBaseTotal * (pct / (allocSum > 0 ? allocSum : pct)) * 100) / 100;
         if (amount <= 0) continue;
         const rec = getDriverPayrollRecord(k);
-        if (!rec || (Number(rec.app_fee_amount) || 0) > 0 || (rec.status && rec.status !== 'draft')) continue;
+        if (!rec || (rec.status && rec.status !== 'draft')) continue;
+        // REWRITE A STALE AMOUNT (owner report Nov 26 2026): a draft fee saved
+        // with the old raw-percentage math (62.23% of the pool) kept the driver
+        // line at $280.35 forever because any non-zero saved amount was skipped.
+        // A draft is refreshed whenever it disagrees with the normalized split;
+        // finalized/paid records are never touched.
+        const storedCents = Math.round((Number(rec.app_fee_amount) || 0) * 100);
+        if (Math.abs(storedCents - Math.round(amount * 100)) < 1) continue;
         try {
           const updated = await base44.entities.Payroll.update(rec.id, {
             app_fee_percentage: pct, app_fee_amount: amount
@@ -1261,7 +1268,15 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           ...(pr?.deductions || []).filter((d) => d?.is_one_time)]),
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
           appFeePercent: autoFillFees ? savedPercentByDriver[k] || 0 : pr?.app_fee_percentage ?? 0,
-          appFeeAmount: pr?.app_fee_amount ?? (autoFillFees && savedPercentByDriver[k] > 0 ? calculateAppFeeAmount(k, savedPercentByDriver[k]) : 0),
+          // OWNER REPORT (Nov 26 2026): "something is stopping the drivers App
+          // Fees fields from updating during the page load and syncs" — the
+          // stored app_fee_amount was preferred, so a fee persisted with the
+          // old raw-percentage math ($280.35 on a $450.45 pool) came back on
+          // every load and the normalized split never showed. At month end the
+          // field is always re-derived from the percentage.
+          appFeeAmount: autoFillFees && savedPercentByDriver[k] > 0 ?
+            calculateAppFeeAmount(k, savedPercentByDriver[k]) :
+            pr?.app_fee_amount ?? 0,
           paidAmount,
           showDeductionManager: false,
           newDeductionName: '',
