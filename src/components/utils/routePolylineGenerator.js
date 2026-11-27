@@ -117,7 +117,7 @@ function encodeSigned(value) {
   return encoded;
 }
 
-function encodeGooglePolyline(points) {
+export function encodeGooglePolyline(points) {
   let lastLat = 0, lastLng = 0, encoded = '';
   for (const [lat, lng] of points) {
     const latE5 = Math.round(lat * 1e5);

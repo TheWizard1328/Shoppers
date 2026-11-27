@@ -17,7 +17,7 @@
  * was just sequenced.
  */
 
-import { generateRoutePolylines } from './routePolylineGenerator';
+import { generateRoutePolylines, encodeGooglePolyline } from './routePolylineGenerator';
 import { getDeliveryCoords } from './clientRouteEngine';
 
 const ACTIVE_STATUSES = new Set(['pending', 'en_route', 'in_transit']);
@@ -112,11 +112,28 @@ export async function repolylineActiveRoute({
       originCompletedAt: finishedOriginStop?.actual_delivery_time || null,
     });
 
-    for (const { delivery } of chain) {
+    // OWNER REPORT (Nov 27 2026): stop 29 kept a leg drawn from a Londonderry
+    // pending stop (its neighbour under the PREVIOUS sequence) because the
+    // provider returned no section for that pair and this loop simply skipped
+    // it, leaving the stale geometry in place. A stop in the chain must never
+    // keep an old leg: fall back to a straight line from its real predecessor.
+    let _fallbackCount = 0;
+    for (let ci = 0; ci < chain.length; ci += 1) {
+      const { delivery, lat, lng } = chain[ci];
       const seg = map?.get?.(delivery.id) || null;
-      if (!seg?.encodedPolyline) continue;
+      let encoded = seg?.encodedPolyline || null;
+      if (!encoded) {
+        const prev = ci > 0 ? chain[ci - 1] : null;
+        const pLat = prev ? Number(prev.lat) : Number(originPoint?.lat);
+        const pLng = prev ? Number(prev.lng) : Number(originPoint?.lon ?? originPoint?.lng);
+        if ([pLat, pLng, Number(lat), Number(lng)].every(Number.isFinite)) {
+          encoded = encodeGooglePolyline([[pLat, pLng], [Number(lat), Number(lng)]]);
+          _fallbackCount += 1;
+        }
+      }
+      if (!encoded) continue;
       patches.set(delivery.id, {
-        encoded_polyline: seg.encodedPolyline,
+        encoded_polyline: encoded,
         polyline_from_order: Number(delivery.stop_order) || null,
         ...(Number.isFinite(Number(seg.estimatedDistanceKm)) ? { estimated_distance_km: Number(seg.estimatedDistanceKm) } : {}),
         ...(Number.isFinite(Number(seg.estimatedDurationMinutes)) ? { estimated_duration_minutes: Number(seg.estimatedDurationMinutes) } : {}),
@@ -124,6 +141,9 @@ export async function repolylineActiveRoute({
       });
     }
     out.legs = patches.size;
+    if (_fallbackCount > 0) {
+      console.warn(`[FullRepolyline] ${source} — ${_fallbackCount} leg(s) had no provider section and were drawn straight from their real predecessor (stale legs replaced)`);
+    }
     console.log(`[FullRepolyline] ${source} — ${out.legs}/${chain.length} active stop leg(s) redrawn from origin ${originPoint ? `${Number(originPoint.lat).toFixed(5)},${Number(originPoint.lon ?? originPoint.lng).toFixed(5)}` : 'none'}${liveVia ? ' + live GPS' : ''}`);
   } catch (err) {
     console.warn(`[FullRepolyline] ${source} — full active-set repolyline failed:`, err?.message || err);

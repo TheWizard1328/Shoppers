@@ -72,9 +72,22 @@ export async function optimizeRoutesForMovePairs({ pairs, source, patients, stor
         }
       }
 
+      // OWNER QUESTION (Nov 27 2026): why does Accept All / a time-window edit
+      // sequence differently from the manual FAB? The FAB hands the engine the
+      // driver's live position and awaits the server write; this path sent
+      // neither, so the engine anchored from the last finished stop and re-banded
+      // the windows against different arrivals. Same inputs now.
+      const _au = (appUsers || []).find((a) => String(a?.user_id || '') === String(driverId) || String(a?.id || '') === String(driverId)) || null;
+      const _lat = Number(_au?.current_latitude);
+      const _lng = Number(_au?.current_longitude);
+      const currentLocation = Number.isFinite(_lat) && Number.isFinite(_lng) && _lat !== 0 && _lng !== 0
+        ? { lat: _lat, lon: _lng }
+        : null;
       const result = await performRouteOptimization({
         driverId,
         deliveryDate,
+        currentLocation,
+        awaitServerWrite: true,
         deliveries: scoped,
         patients: patients || (typeof window !== 'undefined' ? window.__appPatients : null),
         stores,
