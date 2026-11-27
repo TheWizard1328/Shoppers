@@ -17,6 +17,12 @@ const timeOf = (record) => {
 
 const dayKey = (record) => String(record?.delivery_date || '').slice(0, 10);
 
+// A record with NO stop_order is not placed on the route yet. Number(null) is 0,
+// which used to sort it ahead of every stop and inflate the counts by one
+// (owner report Nov 27 2026: Marianne Samchuk read 1 instead of 6 till pickup,
+// and 7 with the route pool). Unplaced records never count.
+const hasOrder = (record) => record?.stop_order !== null && record?.stop_order !== undefined && record?.stop_order !== '';
+
 /**
  * Shared props builder for PatientDeliveryCard.
  *
@@ -130,6 +136,7 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
         const lo = Number(pickupStop.stop_order);
         const hi = Number(delivery.stop_order);
         stopsBetween = routePool.filter((rec) => {
+          if (!hasOrder(rec)) return false;
           const order = Number(rec.stop_order);
           if (!Number.isFinite(order) || order <= lo || order >= hi) return false;
           return !['completed', 'failed', 'cancelled'].includes(String(rec.status || '').toLowerCase());
@@ -173,11 +180,22 @@ export function buildDeliveryCardProps(delivery, { pickupStops, puidGroups, stor
   let stopsTillPickup = null;
   if (pickupStop) {
     const pickupOrder = Number(pickupStop.stop_order);
-    const pool = (group.length > 0 ? group : (Array.isArray(allDeliveries) ? allDeliveries : []))
+    // OWNER REPORT (Nov 27 2026, Marianne Samchuk): the card and the home marker
+    // read "1 stop" when SIX active deliveries sit between the driver and her
+    // Callingwood pickup. The count came from the PUID GROUP, which only holds
+    // the stops that share her pickup — every stop ahead of the pickup but
+    // belonging to an earlier pickup on the same route was invisible. The
+    // driver's whole route wins, exactly like the in-transit count above.
+    const routePoolForPickup = (Array.isArray(routeDeliveries) && routeDeliveries.length > 0
+      ? routeDeliveries
+      : (group.length > 0 ? group : (Array.isArray(allDeliveries) ? allDeliveries : [])));
+    const pool = routePoolForPickup
       .filter((rec) => rec && rec.id !== pickupStop.id
-        && (!pickupStop.driver_id || rec.driver_id === pickupStop.driver_id));
+        && (!pickupStop.driver_id || rec.driver_id === pickupStop.driver_id)
+        && (!pickupStop.delivery_date || !rec.delivery_date || dayKey(rec) === dayKey(pickupStop)));
     if (Number.isFinite(pickupOrder) && pool.length > 0) {
       stopsTillPickup = pool.filter((rec) => {
+        if (!hasOrder(rec)) return false;
         const order = Number(rec.stop_order);
         if (!Number.isFinite(order) || order >= pickupOrder) return false;
         // A cycling/route marker (no patient, no store, no puid) is not a stop

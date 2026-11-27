@@ -1819,6 +1819,7 @@ export default function PatientPortal({ embedded = false } = {}) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         embedded={embedded}
+        routeDeliveries={routeDeliveries}
         liveRemainingStops={liveRemainingStops} />
       
 

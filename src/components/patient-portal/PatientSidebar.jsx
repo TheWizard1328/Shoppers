@@ -15,7 +15,7 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 
-export default function PatientSidebar({ puidGroups, patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false, liveRemainingStops = null }) {
+export default function PatientSidebar({ puidGroups, patient, deliveries, pickupStops, stores, isOpen, onClose, embedded = false, liveRemainingStops = null, routeDeliveries = null }) {
   const [showAll, setShowAll] = useState(false);
   // App-Owner preview only: the exit control lives here instead of a floating
   // top-right button that covered other portal controls (owner report Nov 3 2026).
@@ -129,7 +129,7 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
                 {upcoming.map((delivery) =>
               <PatientDeliveryCard
                 key={delivery.id}
-                {...buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap })}
+                {...buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap, allDeliveries: deliveries, routeDeliveries })}
                 remainingStops={liveRemainingStops?.[delivery.id] ?? null} />
 
               )}
@@ -159,7 +159,7 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
               {displayed.map((delivery) =>
             <PatientDeliveryCard
               key={delivery.id}
-              {...buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap })}
+              {...buildDeliveryCardProps(delivery, { pickupStops, puidGroups, storeMap, allDeliveries: deliveries, routeDeliveries })}
               remainingStops={liveRemainingStops?.[delivery.id] ?? null} />
 
             )}
