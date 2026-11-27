@@ -99,6 +99,69 @@ function tiltCompensatedHeading(alpha, beta, gamma) {
   return normalize(degOut);
 }
 
+/**
+ * OWNER REPORT (Nov 26 2026): the needle sat a steady ~45-70 deg clockwise of
+ * true north in both directions of travel (the phone logged alpha 3/beta 75 with
+ * the vehicle heading east, i.e. the magnetometer itself was reading tens of
+ * degrees off). A phone in a magnetic mount, or one whose magnetometer needs
+ * calibration, reports a constant bias — and a constant bias is measurable: while
+ * the vehicle is actually moving, the GPS course IS the direction of travel.
+ * So the app learns the bias from the GPS course and removes it. No GPS course
+ * (stopped, no fix) means the last learned bias is kept.
+ */
+const BIAS_KEY = 'rxdeliver_compass_bias';
+let bias = 0;
+try {
+  const stored = Number(localStorage.getItem(BIAS_KEY));
+  if (Number.isFinite(stored) && Math.abs(stored) < 180) bias = stored;
+} catch { /* ignore */ }
+let courseWatchId = null;
+let courseSamples = [];
+
+const shortestDelta = (from, to) => ((to - from + 540) % 360) - 180;
+
+function onCourseFix(pos) {
+  const c = pos && pos.coords;
+  if (!c || heading == null) return;
+  const speed = Number(c.speed);
+  const course = Number(c.heading);
+  // Only trust a course while clearly driving, with a sane accuracy.
+  if (!Number.isFinite(speed) || speed < 4) return;
+  if (!Number.isFinite(course) || course < 0) return;
+  if (Number.isFinite(Number(c.accuracy)) && Number(c.accuracy) > 60) return;
+  const residual = shortestDelta(heading, course);
+  if (Math.abs(residual) > 120) return;
+  courseSamples.push(residual);
+  if (courseSamples.length > 5) courseSamples.shift();
+  if (courseSamples.length < 3) return;
+  const sorted = [...courseSamples].sort((a, b) => a - b);
+  // Only learn when the samples agree (a steady drive, not a turn).
+  if (sorted[sorted.length - 1] - sorted[0] > 25) return;
+  const mid = sorted[Math.floor(sorted.length / 2)];
+  bias = normalize(bias + mid * 0.5);
+  try { localStorage.setItem(BIAS_KEY, String(Math.round(bias * 10) / 10)); } catch { /* ignore */ }
+  if (debug) debug.bias = Math.round(bias);
+}
+
+function startCourseCalibration() {
+  if (courseWatchId != null) return;
+  try {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    courseWatchId = navigator.geolocation.watchPosition(onCourseFix, () => {}, {
+      enableHighAccuracy: false, maximumAge: 5000, timeout: 20000
+    });
+  } catch { courseWatchId = null; }
+}
+
+/** Forget the learned bias (the needle falls back to the raw sensor). */
+export function resetCompassBias() {
+  bias = 0;
+  courseSamples = [];
+  try { localStorage.removeItem(BIAS_KEY); } catch { /* ignore */ }
+  if (debug) debug.bias = 0;
+  emit();
+}
+
 function handleOrientation(e) {
   if (!e) return;
   let h = null;
@@ -126,7 +189,7 @@ function handleOrientation(e) {
   if (h == null || !Number.isFinite(Number(h))) return;
   const angle = screenAngle();
   // The needle is drawn in screen space, so remove the screen's own rotation.
-  const next = normalize(h - angle);
+  const next = normalize(h - angle + bias);
   // Low-pass on the circle: magnetometer noise of a degree or two otherwise
   // reads as a shivering needle. A 3 deg deadband keeps it perfectly still when
   // the phone is not moving, and 0.35 easing settles a real turn in ~0.3s.
@@ -137,7 +200,7 @@ function handleOrientation(e) {
     if (Math.abs(delta) > 3) smoothed = normalize(smoothed + delta * 0.35);
   }
   heading = smoothed;
-  debug = { source, alpha: e.alpha, beta: e.beta, gamma: e.gamma, raw, magneticPlusDeclination: h, screenAngle: angle, heading };
+  debug = { source, alpha: e.alpha, beta: e.beta, gamma: e.gamma, raw, magneticPlusDeclination: h, screenAngle: angle, bias: Math.round(bias), heading };
   lastEventAt = Date.now();
   // Diagnostics: the first event, then one heartbeat a minute, so the app log
   // stream shows exactly what this device's sensor reports.
@@ -150,7 +213,7 @@ function handleOrientation(e) {
       console.warn('[Compass] ' + JSON.stringify({
         type: e.type, absolute: e.absolute === true, alpha: Math.round(Number(e.alpha) || 0),
         beta: Math.round(Number(e.beta) || 0), gamma: Math.round(Number(e.gamma) || 0),
-        screenAngle: screenAngle(), source, heading: Math.round(heading)
+        screenAngle: screenAngle(), source, bias: Math.round(bias), heading: Math.round(heading)
       }));
     } catch { /* ignore */ }
   }
@@ -175,10 +238,12 @@ export function startDeviceCompass() {
   if (typeof window.DeviceOrientationEvent.requestPermission === 'function') {
     if (permission === 'unknown') permission = 'prompt';
     attach();
+    startCourseCalibration();
     return;
   }
   permission = 'granted';
   attach();
+  startCourseCalibration();
 }
 
 /**
