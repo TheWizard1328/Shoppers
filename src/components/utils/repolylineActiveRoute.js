@@ -17,7 +17,8 @@
  * was just sequenced.
  */
 
-import { generateRoutePolylines, encodeGooglePolyline } from './routePolylineGenerator';
+import { encodeGooglePolyline } from './routePolylineGenerator';
+import { buildSequentialLegs } from './sequentialPolylineBuilder';
 import { getDeliveryCoords } from './clientRouteEngine';
 
 const ACTIVE_STATUSES = new Set(['pending', 'en_route', 'in_transit']);
@@ -92,40 +93,40 @@ export async function repolylineActiveRoute({
   if (chain.length === 0) return out;
 
   try {
-    const map = await generateRoutePolylines({
-      stops: chain,
-      originPoint: originPoint ? { lat: Number(originPoint.lat), lon: Number(originPoint.lon ?? originPoint.lng) } : null,
-      viaPointAfterOrigin: liveVia,
-      // Every active stop is in scope, whatever its status or window.
-      forceStopIds: chain.map((c) => c.delivery.id),
-      // Different addresses in one cul-de-sac stay separate stops.
-      addressOf: (d) => d?.patient_address
-        || (d?.patient_id ? patientMap.get(d.patient_id)?.address : null)
-        || null,
-      forceRegenerate: true,
+    // OWNER INSTRUCTION (Nov 27 2026): "just build the polylines from the origin
+    // to the destination with all the waypoints in between... there is only one
+    // order the polylines should be generated in and that is the stop order
+    // number for each stop." The sequential builder takes the order and returns
+    // one leg per stop by position. No anchor rules, no pending rules, no
+    // co-located rules, no reuse.
+    const { legs } = await buildSequentialLegs({
+      stops: chain.map((c) => ({
+        id: c.delivery.id,
+        lat: c.lat,
+        lng: c.lng,
+        stopOrder: Number(c.delivery.stop_order) || 0,
+        transportMode: c.delivery.transport_mode || 'driving',
+      })),
+      // The driver's real position is the head of the chain; otherwise the most
+      // recent finished stop is.
+      origin: liveVia
+        ? { lat: liveVia.lat, lon: liveVia.lon }
+        : (originPoint ? { lat: Number(originPoint.lat), lon: Number(originPoint.lon ?? originPoint.lng) } : null),
       hereApiKey,
-      polylineProvider,
-      polylineApiKey,
       driverId,
       userName,
-      source: `${source}_full_repolyline`,
-      originCompletedAt: finishedOriginStop?.actual_delivery_time || null,
+      source,
     });
 
-    // OWNER REPORT (Nov 27 2026): stop 29 kept a leg drawn from a Londonderry
-    // pending stop (its neighbour under the PREVIOUS sequence) because the
-    // provider returned no section for that pair and this loop simply skipped
-    // it, leaving the stale geometry in place. A stop in the chain must never
-    // keep an old leg: fall back to a straight line from its real predecessor.
     let _fallbackCount = 0;
     for (let ci = 0; ci < chain.length; ci += 1) {
       const { delivery, lat, lng } = chain[ci];
-      const seg = map?.get?.(delivery.id) || null;
+      const seg = legs.get(delivery.id) || null;
       let encoded = seg?.encodedPolyline || null;
       if (!encoded) {
         const prev = ci > 0 ? chain[ci - 1] : null;
-        const pLat = prev ? Number(prev.lat) : Number(originPoint?.lat);
-        const pLng = prev ? Number(prev.lng) : Number(originPoint?.lon ?? originPoint?.lng);
+        const pLat = prev ? Number(prev.lat) : (liveVia ? liveVia.lat : Number(originPoint?.lat));
+        const pLng = prev ? Number(prev.lng) : (liveVia ? liveVia.lon : Number(originPoint?.lon ?? originPoint?.lng));
         if ([pLat, pLng, Number(lat), Number(lng)].every(Number.isFinite)) {
           encoded = encodeGooglePolyline([[pLat, pLng], [Number(lat), Number(lng)]]);
           _fallbackCount += 1;
@@ -135,9 +136,9 @@ export async function repolylineActiveRoute({
       patches.set(delivery.id, {
         encoded_polyline: encoded,
         polyline_from_order: Number(delivery.stop_order) || null,
-        ...(Number.isFinite(Number(seg.estimatedDistanceKm)) ? { estimated_distance_km: Number(seg.estimatedDistanceKm) } : {}),
-        ...(Number.isFinite(Number(seg.estimatedDurationMinutes)) ? { estimated_duration_minutes: Number(seg.estimatedDurationMinutes) } : {}),
-        ...(seg.transportMode ? { transport_mode: seg.transportMode } : {}),
+        ...(Number.isFinite(Number(seg?.estimatedDistanceKm)) ? { estimated_distance_km: Number(seg.estimatedDistanceKm) } : {}),
+        ...(Number.isFinite(Number(seg?.estimatedDurationMinutes)) ? { estimated_duration_minutes: Number(seg.estimatedDurationMinutes) } : {}),
+        ...(seg?.transportMode ? { transport_mode: seg.transportMode } : {}),
       });
     }
     out.legs = patches.size;
