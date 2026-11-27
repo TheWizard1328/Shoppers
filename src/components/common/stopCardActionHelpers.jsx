@@ -380,6 +380,18 @@ export function buildRetryDelivery(delivery, nextTrackingNumber, deliveryDate = 
   delete retryDelivery.created_date;
   delete retryDelivery.updated_date;
   delete retryDelivery.created_by;
+  // RETRY-OWNED COD STATE IS NEVER INHERITED (owner rule Nov 27 2026): the
+  // retry carries the COD to collect, so it must start clean — a stale
+  // retried/refunded/collected stamp copied from the failed original would
+  // hide the new retry from the balances page or pre-mark it refunded.
+  delete retryDelivery.cod_retried_at;
+  delete retryDelivery.cod_retry_delivery_id;
+  delete retryDelivery.cod_retried_amount;
+  delete retryDelivery.cod_refunded_at;
+  delete retryDelivery.cod_refunded_amount;
+  delete retryDelivery.cod_refunded_tender;
+  delete retryDelivery.cod_returned_at;
+  delete retryDelivery.cod_confirmed_collected;
 
   return retryDelivery;
 }

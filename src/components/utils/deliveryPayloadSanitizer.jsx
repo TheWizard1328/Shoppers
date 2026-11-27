@@ -65,6 +65,7 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'cod_card_spend_at',
   'cod_returned_at',
   'cod_retried_at',
+  'cod_retried_amount',
   'cod_retry_delivery_id',
   'cp_envelopes',
   // ── Delivery attributes ───────────────────────────────────────────────────

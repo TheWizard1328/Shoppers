@@ -200,6 +200,10 @@
       "type": "string",
       "description": "The retry delivery's id (set together with cod_retried_at)"
     },
+    "cod_retried_amount": {
+      "type": "number",
+      "description": "The COD amount the FAILED original was carrying when it was retried. Owner rule Nov 27 2026: the retry delivery takes the amount to collect, so the failed delivery's cod_total_amount_required is CLEARED to 0 and the original amount is kept here for audit"
+    },
     "cod_scan_at": {
       "title": "COD wide-scan timestamp",
       "type": "string",

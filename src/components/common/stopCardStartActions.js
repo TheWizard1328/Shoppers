@@ -118,7 +118,18 @@ export function useStopCardStartActions({
             // cod_retried_at excludes the original from the Uncollected lists
             // and from computePendingCodDeduction; cod_retry_delivery_id is the
             // audit trail to the retry that owns the COD now.
-            const _retryStamp = { cod_retried_at: new Date().toISOString(), ...(retryDeliveryId ? { cod_retry_delivery_id: retryDeliveryId } : {}) };
+            // OWNER RULE (Nov 27 2026): "upon clicking the Retry button the COD
+            // amount to collect for the Failed delivery is cleared after the
+            // retry delivery is created." The retry now owns the COD, so the
+            // failed original is cleared to 0 (its amount is kept on
+            // cod_retried_amount for audit) — otherwise the failed card keeps
+            // advertising money to collect that the retry is already carrying.
+            const _retryStamp = {
+              cod_retried_at: new Date().toISOString(),
+              ...(retryDeliveryId ? { cod_retry_delivery_id: retryDeliveryId } : {}),
+              cod_retried_amount: Number(delivery.cod_total_amount_required) || 0,
+              cod_total_amount_required: 0
+            };
             updateDeliveryLocal(delivery.id, _retryStamp, { skipSmartRefresh: true }).catch(() => null);
             base44.entities.Delivery.update(delivery.id, _retryStamp).catch(() => null);
           }
