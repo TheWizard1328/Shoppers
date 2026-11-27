@@ -259,22 +259,18 @@ Deno.serve(async (req) => {
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
 
-      // Reuse a same-date + driver Completed pickup instead of creating a duplicate.
-      // OWNER REPORT (Nov 26 2026): a new delivery for tonight's after-hours run was
-      // linked to the Callingwood AM pickup that had just been completed, while the
-      // correct new PM pickup was created beside it. This reuse step ignored the
-      // SLOT, so a completed pickup from a different slot was handed back for a PM
-      // stop. Only a completed pickup from the SAME slot may be reused: a PM stop
-      // must link to its own PM pickup (created just before the staged stop goes
-      // pending), never to the finished morning run.
+      // OWNER SPEC (Nov 26 2026): a COMPLETED pickup for this store may still
+      // receive a new stop, but only within 90 minutes of it being completed.
+      // Longer than that (or a cancelled/failed pickup, which never qualifies)
+      // means a fresh pickup is created for the new stop instead. The 1-hour
+      // window and the slot filter are both gone: the owner's rule is time-based.
       const completedPickupsGeneral = storePickups
         .filter((pickup) => pickup.status === 'completed' && pickup.actual_delivery_time)
         .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
 
-      const sameSlotCompleted = completedPickupsGeneral.filter((pickup) => (pickup.ampm_deliveries || 'AM') === primarySlot);
       const reusableCompletedGeneral = forceAttachIfInTransit
-        ? sameSlotCompleted[0]
-        : sameSlotCompleted.find((pickup) => (Date.now() - new Date(pickup.actual_delivery_time).getTime()) < 60 * 60 * 1000);
+        ? completedPickupsGeneral[0]
+        : completedPickupsGeneral.find((pickup) => (Date.now() - new Date(pickup.actual_delivery_time).getTime()) < 90 * 60 * 1000);
 
       if (reusableCompletedGeneral) {
         const pickupWithDriverName = await ensurePickupDriverName(base44, reusableCompletedGeneral, driverName);

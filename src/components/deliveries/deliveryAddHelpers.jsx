@@ -238,8 +238,8 @@ export const resolvePickupPuid = async ({
     }
   }
 
-  // A new pending stop must never fall back onto a finished pickup.
-  const fallbackPuid = getPickupStopIdForDelivery(storeId, deliveryDate, timeSlot, allDeliveries, driverId, { includeCompleted: false });
+  // Owner rule: live pickup first, else a completed pickup only within 90 min.
+  const fallbackPuid = getPickupStopIdForDelivery(storeId, deliveryDate, timeSlot, allDeliveries, driverId, { completedWithinMinutes: 90 });
 
   if (!ensureMissingPickup) {
     return fallbackPuid;

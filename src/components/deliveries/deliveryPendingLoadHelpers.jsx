@@ -100,9 +100,8 @@ export const mapPendingDeliveriesToStaged = ({
 
   if (!timeSlot) {
     timeSlot = getStoreAssignedTimeSlot(store, delivery.delivery_date, allDeliveries);
-    // OWNER RULE (Nov 26 2026): this stop is going pending — it has not been
-    // picked up, so a FINISHED pickup is never a valid parent. Live pickups only.
-    puid = getPickupStopIdForDelivery(store.id, delivery.delivery_date, timeSlot, allDeliveries, delivery.driver_id, { includeCompleted: false });
+    // Owner rule: live pickup first, else a completed pickup only within 90 min.
+    puid = getPickupStopIdForDelivery(store.id, delivery.delivery_date, timeSlot, allDeliveries, delivery.driver_id, { completedWithinMinutes: 90 });
   }
 
   return {

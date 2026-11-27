@@ -267,57 +267,52 @@ export const getStoreAssignedTimeSlotForDriver = (store, deliveryDate, driverId,
  * Get the PUID (stop_id of the pickup) for a delivery
  */
 export const getPickupStopIdForDelivery = (storeId, deliveryDate, timeSlot, allDeliveries = [], driverId = null, options = {}) => {
-  // OWNER RULE (Nov 26 2026): a FINISHED pickup must never be a candidate for a
-  // stop that has not been picked up. Pass includeCompleted: false from pending /
-  // staged repair paths; callers that let a user deliberately pick a parent
-  // pickup keep the default so an in-hand stop can still sit under a finished one.
-  const { includeCompleted = true } = options || {};
-  if (!storeId || !deliveryDate || !timeSlot) return null;
-  
-  const matches = (allDeliveries || []).filter(d =>
+  // OWNER SPEC (Nov 26 2026) — staged attachment rules, in order:
+  //   1. PRIMARY: an ACTIVE (en_route) pickup for this store/date/driver wins.
+  //   2. No pickup on the route at all -> leave the stop unlinked (staged); it
+  //      attaches to the pickup created when staged stops go pending.
+  //   3. SECONDARY: a COMPLETED pickup for the store is still usable, but only
+  //      within 90 minutes of it being completed (completedWithinMinutes).
+  //   4. A cancelled/failed pickup is never usable; a new pickup must be created.
+  //   5. Longer than 90 minutes -> create a new pickup and attach to that.
+  // includeCompleted: false keeps a caller strictly to live pickups.
+  const { includeCompleted = true, completedWithinMinutes = null } = options || {};
+  if (!storeId || !deliveryDate) return null;
+
+  const sameStore = (allDeliveries || []).filter(d =>
     d &&
     d.store_id === storeId &&
     d.delivery_date === deliveryDate &&
-    d.ampm_deliveries === timeSlot &&
     !d.patient_id && // Is a pickup
     d.stop_id &&
     (!driverId || String(d.driver_id) === String(driverId))
   );
-  
-  // Preference order: en_route > other non-terminal (pending/in_transit/Staged) > completed.
-  // NEVER return cancelled/failed pickups — they are dead stops and must not receive deliveries.
-  const enRoutePickup = matches.find(d => d.status === 'en_route');
-  if (enRoutePickup) return enRoutePickup.stop_id || enRoutePickup.puid || null;
-  
-  const activePickup = matches.find(d => !['completed', 'failed', 'cancelled'].includes(d.status));
-  if (activePickup) return activePickup.stop_id || activePickup.puid || null;
+  if (!sameStore.length) return null;
 
-  // OWNER REPORT (Nov 26 2026): a delivery created tonight, hours after the
-  // Callingwood AM pickup was finished, was linked to that completed AM pickup
-  // instead of the new after-hours pickup created just before it. Callingwood
-  // staffs only an AM driver, so every same-day stop resolves to slot 'AM' and
-  // the only 'AM' pickup was the finished morning one. A stop that has NOT been
-  // picked up can never belong to a finished pickup: when this slot has no live
-  // pickup left, attach to a live pickup on the same store/date/driver (the
-  // after-hours run) before falling back to a completed one.
-  const liveAnySlot = (allDeliveries || []).filter(d =>
-    d &&
-    d.store_id === storeId &&
-    d.delivery_date === deliveryDate &&
-    !d.patient_id &&
-    d.stop_id &&
-    !['completed', 'failed', 'cancelled'].includes(d.status) &&
-    (!driverId || String(d.driver_id) === String(driverId))
-  );
-  if (liveAnySlot.length) {
-    const liveEnRoute = liveAnySlot.find(d => d.status === 'en_route');
-    const chosen = liveEnRoute || liveAnySlot[0];
-    return chosen.stop_id || chosen.puid || null;
-  }
-  
+  const live = (d) => !['completed', 'failed', 'cancelled'].includes(d?.status);
+  const slotMatch = (d) => !timeSlot || d.ampm_deliveries === timeSlot;
+
+  // RULE 1 — an active en_route pickup, this slot first, then any slot on the route.
+  const enRoute = sameStore.find(d => d.status === 'en_route' && slotMatch(d))
+    || sameStore.find(d => d.status === 'en_route');
+  if (enRoute) return enRoute.stop_id || enRoute.puid || null;
+
+  // Any other live pickup (pending / in_transit / staged) — still this driver's run.
+  const otherLive = sameStore.find(d => live(d) && slotMatch(d)) || sameStore.find(live);
+  if (otherLive) return otherLive.stop_id || otherLive.puid || null;
+
+  // RULE 3/5 — completed pickups, only inside the window the owner allows.
   if (!includeCompleted) return null;
-  const completedPickup = matches.find(d => d.status === 'completed');
-  return completedPickup ? (completedPickup.stop_id || completedPickup.puid || null) : null;
+  const completed = sameStore
+    .filter(d => d.status === 'completed' && d.actual_delivery_time)
+    .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+  const usable = completedWithinMinutes == null
+    ? completed
+    : completed.filter(d => (Date.now() - new Date(d.actual_delivery_time).getTime()) < completedWithinMinutes * 60 * 1000);
+  const chosen = usable[0];
+  // RULE 4 — cancelled/failed pickups are excluded above, so nothing is returned
+  // and the caller creates a fresh pickup.
+  return chosen ? (chosen.stop_id || chosen.puid || null) : null;
 };
 
 /**

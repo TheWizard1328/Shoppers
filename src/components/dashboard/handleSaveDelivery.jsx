@@ -102,8 +102,8 @@ export async function handleSaveDelivery(deliveryData, ctx) {
           deliveryData.ampm_deliveries || 'AM',
           deliveries,
           deliveryData.driver_id,
-          // A pending stop must never be re-pointed at a finished pickup.
-          { includeCompleted: String(deliveryData.status || '').toLowerCase() !== 'pending' }
+          // Owner rule: a completed pickup is usable only within 90 minutes.
+          { completedWithinMinutes: 90 }
         );
         if (resolvedPickup) deliveryData.puid = resolvedPickup;
       }
