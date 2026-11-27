@@ -1029,6 +1029,37 @@ export async function generateRoutePolylines({
         }
       }
 
+      // OWNER REPORT (Nov 27 2026): a leg whose first point sits 30 m off its
+      // predecessor marker reads as if it starts from a DIFFERENT stop (e.g. a
+      // pending delivery parked next door at the same store). Snap both ends of
+      // every leg onto their real marker coordinates so the line visibly leaves
+      // the predecessor pin and lands on its own pin.
+      if (!_coLocatedInbound && typeof encoded === 'string' && encoded.length > 0) {
+        try {
+          const _snapAnchor = points[liveViaOnThisLeg ? 0 : Math.max(0, stopIdx - 1 - viaCount)];
+          const _saLat = Number(_snapAnchor?.lat), _saLon = Number(_snapAnchor?.lon);
+          const _sbLat = Number(stop.lat), _sbLon = Number(stop.lng);
+          const _snapPts = decodeGooglePolyline(encoded);
+          if (Array.isArray(_snapPts) && _snapPts.length >= 2) {
+            let _snapped = false;
+            const _lastIdx = _snapPts.length - 1;
+            if ([_saLat, _saLon].every(Number.isFinite)
+              && haversineKm(_saLat, _saLon, _snapPts[0][0], _snapPts[0][1]) <= 0.2) {
+              _snapPts[0] = [_saLat, _saLon];
+              _snapped = true;
+            }
+            if ([_sbLat, _sbLon].every(Number.isFinite)
+              && haversineKm(_sbLat, _sbLon, _snapPts[_lastIdx][0], _snapPts[_lastIdx][1]) <= 0.2) {
+              _snapPts[_lastIdx] = [_sbLat, _sbLon];
+              _snapped = true;
+            }
+            if (_snapped) encoded = encodeGooglePolyline(_snapPts);
+          }
+        } catch (_snapErr) {
+          console.warn(`[routePolylineGenerator] ${source} - endpoint snap skipped:`, _snapErr?.message || _snapErr);
+        }
+      }
+
       const _winterDurationMinutes = _winterPad(metricDuration, group.mode);
       polylineByDeliveryId.set(stop.delivery.id, {
         encodedPolyline: encoded,

@@ -559,15 +559,17 @@ export default function StatsPanel({
                   if (e.target.closest('[data-offline-sync-button]')) return;
                   // Mic toggle has its own handler — never a manual refresh
                   if (e.target.closest('[data-heydoc-toggle]')) return;
-                  const syncButton = document.querySelector('[data-offline-sync-button]');
+                  const syncButton = document.querySelector('[data-stats-card] [data-offline-sync-button]') || document.querySelector('[data-offline-sync-button]');
                   if (syncButton) syncButton.click();
                 }}>
               <h2 className="pl-2 text-lg font-bold text-body">Dashboard</h2>
 
-              {currentUser && <SmartRefreshIndicator inline={true} onManualRefresh={async () => {
-                  const syncButton = document.querySelector('[data-offline-sync-button]');
-                  if (syncButton) syncButton.click();
-                }} />}
+              {/* OWNER REPORT (Nov 27 2026): this used to pass onManualRefresh
+                  that re-clicked the SAME sync button, so handleManualRefresh
+                  returned immediately — the pill flashed green for ~0.4s and
+                  nothing refreshed. No custom handler now: the indicator's own
+                  pull-to-sync path does the real refresh. */}
+              {currentUser && <SmartRefreshIndicator inline={true} />}
 
               {currentUser && <div className="flex items-center gap-1.5 ml-0">
                 <ConnectionIndicator />
