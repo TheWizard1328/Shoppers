@@ -565,38 +565,40 @@ async function _performRouteOptimizationInner({
 
       optimizeData = engineResult;
 
-      // ── Step 1a2: LEG ANCHOR REPAIR (owner report Nov 27 2026) ─────────────
-      // A run that re-sequences the route can leave a stop holding a leg that is
-      // still anchored at the stop that USED to precede it (both the started stop
-      // and the old next stop drawing out of the last finished stop). The order
-      // stamp cannot catch it because the geometry anchor is what is wrong. Verify
-      // every active stop's inbound leg against its real predecessor and patch the
-      // writeBatch with a correct leg when it is off.
+      // ── Step 1a2: FULL ACTIVE-SET REPOLYLINE (owner rule Nov 27 2026) ──────
+      // No staleness guessing. After every successful optimization the WHOLE
+      // active set is re-drawn in one chain: most recent finished stop -> every
+      // sequenced active stop in stop_order, with the current stop's deviation
+      // points and the driver's live position (when he is not at a stop) folded
+      // in by the generator. The fresh legs replace the engine's output so the
+      // map always shows the route that was just sequenced.
       try {
-        const { repairMisAnchoredLegs } = await import('./legAnchorRepair');
-        const _repair = await repairMisAnchoredLegs({
+        const { repolylineActiveRoute } = await import('./repolylineActiveRoute');
+        const _reline = await repolylineActiveRoute({
           deliveries: resolvedDeliveries || [],
           writeBatch: optimizeData?.writeBatch || [],
           patients: resolvedPatients || [],
           stores: resolvedStores || [],
+          appUsers: resolvedAppUsers || [],
           hereApiKey,
           polylineProvider,
           polylineApiKey,
           driverId,
+          currentLocation,
           source,
         });
-        if (_repair.patches.size > 0) {
-          for (const [id, patch] of _repair.patches) {
+        if (_reline.patches.size > 0) {
+          for (const [id, patch] of _reline.patches) {
             const entry = (optimizeData.writeBatch || []).find((w) => w?.id === id);
             if (entry) entry.data = { ...(entry.data || {}), ...patch };
             else (optimizeData.writeBatch = optimizeData.writeBatch || []).push({ id, data: { ...patch } });
             const rec = (resolvedDeliveries || []).find((d) => d?.id === id);
             if (rec) Object.assign(rec, patch);
           }
-          console.log(`[RouteOptimization] ${source} — leg anchor repair: ${_repair.patches.size} leg(s) re-anchored (${_repair.checked} checked)`);
+          console.log(`[RouteOptimization] ${source} — full repolyline: ${_reline.patches.size} of ${_reline.stops} active stop(s) redrawn`);
         }
-      } catch (_anchorErr) {
-        console.warn(`[RouteOptimization] ${source} — leg anchor repair skipped:`, _anchorErr?.message || _anchorErr);
+      } catch (_relineErr) {
+        console.warn(`[RouteOptimization] ${source} — full repolyline skipped:`, _relineErr?.message || _relineErr);
       }
 
       // ── Step 1b: Recalculate tracking numbers into writeBatch (Accept All only) ─
