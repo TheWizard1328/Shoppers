@@ -572,6 +572,7 @@ async function _performRouteOptimizationInner({
       // points and the driver's live position (when he is not at a stop) folded
       // in by the generator. The fresh legs replace the engine's output so the
       // map always shows the route that was just sequenced.
+      let _relinePatches = null;
       try {
         const { repolylineActiveRoute } = await import('./repolylineActiveRoute');
         const _reline = await repolylineActiveRoute({
@@ -587,6 +588,7 @@ async function _performRouteOptimizationInner({
           currentLocation,
           source,
         });
+        _relinePatches = _reline.patches;
         if (_reline.patches.size > 0) {
           for (const [id, patch] of _reline.patches) {
             const entry = (optimizeData.writeBatch || []).find((w) => w?.id === id);
@@ -817,6 +819,31 @@ async function _performRouteOptimizationInner({
     // ── Step 3: Build fresh deliveries from engine write batch (no re-fetch needed) ──
     // Apply writeBatch onto the resolved local deliveries so caller gets up-to-date records instantly.
     const writeMap = new Map((optimizeData?.writeBatch || []).map(({ id, data }) => [id, data]));
+    // OWNER REPORT (Nov 27 2026): the freshly drawn legs kept losing to another
+    // writer. The server engine commits its own writeBatch in the same second as
+    // the client repolyline (and queued replays landed later), so stops kept legs
+    // from an older sequence — no line at all from Londonderry to the next stop.
+    // The sequential legs are now committed LAST, after the optimizer's own write
+    // has settled, so the map always ends up showing the chain just built.
+    let _legsCommit = Promise.resolve(false);
+    if (!skipServerWrite && _relinePatches && _relinePatches.size > 0) {
+      const _legUpdates = Array.from(_relinePatches.entries()).map(([id, data]) => ({ id, data }));
+      const _commitLegs = () => base44.functions
+        .invoke('bulkUpdateDeliveries', { updates: _legUpdates, silent: true })
+        .then(() => {
+          console.log(`[RouteOptimization] ${source} — sequential legs committed last: ${_legUpdates.length}`);
+          return true;
+        })
+        .catch((e) => {
+          console.warn(`[RouteOptimization] ${source} — sequential legs commit failed:`, e?.message || e);
+          return false;
+        });
+      _legsCommit = Promise.resolve(optimizationServerCommit)
+        .catch(() => false)
+        .then(_commitLegs);
+      if (awaitServerWrite) await _legsCommit;
+    }
+
     const freshDeliveries = (resolvedDeliveries || []).map(d => {
       const patch = writeMap.get(d.id);
       return patch ? { ...d, ...patch } : d;
