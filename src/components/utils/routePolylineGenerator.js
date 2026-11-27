@@ -1029,11 +1029,11 @@ export async function generateRoutePolylines({
         }
       }
 
-      // OWNER REPORT (Nov 27 2026): a leg whose first point sits 30 m off its
-      // predecessor marker reads as if it starts from a DIFFERENT stop (e.g. a
-      // pending delivery parked next door at the same store). Snap both ends of
-      // every leg onto their real marker coordinates so the line visibly leaves
-      // the predecessor pin and lands on its own pin.
+      // OWNER REPORT (Nov 27 2026, second pass): forcing the leg ends onto the
+      // marker coordinates drew a visible straight run from the road up to the
+      // pin on EVERY stop ("stops short then runs straight to the GPS point").
+      // The provider already ends at the road in front of the address; only
+      // sub-metre rounding gaps are closed here, nothing bigger.
       if (!_coLocatedInbound && typeof encoded === 'string' && encoded.length > 0) {
         try {
           const _snapAnchor = points[liveViaOnThisLeg ? 0 : Math.max(0, stopIdx - 1 - viaCount)];
@@ -1044,20 +1044,18 @@ export async function generateRoutePolylines({
             let _snapped = false;
             const _lastIdx = _snapPts.length - 1;
             if ([_saLat, _saLon].every(Number.isFinite)
-              && haversineKm(_saLat, _saLon, _snapPts[0][0], _snapPts[0][1]) <= 0.2) {
+              && haversineKm(_saLat, _saLon, _snapPts[0][0], _snapPts[0][1]) <= 0.005) {
               _snapPts[0] = [_saLat, _saLon];
               _snapped = true;
             }
             if ([_sbLat, _sbLon].every(Number.isFinite)
-              && haversineKm(_sbLat, _sbLon, _snapPts[_lastIdx][0], _snapPts[_lastIdx][1]) <= 0.2) {
+              && haversineKm(_sbLat, _sbLon, _snapPts[_lastIdx][0], _snapPts[_lastIdx][1]) <= 0.005) {
               _snapPts[_lastIdx] = [_sbLat, _sbLon];
               _snapped = true;
             }
             if (_snapped) encoded = encodeGooglePolyline(_snapPts);
           }
-        } catch (_snapErr) {
-          console.warn(`[routePolylineGenerator] ${source} - endpoint snap skipped:`, _snapErr?.message || _snapErr);
-        }
+        } catch (_snapErr) { /* geometry left as the provider returned it */ }
       }
 
       const _winterDurationMinutes = _winterPad(metricDuration, group.mode);
