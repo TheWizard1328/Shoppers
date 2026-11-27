@@ -18,6 +18,11 @@ const toWindowMinutes = (t) => {
   return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
 };
 
+// A pickup may run up to this many minutes ahead of its own start window and
+// keep the projected ETA; beyond it the window start is used (owner rule Nov 27
+// 2026).
+const PICKUP_ETA_EARLY_GRACE_MIN = 60;
+
 /** Parse 'YYYY-MM-DDTHH:MM(:SS)' or 'HH:MM' into minutes-past-midnight. */
 export const parseAnchorToMinutes = (anchorTime) => {
   if (!anchorTime) return null;
@@ -56,6 +61,14 @@ export const computeCascadeEtas = ({ anchorMinutes, stops, skipWindowFloor }) =>
       // ETA-ing the next stop at the patient's 18:00 through this fallback.
       const windowStartMin = toWindowMinutes(stop.delivery_time_start || '');
       if (windowStartMin != null && currentEtaMinutes < windowStartMin) {
+        currentEtaMinutes = windowStartMin;
+      }
+    } else if (!skipWindowFloor && isPickupStop && !pickupIsFirst) {
+      // PICKUP WITH STOPS AHEAD (owner rule Nov 27 2026): the real ETA stands,
+      // but only within one hour before its window start — a bigger early gap
+      // falls back to the window start.
+      const windowStartMin = toWindowMinutes(stop.delivery_time_start || '');
+      if (windowStartMin != null && currentEtaMinutes < windowStartMin - PICKUP_ETA_EARLY_GRACE_MIN) {
         currentEtaMinutes = windowStartMin;
       }
     }

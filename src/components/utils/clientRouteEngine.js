@@ -271,6 +271,10 @@ const snapWindow = (value) => {
   return formatMinutesToTime(Math.floor(m / WINDOW_SNAP_MIN) * WINDOW_SNAP_MIN);
 };
 const WINDOW_BAND_GRACE_MIN = 30;
+// A pickup may run up to this many minutes ahead of its own start window and
+// keep the optimizer's ETA; beyond it the window start is used (owner rule
+// Nov 27 2026).
+const PICKUP_ETA_EARLY_GRACE_MIN = 60;
 const enforceWindowBands = (stops, nowMin) => {
   if (!Array.isArray(stops) || stops.length < 2) return stops;
   const windowOf = (st) => {
@@ -3171,7 +3175,15 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     // start window. The floor only belongs on the first stop.
     const ws = parseTimeToMinutes(delivery.delivery_time_start || '');
     const pickupWithStopsAhead = isPickup && i > 0;
-    if (Number.isFinite(ws) && cumulativeTime < ws && !pickupWithStopsAhead) cumulativeTime = ws;
+    if (Number.isFinite(ws)) {
+      if (!pickupWithStopsAhead) {
+        if (cumulativeTime < ws) cumulativeTime = ws;
+      } else if (cumulativeTime < ws - PICKUP_ETA_EARLY_GRACE_MIN) {
+        // Only a LARGE early gap falls back to the window (owner rule Nov 27
+        // 2026): within the hour before the window the real ETA stands.
+        cumulativeTime = ws;
+      }
+    }
     etaMap.set(delivery.id, formatMinutesToTime(cumulativeTime));
     cumulativeTime += delivery.extra_time || (isPickup ? 15 : 5);
   }
