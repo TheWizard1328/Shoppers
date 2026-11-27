@@ -59,14 +59,40 @@ function readContainerBottom() {
   return window.innerHeight;
 }
 
+/**
+ * True while any stop card is still sliding in (stopCardEnter runs 0.3s on every
+ * remount, including a driver switch). Readings taken then are discarded so the
+ * hook keeps its last good value instead of locking in a mid-animation one.
+ */
+function cardsAreAnimating() {
+  try {
+    const shells = document.querySelectorAll('[id^="stop-card-"]');
+    for (const el of shells) {
+      const anims = el.getAnimations ? el.getAnimations({ subtree: true }) : [];
+      // Only FINITE running animations count (the 0.3s slide-in). Looping ones
+      // (pulses, spinners, ETA flashes) never end and must not block the anchor.
+      if (anims.some((a) => {
+        if (a.playState !== 'running') return false;
+        const t = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
+        return !t || Number.isFinite(t.endTime);
+      })) return true;
+    }
+    return false;
+  } catch { return false; }
+}
+
 function readPanelRect() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return null;
   try {
-    // OWNER CORRECTION (Nov 26 2026): "that fix actually moved them higher
-    // instead of lower towards the cards." The strip box is min-h-[70px], so its
-    // top edge can sit ABOVE the cards themselves — anchoring to it lifted the row
-    // away from the cards. Measure the real card tops instead: the row belongs
-    // 5px above the topmost visible stop card, which is the panel a driver sees.
+    // OWNER REPORT (Nov 26 2026): switching drivers dropped the whole row half
+    // behind the stop cards. A driver switch remounts the cards, which play
+    // stopCardEnter (translateY(20px) -> 0, 0.3s) while old and new cards briefly
+    // coexist, so reading a card's top mid-slide put the row ~20px+ too low and
+    // that value then got locked in. While any card is still animating (or the
+    // card set is mid-swap) report "settling" so the hook keeps its last good
+    // value; only a settled card top is ever trusted.
+    if (cardsAreAnimating()) return { settling: true };
+
     const cards = Array.from(document.querySelectorAll('[id^="stop-card-"]'))
       .map((el) => el.getBoundingClientRect())
       .filter((r) => r && r.height > 10 && r.width > 20 && r.top < window.innerHeight - 4);
@@ -76,8 +102,9 @@ function readPanelRect() {
       return { top, height: bottom - top, containerBottom: readContainerBottom() };
     }
 
-    // Fallbacks: the card strip, then the panel container.
-    const el = document.querySelector('[data-stop-cards-strip]') || document.querySelector('[data-stop-cards-panel]');
+    // The panel container's own box: its layout does not move while child cards
+    // run their translateY slide-in, so it is the stable anchor.
+    const el = document.querySelector('[data-stop-cards-panel]') || document.querySelector('[data-stop-cards-strip]');
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     if (!rect || rect.height < 10 || rect.width < 10) return null;
@@ -92,7 +119,7 @@ function readPanelRect() {
 
 export function measurePanelBottomPx(gapPx = 5) {
   const rect = readPanelRect();
-  if (!rect) return null;
+  if (!rect || rect.settling) return null;
   const px = Math.round(rect.containerBottom - rect.top + gapPx - CARD_VISIBLE_DROP_PX);
   return px > 0 ? px : null;
 }
@@ -126,8 +153,13 @@ export function usePanelBottomPx(fallbackPx = 0, gapPx = 5, collapsedHeightPx = 
       if (expandedRef.current) {
         // A card is open — hold the locked (collapsed) value, never ride up.
         next = lockedRef.current ?? fallbackPx;
+      } else if (rect && rect.settling) {
+        // Cards are sliding in (driver switch / reload): keep the last settled
+        // value; never lock a mid-animation reading. Re-check shortly after.
+        next = lockedRef.current ?? fallbackPx;
+        setTimeout(schedule, 120);
       } else if (!rect) {
-        next = fallbackPx;
+        next = lockedRef.current ?? fallbackPx;
       } else {
         const grown = collapsedHeightPx > 0 && rect.height > collapsedHeightPx + 12;
         if (grown) {
