@@ -17,15 +17,18 @@ export function AppFeeAllDriversDialog({
   calculateAppFeeAmount, totalMonthlyAppFees, appFeesPerDelivery,
   extraAppFeePercent, getDriverPayrollRecord
 }) {
+  const [drafts, setDrafts] = React.useState({});
   if (!open) return null;
+  const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const money2 = (n) => round2(n).toFixed(2);
 
   const handleSaveAndClose = async () => {
     try {
       for (const driver of driversWithDeliveries) {
         const rec = getDriverPayrollRecord(driver.driver.id);
         if (rec) await base44.entities.Payroll.update(rec.id, {
-          app_fee_percentage: driverEdits[driver.driver.id]?.appFeePercent || 0,
-          app_fee_amount: driverEdits[driver.driver.id]?.appFeeAmount || 0
+          app_fee_percentage: round2(driverEdits[driver.driver.id]?.appFeePercent || 0),
+          app_fee_amount: round2(driverEdits[driver.driver.id]?.appFeeAmount || 0)
         });
       }
       const settings = await getFreshAppSettingRows('refresh_intervals');
@@ -38,10 +41,12 @@ export function AppFeeAllDriversDialog({
 
   const handleDriverAmountChange = (driver, newAmount, isAppOwnerRow) => {
     const newPercent = amountToPercent(newAmount, totalMonthlyAppFees);
-    setDriverEdits((prev) => ({ ...prev, [driver.driver.id]: { ...prev[driver.driver.id], appFeePercent: newPercent, appFeeAmount: newAmount } }));
+    // OWNER REPORT (Nov 27 2026): entering $0 for the App Owner reverted to the
+    // old value. A typed amount is now flagged appFeeManual and the payroll
+    // sync never re-derives a manual row, so 0 sticks.
+    setDriverEdits((prev) => ({ ...prev, [driver.driver.id]: { ...prev[driver.driver.id], appFeePercent: newPercent, appFeeAmount: newAmount, appFeeManual: true } }));
     if (isAppOwnerRow) {
-      const sumAll = driversWithDeliveries.reduce((s, d) => d.driver.id === driver.driver.id ? s + newPercent : s + (driverEdits[d.driver.id]?.appFeePercent || 0), 0);
-      setOtherAppFeePercent(Math.round(Math.max(0, 100 - sumAll) * 100) / 100);
+      // A manual owner amount no longer pushes the rest onto "Other App Fee".
     } else {
       const sumNon = driversWithDeliveries.reduce((s, d) => d.driver.id === currentUser?.id ? s : d.driver.id === driver.driver.id ? s + newPercent : s + (driverEdits[d.driver.id]?.appFeePercent || 0), 0);
       const newOwnerPct = Math.max(0, 100 - sumNon - otherAppFeePercent);
@@ -59,13 +64,13 @@ export function AppFeeAllDriversDialog({
 
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="bg-surface border-surface">
+      <DialogContent className="bg-surface border-surface max-h-[92dvh] overflow-y-auto">
         <DialogHeader><DialogTitle className="text-body">Manage App Owner App Fee</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-slate-600 dark:text-slate-400">Configure app fees for operational costs.</p>
           <div className="mt-4">
             <h3 className="text-sm font-semibold mb-2 text-body">Driver App Fee Breakdown</h3>
-            <div className="border rounded border-surface" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+            <div className="border rounded border-surface" style={{ maxHeight: 'clamp(200px, calc(100dvh - 360px), 640px)', overflowY: 'auto' }}>
               <table className="w-full text-xs border-collapse">
                 <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
                   <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
@@ -88,9 +93,16 @@ export function AppFeeAllDriversDialog({
                         </td>
                         <td className="text-right px-1 py-1.5"><span className="text-[11px] font-medium">{pct.toFixed(2)}%</span></td>
                         <td className="text-right px-1 py-1.5">
-                          <input type="number" value={amt}
-                            onChange={(e) => handleDriverAmountChange(driver, parseFloat(e.target.value) || 0, isOwnerRow)}
-                            onBlur={(e) => setDriverEdits((prev) => ({ ...prev, [driver.driver.id]: { ...prev[driver.driver.id], appFeeAmount: Math.round((parseFloat(e.target.value) || 0) * 100) / 100 } }))}
+                          <input type="number" value={drafts[driver.driver.id] !== undefined ? drafts[driver.driver.id] : money2(amt)}
+                            onChange={(e) => {
+                              setDrafts((prev) => ({ ...prev, [driver.driver.id]: e.target.value }));
+                              handleDriverAmountChange(driver, parseFloat(e.target.value) || 0, isOwnerRow);
+                            }}
+                            onBlur={(e) => {
+                              const v = round2(e.target.value);
+                              setDrafts((prev) => ({ ...prev, [driver.driver.id]: v.toFixed(2) }));
+                              setDriverEdits((prev) => ({ ...prev, [driver.driver.id]: { ...prev[driver.driver.id], appFeeAmount: v, appFeeManual: true } }));
+                            }}
                             className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner" step="any" min="0" />
                         </td>
                       </tr>);
@@ -99,8 +111,9 @@ export function AppFeeAllDriversDialog({
                     <td className="px-2 py-1.5 text-left">Other App Fee</td>
                     <td className="text-right px-1 py-1.5"><span className="text-[11px] font-medium">{otherAppFeePercent.toFixed(2)}%</span></td>
                     <td className="text-right px-1 py-1.5">
-                      <input type="number" value={calculateAppFeeAmount('other-app-fee', otherAppFeePercent).toFixed(2)}
-                        onChange={(e) => handleOtherAmountChange(parseFloat(e.target.value) || 0)}
+                      <input type="number" value={drafts['__other__'] !== undefined ? drafts['__other__'] : calculateAppFeeAmount('other-app-fee', otherAppFeePercent).toFixed(2)}
+                        onChange={(e) => { setDrafts((prev) => ({ ...prev, __other__: e.target.value })); handleOtherAmountChange(parseFloat(e.target.value) || 0); }}
+                        onBlur={(e) => setDrafts((prev) => ({ ...prev, __other__: money2(e.target.value) }))}
                         className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner" step="0.01" min="0" />
                     </td>
                   </tr>
@@ -159,11 +172,15 @@ export function AppFeeSingleDriverDialog({
               <label className="text-xs font-semibold block mb-2 text-label">App Fee Amount</label>
               <div className="flex gap-1">
                 <span className="flex items-center text-slate-500 dark:text-slate-400">$</span>
-                <input type="number" value={driverEdits[driverId]?.appFeeAmount || 0}
+                <input type="number" value={Number(driverEdits[driverId]?.appFeeAmount || 0).toFixed(2)}
                   onChange={(e) => {
                     const amt = parseFloat(e.target.value) || 0;
                     const pct = amountToPercent(amt, totalMonthlyAppFees);
-                    setDriverEdits((prev) => ({ ...prev, [driverId]: { ...prev[driverId], appFeeAmount: amt, appFeePercent: pct } }));
+                    setDriverEdits((prev) => ({ ...prev, [driverId]: { ...prev[driverId], appFeeAmount: amt, appFeePercent: pct, appFeeManual: true } }));
+                  }}
+                  onBlur={(e) => {
+                    const amt = Math.round((parseFloat(e.target.value) || 0) * 100) / 100;
+                    setDriverEdits((prev) => ({ ...prev, [driverId]: { ...prev[driverId], appFeeAmount: amt, appFeePercent: amountToPercent(amt, totalMonthlyAppFees), appFeeManual: true } }));
                   }}
                   placeholder="0.00" className="flex-1 px-2 py-1 text-sm border rounded" step="0.01" min="0" />
               </div>

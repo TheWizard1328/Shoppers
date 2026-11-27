@@ -1089,7 +1089,8 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const calculateAppFeeAmount = useCallback((driverId, appFeePercent) => {
     if (!currentPeriod || appFeePercent <= 0) return 0;
     const sum = appFeeAllocPercentSum > 0 ? appFeeAllocPercentSum : appFeePercent;
-    return monthlyAppFeeBaseTotal * appFeePercent / sum;
+    // Every fee is money: always land on 2 decimals.
+    return Math.round((monthlyAppFeeBaseTotal * appFeePercent / sum) * 100) / 100;
   }, [currentPeriod, monthlyAppFeeBaseTotal, appFeeAllocPercentSum]);
 
   // ── Owner Oct 24 2026: persist the live month-end App Fee to draft records ──
@@ -1191,10 +1192,24 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []), 0);
   const grandTotalBonus = driversWithDeliveries.reduce((sum, d) => sum + (Number(driverEdits[d.driver.id]?.bonusPay) || 0), 0);
-  const totalDriverAppFeesPaid = driversWithDeliveries.reduce((sum, d) => sum + (isPeriodEndOfMonth ? Number(driverEdits[d.driver.id]?.appFeeAmount) || Number(getDriverPayrollRecord(d.driver.id)?.app_fee_amount) || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0) : 0), 0);
+  // A manually typed fee is used verbatim (an explicit $0 must not fall through
+  // to the saved amount or the derived split).
+  const manualFeeFor = (id) => {
+    const e = driverEdits[id];
+    if (e?.appFeeManual !== true) return null;
+    return Number(e?.appFeeAmount) || 0;
+  };
+  const totalDriverAppFeesPaid = driversWithDeliveries.reduce((sum, d) => {
+    if (!isPeriodEndOfMonth) return sum;
+    const manual = manualFeeFor(d.driver.id);
+    const fee = manual != null
+      ? manual
+      : (Number(driverEdits[d.driver.id]?.appFeeAmount) || Number(getDriverPayrollRecord(d.driver.id)?.app_fee_amount) || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0));
+    return sum + fee;
+  }, 0);
   const grandTotalAppFee = isPeriodEndOfMonth ? Math.max(0, monthlyAppFeeBaseTotal - totalDriverAppFeesPaid) : 0;
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
-  const grandTotalNet = driversWithDeliveries.reduce((sum, d) => sum + ((d.grandTotal || 0) + (d.taxAmount || 0) - sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []) + (Number(driverEdits[d.driver.id]?.bonusPay) || 0) + (isPeriodEndOfMonth ? driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0) : 0)), 0);
+  const grandTotalNet = driversWithDeliveries.reduce((sum, d) => sum + ((d.grandTotal || 0) + (d.taxAmount || 0) - sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []) + (Number(driverEdits[d.driver.id]?.bonusPay) || 0) + (isPeriodEndOfMonth ? (manualFeeFor(d.driver.id) ?? (driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0))) : 0)), 0);
 
   const sumAllDriversAppFeePercent = useMemo(() => driversWithDeliveries.reduce((sum, d) => d.driver.id === currentUser?.id && isAppOwner(currentUser) ? sum : sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0), [driversWithDeliveries, driverEdits, currentUser]);
   const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
@@ -1287,7 +1302,10 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           ...applyRecurringOverrides(data.deductionsArray || [], pr?.deductions),
           ...(pr?.deductions || []).filter((d) => d?.is_one_time)]),
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
-          appFeePercent: autoFillFees ? savedPercentByDriver[k] || 0 : pr?.app_fee_percentage ?? 0,
+          // A row the owner typed into by hand is never re-derived here, so a
+          // deliberate $0 (or any custom amount) survives every sync.
+          appFeePercent: prev[k]?.appFeeManual === true ? (Number(prev[k]?.appFeePercent) || 0) : autoFillFees ? savedPercentByDriver[k] || 0 : pr?.app_fee_percentage ?? 0,
+          appFeeManual: prev[k]?.appFeeManual === true,
           // OWNER REPORT (Nov 26 2026): "something is stopping the drivers App
           // Fees fields from updating during the page load and syncs" — the
           // stored app_fee_amount was preferred, so a fee persisted with the
@@ -1295,6 +1313,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           // every load and the normalized split never showed. At month end the
           // field is always re-derived from the percentage.
           appFeeAmount: (() => {
+            if (prev[k]?.appFeeManual === true) return Number(prev[k]?.appFeeAmount) || 0;
             const calc = autoFillFees && savedPercentByDriver[k] > 0 ? calculateAppFeeAmount(k, savedPercentByDriver[k]) : 0;
             // OWNER REPORT (Nov 26 2026): Jan-Sept fees showed, then dropped to
             // $0. Those months carry a saved fee but no month pool loaded yet,
