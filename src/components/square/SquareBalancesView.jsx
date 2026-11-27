@@ -1801,12 +1801,31 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const ntRows = await readDeliveries({ id: { $in: notTappedIds.slice(0, 200) } }, 'not-tapped');
         if (ntRows !== null) collect(ntRows || []);
       }
+      // ONE REFUNDED CARD PER REFUNDED COD (owner report Nov 27 2026: Paul's
+      // $50.75 Bonnie Doon COD showed TWO Refunded cards after it was marked
+      // refunded twice — once on the failed original and once on its retry).
+      // Same patient + same amount + same store renders ONCE, earliest created.
+      const refundTwinEarliest = new Map();
+      for (const d of deliveryList) {
+        if (d?.status !== 'failed' || !String(d?.cod_refunded_at || '')) continue;
+        const req0 = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
+        if (req0 <= 0) continue;
+        const k0 = `${d?.patient_id || ''}|${req0}|${d?.store_id || ''}`;
+        const t0 = d?.created_date ? new Date(d.created_date).getTime() : 0;
+        const prev = refundTwinEarliest.get(k0);
+        if (!prev || t0 < prev.t) refundTwinEarliest.set(k0, { t: t0, id: String(d.id) });
+      }
       for (const d of deliveryList) {
         // OWNER REPORT (Nov 24 2026, Scona Nov 23 $112.51): a FAILED COD that was swiped
         // and then refunded belongs in Collected with a Refunded badge. It was excluded
         // here by the completed-only gate, so the row showed nowhere at all.
         const earlyRefundAt = String(d?.cod_refunded_at || '');
         if (d?.status !== 'completed' && !(d?.status === 'failed' && earlyRefundAt)) continue;
+        if (d?.status === 'failed' && earlyRefundAt) {
+          const req0 = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
+          const twin = refundTwinEarliest.get(`${d?.patient_id || ''}|${req0}|${d?.store_id || ''}`);
+          if (twin && twin.id !== String(d.id)) continue;
+        }
         const doneAt = String(d.actual_delivery_time || '');
         // OWNER SPEC (Oct 19 2026): a PAST-dated delivery whose COD was
         // collected TODAY still belongs in "Collected today" — retro/backdated
@@ -1904,7 +1923,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
           refunded: !!refundedAt,
           // Debit/Credit payments ARE card money by definition in the
           // delivery-data model — the sky "Card Spend" pill marks them.
-          hasCardSpend: isCard,
+          // A REFUNDED COD WAS ON THE CARD (owner report Nov 27 2026): the row
+          // lost its spend badge and fell through to "Mark Spend", which is not
+          // a state a refunded row can be in. It keeps the Card Spend pill (and
+          // the Not Tapped / Driver Tapped mark when one is set) and stays
+          // tappable.
+          hasCardSpend: isCard || !!refundedAt,
           manualCardSpend: !!(mark?.touchedAt || mark?.at),
           // OWNER RULE (Nov 3 2026): the Card Spend pill on a COLLECTED row is
           // a toggle again (tap => Not Tapped) and a Not Tapped mark NEVER

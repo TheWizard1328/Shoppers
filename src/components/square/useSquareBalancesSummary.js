@@ -742,11 +742,27 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
       loadFailedRefundEntries(cfg, userId).catch(() => []),
       loadFailedRefundMarksMap().catch(() => ({}))
     ]);
+    // DEDUPE A REFUNDED FAILED PAIR (owner report Nov 27 2026: Paul's $50.75
+    // failed COD was refunded on BOTH the original and its retry, so the card
+    // was credited twice and two Refunded cards showed). Same patient + same
+    // amount + same store counts ONCE, on the EARLIEST created row.
+    const refundTwinEarliest = new Map();
+    for (const d of (deliveriesWithStatus(allDeliveries, 'failed') || [])) {
+      const req0 = Number(d?.cod_total_amount_required || 0);
+      if (req0 <= 0 || !d?.id) continue;
+      const k0 = `${d?.patient_id || ''}|${Math.round(req0 * 100)}|${d?.store_id || ''}`;
+      const t0 = d?.created_date ? new Date(d.created_date).getTime() : 0;
+      const prev = refundTwinEarliest.get(k0);
+      if (!prev || t0 < prev.t) refundTwinEarliest.set(k0, { t: t0, id: String(d.id) });
+    }
     for (const d of (deliveriesWithStatus(allDeliveries, 'failed') || [])) {
       const required = Number(d?.cod_total_amount_required || 0);
       if (required <= 0 || d?.cod_confirmed_collected || !d?.id) continue;
       const locId = storeToLoc.get(String(d?.store_id || ''));
       if (!locId) continue;
+      const _twinKey = `${d?.patient_id || ''}|${Math.round(required * 100)}|${d?.store_id || ''}`;
+      const _twin = refundTwinEarliest.get(_twinKey);
+      if (_twin && _twin.id !== String(d.id)) continue; // a twin already owns this refund
       // TRUE-UP WINDOW (owner report Nov 24 2026: Callingwood read $127.49 instead of
       // $114.09). Without a window this pass re-credited EVERY old manual mark on every
       // load - the Oct 14 Scona $13.40 failed COD marked refunded Oct 15 was the exact
@@ -1524,6 +1540,12 @@ export async function computeCodOutstandingDetailed(cfgArg, userId = null) {
         // The money side of a refunded failed COD is credited in loadDeliveryCardCredits
         // (the credits aggregation). This pass only builds the Uncollected lists, so it
         // must not try to credit anything here (w323 did, and nothing moved).
+        // OWNER REPORT (Nov 27 2026, Paul's $50.75 Bonnie Doon COD): marking a
+        // failed COD refunded stamped the DELIVERY, but this pass only looked at
+        // the AppSettings marks and the ledger, so a throttled marks read left
+        // the failed card sitting in Uncollected next to the new Refunded card.
+        // The delivery's own stamp is authoritative now.
+        if (String(d?.cod_refunded_at || '')) continue;
         const manualRefund = !!manualRefundMarks[String(d.id)];
         const autoRefundNow = !manualRefund && isFailedCodRefunded(item, refundRows, (sid) => storeToLoc.get(String(sid || '')));
         if (manualRefund) continue; // manual mark — no alert (owner did it himself)
