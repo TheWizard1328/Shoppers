@@ -76,10 +76,12 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
   // is the stored stop_order of the row that now leads the route; every following
   // row counts up from it. Falls back to the caller's base when the leading row
   // has no stored number yet.
+  // Nov 27 2026 (re-applied after a revert): base is the LOWEST stored order in
+  // the list, so a stop that moved to the front never drags the numbering up.
   const _baseOrder = (() => {
-    const lead = sorted[0];
-    const leadOld = Number(lead?.oldStopOrder);
-    return Number.isFinite(leadOld) && leadOld > 0 ? leadOld : orderBase;
+    const olds = rows.map((r) => Number(r?.oldStopOrder)).filter((n) => Number.isFinite(n) && n > 0);
+    if (olds.length) return Math.min(...olds);
+    return orderBase;
   })();
 
   // Mobile: center in the space between the top header (~56px) and bottom nav (~64px)
@@ -243,7 +245,7 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
 
                   {/* New stop order */}
                   <div className="text-center font-mono font-bold" style={{ color: accent.emeraldText }}>
-                    {isLoading ? <span style={{ color: accent.dimText }}>…</span> : (idx + 1)}
+                    {isLoading ? <span style={{ color: accent.dimText }}>…</span> : (_baseOrder + idx)}
                   </div>
                 </div>
               );

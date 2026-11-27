@@ -83,14 +83,27 @@ export async function repolylineActiveRoute({
     if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) liveVia = { lat, lon: lng };
   }
 
+  // OWNER RULE (Nov 24 + Nov 27 2026): a PENDING stop is never a polyline leg and
+  // never an anchor. The chain is finished origin -> en_route/in_transit stops in
+  // stop_order. Pending stops keep no leg (their geometry is cleared below), so
+  // stop #29 / #31 can no longer be drawn from a pending neighbour.
+  const _isPendingStatus = (d) => String(d?.status || '').toLowerCase() === 'pending';
+  const _pendingToClear = active.filter(_isPendingStatus);
   const chain = active
+    .filter((d) => !_isPendingStatus(d))
     .map((d) => {
       const c = coordsOf(d);
       if (!c) return null;
       return { delivery: d, lat: Number(c.lat), lng: Number(c.lon ?? c.lng) };
     })
     .filter(Boolean);
-  if (chain.length === 0) return out;
+  // Pending stops carry no leg: wipe any stale geometry they still hold.
+  _pendingToClear.forEach((d) => {
+    if (d.encoded_polyline || d.polyline_from_order != null) {
+      patches.set(d.id, { encoded_polyline: null, polyline_from_order: null });
+    }
+  });
+  if (chain.length === 0) { out.legs = patches.size; return out; }
 
   try {
     // OWNER INSTRUCTION (Nov 27 2026): "just build the polylines from the origin
