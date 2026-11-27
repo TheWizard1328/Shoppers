@@ -45,6 +45,8 @@ const emit = () => {
 const MAGNETIC_DECLINATION_DEG = 12.5;
 
 let debug = null;
+let smoothed = null;
+let lastAbsoluteAt = 0;
 const diag = { firstAt: 0, lastAt: 0 };
 
 /** Current screen rotation in degrees (0 portrait, 90/270 landscape). */
@@ -84,7 +86,11 @@ function tiltCompensatedHeading(alpha, beta, gamma) {
   const cZ = Math.cos(z), sZ = Math.sin(z);
   const vx = -cZ * sY - sZ * sX * cY;
   const vy = -sZ * sY + cZ * sX * cY;
-  if (!Number.isFinite(vx) || !Number.isFinite(vy) || (vx === 0 && vy === 0)) return null;
+  // Near flat (screen up) or fully upright the horizontal projection of the
+  // reference axis collapses to ~0 and the angle becomes pure noise, which made
+  // the needle spin. Refuse those readings and let the caller use plain alpha.
+  if (!Number.isFinite(vx) || !Number.isFinite(vy)) return null;
+  if (Math.hypot(vx, vy) < 0.2) return null;
   let h = Math.atan(vx / vy);
   if (vy < 0) h += Math.PI;
   else if (vx < 0) h += 2 * Math.PI;
@@ -105,20 +111,32 @@ function handleOrientation(e) {
     raw = h;
   } else if (e.alpha != null) {
     const absolute = e.absolute === true || e.type === 'deviceorientationabsolute';
+    if (absolute) lastAbsoluteAt = Date.now();
+    // OWNER REPORT (Nov 26 2026): the needle spun in circles. Chrome fires BOTH
+    // `deviceorientationabsolute` (magnetic reference, stable) and a RELATIVE
+    // `deviceorientation` (arbitrary zero) on the same page, so alternating
+    // readings threw the needle between two frames. An absolute reading always
+    // wins; relative is only used when nothing absolute has arrived for 2s.
+    if (!absolute && Date.now() - lastAbsoluteAt < 2000) return;
     raw = 360 - Number(e.alpha);
     const tilt = tiltCompensatedHeading(e.alpha, e.beta, e.gamma);
     h = normalize((tilt == null ? raw : tilt) + MAGNETIC_DECLINATION_DEG);
-    // OWNER REPORT (Nov 26 2026): the red tip pointed along the direction of
-    // travel, i.e. the needle sat at 0 deg. That is the map-bearing fallback
-    // (north-up map = bearing 0), so no absolute event was reaching us. Some
-    // Android builds only deliver RELATIVE `deviceorientation`; using it is far
-    // better than a needle that lies, but it is labelled so the UI can dim it.
     source = absolute ? 'android' : 'relative';
   }
   if (h == null || !Number.isFinite(Number(h))) return;
   const angle = screenAngle();
   // The needle is drawn in screen space, so remove the screen's own rotation.
-  heading = normalize(h - angle);
+  const next = normalize(h - angle);
+  // Low-pass on the circle: magnetometer noise of a degree or two otherwise
+  // reads as a shivering needle. A 3 deg deadband keeps it perfectly still when
+  // the phone is not moving, and 0.35 easing settles a real turn in ~0.3s.
+  if (smoothed == null) {
+    smoothed = next;
+  } else {
+    const delta = ((next - smoothed + 540) % 360) - 180;
+    if (Math.abs(delta) > 3) smoothed = normalize(smoothed + delta * 0.35);
+  }
+  heading = smoothed;
   debug = { source, alpha: e.alpha, beta: e.beta, gamma: e.gamma, raw, magneticPlusDeclination: h, screenAngle: angle, heading };
   lastEventAt = Date.now();
   // Diagnostics: the first event, then one heartbeat a minute, so the app log
