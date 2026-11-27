@@ -78,13 +78,14 @@ async function hasPendingAppUserMutations() {
  * Full mirror: clear the local app_users store and rewrite it from the server.
  * Refuses while this device still has unsynced AppUser mutations queued.
  */
-export async function runAppUserMirror({ reason = 'boot' } = {}) {
-  if (await hasPendingAppUserMutations()) return { skipped: 'pending-appuser-mutations' };
+export async function runAppUserMirror({ reason = 'boot', ignorePending = false } = {}) {
+  if (!ignorePending && await hasPendingAppUserMutations()) return { skipped: 'pending-appuser-mutations' };
 
   let users = null;
   try {
     users = await base44.entities.AppUser.list();
-  } catch {
+  } catch (err) {
+    console.warn('[AppUserMirror] server read failed:', err?.message || err);
     return { skipped: 'fetch-failed' };
   }
   if (!Array.isArray(users) || users.length === 0) return { skipped: 'no-server-rows' };
@@ -122,4 +123,42 @@ export async function maybeRunAppUserMirror() {
   if (!serverVersion) return { skipped: 'no-stamp' };
   if (serverVersion <= getLocalMirrorVersion()) return { skipped: 'up-to-date' };
   return runAppUserMirror({ reason: 'stamp' });
+}
+
+/**
+ * REPAIR A DEVICE WHOSE AppUser ROWS NO LONGER DECRYPT (owner report Nov 27 2026,
+ * londonderry.shoppers warned "28 AppUser rows unreadable (PHI decrypt)" every
+ * 12 minutes for a day). The poller's heal+mirror chain swallowed every failure,
+ * so nobody could see WHY it kept repeating. This does the same work, reports the
+ * outcome, and retries once with the pending-mutation guard relaxed when the
+ * first pass bailed — a store tablet has no unsynced AppUser edits worth losing
+ * against a roster that cannot be read at all.
+ */
+export async function repairUnreadableAppUsers({ reason = 'unreadable-appusers' } = {}) {
+  let healed = 0;
+  try {
+    const m = await import('./idbCrypto');
+    healed = await m.healUndecryptableStore('app_users');
+  } catch (err) {
+    console.warn('[AppUserMirror] heal failed:', err?.message || err);
+  }
+  let result = await runAppUserMirror({ reason });
+  if (result?.skipped) {
+    const relaxed = await runAppUserMirror({ reason: `${reason}:forced`, ignorePending: true });
+    result = { ...relaxed, firstSkip: result.skipped };
+  }
+  // Verify: if the store still holds unusable rows the repair did not take.
+  let remaining = null;
+  try {
+    const { offlineDB } = await import('./offlineDatabase');
+    const rows = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    remaining = (rows || []).filter((u) => !isValidAppUser(u)).length;
+  } catch { /* count is best-effort */ }
+  const summary = { healed, remaining, ...(result || {}) };
+  if (result?.mirrored) {
+    console.log(`[AppUserMirror] repair ${reason}: healed ${healed}, mirrored ${result.mirrored}, unusable left ${remaining}`);
+  } else {
+    console.warn(`[AppUserMirror] repair ${reason} did NOT mirror (${result?.skipped || 'unknown'}); unusable left ${remaining}`);
+  }
+  return summary;
 }

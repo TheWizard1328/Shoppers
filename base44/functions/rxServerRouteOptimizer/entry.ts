@@ -1353,7 +1353,7 @@ Deno.serve(async (req) => {
     // winter pad -> crow-flies at the mode speed -> 5), the same window floor
     // fields, the same pickup floor before the route starts, and the same
     // dwell. A stored estimated_duration_minutes is never used again.
-    const _etaStops = orderedStops.map((stop) => ({
+    const _etaStops = orderedStops.map((stop, _idx) => ({
       id: String(stop.id),
       // OWNER RULE (Nov 24 2026, client parity): a PENDING stop is floored by its
       // pickup's ETA, never by its own window start. Its pickup precedes it in this
@@ -1366,7 +1366,12 @@ Deno.serve(async (req) => {
           deliveryTimeStart: stop.deliveryTimeStart,
           timeWindowStart: stop.timeWindowStart,
         }),
+      // PICKUP ETA RULE (owner rule Nov 27 2026): a pickup with NOTHING before it
+      // is pinned to its delivery start window; a pickup WITH stops ahead keeps
+      // the optimizer's real ETA within one hour before the window and only
+      // falls back to the window start beyond that.
       pickupFloorMinutes: (!routeInProgress && stop.isPickup) ? parseTimeToMinutes(stop.deliveryTimeStart) : null,
+      pickupFloorGraceMinutes: (!routeInProgress && stop.isPickup && _idx > 0) ? 60 : 0,
       dwellMinutes: sharedDwellMinutes({ extraTime: stop.extraTime, isPickup: !!stop.isPickup }),
     }));
 

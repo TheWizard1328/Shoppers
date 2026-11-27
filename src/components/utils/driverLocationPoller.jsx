@@ -128,12 +128,14 @@ class DriverLocationPoller {
            // so rows encrypted under a key this device no longer has were re-read
            // and re-warned about every cycle and the count never dropped. Purge
            // exactly those undecryptable rows, then let the mirror rewrite them.
-           import('./idbCrypto')
-             .then((m) => m.healUndecryptableStore('app_users'))
-             .catch(() => 0)
-             .then(() => import('./appUserMirror'))
-             .then((m) => m.runAppUserMirror({ reason: 'unreadable-appusers' }))
-             .catch(() => {});
+           // REPAIR WITH A RESULT (owner report Nov 27 2026, londonderry.shoppers:
+           // "28 AppUser rows unreadable (PHI decrypt)" every 12 minutes for a
+           // day). The old chain swallowed every failure, so the repeat had no
+           // cause in the log. repairUnreadableAppUsers heals, mirrors, retries
+           // with the guard relaxed and reports what is left.
+           import('./appUserMirror')
+             .then((m) => m.repairUnreadableAppUsers({ reason: 'unreadable-appusers' }))
+             .catch((err) => console.warn('[DriverLocationPoller] AppUser repair failed:', err?.message || err));
          }
        } catch (_) {}
      }

@@ -2321,7 +2321,7 @@ let _inheritedWindowCount = 0;
       if (candidates.length === 0) return undefined;
       return Math.max(...candidates);
     };
-    const _etaStops = routeStops.map((stop) => {
+    const _etaStops = routeStops.map((stop, _etaIdx) => {
       const d = stop.delivery || {};
       const pickupNotStarted = !!isFutureRoute && !routeOfficiallyStarted && !!stop.isPickup;
       // OWNER RULE (Nov 24 2026, final): a PENDING stop is floored by its pickup's
@@ -2351,6 +2351,9 @@ let _inheritedWindowCount = 0;
           timeWindowStart: String(d.delivery_time_start || '').trim() ? d.time_window_start : null,
         }),
         pickupFloorMinutes: pickupNotStarted ? sharedParseTimeToMinutes(d.delivery_time_start) : null,
+        // Same 60-minute grace as the server: a pickup with stops ahead keeps its
+        // real ETA unless it is more than an hour before its window.
+        pickupFloorGraceMinutes: pickupNotStarted && _etaIdx > 0 ? 60 : 0,
         dwellMinutes: sharedDwellMinutes({ extraTime: d.extra_time, isPickup: !!stop.isPickup }),
       };
     });

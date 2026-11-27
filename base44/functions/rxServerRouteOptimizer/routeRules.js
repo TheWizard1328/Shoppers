@@ -1275,7 +1275,19 @@ export function buildEtaChain({
     const floor = Number(stop.windowFloorMinutes);
     if (Number.isFinite(floor) && floor > 0 && clock < floor) clock = floor;
     const pickupFloor = Number(stop.pickupFloorMinutes);
-    if (Number.isFinite(pickupFloor) && pickupFloor > 0 && clock < pickupFloor) clock = pickupFloor;
+    if (Number.isFinite(pickupFloor) && pickupFloor > 0) {
+      // OWNER RULE (Nov 27 2026): a pickup that has stops ahead of it may run
+      // EARLY against its own start window — the real ETA stands while it is
+      // within `pickupFloorGraceMinutes` (60) of the window, and only a bigger
+      // early gap falls back to the window start. A pickup with nothing before
+      // it passes no grace and is pinned to the window exactly.
+      const grace = Number(stop.pickupFloorGraceMinutes);
+      if (Number.isFinite(grace) && grace > 0) {
+        if (clock < pickupFloor - grace) clock = pickupFloor;
+      } else if (clock < pickupFloor) {
+        clock = pickupFloor;
+      }
+    }
     rows.push({
       id: stop.id,
       minutes: Math.round(clock),
