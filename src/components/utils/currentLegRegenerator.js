@@ -34,6 +34,7 @@ import { resolvePolylineOrigin } from './polylineOriginRules';
 import { haversineKm } from './geoUtils';
 import { generateRoutePolylines, decodeGooglePolyline } from './routePolylineGenerator';
 import { getDeliveryCoords, getLatestFinishedDelivery } from './clientRouteEngine';
+import { polylineEndPoint } from '../../../base44/functions/rxServerRouteOptimizer/routeRules.js';
 import { getOrFetchRoutingKey } from './routingKeyStore';
 import { getOrFetchHereApiKey } from './hereApiKeyStore';
 import { getOrFetchPolylineConfig } from './polylineKeyStore';
@@ -173,9 +174,28 @@ async function _regenCurrentLegPolylineInner({
   // OWNER REPORT (Oct 28 2026): this path could pick a finished stop that sits
   // AT the next stop's own location, producing stop -> vias -> stop round
   // trips. resolvePolylineOrigin skips any finished stop at the destination.
+  // OWNER REPORT (Nov 27 2026, Shirley Myers): the current leg was drawn from the
+  // CYCLING START MARKER through the Collingwood pickup to her stop, although the
+  // pickup was the stop he had just finished. resolvePolylineOrigin sorts finished
+  // stops by TIME and takes the newest, so the pickup WAS first in line — but its
+  // coordinates only resolved through `storeMap`, which does not always carry the
+  // pickup's store here, so it was skipped and the next-newest finished stop (the
+  // marker) became the origin. A finished stop always knows where it ended: its
+  // own stored polyline end is the origin of record. Same hardening the engine got
+  // on Nov 20 (pickPolylineOrigin's polylineEndPoint fallback).
+  const _resolveOriginCoords = (d) => {
+    const direct = getDeliveryCoords(d, patientMap, storeMap);
+    if (direct) return direct;
+    const fromPoly = polylineEndPoint(d);
+    if (fromPoly) {
+      console.debug(`[currentLegRegenerator] origin coords for ${String(d?.id || '').slice(0, 8)} came from its own polyline end (store/patient lookup missed)`);
+      return { lat: Number(fromPoly.lat), lng: Number(fromPoly.lng) };
+    }
+    return null;
+  };
   const _pick = resolvePolylineOrigin({
     finishedDeliveries: deliveries,
-    resolveCoords: (d) => getDeliveryCoords(d, patientMap, storeMap),
+    resolveCoords: _resolveOriginCoords,
     homePosition: (driverAppUser?.home_latitude != null && driverAppUser?.home_longitude != null)
       ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) } : null,
     firstTargetCoords: { lat: Number(stopCoords.lat), lon: Number(stopCoords.lng) },
