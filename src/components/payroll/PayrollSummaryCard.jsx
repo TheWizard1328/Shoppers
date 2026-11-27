@@ -591,6 +591,17 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
       }
 
       const driverData = payrollData.find((d) => d.driver.id === driverId);
+      // OWNER REPORT (Nov 27 2026): Net 2940.67 − Paid 2140.20 showed Underpaid
+      // 800.47 on the card but the note said "Still Owed: 571.47". The note was
+      // subtracting the STORED app_fee_amount (a stale pool value) while the
+      // card shows the live, normalized month fee. One number for both now.
+      const liveAppFee = (() => {
+        const editAmt = Number(driverEdits[driverId]?.appFeeAmount);
+        if (Number.isFinite(editAmt) && editAmt > 0) return editAmt;
+        const calc = calculateAppFeeAmount(driverId, driverEdits[driverId]?.appFeePercent || 0);
+        if (Number.isFinite(calc) && calc > 0) return calc;
+        return Number(existingRecord.app_fee_amount) || 0;
+      })();
       let recalculatedUpdates = { ...updates };
       if (updates.deductions !== undefined || updates.bonus_pay !== undefined) {
         const newDed = updates.total_deductions !== undefined ? updates.total_deductions : existingRecord.total_deductions || 0;
@@ -601,8 +612,7 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           (driverData?.grandTotal ?? existingRecord.gross_pay ?? 0) + (
           driverData?.taxAmount || 0) -
           newDed +
-          newBonus + (
-          existingRecord.app_fee_amount || 0)
+          newBonus + liveAppFee
         );
       }
 
@@ -614,11 +624,13 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         const owedNet = recalculatedUpdates.net_pay != null
           ? recalculatedUpdates.net_pay
           : getPeriodNetAmount({
+              // Mirror the card's own Net line exactly (live edits first, then
+              // the stored record) so the note can never disagree with it.
               grandTotal: driverData?.grandTotal ?? existingRecord.gross_pay ?? 0,
               taxAmount: driverData?.taxAmount ?? existingRecord.tax_amount ?? 0,
-              bonusPay: existingRecord.bonus_pay || 0,
-              deductions: existingRecord.deductions || driverData?.deductionsArray || [],
-              appFeeAmount: existingRecord.app_fee_amount || 0,
+              bonusPay: Number(driverEdits[driverId]?.bonusPay) || existingRecord.bonus_pay || 0,
+              deductions: driverEdits[driverId]?.deductions || existingRecord.deductions || driverData?.deductionsArray || [],
+              appFeeAmount: isPeriodEndOfMonth ? liveAppFee : 0,
             });
         const owedResult = applyStillOwedToNotes(existingRecord.driver_notes, owedNet, updates.paid_amount);
         if (owedResult.changed) recalculatedUpdates.driver_notes = owedResult.notes;
