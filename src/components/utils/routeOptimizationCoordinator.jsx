@@ -565,6 +565,40 @@ async function _performRouteOptimizationInner({
 
       optimizeData = engineResult;
 
+      // ── Step 1a2: LEG ANCHOR REPAIR (owner report Nov 27 2026) ─────────────
+      // A run that re-sequences the route can leave a stop holding a leg that is
+      // still anchored at the stop that USED to precede it (both the started stop
+      // and the old next stop drawing out of the last finished stop). The order
+      // stamp cannot catch it because the geometry anchor is what is wrong. Verify
+      // every active stop's inbound leg against its real predecessor and patch the
+      // writeBatch with a correct leg when it is off.
+      try {
+        const { repairMisAnchoredLegs } = await import('./legAnchorRepair');
+        const _repair = await repairMisAnchoredLegs({
+          deliveries: resolvedDeliveries || [],
+          writeBatch: optimizeData?.writeBatch || [],
+          patients: resolvedPatients || [],
+          stores: resolvedStores || [],
+          hereApiKey,
+          polylineProvider,
+          polylineApiKey,
+          driverId,
+          source,
+        });
+        if (_repair.patches.size > 0) {
+          for (const [id, patch] of _repair.patches) {
+            const entry = (optimizeData.writeBatch || []).find((w) => w?.id === id);
+            if (entry) entry.data = { ...(entry.data || {}), ...patch };
+            else (optimizeData.writeBatch = optimizeData.writeBatch || []).push({ id, data: { ...patch } });
+            const rec = (resolvedDeliveries || []).find((d) => d?.id === id);
+            if (rec) Object.assign(rec, patch);
+          }
+          console.log(`[RouteOptimization] ${source} — leg anchor repair: ${_repair.patches.size} leg(s) re-anchored (${_repair.checked} checked)`);
+        }
+      } catch (_anchorErr) {
+        console.warn(`[RouteOptimization] ${source} — leg anchor repair skipped:`, _anchorErr?.message || _anchorErr);
+      }
+
       // ── Step 1b: Recalculate tracking numbers into writeBatch (Accept All only) ─
       // Runs AFTER the engine assigns stop_order but BEFORE the bulk DB write,
       // so TR#s and stop_order are written atomically in a single bulkUpdateDeliveries
