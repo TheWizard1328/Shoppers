@@ -78,7 +78,14 @@ export default function PatientSidebar({ puidGroups, patient, deliveries, pickup
          stops it exactly where the box does.
          z-[100001]: above the tracking badge (z-1000) and above the overlay's
          Exit Patient View button (z-100000) — owner request. */
-        className={`absolute inset-y-0 left-0 w-72 max-h-full bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden z-[100001] transform transition-transform duration-300 ${
+        /* HEIGHT = THE VISIBLE VIEWPORT, not the parent box (owner report
+           Nov 27 2026: the Sign Out button at the bottom of the history sidebar
+           was gone). The portal root is --portal-vh PLUS --portal-map-grow on
+           iOS, and inset-y-0 made the panel inherit that extra height, so the
+           footer (the last child) sat below the painted screen. Anchoring the
+           top and sizing to --portal-vh keeps the footer on screen. */
+        style={{ height: embedded ? '100%' : 'var(--portal-vh, 100dvh)' }}
+        className={`absolute top-0 left-0 w-72 bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden z-[100001] transform transition-transform duration-300 ${
         isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`
         }>
         
