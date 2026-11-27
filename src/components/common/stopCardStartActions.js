@@ -1076,15 +1076,11 @@ export function useStopCardStartActions({
               // the old test both skipped sequencing and left the started card
               // parked at the front with the rest untouched.
               preserveExistingOrder: false,
-              // OWNER REPORT (Nov 27 2026): "when I clicked the Start button all it
-              // did was move that stop to the 11th position and update the polylines
-              // and ETA — it did not optimize the route from that point forward; I
-              // had to press the manual FAB." The manual FAB runs the CLIENT engine;
-              // this path was routing through the SERVER engine, whose sequencing
-              // kept the existing order. Start now runs the same client engine the
-              // FAB uses, so a Start is a FULL re-sequence + new legs for every
-              // active stop.
-              forceClientEngine: true,
+              // OWNER RULE (Nov 27 2026): Start must run WHICHEVER engine is
+              // currently selected in App Settings (server for Robert) — it must
+              // never be forced onto the client engine. The full re-sequence is
+              // the SERVER optimizer's job; see the anchor fix in
+              // rxServerRouteOptimizer/entry.ts.
               // OWNER DIRECTIVE (Oct 27 2026): Start ALWAYS regenerates every
               // active leg — origin = most recently finished stop, live-GPS
               // via + the transferred deviation chain. The order-unchanged

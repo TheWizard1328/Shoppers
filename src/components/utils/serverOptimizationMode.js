@@ -362,7 +362,16 @@ export const buildServerOptimizeRequest = async ({
   // must get its own regenerated leg like every other stop). The pre-write
   // in the panel handler has already set isNextDelivery on it; we pass that
   // id so the server stamps the same flag.
-  const quickReorder = preserveExistingOrder || forceRegenerate;
+  // OWNER RULE (Nov 27 2026): "clicking Start should run a full route
+  // optimization from that point forward." forceRegenerate only means
+  // "redraw every leg" — it is NOT a request to keep the caller's order. It
+  // used to count as quickReorder, which dropped the explicit next stop and
+  // anchored the tour at the LAST COMPLETED stop, so a Start re-sequenced the
+  // route from where the driver had already been instead of from the stop he
+  // just started. Only preserveExistingOrder keeps an order now (Quick Adjust
+  // and every other keep-my-order caller passes it explicitly), so a Start
+  // pins the started stop and sequences the rest FROM it.
+  const quickReorder = preserveExistingOrder;
   let origin = null;
   if (quickReorder) {
     const latestFinished = getLatestFinishedDelivery(completed);
