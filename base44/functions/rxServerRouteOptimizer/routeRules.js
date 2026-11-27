@@ -725,31 +725,19 @@ export function isPolylineEligibleStop({ status, isCyclingMarker, transportMode 
 // polyline into the location; every later stop at the same point must have its
 // leg CLEARED. Before this rule each co-located stop kept its own degenerate
 // stub, so markers 23 and 24 both drew a line to the same door (owner report).
-// 50m matches the existing duplicate-address / same-anchor tolerance.
-export const CO_LOCATED_MAX_KM = 0.05;
-// OWNER REPORT (Nov 27 2026): 6442 and 6428 184 Street NW are TWO SEPARATE
-// addresses that happen to sit 40 m apart inside one townhouse cul-de-sac. The
-// 50 m radius alone called them co-located, so the second stop lost its leg and
-// the next stop's line jumped straight past it. Two different addresses are
-// only "the same place" when they are practically the same building.
-export const CO_LOCATED_SAME_ADDRESS_KM = 0.012; // 12 m
-
-const _normAddress = (v) => String(v || '')
-  .toUpperCase()
-  .replace(/[^A-Z0-9 ]/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-export function isCoLocatedStop(prevStop, stop, maxKm = CO_LOCATED_MAX_KM) {
+// Clustering now means IDENTICAL coordinates (owner rule Nov 27 2026).
+export const CO_LOCATED_MAX_KM = 0.05; // legacy radius, no longer used for clustering
+export const CO_LOCATED_EPSILON_DEG = 1e-6; // ~0.11 m — the same GPS point
+export function isCoLocatedStop(prevStop, stop, _maxKm = CO_LOCATED_MAX_KM) {
   const a = { lat: Number(prevStop?.lat ?? prevStop?.latitude), lon: Number(prevStop?.lon ?? prevStop?.lng ?? prevStop?.longitude) };
   const b = { lat: Number(stop?.lat ?? stop?.latitude), lon: Number(stop?.lon ?? stop?.lng ?? stop?.longitude) };
   if (![a.lat, a.lon, b.lat, b.lon].every(Number.isFinite)) return false;
-  const d = crowFliesKm(a, b);
-  const aAddr = _normAddress(prevStop?.address);
-  const bAddr = _normAddress(stop?.address);
-  // Different, both-known addresses: only a genuine same-building pair clusters.
-  if (aAddr && bAddr && aAddr !== bAddr) return d <= CO_LOCATED_SAME_ADDRESS_KM;
-  return d <= maxKm;
+  // OWNER RULE (Nov 27 2026): a cluster means the SAME GPS point, not a nearby
+  // one. 6442 and 6428 184 Street NW are separate addresses 40 m apart in one
+  // townhouse cul-de-sac and each must draw its own legs. Visual overlap when
+  // the map is zoomed out is handled by marker clustering, which is separate.
+  return Math.abs(a.lat - b.lat) <= CO_LOCATED_EPSILON_DEG
+    && Math.abs(a.lon - b.lon) <= CO_LOCATED_EPSILON_DEG;
 }
 
 // ── RULE: co-located stop ids for a whole ordered route (SHARED, both engines) ─

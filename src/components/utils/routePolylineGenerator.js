@@ -292,12 +292,16 @@ export async function getMultiStopRouteHere(points, transportMode, hereApiKey, {
  * clean degenerate leg instead: 2-point polyline, 2-minute travel, ~0 km.
  */
 export const SAME_ANCHOR_TRAVEL_MINUTES = 2;
+// OWNER RULE (Nov 27 2026): only IDENTICAL coordinates are one location. 6442
+// and 6428 184 St NW are 40 m apart and each keeps its own legs; the old 50 m
+// radius returned null geometry here and silently killed the second leg.
+export const SAME_ANCHOR_KM = 0.00015; // ~0.15 m
 export const sameAnchorLeg = (anchorPoint, stopPoint) => {
   const a = { lat: Number(anchorPoint?.lat), lon: Number(anchorPoint?.lon) };
   const b = { lat: Number(stopPoint?.lat), lon: Number(stopPoint?.lon) };
   if (![a.lat, a.lon, b.lat, b.lon].every(Number.isFinite)) return null;
   const km = haversineKm(a.lat, a.lon, b.lat, b.lon);
-  if (!(km < 0.05)) return null;
+  if (!(km < SAME_ANCHOR_KM)) return null;
   // OWNER RULE (Nov 20 2026): the FIRST stop at a clustered location owns the
   // arriving polyline; every other stop at that location draws NOTHING. A
   // co-located inbound leg therefore resolves to no geometry (null) instead of
