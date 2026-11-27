@@ -17,6 +17,7 @@ import { invalidate } from "@/components/utils/dataManager";
 import { cancelAllDeferredOptimizations } from '@/components/utils/optimizationDebouncer';
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
 import { getCyclingLocationsCached } from '@/components/utils/cyclingLocationCache';
+import { usePanelBottomPx } from '@/components/dashboard/usePanelBottomPx';
 
 const FINISHED = new Set(['completed', 'failed', 'cancelled']);
 
@@ -86,6 +87,17 @@ export default function RouteActionButtons({
   hideForExpandedCard = false,
 }) {
   const optimizationEngineMode = useOptimizationEngineMode(currentUser);
+
+  // OWNER REPORT (Nov 26 2026): "fix the manual route optimization FAB so it
+  // aligns with the rest of them." This button still used the remembered
+  // stopCardsBaseHeight + 10 while the checkbox, API counter, Navigate button and
+  // map-cycle FAB moved to the live panel measurement, so it sat a step above the
+  // row. It now rides the same usePanelBottomPx anchor (same 5px gap, same
+  // visible-card drop) and keeps nav-only + 10 when no cards are on screen.
+  const cardsOnScreen = deliveriesWithStopOrder.length > 0 && cardsReadyForFAB && !immersiveHidden;
+  const fallbackOptimizeFabBottom = (cardsOnScreen ? stopCardsBaseHeight : 0) + 10;
+  const measuredOptimizeFabBottom = usePanelBottomPx(fallbackOptimizeFabBottom, 5, stopCardsBaseHeight);
+  const optimizeFabBottom = cardsOnScreen ? measuredOptimizeFabBottom : fallbackOptimizeFabBottom;
 
   // ── PRESS-AND-HOLD 2s = FLIP ENGINE (owner request Nov 16 2026) ────────────
   // Hold the manual re-optimize FAB for 2 seconds to toggle between the server
@@ -399,11 +411,7 @@ export default function RouteActionButtons({
         className="z-[100] flex items-center gap-2"
         style={{
           position: fabPosition,
-          bottom: `${
-            (deliveriesWithStopOrder.length > 0 && cardsReadyForFAB && !immersiveHidden
-              ? stopCardsBaseHeight
-              : 0) + 10
-          }px`,
+          bottom: `${optimizeFabBottom}px`,
           right: '64px',
           display: immersiveHidden ? 'none' : undefined,
           pointerEvents: hideForExpandedCard ? 'none' : 'auto',
