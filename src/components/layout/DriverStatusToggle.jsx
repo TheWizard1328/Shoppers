@@ -439,6 +439,20 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
           });
           const flagged = (routeDeliveries || []).filter(d => d?.isNextDelivery === true);
           if (flagged.length > 0) {
+            // REMEMBER WHOSE FLAG THIS WAS (owner rule Nov 27 2026): going on
+            // break clears isNextDelivery on purpose, and the on-duty sync used
+            // to hand it to the FIRST active stop instead — Maria Budman lost the
+            // flag to a stop three positions earlier and the whole route was
+            // re-optimized around the wrong stop. The pre-break holder is stored
+            // here and restored when the driver comes back on duty.
+            try {
+              localStorage.setItem('rxdeliver_next_flag_before_break', JSON.stringify({
+                driverId: String(effectiveUser.id),
+                date: String(optimizerDate || ''),
+                deliveryId: String(flagged[0].id),
+                at: Date.now(),
+              }));
+            } catch (_) { /* storage blocked — fall back to the first active stop */ }
             await Promise.all(flagged.map(d =>
               base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
             ));
@@ -546,7 +560,27 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
               .filter(d => d && d.status === 'pending' && !d.is_cycling_marker)
               .sort((a, b) => Number(a.stop_order || 0) - Number(b.stop_order || 0));
 
-            const nextStop = activeStops[0] || pendingStops[0] || null;
+            // RESTORE THE PRE-BREAK FLAG HOLDER (owner rule Nov 27 2026): the
+            // stop that held isNextDelivery before the break wins, as long as it
+            // is still unfinished. Only when that stop is gone/finished does the
+            // old first-active-stop pick apply.
+            let _remembered = null;
+            try {
+              const raw = localStorage.getItem('rxdeliver_next_flag_before_break');
+              const mem = raw ? JSON.parse(raw) : null;
+              const fresh = mem && String(mem.driverId) === String(effectiveUser.id)
+                && String(mem.date || '') === String(optimizerDate || '')
+                && Date.now() - Number(mem.at || 0) < 24 * 60 * 60 * 1000;
+              if (fresh && mem.deliveryId) {
+                _remembered = allRouteDeliveries.find((d) => String(d?.id) === String(mem.deliveryId)
+                  && !['completed', 'failed', 'cancelled'].includes(String(d?.status || '').toLowerCase())) || null;
+              }
+            } catch (_) { _remembered = null; }
+            const nextStop = _remembered || activeStops[0] || pendingStops[0] || null;
+            if (_remembered) {
+              try { localStorage.removeItem('rxdeliver_next_flag_before_break'); } catch (_) {}
+              console.log('[DriverStatusToggle] on-duty sync: restored the pre-break next stop', _remembered.id);
+            }
 
             // Build the updated deliveries: set isNextDelivery=true on nextStop, false on all others
             // MASS-CLEAR GUARD (owner report Oct 30 2026): with no resolvable next

@@ -600,6 +600,9 @@ export async function optimizeRouteClientSide({
   // wiped the driven path). Callers pass the stops the driver is already
   // travelling to; the pre-generation clear skips them.
   preserveDeviationStopIds = [],
+  // While the driver is on break / off duty the next flag is deliberately empty
+  // (owner rule Nov 27 2026) — this run must not promote a fallback next stop.
+  suppressNextFlagPromotion = false,
 }) {
   if (!driverId || !deliveryDate) {
     return { success: false, error: 'Missing driverId or deliveryDate' };
@@ -2577,12 +2580,18 @@ let _inheritedWindowCount = 0;
   // active stop (non-pending preferred, inter-store last) so the route always has
   // exactly one next stop. An existing explicit flag still wins untouched.
   const _statusOf = (s) => String(s?.status || s?.delivery?.status || '').toLowerCase();
-  const _midRouteFallback = (() => {
+  // BREAK HOLDS THE ROUTE (owner rule Nov 27 2026): while the driver is on break
+  // or off duty the next flag is cleared ON PURPOSE, so this run must NOT promote
+  // a fallback stop. It used to promote the first accepted active stop, which is
+  // how Maria Budman's flag came back on a DIFFERENT stop after Robert went on
+  // break and wrecked the sequence.
+  const _midRouteFallback = () => {
+    if (suppressNextFlagPromotion) return null;
     const nonInterStore = activeStops.filter((s) => !isInterStoreDelivery(s.delivery_id));
     const pool = nonInterStore.length > 0 ? nonInterStore : activeStops;
     const accepted = pool.find((s) => _statusOf(s) !== 'pending');
     return accepted?.id || pool[0]?.id || null;
-  })();
+  };
   // ── THE FLAG ON THE STOP BEATS ANY COMPUTED GUESS (owner report, Nov 12 2026:
   // "the quick adjust panel chooses its own isNextDelivery stop and sets it",
   // and "the optimizer tries to make my 5:00 stop the next one instead of the

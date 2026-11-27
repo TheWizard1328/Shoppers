@@ -78,6 +78,10 @@ async function _performRouteOptimizationInner({
   source = 'coordinator',
   bypassDriverStatus = true,
   preserveExistingOrder = false,
+  // Force the CLIENT engine even when the server engine is armed (owner report
+  // Nov 27 2026: the Start button only reordered the started stop, while the
+  // manual FAB — which runs the client engine — re-sequenced the whole route).
+  forceClientEngine = false,
   preserveDeviationStopIds = [],
   cyclingSegmentOnly = false,
   cyclingOrigin = null,
@@ -458,7 +462,7 @@ async function _performRouteOptimizationInner({
       // spec (chain = last completed stop -> driver live GPS via -> new order,
       // every active stop's leg regenerated incl. the dragged stop, ETA
       // ladder, isNextDelivery stamp) so the client engine stays deletable.
-      if (_activeEngine === 'server'
+      if (_activeEngine === 'server' && !forceClientEngine
         && !cyclingSegmentOnly && !drivingSegmentOnly && !skipPolyline
         && !(excludeStopIds || []).length && !orderedDeliveryIds) {
         try {
@@ -502,6 +506,15 @@ async function _performRouteOptimizationInner({
       // ── Step 1b: client-side optimization engine (default path) ───────────
       if (!engineResult) {
       engineResult = await optimizeRouteClientSide({
+        // A driver on break / off duty holds an EMPTY next flag; the engine must
+        // not promote a fallback stop for him.
+        suppressNextFlagPromotion: (() => {
+          try {
+            const rec = (resolvedAppUsers || []).find((au) => String(au?.user_id || '') === String(driverId) || String(au?.id || '') === String(driverId));
+            const st = String(rec?.driver_status || '').toLowerCase();
+            return st === 'on_break' || st === 'off_duty';
+          } catch (_) { return false; }
+        })(),
         deliveries: resolvedDeliveries,
         patients: resolvedPatients,
         stores: resolvedStores,
