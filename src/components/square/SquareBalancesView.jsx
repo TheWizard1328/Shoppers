@@ -947,9 +947,23 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
   }, []);
   useEffect(() => {if (ownerCanEdit) loadPaymentDiscrepancies();}, [ownerCanEdit, loadPaymentDiscrepancies]);
 
-  const loadConfig = useCallback(async () => {
+  const loadConfig = useCallback(async (fresh = false) => {
+    // OWNER REPORT (Nov 26 2026: "2 different sets of store card balances on
+    // two instances, even after Refresh"). The cached read can serve an OLD
+    // config (card_start from a previous true-up), and once the shared-snapshot
+    // paint seeded that stale copy into state, refresh() skipped loadConfig
+    // because a config already existed. A manual/mount load now reads the
+    // server row directly so every instance converges on the same baseline.
+    const rows = fresh ? await getFreshAppSettingRows(SETTING_KEY).catch(() => []) : await getAppSettingRows(SETTING_KEY);
+    if (fresh && (!rows || !rows.length)) {
+      // Fresh read failed — fall back to the cached copy rather than blanking.
+      const cached = await getAppSettingRows(SETTING_KEY).catch(() => []);
+      if (cached && cached.length) return applyConfigRows(cached);
+    }
+    return applyConfigRows(rows);
+  }, []);
+  const applyConfigRows = useCallback((rows) => {
     const seq = ++configLoadSeq.current;
-    const rows = await getAppSettingRows(SETTING_KEY);
     const rec = (rows || [])[0];
     const value = rec?.setting_value?.locations?.length ? rec.setting_value : null;
     // A newer loadConfig() call already started (and will apply its own,
@@ -1191,6 +1205,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       toast.success(nextMode === 'driver_tapped' ? 'Driver Tapped' : nextMode === 'not_tapped' ? 'Not Tapped' : 'Card Spend');
       // OWNER REPORT (Nov 26 2026): the card balance did not move on a toggle.
       // The shared summary caches for 60s, so the marks write must force it.
+      // The AppSettings cache is refreshed too: the summary reads this key
+      // through it, and a cached copy would hand the compute the PRE-click
+      // marks, leaving the COD deducted (the "not added back" report).
+      getFreshAppSettingRows(SPEND_MARKS_KEY).catch(() => {});
       try { window.dispatchEvent(new CustomEvent('squareBalancesRefreshed')); } catch { /* no window */ }
     } catch (e) {
       console.error('setCardSpendMode failed:', e);
@@ -1234,6 +1252,10 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       toast.success(nextMode === 'driver_tapped' ? 'Driver Tapped' : nextMode === 'not_tapped' ? 'Not Tapped' : 'Card Spend');
       // OWNER REPORT (Nov 26 2026): the card balance did not move on a toggle.
       // The shared summary caches for 60s, so the marks write must force it.
+      // The AppSettings cache is refreshed too: the summary reads this key
+      // through it, and a cached copy would hand the compute the PRE-click
+      // marks, leaving the COD deducted (the "not added back" report).
+      getFreshAppSettingRows(SPEND_MARKS_KEY).catch(() => {});
       try { window.dispatchEvent(new CustomEvent('squareBalancesRefreshed')); } catch { /* no window */ }
     } catch (e) {
       console.error('markCardSpend failed:', e);
@@ -2214,7 +2236,12 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     setIsLoading(true);
     try {
       let cfg = config;
-      if (opts.reloadConfig || !cfg) cfg = await loadConfig();
+      // OWNER REPORT (Nov 26 2026: Editor showed Bonnie Doon true-up $33.88,
+      // the PWA $123.88, and Refresh fixed neither). A config already in state
+      // was treated as good enough, but that copy can come from a shared
+      // snapshot published before the last true-up. Every manual/mount refresh
+      // now re-reads the AppSettings row itself.
+      if (opts.reloadConfig || opts.fresh || !cfg) cfg = await loadConfig(true);
       await loadSales(cfg);
       lastLocalComputeAtRef.current = Date.now();
       // EVERY device repaints the NEWEST publish, host included (owner report
@@ -2371,7 +2398,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         // OWNER SPEC (Oct 7 2026): NO Square API sync on this page anymore —
         // mount computes strictly from delivery data (credits, outstanding,
         // collected-today) plus cached ledger payout/topup rows.
-        const cfg = await loadConfig();
+        const cfg = await loadConfig(true);
         await loadSales(cfg);
         computeLocalOutstanding();
         computeCodCollectedToday();
@@ -2415,8 +2442,11 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     setIsSyncing(true);
     try {
       try { await swipeRefreshRef.current?.(); } catch { /* a failed swipe probe never blocks the sync */ }
-      let cfg = config;
-      if (!cfg?.trued_up_at) cfg = await loadConfig();
+      // OWNER REPORT (Nov 26 2026): Refresh Square must re-read the true-up
+      // baseline from AppSettings, never trust the copy already in state — two
+      // instances otherwise keep showing two different card balances.
+      let cfg = (await readFreshBalanceConfig().catch(() => ({ value: null })))?.value || config;
+      if (!cfg?.trued_up_at) cfg = await loadConfig(true);
 
       // ── OWNER REQUEST (Oct 9 2026 night): SYNC THE SQUARE CODs FIRST.
       // The balances math reads the LEDGER (swiped-cash settled credits +

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { getAppSettingRows } from '@/components/utils/appSettingsCache';
+import { getAppSettingRows, getFreshAppSettingRows } from '@/components/utils/appSettingsCache';
 import { base44 } from '@/api/base44Client';
 import { isCashLikeType } from '@/components/utils/codPaymentTypes';
 import { edmontonBusinessDayKey, edmontonWallString } from '@/components/utils/albertaTime';
@@ -351,12 +351,16 @@ async function filterAllDeliveries(status) {
   return out;
 }
 
-async function loadConfig() {
+async function loadConfig(fresh = false) {
   // No .catch here (Oct 2 2026 boot-race fix) — a failed AppSettings fetch
   // must THROW so the caller's retry-with-backoff runs, instead of silently
   // resolving to "no config" (empty badge) and caching that wrong empty
   // result for the full 60s TTL.
-  const rows = await getAppSettingRows(SETTING_KEY);
+  // OWNER REPORT (Nov 26 2026: two instances showing two different card
+  // balances, and a Not Tapped toggle that never moved the balance). A manual
+  // refresh and a badge click must see the row the server holds right now, not
+  // the 60s memory / 10-min IDB copy.
+  const rows = fresh ? await getFreshAppSettingRows(SETTING_KEY) : await getAppSettingRows(SETTING_KEY);
   const rec = (rows || [])[0];
   return rec?.setting_value?.locations?.length ? rec.setting_value : null;
 }
@@ -2163,7 +2167,7 @@ async function computeWeeklyCached() {
 // load threw `userIdRef is not defined` and the badge fell into the retry loop
 // (observed as "reload attempt 1-4 failed"). The uid now travels as a
 // parameter from the hook's reload().
-async function loadSummary(force, uid) {
+async function loadSummary(force, uid, fresh = false) {
   const now = Date.now();
   if (!force && summaryCache.data && now - summaryCache.at < SUMMARY_CACHE_TTL) {
     return { cached: true, data: summaryCache.data, degraded: false };
@@ -2171,14 +2175,14 @@ async function loadSummary(force, uid) {
   // Coalesce concurrent requests (mount + a WS debounce firing together)
   if (inflight) return inflight;
   inflight = (async () => {
-    const config = await loadConfig();
+    const config = await loadConfig(fresh === true);
     const [deliveryCredits, stl, names, spendMarkRows] = await Promise.all([
       config ? loadDeliveryCardCredits(config, uid).catch(() => new Map()) : Promise.resolve(new Map()),
       buildStoreToLocMap().catch(() => new Map()),
       buildStoreNameMap().catch(() => new Map()),
       // Not Tapped overrides (owner Card Spend badge toggle, Oct 6 2026) —
       // a "Not Tapped" COD is added back to the card estimate, never deducted.
-      getAppSettingRows(SPEND_MARKS_KEY).catch(() => []),
+      (fresh ? getFreshAppSettingRows(SPEND_MARKS_KEY) : getAppSettingRows(SPEND_MARKS_KEY)).catch(() => []),
     ]);
     // Defensive: multiple records with the same setting_key have appeared
     // before — always read the most recently updated one.
@@ -2466,6 +2470,10 @@ const computeWithinDutyWindow = async () => {
 
 const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
   const seq = ++storeSeq;
+  // A manual Refresh Square (or a badge click that broadcasts the same event)
+  // must bypass the cached AppSettings copies so the compute sees the true-up
+  // baseline and the Card Spend marks the server holds right now.
+  const freshRead = opts?.manual === true;
   // OWNER-ONLY COMPUTE (owner spec Oct 13 2026, rate-limit storm): only
   // owner devices may invoke the heavy squareBalancesCompute. Store PCs and
   // driver devices previously polled it every ~60s and, once traffic was
@@ -2479,7 +2487,7 @@ const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
     try {
       const rec = await fetchLatestSharedSnapshot().catch(() => null);
       if (rec && applyRemoteSharedSnapshot(rec)) return;
-      const { data } = await loadSummary(true, storeUserId);
+      const { data } = await loadSummary(true, storeUserId, freshRead);
       if (seq !== storeSeq) return;
       storeApply(data);
       persistSnapshotModule(data);
@@ -2551,7 +2559,7 @@ const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
     // TTL lapses. Same math as the page and the old server compute
     // (identical computeByLocId formula), published to the shared snapshot
     // exactly as before, so every device converges unchanged.
-    const { data: fdata, degraded } = await loadSummary(true, storeUserId);
+    const { data: fdata, degraded } = await loadSummary(true, storeUserId, freshRead);
     if (!fdata) throw new Error('local compute returned no payload');
     if (seq !== storeSeq) return;
     if (degraded) {
@@ -2635,7 +2643,7 @@ const storeReloadInner = async (force = false, attempt = 0, opts = {}) => {
     }
     console.warn('[useSquareBalancesSummary] server compute unavailable, using local compute:', String(e?.message || e));
     try {
-      const { data, degraded } = await loadSummary(true, storeUserId);
+      const { data, degraded } = await loadSummary(true, storeUserId, freshRead);
       if (seq !== storeSeq) return;
       storeApply(data);
       persistSnapshotModule(data);
