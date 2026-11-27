@@ -1928,6 +1928,11 @@ let _inheritedWindowCount = 0;
       orderUnchanged: orderUnchangedForPolylines,
       forceRegenerate,
       stops: routeStops.map(s => ({ delivery: s.delivery, lat: s.lat, lng: s.lng })),
+      // Two different addresses in one cul-de-sac are not the same stop
+      // (owner report Nov 27 2026) - give the co-located rule real addresses.
+      addressOf: (d) => d?.patient_address
+        || (d?.patient_id ? patientMap?.get?.(d.patient_id)?.address : null)
+        || null,
       originPoint: polylineOrigin,
       // OWNER SPEC (Oct 30 2026): one request covers origin -> vias -> GPS ->
       // every active stop -> the driver's HOME. Cycling passes close on their
@@ -2658,14 +2663,17 @@ let _inheritedWindowCount = 0;
   // position when their polyline segment failed to regenerate (HERE 429/timeouts).
   // The ETA ladder caps their travel; persist that cap so later completion
   // cascades (which chain from the stored estimate) stay correct too.
-  const sameCoordsAdjacentIds = new Set();
-  for (let i = 1; i < routeStops.length; i++) {
-    const a = routeStops[i - 1], b = routeStops[i];
-    if (a && b && Number.isFinite(a.lat) && Number.isFinite(b.lat)
-      && calculateCrowFliesDistance(a.lat, a.lng, b.lat, b.lng) < 0.05) {
-      sameCoordsAdjacentIds.add(b.delivery.id);
-    }
-  }
+  // OWNER REPORT (Nov 27 2026): two DIFFERENT addresses in one cul-de-sac are
+  // not the same stop. Addresses travel with the coords now, so the shared rule
+  // only clusters a pair that really is the same building.
+  const sameCoordsAdjacentIds = coLocatedStopIds(routeStops.map((st) => ({
+    id: st?.delivery?.id,
+    lat: st?.lat,
+    lon: st?.lng,
+    address: st?.delivery?.patient_address
+      || (st?.delivery?.patient_id ? patientMap?.get?.(st.delivery.patient_id)?.address : null)
+      || null,
+  })).filter((x) => x.id != null));
 
   // Assign stop_order sequentially based on position in the final ordered array.
   // Every stop (including cycling markers) gets a clean sequential number.
@@ -3282,7 +3290,12 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   // therefore cleared from ROUTE ORDER, before any segment lookup.
   const _futureCoLocatedIds = coLocatedStopIds(orderedStops.map(({ delivery }) => {
     const c = getDeliveryCoords(delivery, patientMap, storeMap);
-    return { id: delivery.id, lat: c?.lat, lon: c?.lng };
+    return {
+      id: delivery.id,
+      lat: c?.lat,
+      lon: c?.lng,
+      address: delivery.patient_address || patientMap?.get?.(delivery.patient_id)?.address || null,
+    };
   }));
   for (const w of writeBatch) {
     if (_futureCoLocatedIds.has(String(w.id)) && w.data.isNextDelivery !== true) {

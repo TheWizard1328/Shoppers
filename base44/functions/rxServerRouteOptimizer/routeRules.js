@@ -727,11 +727,29 @@ export function isPolylineEligibleStop({ status, isCyclingMarker, transportMode 
 // stub, so markers 23 and 24 both drew a line to the same door (owner report).
 // 50m matches the existing duplicate-address / same-anchor tolerance.
 export const CO_LOCATED_MAX_KM = 0.05;
+// OWNER REPORT (Nov 27 2026): 6442 and 6428 184 Street NW are TWO SEPARATE
+// addresses that happen to sit 40 m apart inside one townhouse cul-de-sac. The
+// 50 m radius alone called them co-located, so the second stop lost its leg and
+// the next stop's line jumped straight past it. Two different addresses are
+// only "the same place" when they are practically the same building.
+export const CO_LOCATED_SAME_ADDRESS_KM = 0.012; // 12 m
+
+const _normAddress = (v) => String(v || '')
+  .toUpperCase()
+  .replace(/[^A-Z0-9 ]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 export function isCoLocatedStop(prevStop, stop, maxKm = CO_LOCATED_MAX_KM) {
   const a = { lat: Number(prevStop?.lat ?? prevStop?.latitude), lon: Number(prevStop?.lon ?? prevStop?.lng ?? prevStop?.longitude) };
   const b = { lat: Number(stop?.lat ?? stop?.latitude), lon: Number(stop?.lon ?? stop?.lng ?? stop?.longitude) };
   if (![a.lat, a.lon, b.lat, b.lon].every(Number.isFinite)) return false;
-  return crowFliesKm(a, b) <= maxKm;
+  const d = crowFliesKm(a, b);
+  const aAddr = _normAddress(prevStop?.address);
+  const bAddr = _normAddress(stop?.address);
+  // Different, both-known addresses: only a genuine same-building pair clusters.
+  if (aAddr && bAddr && aAddr !== bAddr) return d <= CO_LOCATED_SAME_ADDRESS_KM;
+  return d <= maxKm;
 }
 
 // ── RULE: co-located stop ids for a whole ordered route (SHARED, both engines) ─

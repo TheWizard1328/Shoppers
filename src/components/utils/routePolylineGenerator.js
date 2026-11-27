@@ -351,6 +351,9 @@ export async function generateRoutePolylines({
   driverId = null,
   userName = null,
   source = 'client_engine',
+  addressOf = null,        // optional (delivery) => address string, so the co-located
+                           // rule can tell two different addresses in one cul-de-sac apart
+                           // (owner report Nov 27 2026)
   fallbackTravelMode = 'driving',
   directionsLegs = null, // optional: array to sync durations into (main path only)
   routeStops = null,     // optional: full routeStops for directionsLegs index lookup (main path only)
@@ -569,8 +572,14 @@ export async function generateRoutePolylines({
   for (let _i = 1; _i < polyTargets.length; _i += 1) {
     _prevRouteStopById.set(String(polyTargets[_i].delivery.id), polyTargets[_i - 1]);
   }
+  const _addrOf = typeof addressOf === 'function'
+    ? addressOf
+    : (d) => d?.patient_address || d?.address || null;
   const _coLocatedRouteIds = coLocatedStopIds(polyTargets.map((t) => ({
-    id: t.delivery.id, lat: t.lat, lon: t.lng,
+    id: t.delivery.id,
+    lat: t.lat,
+    lon: t.lng,
+    address: (() => { try { return _addrOf(t.delivery) || null; } catch (_) { return null; } })(),
   })));
   if (polyTargets.length > 0) {
     console.log(`[routePolylineGenerator] ${source} — ALWAYS REGENERATE (${polyTargets.length} leg(s)) — no order-unchanged skip, no leg reuse`);

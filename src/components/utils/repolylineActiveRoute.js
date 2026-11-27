@@ -98,6 +98,10 @@ export async function repolylineActiveRoute({
       viaPointAfterOrigin: liveVia,
       // Every active stop is in scope, whatever its status or window.
       forceStopIds: chain.map((c) => c.delivery.id),
+      // Different addresses in one cul-de-sac stay separate stops.
+      addressOf: (d) => d?.patient_address
+        || (d?.patient_id ? patientMap.get(d.patient_id)?.address : null)
+        || null,
       forceRegenerate: true,
       hereApiKey,
       polylineProvider,

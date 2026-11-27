@@ -1435,7 +1435,7 @@ Deno.serve(async (req) => {
     // SHARED RULE (Nov 24 2026): co-located ids come from routeRules.coLocatedStopIds
     // so the server and the client generator can never disagree about which stop
     // of a cluster owns the arriving line.
-    const sameCoordsAdjacentIds = coLocatedStopIds(orderedStops.map((st: any) => ({ id: st.id, lat: st.lat, lon: st.lng })));
+    const sameCoordsAdjacentIds = coLocatedStopIds(orderedStops.map((st: any) => ({ id: st.id, lat: st.lat, lon: st.lng, address: st.address || st.patient_address || null })));
 
     const writeBatch = [];
     for (let i = 0; i < orderedStops.length; i++) {
