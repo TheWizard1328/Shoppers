@@ -254,6 +254,29 @@ export const processPendingMutationsInternal = async () => {
         console.warn(`⚠️ [OfflineSync] Flushing partial Delivery update mutation ${mutation.mutationId} (no delivery_date — valid partial diff) fields: ${Object.keys(deliveryPayload || {}).join(',')}`);
       }
 
+      // OWNER REPORT (Nov 27 2026): the bad leg kept coming BACK. A queued
+      // offline update mutation captured the old leg (encoded_polyline +
+      // polyline_from_order) before an optimization; when it replayed minutes
+      // later it overwrote the freshly drawn leg and its stamp, so stop 29 kept
+      // drawing from a Londonderry pending stop instead of the pickup. Leg
+      // geometry is derived data the optimizer always redraws: never replay it.
+      if (mutation.entity === 'Delivery' && mutation.operation === 'update' && deliveryPayload) {
+        const _LEG_FIELDS = ['encoded_polyline', 'polyline_from_order', 'polyline_saved_at', 'PolylineUpdated'];
+        const _hadLeg = _LEG_FIELDS.some((k) => k in deliveryPayload);
+        if (_hadLeg) {
+          _LEG_FIELDS.forEach((k) => { delete deliveryPayload[k]; });
+          const _meaningful = Object.keys(deliveryPayload)
+            .filter((k) => !k.startsWith('_') && k !== 'updated_date');
+          if (_meaningful.length === 0) {
+            await offlineDB.removePendingMutation(mutation.mutationId);
+            successCount++;
+            console.warn(`[OfflineSync] Dropped stale leg-only mutation ${mutation.mutationId} — the optimizer owns polyline geometry`);
+            continue;
+          }
+          console.warn(`[OfflineSync] Stripped stale leg geometry from queued mutation ${mutation.mutationId} (${_meaningful.join(',')}) — a replayed old leg would overwrite the fresh one`);
+        }
+      }
+
       if (mutation.operation === 'create') {
         // CRITICAL: Guard against resurrecting a deleted delivery via a stale
         // create mutation. If the mutation's record ID or content signature
