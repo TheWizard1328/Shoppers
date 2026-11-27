@@ -351,6 +351,9 @@ async function filterAllDeliveries(status) {
   return out;
 }
 
+// Last non-empty Card Spend marks seen by the compute (429-proof).
+const lastGoodSpendMarks = new Map();
+
 async function loadConfig(fresh = false) {
   // No .catch here (Oct 2 2026 boot-race fix) — a failed AppSettings fetch
   // must THROW so the caller's retry-with-backoff runs, instead of silently
@@ -2195,6 +2198,17 @@ async function loadSummary(force, uid, fresh = false) {
       if (!v || typeof v !== 'object') continue;
       if (v.notTappedAt) marksMap[k] = { notTapped: true, touchedAt: v.notTappedAt };
       else if (v.touchedAt) marksMap[k] = { notTapped: !!v.notTapped, touchedAt: v.touchedAt };
+    }
+    // A THROTTLED READ IS NOT AN EMPTY MARK SET (owner report Nov 26 2026, the
+    // Card Spend toggle that never moved the card: `429 on
+    // appSettingsCache:square_card_spend_marks` every few seconds). An empty
+    // map makes every COD deduct again, so the toggle appeared to do nothing.
+    // Reuse the last good marks until a real read lands.
+    if (Object.keys(marksMap).length === 0 && lastGoodSpendMarks.size > 0) {
+      for (const [k, v] of lastGoodSpendMarks) marksMap[k] = v;
+    } else if (Object.keys(marksMap).length > 0) {
+      lastGoodSpendMarks.clear();
+      for (const [k, v] of Object.entries(marksMap)) lastGoodSpendMarks.set(k, v);
     }
     // One detailed pass — the totals map used by the card math is derived from
     // it, and the detailed output (items/patient names) is kept so the Square

@@ -147,6 +147,16 @@ export async function getFreshAppSettingRows(settingKey) {
   try {
     return await _fetchFromApi(settingKey);
   } catch (_) {
+    // A 429 / timeout must NEVER read as "this setting is empty": callers like
+    // the Card Spend marks store treat an empty result as "no marks at all"
+    // and wipe every badge back to Card Spend (owner report Nov 26 2026: the
+    // toggle flipped the badge and the card balance never moved while the log
+    // was full of `429 on appSettingsCache:square_card_spend_marks`). Fall back
+    // to the last known rows (memory, then IDB) so a throttled read is a no-op.
+    const mem = _memory.get(settingKey);
+    if (mem && Array.isArray(mem.rows) && mem.rows.length) return mem.rows;
+    const idbRows = await _loadIdbRows(settingKey).catch(() => null);
+    if (idbRows && idbRows.length) return idbRows;
     return [];
   }
 }

@@ -345,6 +345,20 @@ function CardCodList({ sections, canMarkSpend, onMarkSpend, onSetSpendMode, onMa
                 "cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[96px]"}>
                     {r.driverTapped ? 'Driver Tapped' : r.notTapped ? 'Not Tapped' : 'Card Spend'}</span> :
               r.hasCardSpend ?
+              // OWNER REPORT (Nov 26 2026: "there seems to be a gate or lock on
+              // the finished deliveries with COD's — needs to be ungated"). A
+              // collected Debit/Credit COD with no mark yet rendered a STATIC
+              // Card Spend pill, so it could never be toggled to Not Tapped or
+              // Driver Tapped. Same toggle as every other row now.
+              canMarkSpend && !!r.delivery_id && onMarkSpend ?
+              <span
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const below = window.innerHeight - rect.bottom > 170;
+                  setSpendPick({ row: r, x: rect.left, y: below ? rect.bottom + 6 : rect.top, anchorBottom: !below });
+                }}
+                title="Tap to cycle: Card Spend > Not Tapped > Driver Tapped"
+                className="cursor-pointer rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[96px]">Card Spend</span> :
               <span className="rounded-full bg-sky-100 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 text-center leading-none min-w-[96px]">Card Spend</span> :
               r.manualCardSpend ?
               <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300 text-center leading-none min-w-[96px]">Card Spend</span> :
@@ -995,6 +1009,13 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
     // always read the most recently updated one.
     const rec = (rows || []).filter(Boolean).sort((a, b) => String(b?.updated_date || '').localeCompare(String(a?.updated_date || '')))[0];
     const raw = rec?.setting_value && typeof rec.setting_value === 'object' ? rec.setting_value : {};
+    // A THROTTLED OR EMPTY READ IS NEVER "NO MARKS" (owner report Nov 26 2026:
+    // a collected COD's Card Spend toggle did nothing, and the log showed
+    // `429 on appSettingsCache:square_card_spend_marks` every few seconds).
+    // Wiping the marks here silently reverted every badge to Card Spend, so
+    // the deduction came straight back and the card balance never moved.
+    // Keep what we already have until a real read lands.
+    if (!rec || Object.keys(raw).length === 0) return;
     // Oct 7 2026: normalize to { [deliveryId]: { notTapped, touchedAt, by } }.
     // touchedAt is kept even when the owner clicks BACK to Card Spend — the
     // deduction rule needs to know an item was explicitly clicked since
