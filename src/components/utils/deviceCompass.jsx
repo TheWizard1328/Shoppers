@@ -45,6 +45,7 @@ const emit = () => {
 const MAGNETIC_DECLINATION_DEG = 12.5;
 
 let debug = null;
+const diag = { firstAt: 0, lastAt: 0 };
 
 /** Current screen rotation in degrees (0 portrait, 90/270 landscape). */
 function screenAngle() {
@@ -102,11 +103,17 @@ function handleOrientation(e) {
     h = e.webkitCompassHeading;
     source = 'ios';
     raw = h;
-  } else if ((e.absolute === true || e.type === 'deviceorientationabsolute') && e.alpha != null) {
+  } else if (e.alpha != null) {
+    const absolute = e.absolute === true || e.type === 'deviceorientationabsolute';
     raw = 360 - Number(e.alpha);
     const tilt = tiltCompensatedHeading(e.alpha, e.beta, e.gamma);
     h = normalize((tilt == null ? raw : tilt) + MAGNETIC_DECLINATION_DEG);
-    source = 'android';
+    // OWNER REPORT (Nov 26 2026): the red tip pointed along the direction of
+    // travel, i.e. the needle sat at 0 deg. That is the map-bearing fallback
+    // (north-up map = bearing 0), so no absolute event was reaching us. Some
+    // Android builds only deliver RELATIVE `deviceorientation`; using it is far
+    // better than a needle that lies, but it is labelled so the UI can dim it.
+    source = absolute ? 'android' : 'relative';
   }
   if (h == null || !Number.isFinite(Number(h))) return;
   const angle = screenAngle();
@@ -114,7 +121,22 @@ function handleOrientation(e) {
   heading = normalize(h - angle);
   debug = { source, alpha: e.alpha, beta: e.beta, gamma: e.gamma, raw, magneticPlusDeclination: h, screenAngle: angle, heading };
   lastEventAt = Date.now();
-  if (lastEventAt - lastEmitAt < EMIT_MS) return;
+  // Diagnostics: the first event, then one heartbeat a minute, so the app log
+  // stream shows exactly what this device's sensor reports.
+  const nowMs = lastEventAt;
+  if (!diag.firstAt || nowMs - diag.lastAt > 60000) {
+    diag.firstAt = diag.firstAt || nowMs;
+    diag.lastAt = nowMs;
+    try {
+      // eslint-disable-next-line no-console
+      console.warn('[Compass] ' + JSON.stringify({
+        type: e.type, absolute: e.absolute === true, alpha: Math.round(Number(e.alpha) || 0),
+        beta: Math.round(Number(e.beta) || 0), gamma: Math.round(Number(e.gamma) || 0),
+        screenAngle: screenAngle(), source, heading: Math.round(heading)
+      }));
+    } catch { /* ignore */ }
+  }
+  if (nowMs - lastEmitAt < EMIT_MS) return;
   lastEmitAt = lastEventAt;
   emit();
 }

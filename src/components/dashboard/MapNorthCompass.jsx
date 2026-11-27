@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { startDeviceCompass, requestCompassPermission, getCompassHeading } from '@/components/utils/deviceCompass';
+import { startDeviceCompass, requestCompassPermission, getCompassHeading, getCompassDebug } from '@/components/utils/deviceCompass';
 
 /**
  * MapNorthCompass — the two-pointed Google-Maps-style north needle that rides
@@ -70,7 +70,10 @@ export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated
         // Compass heading H = the device's top edge faces H. North therefore
         // sits at -H on screen, so the red tip swings to true north.
         setRotation(-heading);
-        setSource('device');
+        // A relative-only sensor (no magnetometer reference) is dimmed: the
+        // needle still moves, but it cannot honestly claim true north.
+        const dbg = getCompassDebug();
+        setSource(dbg && dbg.source === 'relative' ? 'relative' : 'device');
       } else {
         // Fallback: screen angle of north = -mapBearing.
         setRotation(-readBearing());
@@ -98,8 +101,8 @@ export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated
     <button
       type="button"
       onClick={handleReset}
-      aria-label={source === 'device' ? 'Device compass — tap to point the map north up' : 'North up'}
-      title={source === 'device' ? 'Compass — tap for north up' : 'North up'}
+      aria-label={source === 'device' ? 'Device compass — tap to point the map north up' : source === 'relative' ? 'Compass needs calibration — tap for north up' : 'North up'}
+      title={source === 'device' ? 'Compass — tap for north up' : source === 'relative' ? 'Compass calibration needed — tap for north up' : 'North up'}
       /* OWNER REQUEST (Nov 26 2026, second try): the stop cards' z-[10070] is
          TRAPPED inside their own wrapper (DashboardView's absolute
          inset-x-0 bottom-0 z-[700]), so a sibling at z-[10069] painted OVER the
@@ -116,7 +119,7 @@ export default function MapNorthCompass({ visible = false, alwaysShowWhenRotated
         <svg
           viewBox="0 0 36 36"
           className="w-6 h-6"
-          style={{ transform: `rotate(${rotation}deg)`, transition: 'transform 180ms ease-out' }}>
+          style={{ transform: `rotate(${rotation}deg)`, transition: 'transform 180ms ease-out', opacity: source === 'device' ? 1 : 0.45 }}>
           {/* Diamond needle: red half = north, slate half = south. */}
           <polygon points="18,3 23,18 13,18" fill="#ef4444" />
           <polygon points="18,33 23,18 13,18" fill="#cbd5e1" />
