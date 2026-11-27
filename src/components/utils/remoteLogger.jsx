@@ -3,6 +3,7 @@ import { getDeviceIdentifier } from '@/components/utils/userSettingsManager';
 import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import { getCurrentDevice } from '@/components/utils/deviceManager';
 import { getRemoteLoggingSettings } from '@/components/utils/configCache';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
 const STORAGE_KEY = 'rxdeliver_remote_log_buffer';
 const SESSION_KEY = 'rxdeliver_remote_log_session_id';
@@ -85,6 +86,47 @@ const REMOTE_LOG_CAPTURE_BLACKLIST = [
   /\[BackgroundSync\] .+ already synced/,   // 365-day backfill: 1 line/date/device
   /\[HistoricalSync\] .+ already synced/,  // same walk, different manager
 ];
+
+// ── iOS PWA GPS + BREADCRUMB QUIET (owner directive Nov 26 2026) ──────────
+// "I think we can forgo logging any errors in regards to GPS lock failures and
+// missing breadcrumb sections when it comes to Aaron's phone and Matthew's
+// phone since they are both running on iPhones on the PWA … the moment they
+// exit out of the app to Google maps or to the square or just minimizing the
+// app we're going to lose GPS and bread crumbs so it's pointless to be logging
+// any of these errors."
+// On iOS the PWA loses location the instant it leaves the foreground, so a lost
+// lock, a fix timeout and a breadcrumb gap are the platform working as designed,
+// not a fault. These rows are dropped for the named PWA drivers only; everyone
+// else (Cherokee, Robert, Anna) runs the Android APK where a lost lock is real.
+const IOS_PWA_QUIET_USERS = ['aaron', 'matthew', 'mathew'];
+const IOS_PWA_QUIET_GPS_RX = /GPS_LOST|no GPS lock|Breadcrumb Gap|gap detected between breadcrumbs|GPS fix (?:failed|timeout)|Fresh GPS fix failed|fix timeouts?|Breadcrumb Watchdog|GPS_LOCK|LOC_LOST/i;
+
+const isIosPwaDevice = () => {
+  try {
+    // The iOS APP (Capacitor) keeps location via the native provider, so only the
+    // browser PWA is exempt.
+    if (isCapacitorNativeApp()) return false;
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    if (/iPhone|iPod|iPad/i.test(ua)) return true;
+    return /Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+  } catch {
+    return false;
+  }
+};
+
+const isIosPwaQuietUser = async () => {
+  try {
+    const me = await getMe();
+    if (!me) return false;
+    const tokens = [me.user_name, me.full_name, me.email]
+      .map((v) => String(v || '').toLowerCase())
+      .flatMap((v) => v.split(/[\s@._-]+/))
+      .filter(Boolean);
+    return IOS_PWA_QUIET_USERS.some((name) => tokens.includes(name));
+  } catch {
+    return false;
+  }
+};
 
 // ── RATE-LIMIT NOISE SUPPRESSION (owner spec Oct 14 2026) ──────────────────
 // Every 429 used to ship to RemoteLogEntry as 2+ log writes per device per
@@ -412,6 +454,8 @@ const enqueue = async (level, args, extra = {}) => {
   for (const rx of REMOTE_LOG_CAPTURE_BLACKLIST) {
     if (rx.test(message)) return;
   }
+  // iOS PWA drivers: a lost lock or a breadcrumb gap is expected, not a fault.
+  if (IOS_PWA_QUIET_GPS_RX.test(message) && isIosPwaDevice() && await isIosPwaQuietUser()) return;
   if (RATE_LIMIT_NOISE_RX.test(message)) {
     const _noiseNow = Date.now();
     if (_noiseNow - lastRateLimitNoiseSentAt < RATE_LIMIT_NOISE_MIN_INTERVAL_MS) return;
