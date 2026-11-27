@@ -117,6 +117,48 @@ function encodeSigned(value) {
   return encoded;
 }
 
+/**
+ * OWNER REPORT (Nov 27 2026): "a bunch of stops with the wrong origin points,
+ * all regenerating from the most recent stop I finished instead of from the
+ * stop numerically before it." When the provider returns a SUPERSET section
+ * (one section spanning several legs, e.g. origin -> stop5 delivered as the
+ * geometry for stop2), the slice is perfectly usable geometry so every repair
+ * path accepts it, and the leg is drawn from the wrong place. Geometry is
+ * therefore trimmed by POSITION: start it at the point nearest this leg's own
+ * anchor and end it at the point nearest this stop.
+ */
+function trimLegToAnchor(encoded, anchorLat, anchorLon, stopLat, stopLon) {
+  if (typeof encoded !== 'string' || encoded.length <= 10) return encoded;
+  let pts = null;
+  try { pts = decodeGooglePolyline(encoded); } catch (_) { return encoded; }
+  if (!Array.isArray(pts) || pts.length < 2) return encoded;
+  const near = (la1, lo1, la2, lo2) => haversineKm(Number(la1), Number(lo1), Number(la2), Number(lo2));
+  let start = 0;
+  if (Number.isFinite(Number(anchorLat)) && Number.isFinite(Number(anchorLon))
+    && near(anchorLat, anchorLon, pts[0][0], pts[0][1]) > 0.04) {
+    let bestIdx = -1; let bestKm = Infinity;
+    for (let i = 0; i < pts.length - 1; i += 1) {
+      const km = near(anchorLat, anchorLon, pts[i][0], pts[i][1]);
+      if (km < bestKm) { bestKm = km; bestIdx = i; }
+    }
+    if (bestIdx > 0 && bestKm <= 0.06) start = bestIdx;
+  }
+  let end = pts.length - 1;
+  if (Number.isFinite(Number(stopLat)) && Number.isFinite(Number(stopLon))
+    && near(stopLat, stopLon, pts[end][0], pts[end][1]) > 0.04) {
+    let bestIdx = -1; let bestKm = Infinity;
+    for (let i = start + 1; i < pts.length; i += 1) {
+      const km = near(stopLat, stopLon, pts[i][0], pts[i][1]);
+      if (km < bestKm) { bestKm = km; bestIdx = i; }
+    }
+    if (bestIdx > start && bestKm <= 0.06) end = bestIdx;
+  }
+  if (start === 0 && end === pts.length - 1) return encoded;
+  const trimmed = pts.slice(start, end + 1);
+  if (trimmed.length < 2) return encoded;
+  return encodeGooglePolyline(trimmed);
+}
+
 export function encodeGooglePolyline(points) {
   let lastLat = 0, lastLng = 0, encoded = '';
   for (const [lat, lng] of points) {
@@ -633,10 +675,17 @@ export async function generateRoutePolylines({
   // how a line appeared to run from a pending stop into the cycling end marker and
   // into a Callingwood pickup. A pending stop is still a DESTINATION (the boundary
   // markers stay eligible while pending), it just cannot be a fromPoint.
-  const _isPendingStop = (t) => String(t?.delivery?.status || '').toLowerCase() === 'pending';
+  // OWNER REPORT (Nov 27 2026): "a bunch of stops with the wrong origin points,
+  // all regenerating from the most recent stop I finished instead of from the
+  // stop numerically before it." Cause: skipping pending stops as anchors meant
+  // every pending stop fell back to the same last non-pending stop (or the
+  // route origin), so N pending legs all fanned out of the last finished stop.
+  // Each leg now chains off the stop numerically before it. A pending stop is
+  // still never the ORIGIN of the whole route (effectiveOrigin keeps that job).
   const _anchorBefore = (idx) => {
     for (let j = idx - 1; j >= 0; j -= 1) {
-      if (!_isPendingStop(polyTargets[j])) return { lat: polyTargets[j].lat, lon: polyTargets[j].lng };
+      const t = polyTargets[j];
+      if (t) return { lat: t.lat, lon: t.lng };
     }
     return effectiveOrigin;
   };
@@ -1027,6 +1076,16 @@ export async function generateRoutePolylines({
           console.log(`[routePolylineGenerator] ${source} — stop ${stop.delivery?.stop_order} got a zero-length section (${encoded.length} chars, ${_distinct} distinct points) — keeping the stored leg instead of writing a stub`);
           encoded = null;
         }
+      }
+
+      // Trim any superset geometry back to THIS leg's own anchor (Nov 27 2026).
+      if (typeof encoded === 'string' && encoded.length > 0) {
+        const _trimAnchor = points[liveViaOnThisLeg ? 0 : Math.max(0, stopIdx - 1 - viaCount)];
+        encoded = trimLegToAnchor(
+          encoded,
+          _trimAnchor?.lat, _trimAnchor?.lon,
+          stop.lat, stop.lng,
+        );
       }
 
       // OWNER REPORT (Nov 27 2026, second pass): forcing the leg ends onto the
