@@ -41,18 +41,78 @@ const emit = () => {
   });
 };
 
+/** Edmonton magnetic declination: magnetic north sits ~12.5 deg EAST of true north. */
+const MAGNETIC_DECLINATION_DEG = 12.5;
+
+let debug = null;
+
+/** Current screen rotation in degrees (0 portrait, 90/270 landscape). */
+function screenAngle() {
+  try {
+    if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.angle != null) {
+      return Number(screen.orientation.angle) || 0;
+    }
+    if (typeof window !== 'undefined' && typeof window.orientation === 'number') {
+      return Number(window.orientation) || 0;
+    }
+  } catch { /* ignore */ }
+  return 0;
+}
+
+/**
+ * OWNER REPORT (Nov 26 2026): the red needle pointed noticeably away from north.
+ * Two causes, both fixed here:
+ *   1. TILT. `alpha` alone is only a compass heading while the phone lies FLAT.
+ *      Held upright in a mount it drifts badly. The heading must come from the
+ *      full alpha/beta/gamma rotation matrix projected onto the horizontal plane.
+ *   2. MAGNETIC vs TRUE north. `deviceorientationabsolute` reports MAGNETIC north
+ *      (Edmonton is ~12.5 deg off true north); iOS `webkitCompassHeading` is
+ *      already true. Declination is added only to the Android reading.
+ * Screen rotation is compensated too, so landscape mounts read correctly.
+ */
+function tiltCompensatedHeading(alpha, beta, gamma) {
+  // Standard device-orientation heading: rotate alpha/beta/gamma into the earth
+  // frame and project the screen-up axis onto the horizontal plane, so an
+  // upright phone in a mount still reads the true compass heading.
+  const deg = Math.PI / 180;
+  const x = (Number(beta) || 0) * deg;
+  const y = (Number(gamma) || 0) * deg;
+  const z = (Number(alpha) || 0) * deg;
+  const cX = Math.cos(x), sX = Math.sin(x);
+  const cY = Math.cos(y), sY = Math.sin(y);
+  const cZ = Math.cos(z), sZ = Math.sin(z);
+  const vx = -cZ * sY - sZ * sX * cY;
+  const vy = -sZ * sY + cZ * sX * cY;
+  if (!Number.isFinite(vx) || !Number.isFinite(vy) || (vx === 0 && vy === 0)) return null;
+  let h = Math.atan(vx / vy);
+  if (vy < 0) h += Math.PI;
+  else if (vx < 0) h += 2 * Math.PI;
+  const degOut = (h * 180) / Math.PI;
+  if (!Number.isFinite(degOut)) return null;
+  return normalize(degOut);
+}
+
 function handleOrientation(e) {
   if (!e) return;
   let h = null;
+  let source = 'none';
+  let raw = null;
   if (typeof e.webkitCompassHeading === 'number' && Number.isFinite(e.webkitCompassHeading)) {
-    // iOS: already a true compass heading in degrees clockwise from north.
+    // iOS: already a TRUE compass heading in degrees clockwise from north.
     h = e.webkitCompassHeading;
+    source = 'ios';
+    raw = h;
   } else if ((e.absolute === true || e.type === 'deviceorientationabsolute') && e.alpha != null) {
-    // Android: alpha counts counter-clockwise from north.
-    h = 360 - Number(e.alpha);
+    raw = 360 - Number(e.alpha);
+    const tilt = tiltCompensatedHeading(e.alpha, e.beta, e.gamma);
+    h = normalize((tilt == null ? raw : tilt) + MAGNETIC_DECLINATION_DEG);
+    source = 'android';
   }
   if (h == null || !Number.isFinite(Number(h))) return;
-  heading = normalize(h);
+  const angle = screenAngle();
+  // The needle is drawn in screen space, so remove the screen's own rotation.
+  heading = normalize(h - angle);
+  debug = { source, alpha: e.alpha, beta: e.beta, gamma: e.gamma, raw, magneticPlusDeclination: h, screenAngle: angle, heading };
   lastEventAt = Date.now();
   if (lastEventAt - lastEmitAt < EMIT_MS) return;
   lastEmitAt = lastEventAt;
@@ -109,6 +169,11 @@ export async function requestCompassPermission() {
   if (permission === 'granted') attach();
   emit();
   return permission;
+}
+
+/** Diagnostics for the compass needle: last raw values, declination and result. */
+export function getCompassDebug() {
+  return debug ? { ...debug, stale: Date.now() - lastEventAt > STALE_MS } : null;
 }
 
 /** Live compass heading in degrees clockwise from north, or null when unknown. */
