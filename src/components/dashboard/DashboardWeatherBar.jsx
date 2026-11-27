@@ -139,7 +139,7 @@ function DashboardWeatherBar({
   //     ([data-bulk-select-toggle]); fallback: 10px above the stop-cards strip
   // The bar never computes from window.innerHeight and never reads frozen
   // base-height props except as a first-paint fallback.
-  const [geo, setGeo] = useState({ parentH: 0, top: 0, bottomGap: 0 });
+  const [geo, setGeo] = useState({ parentH: 0, top: 0, bottomEdge: 0 });
 
   const measureGeo = useCallback(() => {
     const parent = mapAreaRef?.current;
@@ -188,24 +188,36 @@ function DashboardWeatherBar({
     }
     if (!top) top = (Number(statsContainerBaseHeight) || 0) + 6 + legendHeight;
 
-    // Bottom: just above the bulk-select checkbox row; fall back to the
-    // stop-cards strip top, then to the base-height formula.
-    let bottomGap = 0;
+    // Bottom edge (owner report Nov 26 2026): the bar ran to the bottom of the
+    // page and its lower end sat behind the stop cards. It must stop at the TOP
+    // of the bulk-select checkbox row. The old code measured a GAP from the map
+    // area's bottom edge and clamped it at 0, so the moment the checkbox sat
+    // below that edge the gap became 0 and the bar stretched to the page bottom.
+    // Work in the parent's own coordinate space instead, with no clamp.
+    const parentH = parent.clientHeight || parentRect.height || 0;
+    let bottomEdge = null; // px from the map area's top to the bar's bottom edge
     const cb = document.querySelector('[data-bulk-select-toggle]');
     const cbRect = cb && cb.offsetParent !== null ? cb.getBoundingClientRect() : null;
     const strip = horizontalStopCardsRef?.current;
     const stripRect = strip && strip.offsetParent !== null ? strip.getBoundingClientRect() : null;
     if (cbRect) {
-      bottomGap = Math.max(0, parentRect.bottom - cbRect.top) + 4;
+      bottomEdge = cbRect.top - parentRect.top - 4;
     } else if (stripRect) {
-      bottomGap = Math.max(0, parentRect.bottom - stripRect.top) + 5;
+      bottomEdge = stripRect.top - parentRect.top - 5;
     } else {
       let navH = 0;
       try { navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0; } catch { /* noop */ }
-      bottomGap = (Number(stopCardsBaseHeight) || 0) + navH + 5;
+      bottomEdge = parentH - ((Number(stopCardsBaseHeight) || 0) + navH + 5);
     }
+    // Never past the map area's own bottom, and always leave a usable bar.
+    const maxEdge = parentH > 0 ? parentH : bottomEdge;
+    bottomEdge = Math.min(bottomEdge, maxEdge);
 
-    setGeo({ parentH: parent.clientHeight || 0, top, bottomGap });
+    setGeo((prev) => {
+      const next = { parentH, top, bottomEdge };
+      if (prev && prev.parentH === next.parentH && prev.top === next.top && prev.bottomEdge === next.bottomEdge) return prev;
+      return next;
+    });
   }, [mapAreaRef, statsContainerRef, horizontalStopCardsRef, statsContainerBaseHeight, stopCardsBaseHeight]);
 
   useLayoutEffect(() => {
@@ -217,9 +229,13 @@ function DashboardWeatherBar({
     obs(horizontalStopCardsRef?.current);
     const onResize = () => measureGeo();
     window.addEventListener('resize', onResize);
+    // The checkbox row is positioned from the stop panel's own live measurement,
+    // so follow it: a cheap re-measure keeps the bar's bottom glued to it.
+    const follow = setInterval(() => measureGeo(), 1000);
     return () => {
       observers.forEach((ro) => ro.disconnect());
       window.removeEventListener('resize', onResize);
+      clearInterval(follow);
     };
   }, [measureGeo, entry, immersiveHidden]);
 
@@ -299,7 +315,7 @@ function DashboardWeatherBar({
   const frac = (v) => Math.min(0.98, Math.max(0.02, scaleFrac(v)));
 
   const topAnchor = geo.top || (Number(statsContainerBaseHeight) || 0) + 12;
-  const barHeight = geo.parentH - topAnchor - geo.bottomGap;
+  const barHeight = Math.max(24, (geo.bottomEdge || (geo.parentH - 5)) - topAnchor);
   if (barHeight < 150) return null; // no room — hide instead of cluttering
 
   // Pixel offsets from the BOTTOM of the (explicit-height) bar box.
