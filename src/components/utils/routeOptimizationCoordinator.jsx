@@ -444,6 +444,8 @@ async function _performRouteOptimizationInner({
     let optimizeData = null;
     let _serverCommitFailed = false;
     let optimizationServerCommit = Promise.resolve(false);
+    // Legs redrawn by the full repolyline; committed last so no other writer wins.
+    let _relinePatches = null;
 
     if (!skipOptimize) {
       let engineResult = null;
@@ -572,7 +574,6 @@ async function _performRouteOptimizationInner({
       // points and the driver's live position (when he is not at a stop) folded
       // in by the generator. The fresh legs replace the engine's output so the
       // map always shows the route that was just sequenced.
-      let _relinePatches = null;
       try {
         const { repolylineActiveRoute } = await import('./repolylineActiveRoute');
         const _reline = await repolylineActiveRoute({
