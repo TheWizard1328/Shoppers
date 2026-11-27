@@ -238,7 +238,8 @@ export const resolvePickupPuid = async ({
     }
   }
 
-  const fallbackPuid = getPickupStopIdForDelivery(storeId, deliveryDate, timeSlot, allDeliveries, driverId);
+  // A new pending stop must never fall back onto a finished pickup.
+  const fallbackPuid = getPickupStopIdForDelivery(storeId, deliveryDate, timeSlot, allDeliveries, driverId, { includeCompleted: false });
 
   if (!ensureMissingPickup) {
     return fallbackPuid;

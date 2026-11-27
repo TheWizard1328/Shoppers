@@ -101,7 +101,9 @@ export async function handleSaveDelivery(deliveryData, ctx) {
           deliveryData.delivery_date,
           deliveryData.ampm_deliveries || 'AM',
           deliveries,
-          deliveryData.driver_id
+          deliveryData.driver_id,
+          // A pending stop must never be re-pointed at a finished pickup.
+          { includeCompleted: String(deliveryData.status || '').toLowerCase() !== 'pending' }
         );
         if (resolvedPickup) deliveryData.puid = resolvedPickup;
       }

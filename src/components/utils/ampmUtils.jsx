@@ -266,7 +266,12 @@ export const getStoreAssignedTimeSlotForDriver = (store, deliveryDate, driverId,
 /**
  * Get the PUID (stop_id of the pickup) for a delivery
  */
-export const getPickupStopIdForDelivery = (storeId, deliveryDate, timeSlot, allDeliveries = [], driverId = null) => {
+export const getPickupStopIdForDelivery = (storeId, deliveryDate, timeSlot, allDeliveries = [], driverId = null, options = {}) => {
+  // OWNER RULE (Nov 26 2026): a FINISHED pickup must never be a candidate for a
+  // stop that has not been picked up. Pass includeCompleted: false from pending /
+  // staged repair paths; callers that let a user deliberately pick a parent
+  // pickup keep the default so an in-hand stop can still sit under a finished one.
+  const { includeCompleted = true } = options || {};
   if (!storeId || !deliveryDate || !timeSlot) return null;
   
   const matches = (allDeliveries || []).filter(d =>
@@ -286,7 +291,31 @@ export const getPickupStopIdForDelivery = (storeId, deliveryDate, timeSlot, allD
   
   const activePickup = matches.find(d => !['completed', 'failed', 'cancelled'].includes(d.status));
   if (activePickup) return activePickup.stop_id || activePickup.puid || null;
+
+  // OWNER REPORT (Nov 26 2026): a delivery created tonight, hours after the
+  // Callingwood AM pickup was finished, was linked to that completed AM pickup
+  // instead of the new after-hours pickup created just before it. Callingwood
+  // staffs only an AM driver, so every same-day stop resolves to slot 'AM' and
+  // the only 'AM' pickup was the finished morning one. A stop that has NOT been
+  // picked up can never belong to a finished pickup: when this slot has no live
+  // pickup left, attach to a live pickup on the same store/date/driver (the
+  // after-hours run) before falling back to a completed one.
+  const liveAnySlot = (allDeliveries || []).filter(d =>
+    d &&
+    d.store_id === storeId &&
+    d.delivery_date === deliveryDate &&
+    !d.patient_id &&
+    d.stop_id &&
+    !['completed', 'failed', 'cancelled'].includes(d.status) &&
+    (!driverId || String(d.driver_id) === String(driverId))
+  );
+  if (liveAnySlot.length) {
+    const liveEnRoute = liveAnySlot.find(d => d.status === 'en_route');
+    const chosen = liveEnRoute || liveAnySlot[0];
+    return chosen.stop_id || chosen.puid || null;
+  }
   
+  if (!includeCompleted) return null;
   const completedPickup = matches.find(d => d.status === 'completed');
   return completedPickup ? (completedPickup.stop_id || completedPickup.puid || null) : null;
 };
