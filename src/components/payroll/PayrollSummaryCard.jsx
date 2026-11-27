@@ -1094,6 +1094,14 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
   useEffect(() => {
     if (!isPeriodEndOfMonth || !monthlyAppFeeBaseTotal || monthlyAppFeeBaseTotal <= 0) return;
     if (!payrollData?.length || !periodStartStr || !periodEndStr) return;
+    // Only the CURRENT month's drafts are kept in sync. Browsing a past cycle
+    // must never rewrite its saved fees (owner report Nov 26 2026: Jan-Sept
+    // app fees were being zeroed).
+    {
+      const now = new Date();
+      const curMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      if (String(periodEndStr).slice(0, 7) !== curMonthKey) return;
+    }
     let cancelled = false;
     (async () => {
       // Percentage precedence — identical to the display mapping effect above:
@@ -1274,9 +1282,15 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
           // old raw-percentage math ($280.35 on a $450.45 pool) came back on
           // every load and the normalized split never showed. At month end the
           // field is always re-derived from the percentage.
-          appFeeAmount: autoFillFees && savedPercentByDriver[k] > 0 ?
-            calculateAppFeeAmount(k, savedPercentByDriver[k]) :
-            pr?.app_fee_amount ?? 0,
+          appFeeAmount: (() => {
+            const calc = autoFillFees && savedPercentByDriver[k] > 0 ? calculateAppFeeAmount(k, savedPercentByDriver[k]) : 0;
+            // OWNER REPORT (Nov 26 2026): Jan-Sept fees showed, then dropped to
+            // $0. Those months carry a saved fee but no month pool loaded yet,
+            // so re-deriving gave 0 and wiped the stored amount. A computed fee
+            // only wins when it is actually positive; otherwise the saved amount
+            // stands.
+            return calc > 0 ? calc : pr?.app_fee_amount ?? 0;
+          })(),
           paidAmount,
           showDeductionManager: false,
           newDeductionName: '',
@@ -2051,7 +2065,11 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
                     patients={patients}
                     currentPeriod={currentPeriod}
                     bonusAmount={driverEdits[data.driver.id]?.bonusPay || 0}
-                    appFeeAmount={isPeriodEndOfMonth ? calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0) : 0}
+                    appFeeAmount={isPeriodEndOfMonth ? (() => {
+                      const calc = calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0);
+                      // Never show $0 over a saved fee (past cycles have no month pool loaded).
+                      return calc > 0 ? calc : Number(driverEdits[data.driver.id]?.appFeeAmount) || 0;
+                    })() : 0}
                     appFeePercent={driverEdits[data.driver.id]?.appFeePercent || 0}
                     ytdDataByDriver={ytdDataByDriver}
                     isPeriodEndOfMonth={isPeriodEndOfMonth}
