@@ -1806,9 +1806,15 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
       // refunded twice — once on the failed original and once on its retry).
       // Same patient + same amount + same store renders ONCE, earliest created.
       const refundTwinEarliest = new Map();
+      // The REFUNDED amount is the twin key, not the amount still to collect:
+      // retrying a failed COD clears the original's cod_total_amount_required to
+      // 0 (w558), so keying on it put the original and its retry in different
+      // buckets and Paul Zyimans kept TWO $50.75 Refunded cards on Bonnie Doon
+      // (owner report Nov 27 2026).
+      const refundKeyCents = (dd) => Math.round(Number(dd?.cod_refunded_amount || dd?.cod_total_amount_required || 0) * 100);
       for (const d of deliveryList) {
         if (d?.status !== 'failed' || !String(d?.cod_refunded_at || '')) continue;
-        const req0 = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
+        const req0 = refundKeyCents(d);
         if (req0 <= 0) continue;
         const k0 = `${d?.patient_id || ''}|${req0}|${d?.store_id || ''}`;
         const t0 = d?.created_date ? new Date(d.created_date).getTime() : 0;
@@ -1822,7 +1828,7 @@ export default function SquareBalancesView({ currentUser, visibleLocationIds = n
         const earlyRefundAt = String(d?.cod_refunded_at || '');
         if (d?.status !== 'completed' && !(d?.status === 'failed' && earlyRefundAt)) continue;
         if (d?.status === 'failed' && earlyRefundAt) {
-          const req0 = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
+          const req0 = refundKeyCents(d);
           const twin = refundTwinEarliest.get(`${d?.patient_id || ''}|${req0}|${d?.store_id || ''}`);
           if (twin && twin.id !== String(d.id)) continue;
         }

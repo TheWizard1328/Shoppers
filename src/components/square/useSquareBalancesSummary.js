@@ -750,7 +750,7 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
     for (const d of (deliveriesWithStatus(allDeliveries, 'failed') || [])) {
       const req0 = Number(d?.cod_total_amount_required || 0);
       if (req0 <= 0 || !d?.id) continue;
-      const k0 = `${d?.patient_id || ''}|${Math.round(req0 * 100)}|${d?.store_id || ''}`;
+      const k0 = `${d?.patient_id || ''}|${Math.round(Number(d?.cod_refunded_amount || req0) * 100)}|${d?.store_id || ''}`;
       const t0 = d?.created_date ? new Date(d.created_date).getTime() : 0;
       const prev = refundTwinEarliest.get(k0);
       if (!prev || t0 < prev.t) refundTwinEarliest.set(k0, { t: t0, id: String(d.id) });
@@ -760,7 +760,7 @@ export async function loadDeliveryCardCredits(cfgArg, userId = null) {
       if (required <= 0 || d?.cod_confirmed_collected || !d?.id) continue;
       const locId = storeToLoc.get(String(d?.store_id || ''));
       if (!locId) continue;
-      const _twinKey = `${d?.patient_id || ''}|${Math.round(required * 100)}|${d?.store_id || ''}`;
+      const _twinKey = `${d?.patient_id || ''}|${Math.round(Number(d?.cod_refunded_amount || required) * 100)}|${d?.store_id || ''}`;
       const _twin = refundTwinEarliest.get(_twinKey);
       if (_twin && _twin.id !== String(d.id)) continue; // a twin already owns this refund
       // TRUE-UP WINDOW (owner report Nov 24 2026: Callingwood read $127.49 instead of
