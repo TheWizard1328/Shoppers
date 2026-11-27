@@ -509,6 +509,10 @@ export async function sendPatientArrivalNotice({ delivery, patient, storeName })
       state: 'arrived',
       patientName: patient.full_name || patient.name || '',
     });
+    // OWNER CORRECTION (Nov 26 2026): this notice was arriving in the patient's
+    // app as a DRIVER message because it passed sender_name. Every other
+    // automated notice (picked up, delayed, next) leaves sender_name empty and
+    // lands in the Pharmacy team thread, so the arrival notice does the same.
     const res = await pushPatient(
       patient.id,
       'Your pharmacy',
@@ -517,7 +521,6 @@ export async function sendPatientArrivalNotice({ delivery, patient, storeName })
       {
         store_id: delivery.store_id || '',
         store_name: storeName || delivery.store_name || '',
-        sender_name: delivery.driver_name || '',
       },
     );
     ledger[key] = Date.now();

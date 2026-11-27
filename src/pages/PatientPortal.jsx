@@ -373,7 +373,12 @@ function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver,
     const routePoints = pickupDone ? rawRoute.filter((pt) => !nearStore(pt, storeLatLng)) : rawRoute;
 
     if (settledOnly) {
-      const points = storePoint ? [patientLatLng, storePoint] : [patientLatLng];
+      // OWNER REQUEST (Nov 26 2026): once the delivery is FINISHED the map must
+      // frame the patient's location AND the store pickup location. pickupDone
+      // is true for a completed stop, which used to null the store point here and
+      // leave the map on the patient's home alone — so use storeLatLng directly.
+      const points = [patientLatLng];
+      if (storeLatLng) points.push(storeLatLng);
       doFit(points, mapPad);
       return;
     }
