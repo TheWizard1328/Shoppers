@@ -1051,11 +1051,34 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
     });
   }, [currentPeriod?.start, selectedCityId]);
 
+  // OWNER REPORT (Nov 26 2026): "the AppFees at the end of the month are
+  // greater than the total amount of App Fees being paid out to all the
+  // drivers ... since I am getting 100% right now my App Fees % amount should
+  // match the current Total Fees for Nov". The pool was multiplied by each
+  // driver's RAW percentage, so a leftover share (his stored 62.23% against a
+  // $450.45 pool = $280.35) never got paid out and "Total Fees" always read
+  // higher than the sum of the driver lines. The percentages are now NORMALIZED
+  // across the drivers who actually take a share: each one gets
+  // pct / sum(pct) of the pool, so the driver amounts always add up to the
+  // month's total and a sole 100% owner takes the whole pool.
+  const appFeeAllocPercentSum = useMemo(() => {
+    let sum = 0;
+    (driversWithDeliveries || []).forEach((d) => {
+      const id = d?.driver?.id;
+      if (!id) return;
+      const pct = Number(driverEdits[id]?.appFeePercent) ||
+        Number(getDriverPayrollRecord(id)?.app_fee_percentage) || 0;
+      if (pct > 0) sum += pct;
+    });
+    return sum;
+  }, [driversWithDeliveries, driverEdits, payrollRecords]);
+
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool (calendar month)
   const calculateAppFeeAmount = useCallback((driverId, appFeePercent) => {
     if (!currentPeriod || appFeePercent <= 0) return 0;
-    return monthlyAppFeeBaseTotal * appFeePercent / 100;
-  }, [currentPeriod, monthlyAppFeeBaseTotal]);
+    const sum = appFeeAllocPercentSum > 0 ? appFeeAllocPercentSum : appFeePercent;
+    return monthlyAppFeeBaseTotal * appFeePercent / sum;
+  }, [currentPeriod, monthlyAppFeeBaseTotal, appFeeAllocPercentSum]);
 
   // ── Owner Oct 24 2026: persist the live month-end App Fee to draft records ──
   // The sidebar badge (usePayrollBadge) sums the RECORD's gross + bonus + app
@@ -1104,7 +1127,10 @@ const PayrollSummaryCard = forwardRef(function PayrollSummaryCard({
         const k = data.driver.id;
         const pct = pctByDriver[k] || 0;
         if (pct <= 0) continue;
-        const amount = Math.round(monthlyAppFeeBaseTotal * pct / 100 * 100) / 100;
+        // Same normalized split as calculateAppFeeAmount, so the persisted
+        // draft fee and the displayed fee can never disagree.
+        const allocSum = Object.values(pctByDriver).reduce((sum, v) => sum + (Number(v) || 0), 0);
+        const amount = Math.round(monthlyAppFeeBaseTotal * (pct / (allocSum > 0 ? allocSum : pct)) * 100) / 100;
         if (amount <= 0) continue;
         const rec = getDriverPayrollRecord(k);
         if (!rec || (Number(rec.app_fee_amount) || 0) > 0 || (rec.status && rec.status !== 'draft')) continue;
