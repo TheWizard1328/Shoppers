@@ -33,7 +33,7 @@ import { useEffect, useRef, useState } from 'react';
  * UP. w533 added 20 and pushed the row further away, so the drop is subtracted.
  * Applied only while the stop card panel is on screen; immersive is untouched.
  */
-const CARD_VISIBLE_DROP_PX = 20;
+const CARD_VISIBLE_DROP_PX = 0;
 
 function readContainerBottom() {
   try {
@@ -93,12 +93,24 @@ function readPanelRect() {
     // value; only a settled card top is ever trusted.
     if (cardsAreAnimating()) return { settling: true };
 
+    // OWNER REPORT (Nov 26 2026): "they were all in the right spot for the other
+    // drivers but got raised up for me for Robert." With a fanned/stacked rail the
+    // min() of every card's top follows the TALLEST card, which can be one tucked
+    // BEHIND the front card — so a view whose back card is ~20px taller lifted the
+    // row away from the card the eye actually sees. Use the FRONT card (highest
+    // z-index, tallest on a tie): that is the top edge the owner is aligning to.
     const cards = Array.from(document.querySelectorAll('[id^="stop-card-"]'))
-      .map((el) => el.getBoundingClientRect())
-      .filter((r) => r && r.height > 10 && r.width > 20 && r.top < window.innerHeight - 4);
+      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r && r.height > 10 && r.width > 20 && r.top < window.innerHeight - 4);
     if (cards.length) {
-      const top = Math.min(...cards.map((r) => r.top));
-      const bottom = Math.max(...cards.map((r) => r.bottom));
+      const zOf = ({ el }) => {
+        const z = parseInt(window.getComputedStyle(el).zIndex, 10);
+        return Number.isFinite(z) ? z : 0;
+      };
+      cards.sort((a, b) => (zOf(b) - zOf(a)) || (b.r.height - a.r.height));
+      const front = cards[0].r;
+      const top = front.top;
+      const bottom = Math.max(...cards.map(({ r }) => r.bottom));
       return { top, height: bottom - top, containerBottom: readContainerBottom() };
     }
 
