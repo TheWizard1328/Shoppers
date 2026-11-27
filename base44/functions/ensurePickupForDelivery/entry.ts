@@ -260,13 +260,21 @@ Deno.serve(async (req) => {
       }
 
       // Reuse a same-date + driver Completed pickup instead of creating a duplicate.
+      // OWNER REPORT (Nov 26 2026): a new delivery for tonight's after-hours run was
+      // linked to the Callingwood AM pickup that had just been completed, while the
+      // correct new PM pickup was created beside it. This reuse step ignored the
+      // SLOT, so a completed pickup from a different slot was handed back for a PM
+      // stop. Only a completed pickup from the SAME slot may be reused: a PM stop
+      // must link to its own PM pickup (created just before the staged stop goes
+      // pending), never to the finished morning run.
       const completedPickupsGeneral = storePickups
         .filter((pickup) => pickup.status === 'completed' && pickup.actual_delivery_time)
         .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
 
+      const sameSlotCompleted = completedPickupsGeneral.filter((pickup) => (pickup.ampm_deliveries || 'AM') === primarySlot);
       const reusableCompletedGeneral = forceAttachIfInTransit
-        ? completedPickupsGeneral[0]
-        : completedPickupsGeneral.find((pickup) => (Date.now() - new Date(pickup.actual_delivery_time).getTime()) < 60 * 60 * 1000);
+        ? sameSlotCompleted[0]
+        : sameSlotCompleted.find((pickup) => (Date.now() - new Date(pickup.actual_delivery_time).getTime()) < 60 * 60 * 1000);
 
       if (reusableCompletedGeneral) {
         const pickupWithDriverName = await ensurePickupDriverName(base44, reusableCompletedGeneral, driverName);
