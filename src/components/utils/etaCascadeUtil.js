@@ -40,10 +40,17 @@ export const computeCascadeEtas = ({ anchorMinutes, stops, skipWindowFloor }) =>
   if (!Number.isFinite(anchorMinutes) || !Array.isArray(stops) || stops.length === 0) return [];
   let currentEtaMinutes = anchorMinutes;
   const updates = [];
-  for (const stop of stops) {
+  for (let i = 0; i < stops.length; i += 1) {
+    const stop = stops[i];
     if (!stop?.id) continue;
     currentEtaMinutes += (stop.estimated_duration_minutes || 5);
-    if (!skipWindowFloor) {
+    // PICKUP ETA RULE (owner rule Nov 27 2026): only a pickup with NOTHING
+    // before it is pinned to its delivery start window. Once stops precede it,
+    // its ETA is the real projected time, even if that is earlier than the
+    // window start.
+    const isPickupStop = stop.is_pickup === true || stop.__isPickup === true || stop.patient_id === null;
+    const pickupIsFirst = isPickupStop && i === 0;
+    if (!skipWindowFloor && (!isPickupStop || pickupIsFirst)) {
       // OWNER RULE (Nov 26 2026): a BLANK delivery start is blank — never fall
       // back to time_window_start (the patient-window copy). The Start button was
       // ETA-ing the next stop at the patient's 18:00 through this fallback.

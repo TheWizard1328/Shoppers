@@ -3160,13 +3160,18 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
   const etaMap = new Map();
   for (let i = 0; i < orderedStops.length; i++) {
     const { delivery, isPickup } = orderedStops[i];
-    if (isPickup) { const ps = parseTimeToMinutes(delivery.delivery_time_start || '00:00'); if (Number.isFinite(ps) && cumulativeTime < ps) cumulativeTime = ps; }
     // OWNER RULE (Nov 26 2026): a BLANK delivery start is blank — it must not
     // fall back to time_window_start (the denormalised patient copy). That
     // fallback put Lothar's ETA at the patient's 18:00 and pushed every later
     // stop behind it.
+    //
+    // PICKUP ETA RULE (owner rule Nov 27 2026): a pickup with NO stops before it
+    // sits at its delivery start window. A pickup that DOES have stops ahead of
+    // it keeps the real optimized ETA — even when that ETA lands before its own
+    // start window. The floor only belongs on the first stop.
     const ws = parseTimeToMinutes(delivery.delivery_time_start || '');
-    if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
+    const pickupWithStopsAhead = isPickup && i > 0;
+    if (Number.isFinite(ws) && cumulativeTime < ws && !pickupWithStopsAhead) cumulativeTime = ws;
     etaMap.set(delivery.id, formatMinutesToTime(cumulativeTime));
     cumulativeTime += delivery.extra_time || (isPickup ? 15 : 5);
   }
