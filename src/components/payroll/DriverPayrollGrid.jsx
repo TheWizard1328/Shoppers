@@ -2,7 +2,7 @@ import { getDeliveryTypeFlags } from '@/components/utils/deliveryTypeUtils';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, ChevronLeft, ChevronRight, Package, Ruler, RefreshCw, ExternalLink } from 'lucide-react';
+import { Table, ChevronLeft, ChevronRight, ChevronDown, Package, Ruler, RefreshCw, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
@@ -34,9 +34,82 @@ export default function DriverPayrollGrid({
   selectedPeriodIndex,
   onPrevPeriod,
   onNextPeriod,
+  onSelectPeriod = null,
   onRefreshPayrollData = null
 }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
+  // OWNER REQUEST (Nov 26 2026): clicking the cycle label / date range between
+  // the Prev and Next arrows opens a dropdown of every payroll cycle in the
+  // selected year for the selected cycle type, newest first, so a cycle can be
+  // jumped to directly instead of arrow-stepping through the year.
+  const [periodMenuOpen, setPeriodMenuOpen] = useState(false);
+  const periodMenuRef = useRef(null);
+  useEffect(() => {
+    if (!periodMenuOpen) return;
+    const onDocDown = (e) => {
+      if (periodMenuRef.current && !periodMenuRef.current.contains(e.target)) setPeriodMenuOpen(false);
+    };
+    const onKey = (e) => {if (e.key === 'Escape') setPeriodMenuOpen(false);};
+    document.addEventListener('mousedown', onDocDown);
+    document.addEventListener('touchstart', onDocDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      document.removeEventListener('touchstart', onDocDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [periodMenuOpen]);
+
+  const periodOptions = useMemo(() => {
+    const list = (allPeriods || []).map((p, idx) => ({ period: p, idx }));
+    // Reverse order: newest cycle first (owner spec).
+    return list.reverse();
+  }, [allPeriods]);
+
+  const renderPeriodPicker = (minWidth) =>
+  <div className="relative" ref={periodMenuRef}>
+      <button
+      type="button"
+      onClick={() => setPeriodMenuOpen((v) => !v)}
+      aria-expanded={periodMenuOpen}
+      title="Show all payroll cycles for this year"
+      className={`text-center rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors ${periodMenuOpen ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+      style={{ minWidth: minWidth }}>
+        <div className="flex items-center justify-center gap-1">
+          <span className="font-semibold text-sm text-body">{currentPeriod?.label}</span>
+          <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 text-soft transition-transform ${periodMenuOpen ? 'rotate-180' : ''}`} />
+        </div>
+        <div className="text-xs text-soft">{periodDateRange}</div>
+      </button>
+      {periodMenuOpen &&
+    <div
+      className="absolute left-1/2 -translate-x-1/2 mt-1 z-[60000] w-[240px] max-h-[320px] overflow-y-auto rounded-lg border shadow-xl bg-surface border-surface">
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-soft border-b border-surface sticky top-0 bg-surface">
+            {selectedYear} {payPeriod} cycles
+          </div>
+          {periodOptions.length === 0 &&
+      <div className="px-3 py-2 text-xs text-soft">No cycles</div>
+      }
+          {periodOptions.map(({ period, idx }) =>
+      <button
+        key={`${period.start}-${idx}`}
+        type="button"
+        onClick={() => {
+          setPeriodMenuOpen(false);
+          if (idx !== selectedPeriodIndex && onSelectPeriod) onSelectPeriod(idx);
+        }}
+        className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 ${idx === selectedPeriodIndex ? 'bg-emerald-50 dark:bg-emerald-900/30 font-semibold text-emerald-700 dark:text-emerald-300' : 'text-body'}`}>
+              <span>{period.label}</span>
+              <span className="text-[10px] text-soft whitespace-nowrap">
+                {format(period.start, 'MMM d')} - {format(period.end, 'MMM d')}
+              </span>
+            </button>
+      )}
+        </div>
+    }
+    </div>;
+
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [statHolidays, setStatHolidays] = useState([]);
 
@@ -449,10 +522,7 @@ export default function DriverPayrollGrid({
                       <Ruler className="w-3 h-3" />Extra KM
                     </Button>
                   </div>
-                  <div className="text-center min-w-[200px]">
-                    <div className="font-semibold text-body">{currentPeriod.label}</div>
-                    <div className="text-xs text-soft">{periodDateRange}</div>
-                  </div>
+                  {renderPeriodPicker(200)}
                 </div>
                 <Button
                 size="sm"
@@ -497,10 +567,7 @@ export default function DriverPayrollGrid({
                 
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="font-semibold text-sm text-body">{currentPeriod.label}</div>
-                  <div className="text-xs text-soft">{periodDateRange}</div>
-                </div>
+                {renderPeriodPicker(180)}
                 <Button
                 size="sm"
                 variant="ghost"
@@ -551,10 +618,7 @@ export default function DriverPayrollGrid({
                 
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
-                <div className="text-center min-w-[200px]">
-                  <div className="font-semibold text-body">{currentPeriod.label}</div>
-                  <div className="text-xs text-soft">{periodDateRange}</div>
-                </div>
+                {renderPeriodPicker(200)}
                 <Button
                 size="sm"
                 variant="ghost"
