@@ -58,6 +58,24 @@ export const TURN_PREVIEW_DEFAULTS = {
   // A vertex within this distance of the leg's end is arrival, not a turn.
   endBufferMeters: 20,
 
+  // ── ARRIVAL ROTATION (owner request Nov 27 2026) ───────────────────────────
+  // Inside this distance ALONG THE LEG (route distance, never crow-flies) the
+  // map turns to face the final approach into the stop, so the driver can read
+  // which side of the street the address is on.
+  arrivalRotateMeters: 90,
+  // The approach vector is measured over the LAST this-many metres of the leg,
+  // not from the driver to the pin. A left/right turn earlier in the approach
+  // therefore never skews the bearing — only the direction actually driven into
+  // the address counts.
+  arrivalBearingBackMeters: 35,
+  // Closer than this the driver is at the address; stop rotating.
+  arrivalMinMeters: 8,
+  // Off-leg further than this: the arrival heading means nothing.
+  arrivalMaxOffLegMeters: 60,
+  // The bearing is bucketed this coarsely so the map latches a few times on the
+  // approach instead of re-orienting every metre.
+  arrivalBearingBucketDeg: 15,
+
   // While a preview is open, drifting this far off the leg means the driver
   // did NOT take the corner (a city street is ~20 m wide). Release at once so
   // the view snaps back to normal Phase 2 instead of staring at the corner the
@@ -326,6 +344,56 @@ export const analyzeLegTurns = ({ points, driverLat, driverLng, options } = {}) 
  * running the map is deliberately at previewMaxZoom, so re-testing the gate
  * would immediately cancel it (and oscillate every tick).
  */
+/**
+ * ARRIVAL APPROACH (owner request Nov 27 2026): "when the driver is within range
+ * of their next stop polyline range in distance not crow flies distance it auto
+ * rotates the map as well to help figure out what side of the street their next
+ * stop is on."
+ *
+ * Pure math on the leg: progress is the driver's projection ALONG the polyline,
+ * so a stop 80 m away around a corner counts as 80 m of ROUTE, not 80 m of air.
+ * The bearing is the leg's own final segment (last `arrivalBearingBackMeters`),
+ * i.e. the direction the driver actually drives into the address. Turns taken
+ * before that final stretch are irrelevant to it, which is exactly what keeps a
+ * left/right approach from pointing the map at the wrong side of the street.
+ *
+ * @returns {{ remainingM: number, bearing: number, key: string }|null}
+ */
+export const arrivalApproach = ({ points, driverLat, driverLng, options } = {}) => {
+  const opt = { ...TURN_PREVIEW_DEFAULTS, ...(options || {}) };
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const lat = Number(driverLat);
+  const lon = Number(driverLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  const profile = buildLegProfile(points);
+  if (profile.points.length < 2) return null;
+  const near = nearestOnLeg(profile, lat, lon);
+  if (!Number.isFinite(near?.cumM)) return null;
+  if (Number.isFinite(near.distM) && near.distM > opt.arrivalMaxOffLegMeters) return null;
+
+  const remainingM = profile.total - near.cumM;
+  if (!Number.isFinite(remainingM)) return null;
+  if (remainingM > opt.arrivalRotateMeters || remainingM < opt.arrivalMinMeters) return null;
+
+  // Final approach vector: from the leg point `arrivalBearingBackMeters` back
+  // along the route, to the leg's end (the stop's own road position).
+  const end = profile.points[profile.points.length - 1];
+  const fromI = indexBackAtDistance(profile, profile.points.length - 1, profile.total - opt.arrivalBearingBackMeters);
+  const from = profile.points[Math.max(0, Math.min(fromI, profile.points.length - 2))];
+  if (!from) return null;
+  const bearing = bearingDeg(from[0], from[1], end[0], end[1]);
+  if (!Number.isFinite(bearing)) return null;
+
+  const bucket = Math.max(1, Number(opt.arrivalBearingBucketDeg) || 15);
+  const bucketed = Math.round(bearing / bucket) * bucket;
+  return {
+    remainingM,
+    bearing,
+    key: `${Number(end[0]).toFixed(5)}:${Number(end[1]).toFixed(5)}:${bucketed}`,
+  };
+};
+
 export const evaluateTurnPreview = ({
   points,
   driverLat,
@@ -511,9 +579,22 @@ export const createTurnPreviewController = (options) => {
         activeTurn = null;
       }
 
+      // ARRIVAL ROTATION (owner request Nov 27 2026): computed on every tick,
+      // independent of the turn preview. The caller uses it for the map bearing
+      // only when no turn is being framed, so a corner never loses to it.
+      let arrival = null;
+      try {
+        arrival = arrivalApproach({
+          points: cachePoints,
+          driverLat,
+          driverLng,
+          options: opt,
+        });
+      } catch (_) { arrival = null; }
+
       // Bounds come back on every active tick (entry and hold) so the caller
       // simply substitutes them for the Phase 2 bounds; null means "normal".
-      return { bounds: res.bounds, reason: res.reason, turn: res.turn };
+      return { bounds: res.bounds, reason: res.reason, turn: res.turn, arrival };
     },
   };
 };

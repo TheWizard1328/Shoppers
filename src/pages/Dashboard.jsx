@@ -1877,9 +1877,25 @@ function Dashboard() {
               setMapZoom(null);
               break;
             }
-            // No turn preview this tick: release the heads-up rotation so the
-            // map eases back to north-up instead of holding a stale bearing.
-            setMapHeading(null);
+            // ARRIVAL ROTATION (owner request Nov 27 2026): inside the last 90 m
+            // of ROUTE distance the map faces the final approach into the stop so
+            // the driver can see which side of the street it is on. The bearing
+            // comes from the leg's own last stretch, so a left or right turn
+            // earlier in the approach never points it the wrong way. The turn
+            // preview wins whenever it is framing a corner (it returns above).
+            if (_tpRes?.arrival && Number.isFinite(_tpRes.arrival.bearing)) {
+              try {
+                setMapHeading(
+                  _tpRes.arrival.bearing,
+                  `arr:${_tpStop?.id || 'leg'}:${_tpRes.arrival.key}`,
+                );
+              } catch (_) { /* rotation is cosmetic */ }
+              console.log(`🎯 [ArrivalRotate] remaining=${Math.round(_tpRes.arrival.remainingM)}m bearing=${Math.round(_tpRes.arrival.bearing)}deg`);
+            } else {
+              // No turn preview and not on approach: release the heads-up
+              // rotation so the map eases back to north-up.
+              setMapHeading(null);
+            }
           } catch (e) {
             setMapHeading(null);
             // Never let the preview break normal map behaviour.
