@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { openNavigationTo } from '../utils/mapHelpers';
-import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2, Navigation } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2, Navigation, Locate } from 'lucide-react';
+import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,6 +31,43 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     ? currentUser.app_roles.includes('dispatcher') && !currentUser.app_roles.includes('admin')
     : false;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [updatingGps, setUpdatingGps] = useState(false);
+
+  // OWNER FEATURE (Nov 27 2026): "Update GPS" on the cycling marker menu, so a
+  // start/end marker can be repositioned to where the driver actually parks the
+  // bike without deleting and recreating it. Only the MARKER record moves —
+  // the shared CyclingLocation saved spot stays put, otherwise every driver
+  // using that spot would be relocated too. cycling_latitude/longitude is what
+  // the map, the arrival detector and the polyline chain read first, so both
+  // those and the plain lat/lng mirror are written.
+  const handleUpdateGps = async () => {
+    setMenuOpen(false);
+    if (updatingGps) return;
+    setUpdatingGps(true);
+    try {
+      const { locationTracker } = await import('@/components/utils/locationTracker');
+      const pos = await locationTracker.getFreshPosition({ timeout: 10000, maximumAge: 0, enableHighAccuracy: true });
+      const lat = Number(pos?.latitude);
+      const lng = Number(pos?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error('No GPS fix available yet');
+      }
+      const { updateDeliveryLocal } = await import('@/components/utils/offlineMutations');
+      await updateDeliveryLocal(delivery.id, {
+        cycling_latitude: lat,
+        cycling_longitude: lng,
+        latitude: lat,
+        longitude: lng,
+      }, { skipSmartRefresh: false });
+      toast.success('Cycling marker moved', {
+        description: `${getCyclingType(delivery) === 'end' ? 'End' : 'Start'} marker set to your current position`,
+      });
+    } catch (err) {
+      toast.error('Update GPS failed', { description: err?.message || 'Could not read your location' });
+    } finally {
+      setUpdatingGps(false);
+    }
+  };
   const [isHovered, setIsHovered] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -435,6 +473,16 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             borderTop: '6px solid white',
             filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.08))'
           }} />
+
+            <button
+            onClick={handleUpdateGps}
+            disabled={updatingGps}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800"
+            style={{ color: '#1e293b', background: 'none', border: 'none', cursor: updatingGps ? 'default' : 'pointer', opacity: updatingGps ? 0.6 : 1 }}>
+            
+              {updatingGps ? <Loader2 size={13} color="#64748b" className="animate-spin" /> : <Locate size={13} color="#64748b" />}
+              Update GPS
+            </button>
 
             <button
             onClick={() => {setMenuOpen(false);onEdit?.(delivery);}}
