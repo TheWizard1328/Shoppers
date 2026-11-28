@@ -32,6 +32,8 @@ import LiveDriverLocationMarker from "./LiveDriverLocationMarker";
 import { computeOverlayUnhide } from "@/components/utils/mapOverlayUnhide";
 import { decodeGooglePolyline } from "../utils/dynamicPolylineManager";
 import HereTileUsageTracker from "./HereTileUsageTracker";
+import { reconcileCyclingMarkers } from '@/components/utils/cyclingMarkerCoordSync';
+import { getCyclingLocationsCached } from '@/components/utils/cyclingLocationCache';
 import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
 import PickupMarkers from "./PickupMarkers";
 import ClusterBadgeMarkers from "./ClusterBadgeMarkers";
@@ -1123,6 +1125,40 @@ function DeliveryMap({
       groupedDeliveryMarkers: groupedDeliveriesMap,
     };
   }, [rawPickupMarkers, rawDeliveryMarkers, bucketedZoom]);
+
+  // OWNER RULE (Nov 27 2026): cycling markers always take the saved
+  // CyclingLocation coords, and the delivery copy is rewritten when it differs.
+  // Runs once per distinct marker-coordinate fingerprint (debounced) so the
+  // convergence write can never loop on itself.
+  const cyclingFingerprint = useMemo(() => (deliveriesToShow || [])
+    .filter((d) => d?.is_cycling_marker)
+    .map((d) => `${d.id}:${d.cycling_latitude ?? d.latitude}:${d.cycling_longitude ?? d.longitude}:${d.cycling_location_name || ''}`)
+    .sort()
+    .join('|'), [deliveriesToShow]);
+  const cyclingSyncedFingerprintRef = useRef('');
+  useEffect(() => {
+    if (!cyclingFingerprint) return;
+    if (cyclingSyncedFingerprintRef.current === cyclingFingerprint) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const markers = (deliveriesToShow || []).filter((d) => d?.is_cycling_marker);
+        if (!markers.length) return;
+        const locations = await getCyclingLocationsCached();
+        if (cancelled) return;
+        const moved = await reconcileCyclingMarkers({ deliveries: markers, locations });
+        if (cancelled) return;
+        cyclingSyncedFingerprintRef.current = cyclingFingerprint;
+        if (moved.length) {
+          console.log('[DeliveryMap] cycling markers pulled to saved spot coords:', moved.length);
+        }
+      } catch (err) {
+        console.warn('[DeliveryMap] cycling marker coord sync skipped:', err?.message);
+      }
+    }, 1800);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [cyclingFingerprint, deliveriesToShow]);
+
 
   // ONE count badge per co-located group (owner spec Oct 23 2026), centered
   // on the group's centroid — pickups + deliveries combined (a location can

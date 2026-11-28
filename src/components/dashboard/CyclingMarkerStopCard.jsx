@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getCyclingLocationsCached, invalidateCyclingLocationCache } from '@/components/utils/cyclingLocationCache';
+import { matchCyclingLocation, normalizeCyclingName } from '@/components/utils/cyclingMarkerCoordSync';
 import { base44 } from '@/api/base44Client';
 
 const getCyclingType = (delivery) => {
@@ -36,11 +37,10 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
   // OWNER FEATURE (Nov 27 2026): "Update GPS" on the cycling marker menu, so a
   // start/end marker can be repositioned to where the driver actually parks the
-  // bike without deleting and recreating it. Only the MARKER record moves —
-  // the shared CyclingLocation saved spot stays put, otherwise every driver
-  // using that spot would be relocated too. cycling_latitude/longitude is what
+  // bike without deleting and recreating it. cycling_latitude/longitude is what
   // the map, the arrival detector and the polyline chain read first, so both
-  // those and the plain lat/lng mirror are written.
+  // those and the plain lat/lng mirror are written, and every marker sharing the
+  // same saved spot moves with it.
   const handleUpdateGps = async () => {
     setMenuOpen(false);
     if (updatingGps) return;
@@ -54,42 +54,58 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         throw new Error('No GPS fix available yet');
       }
       const { updateDeliveryLocal } = await import('@/components/utils/offlineMutations');
-      await updateDeliveryLocal(delivery.id, {
-        cycling_latitude: lat,
-        cycling_longitude: lng,
-        latitude: lat,
-        longitude: lng,
-      }, { skipSmartRefresh: false });
 
-      // OWNER REPORT (Nov 27 2026): the marker moved but the SAVED CyclingLocation
-      // spot did not, so picking that spot again put the marker back where it was.
-      // The delivery only stores cycling_location_name (no id), so the library row
-      // is matched by name, preferring the same city, then refreshed in the shared
-      // cache so the cycling dialog lists the new coords immediately.
-      // NOTE: CyclingLocation is not mirrored in IndexedDB (no store for it) — the
-      // 5-minute in-memory cache is the only client copy, hence the invalidate.
+      // OWNER RULE (Nov 27 2026): a cycling marker move must land in BOTH places,
+      // and the Start and End markers of the route must never disagree:
+      //   1. the saved CyclingLocation spot (so picking it again lands there)
+      //   2. every cycling marker that uses that same saved spot (start AND end)
+      // Then the whole marker set is re-read from the saved spot on next load, so
+      // the delivery copy can never drift from the library.
+      const targetName = normalizeCyclingName(delivery.cycling_location_name);
       let spotMoved = false;
-      try {
-        const targetName = String(delivery.cycling_location_name || '').trim().toLowerCase();
-        if (targetName) {
-          const rows = await getCyclingLocationsCached();
-          const named = (rows || []).filter((r) => String(r?.name || '').trim().toLowerCase() === targetName);
-          const match = named.find((r) => !delivery.city_id || !r?.city_id || r.city_id === delivery.city_id) || named[0] || null;
-          if (match?.id) {
-            await base44.entities.CyclingLocation.update(match.id, { latitude: lat, longitude: lng });
-            invalidateCyclingLocationCache();
-            spotMoved = true;
-          }
+      let markersMoved = 0;
+
+      let locations = [];
+      try { locations = await getCyclingLocationsCached(); } catch (_) { locations = []; }
+      const matched = matchCyclingLocation(delivery, locations);
+
+      if (matched?.id) {
+        try {
+          await base44.entities.CyclingLocation.update(matched.id, { latitude: lat, longitude: lng });
+          invalidateCyclingLocationCache();
+          spotMoved = true;
+        } catch (err) {
+          console.warn('[CyclingMarkerStopCard] saved CyclingLocation not moved:', err?.message);
         }
-      } catch (err) {
-        console.warn('[CyclingMarkerStopCard] saved CyclingLocation not moved:', err?.message);
       }
 
-      toast.success('Cycling marker moved', {
-        description: spotMoved
-          ? `Marker and saved spot "${delivery.cycling_location_name}" set to your position`
-          : `${getCyclingType(delivery) === 'end' ? 'End' : 'Start'} marker set to your current position (saved spot not linked)`,
-      });
+      const siblings = (allDeliveries || []).filter((d) => (
+        d?.is_cycling_marker &&
+        d.id &&
+        (d.id === delivery.id ||
+          (targetName && normalizeCyclingName(d.cycling_location_name) === targetName))
+      ));
+      const toWrite = siblings.length ? siblings : [delivery];
+      for (const marker of toWrite) {
+        try {
+          await updateDeliveryLocal(marker.id, {
+            cycling_latitude: lat,
+            cycling_longitude: lng,
+            latitude: lat,
+            longitude: lng,
+          }, { skipSmartRefresh: false });
+          markersMoved += 1;
+        } catch (err) {
+          console.warn('[CyclingMarkerStopCard] marker not moved:', marker?.id, err?.message);
+        }
+      }
+
+      if (!markersMoved) throw new Error('Could not save the new marker position');
+
+      const parts = [`${markersMoved} marker${markersMoved === 1 ? '' : 's'} moved`];
+      if (spotMoved) parts.push(`saved spot "${delivery.cycling_location_name}" updated`);
+      else if (targetName) parts.push('saved spot not found in library');
+      toast.success('Cycling marker moved', { description: parts.join(' · ') });
     } catch (err) {
       toast.error('Update GPS failed', { description: err?.message || 'Could not read your location' });
     } finally {
