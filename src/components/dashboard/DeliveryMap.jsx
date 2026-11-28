@@ -441,6 +441,31 @@ function DeliveryMap({
   }, [mapReady]);
   const fanCanvasRenderer = useRef(null);
   const [fanRendererReady, setFanRendererReady] = useState(false);
+  // OWNER REPORT (Nov 27 2026): "when the map rotates the clustered markers still
+  // expand towards the north instead of upward in the new map rotation angle".
+  // The petal spread is computed in PROJECTED pixels, which are geographic, so a
+  // rotated map carried the fan round with it. This tick tracks the live map
+  // bearing so the fan can be counter-rotated to stay upright ON SCREEN.
+  const [mapBearingDeg, setMapBearingDeg] = useState(0);
+  useEffect(() => {
+    if (!mapReady) return;
+    const readBearing = () => {
+      try {
+        const v = Number(typeof window.__getMapBearing === 'function' ? window.__getMapBearing() : window.__mapBearing);
+        return Number.isFinite(v) ? v : 0;
+      } catch (_) { return 0; }
+    };
+    const tick = () => {
+      const b = readBearing();
+      setMapBearingDeg((prev) => {
+        const delta = ((b - prev + 540) % 360) - 180;
+        return Math.abs(delta) < 1 ? prev : b;
+      });
+    };
+    tick();
+    const t = setInterval(tick, 250);
+    return () => clearInterval(t);
+  }, [mapReady]);
   const [currentZoom, setCurrentZoom] = useState(zoom);
   const [visibleBounds, setVisibleBounds] = useState(null);
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
@@ -2203,7 +2228,12 @@ function DeliveryMap({
     const arcWidthRad = (arcWidth * Math.PI) / 180;
     const startAngle = Math.PI / 2 - arcWidthRad / 2;
     const endAngle = Math.PI / 2 + arcWidthRad / 2;
-    const angle = totalMarkers === 1 ? Math.PI / 2 : startAngle + ((totalMarkers - 1 - markerIndex) * ((endAngle - startAngle) / (totalMarkers - 1)));
+    const _baseAngle = totalMarkers === 1 ? Math.PI / 2 : startAngle + ((totalMarkers - 1 - markerIndex) * ((endAngle - startAngle) / (totalMarkers - 1)));
+    // OWNER RULE (Nov 27 2026): the fan must open UPWARD on the screen, not toward
+    // geographic north. Projected pixels are geographic, so the spread is rotated
+    // by the live map bearing: with the map facing west, the petal that used to
+    // point north now points west (up on screen) instead of to the right.
+    const angle = _baseAngle + (Number(mapBearingDeg) || 0) * (Math.PI / 180);
 
     // OWNER REQUEST (Oct 30 2026): the petals must look the same at every zoom,
     // so the spread is defined in PIXELS (like the cycling pins which fan via
@@ -2227,7 +2257,7 @@ function DeliveryMap({
     // Fallback (map not ready): keep the previous behaviour.
     const radius = 0.0008 + (18 - currentZoom) * 0.0008;
     return [originalLat + radius * Math.sin(angle), originalLng + radius * Math.cos(angle)];
-  }, [currentZoom, map]);
+  }, [currentZoom, map, mapBearingDeg]);
 
   const handleMarkerDragEnd = useCallback(() => {}, []);
 
