@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { getCyclingLocationsCached } from '@/components/utils/cyclingLocationCache';
+import { getCyclingLocationsCached, invalidateCyclingLocationCache } from '@/components/utils/cyclingLocationCache';
+import { base44 } from '@/api/base44Client';
 
 const getCyclingType = (delivery) => {
   const notes = (delivery?.delivery_notes || '').trim().toLowerCase();
@@ -59,8 +60,35 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         latitude: lat,
         longitude: lng,
       }, { skipSmartRefresh: false });
+
+      // OWNER REPORT (Nov 27 2026): the marker moved but the SAVED CyclingLocation
+      // spot did not, so picking that spot again put the marker back where it was.
+      // The delivery only stores cycling_location_name (no id), so the library row
+      // is matched by name, preferring the same city, then refreshed in the shared
+      // cache so the cycling dialog lists the new coords immediately.
+      // NOTE: CyclingLocation is not mirrored in IndexedDB (no store for it) — the
+      // 5-minute in-memory cache is the only client copy, hence the invalidate.
+      let spotMoved = false;
+      try {
+        const targetName = String(delivery.cycling_location_name || '').trim().toLowerCase();
+        if (targetName) {
+          const rows = await getCyclingLocationsCached();
+          const named = (rows || []).filter((r) => String(r?.name || '').trim().toLowerCase() === targetName);
+          const match = named.find((r) => !delivery.city_id || !r?.city_id || r.city_id === delivery.city_id) || named[0] || null;
+          if (match?.id) {
+            await base44.entities.CyclingLocation.update(match.id, { latitude: lat, longitude: lng });
+            invalidateCyclingLocationCache();
+            spotMoved = true;
+          }
+        }
+      } catch (err) {
+        console.warn('[CyclingMarkerStopCard] saved CyclingLocation not moved:', err?.message);
+      }
+
       toast.success('Cycling marker moved', {
-        description: `${getCyclingType(delivery) === 'end' ? 'End' : 'Start'} marker set to your current position`,
+        description: spotMoved
+          ? `Marker and saved spot "${delivery.cycling_location_name}" set to your position`
+          : `${getCyclingType(delivery) === 'end' ? 'End' : 'Start'} marker set to your current position (saved spot not linked)`,
       });
     } catch (err) {
       toast.error('Update GPS failed', { description: err?.message || 'Could not read your location' });
