@@ -3,6 +3,7 @@ import { MapContainer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { CachedTileLayer } from '../utils/hereTileCache';
+import HereTileUsageTracker from '@/components/dashboard/HereTileUsageTracker';
 import { getHereApiKey, getOrFetchHereApiKey } from '../utils/hereApiKeyStore';
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -112,6 +113,9 @@ export default function PatientGPSMap({ log, matchingPatients = [] }) {
             keepBuffer={0}
           />
         )}
+
+        {/* Tile spend must be logged on EVERY HERE map (owner request Nov 27 2026) */}
+        <HereTileUsageTracker mapStyle="explore" apiKeyReady={!!hereApiKey} surface="patient_gps_map" />
 
         <FitBoundsEffect points={allPoints} />
 

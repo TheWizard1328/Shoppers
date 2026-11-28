@@ -2455,7 +2455,7 @@ function DeliveryMap({
 
   return (
     <div className="absolute inset-0">
-      <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} currentUser={currentUser} />
+      <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} currentUser={currentUser} surface="dashboard" />
       <MapContainer
         key={`map-${mapRemountKey}`}
         center={center || [53.5461, -113.4938]}

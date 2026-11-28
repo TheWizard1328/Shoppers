@@ -20,6 +20,8 @@ import { format } from 'date-fns';
 import { isPatientViewOverlayActive, requestExitPatientView } from '../components/patient-portal/patientViewExit';
 import { createLiveMarkerInterpolator } from '@/components/utils/liveMarkerInterpolator';
 import { getHereApiKey } from '@/components/utils/hereApiKeyStore';
+import { CachedTileLayer } from '@/components/utils/hereTileCache';
+import HereTileUsageTracker from '@/components/dashboard/HereTileUsageTracker';
 import { patientPortalPing } from '@/functions/patientPortalPing';
 import UpdateInfoBalloon from '@/components/common/UpdateInfoBalloon';
 import { useWebUpdateCheck } from '@/components/utils/useWebUpdateCheck';
@@ -2030,14 +2032,42 @@ export default function PatientPortal({ embedded = false } = {}) {
               // pinch/scroll no longer jumps whole levels either.
               zoomSnap={0}>
               
-              <TileLayer
-                key={tileUrl}
-                url={tileUrl}
-                className={hereApiKey ? '' : isDarkTheme ? 'portal-osm-dark' : ''}
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://www.here.com/">HERE</a>'
-                tileSize={hereApiKey ? 512 : 256}
-                zoomOffset={hereApiKey ? -1 : 0}
-                maxNativeZoom={17} />
+              {hereApiKey ? (
+                // OWNER REQUEST (Nov 27 2026): portal tiles were plain Leaflet,
+                // so they skipped hereTileCache.fetchAndCache() and never fired
+                // the usage event — the patient portal burned HERE quota with
+                // ZERO rows in the counter. CachedTileLayer both logs the fetch
+                // and lets the tile IDB/Cache layer serve repeat views free.
+                <CachedTileLayer
+                  key={tileUrl}
+                  url={tileUrl}
+                  attribution='&copy; <a href="https://www.here.com/">HERE</a>'
+                  tileSize={512}
+                  zoomOffset={-1}
+                  maxNativeZoom={17} />
+              ) : (
+                <TileLayer
+                  key={tileUrl}
+                  url={tileUrl}
+                  className={isDarkTheme ? 'portal-osm-dark' : ''}
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  tileSize={256}
+                  zoomOffset={0}
+                  maxNativeZoom={17} />
+              )}
+
+              {/* Tile spend attributed to the PATIENT watching this map */}
+              <HereTileUsageTracker
+                mapStyle={isDarkTheme ? 'explore.night' : 'explore.day'}
+                apiKeyReady={!!hereApiKey}
+                surface="patient_portal"
+                attribution={{
+                  actorType: 'patient',
+                  actorId: patient?.id || null,
+                  actorName: patient?.full_name || patient?.patient_name || null,
+                  patientId: patient?.id || null,
+                  patientName: patient?.full_name || patient?.patient_name || null
+                }} />
               
 
               <MapBoundsFitter

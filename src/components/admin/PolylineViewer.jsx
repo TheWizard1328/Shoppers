@@ -16,6 +16,7 @@ import { isAppOwner } from '../utils/userRoles';
 import { extractFromPhoneFromDeliveryId, getAllLocations, getInterStoreLocationByPhone } from '../utils/interStoreDisplayName';
 import { useUser } from '../utils/UserContext';
 import { CachedTileLayer } from '../utils/hereTileCache';
+import HereTileUsageTracker from '@/components/dashboard/HereTileUsageTracker';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -2269,6 +2270,8 @@ const DATE_INPUT_CLS = 'bg-white text-slate-900 border-slate-300 dark:bg-slate-8
                         keepBuffer={1}
                       />
                     )}
+                    {/* Tile spend on the breadcrumb editor (owner request Nov 27 2026) */}
+                    <HereTileUsageTracker mapStyle="explore" apiKeyReady={!!tileLayerUrl} surface="breadcrumb_editor" />
 
                     {mapSegments.map((seg) => {
                       const isActiveCleaning = isCleaningMode && focusedItem?.id === seg.item.id && seg.isBreadcrumb;

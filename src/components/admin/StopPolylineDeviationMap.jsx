@@ -18,6 +18,7 @@ import { MapContainer, Polyline, CircleMarker, Tooltip, useMapEvents } from 'rea
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
 import { getDeliveryCoords } from '@/components/utils/clientRouteEngine';
 import { CachedTileLayer } from '../utils/hereTileCache';
+import HereTileUsageTracker from '@/components/dashboard/HereTileUsageTracker';
 
 // Tiles: the app shell blocks the public OSM tile hosts, so use the same HERE
 // basemap every other map uses (owner report Oct 30 2026: blank map).
@@ -621,6 +622,8 @@ export default function StopPolylineDeviationMap({ delivery, onChanged, mapHeigh
               keepBuffer={0}
             />
           )}
+          {/* Tile spend on the deviation point editor (owner request Nov 27 2026) */}
+          <HereTileUsageTracker mapStyle="explore" apiKeyReady={!!tileLayerUrl} surface="deviation_editor" />
           <FitToData positions={allPositions} />
           <MapClickCatcher active={addMode} onPick={addPoint} />
 

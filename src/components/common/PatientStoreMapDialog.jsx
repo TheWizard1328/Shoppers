@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CachedTileLayer } from '@/components/utils/hereTileCache';
+import HereTileUsageTracker from '@/components/dashboard/HereTileUsageTracker';
 import { getHereApiKey, getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
 
 /**
@@ -128,6 +129,7 @@ export default function PatientStoreMapDialog({ open, onClose, patient, store, d
                   keepBuffer={0}
                 />
               )}
+              <HereTileUsageTracker mapStyle="explore" apiKeyReady={!!hereApiKey} surface="store_map_dialog" />
               <FitBoundsEffect points={points} />
 
               {storeLat !== null && storeLng !== null && (
