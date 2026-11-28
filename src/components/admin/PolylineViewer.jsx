@@ -1652,6 +1652,10 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                   const distStr = distKm >= 1 ? `${distKm.toFixed(2)} km` : `${(distKm * 1000).toFixed(0)} m`;
                   const matchingDelivery = deliveries.find(d => d.driver_id === item.driver_id && d.delivery_date === item.delivery_date && d.stop_order === item.stop_order);
                   const activeMode = matchingDelivery?.transport_mode || item.transport_mode;
+                  // OWNER SPEC (Nov 28 2026): an imported crumb (saved_to_route false +
+                  // imported_from_delivery) is an UNSAVED change, so the row swaps the
+                  // Edit pencil for the Save disk until it is written back to the route.
+                  const needsImportSave = !!item.imported_from_delivery && item.saved_to_route === false;
                   return (
                     <>
                       <div className="flex items-center justify-between gap-1">
@@ -1674,13 +1678,24 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                               • Edit mode (cleaning)        → Save, Bulk delete (brush), point count
                               Save is meaningless before Edit is pressed, so it no longer
                               appears on a plain selection. */}
-                          {!(isCleaningMode && focusedItem?.id === item.id) && (
+                          {!(isCleaningMode && focusedItem?.id === item.id) && !needsImportSave && (
                             <button
                               title="Edit crumb points manually"
                               onClick={e => { e.stopPropagation(); handleToggleCleaningMode(item); }}
                               className="p-1 rounded hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-600 dark:text-orange-400 transition-colors"
                             >
                               <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {/* Imported but not saved yet → Save takes the Edit button's place */}
+                          {!(isCleaningMode && focusedItem?.id === item.id) && needsImportSave && (
+                            <button
+                              title="Save imported polyline to delivery"
+                              onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(item); }}
+                              disabled={isSavingCrumb}
+                              className="p-1 rounded bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 ring-1 ring-green-300 dark:ring-green-700 disabled:opacity-50 transition-colors"
+                            >
+                              {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                             </button>
                           )}
                           {/* Save — EDIT MODE ONLY, and not while the brush is armed */}
@@ -1711,7 +1726,7 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                             </span>
                           )}
                           {/* Import — only when NOT in cleaning mode */}
-                          {!(isCleaningMode && focusedItem?.id === item.id) && (
+                          {!(isCleaningMode && focusedItem?.id === item.id) && !needsImportSave && (
                             pendingImportItem?.id === item.id ? (
                               <ImportConfirmInline
                                 show
@@ -1902,9 +1917,15 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                 <Undo2 className="w-3.5 h-3.5" />
               </button>
             )}
-            {!isEditingCrumb && (
+            {!isEditingCrumb && !(crumb.imported_from_delivery && crumb.saved_to_route === false) && (
               <button title="Edit crumb points manually" onClick={e => { e.stopPropagation(); handleToggleCleaningMode(crumb); setFocusedGroup(group); }} className="p-1 rounded hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-600 dark:text-orange-400 transition-colors">
                 <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {/* Imported but not saved yet → Save replaces Edit (owner spec Nov 28 2026) */}
+            {!isEditingCrumb && crumb.imported_from_delivery && crumb.saved_to_route === false && (
+              <button title="Save imported polyline to delivery" onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(crumb); }} disabled={isSavingCrumb} className="p-1 rounded bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 ring-1 ring-green-300 dark:ring-green-700 disabled:opacity-50 transition-colors">
+                {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               </button>
             )}
             {isEditingCrumb && (
@@ -1924,7 +1945,7 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
             {isEditingCrumb && (
               <span className="text-xs text-orange-700 dark:text-orange-300 font-medium ml-1">{cleanedPoints.length} pts</span>
             )}
-            {!isEditingCrumb && (
+            {!isEditingCrumb && !(crumb.imported_from_delivery && crumb.saved_to_route === false) && (
               pendingImportItem?.id === crumb.id ? (
                 <ImportConfirmInline
                   show
