@@ -135,7 +135,7 @@ const getTodayEdmonton = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 // routeOptimizationMap: Map of "driverId::date" -> { driver_id, delivery_date, shouldOptimize }
-export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEditMode, affectedRoutes = [], routeOptimizationMap = null, recalcRouteKeys = null }) {
+export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEditMode, affectedRoutes = [], routeOptimizationMap = null, recalcRouteKeys = null, freshDeliveries = null }) {
   setSelectedBulkDeliveryIds([]);
   setBulkEditMode(false);
 
@@ -170,7 +170,20 @@ export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEdit
 
       if (shouldOptimize) {
         const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+        // OWNER BUG (Nov 27 2026): "I accepted three stops and the only stop that
+        // got polyline was the one that was already in there as a pending stop."
+        // This call passed NO deliveries, so the coordinator fetched the route from
+        // the server — while the bulk writes were still in flight (IDB-first, server
+        // write fire-and-forget). The snapshot it optimized was missing the stops
+        // that had just been accepted, so they never reached the polyline generator
+        // and kept no leg. Hand it the post-edit local records instead: the accepted
+        // stops are in the chain with their NEW status, so every one of them gets a
+        // leg in the same run.
+        const _routeDeliveries = Array.isArray(freshDeliveries)
+          ? freshDeliveries.filter((d) => d && String(d.driver_id || '') === String(driver_id) && String(d.delivery_date || '') === String(delivery_date))
+          : null;
         await performRouteOptimization({
+          ...(Array.isArray(_routeDeliveries) && _routeDeliveries.length > 0 ? { deliveries: _routeDeliveries } : {}),
           driverId: driver_id,
           deliveryDate: delivery_date,
           bypassDriverStatus: isFuture,
@@ -556,6 +569,9 @@ export async function applyBulkEditStops({
         affectedRoutes,
         routeOptimizationMap,
         recalcRouteKeys,
+        // Post-edit snapshot (new statuses already applied) — the optimizer must
+        // sequence and polyline these, not a stale server fetch.
+        freshDeliveries,
       });
     })
     .finally(async () => {
