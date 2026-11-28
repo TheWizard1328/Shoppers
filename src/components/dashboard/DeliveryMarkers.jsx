@@ -725,6 +725,12 @@ export default React.memo(DeliveryMarkers, (prev, next) => {
     // kept rendering the collapsed cluster after the user zoomed in.
     prev.currentZoom === next.currentZoom &&
     prev.isMobile === next.isMobile &&
-    prev.currentUser === next.currentUser
+    prev.currentUser === next.currentUser &&
+    // OWNER REPORT (Nov 27 2026): after the map rotated, some markers took 5-10 s
+    // to snap into their new fan positions. This comparator did not include the
+    // fan function, whose identity changes with the map bearing (w585), so the
+    // memo skipped the re-render until some unrelated prop happened to change.
+    // With it here the petals re-orient on the very next bearing tick.
+    prev.calculateFannedPositionWrapperWrapper === next.calculateFannedPositionWrapperWrapper
   );
 });
