@@ -1664,15 +1664,6 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                       </div>
                       {isFocused && (
                         <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
-                          {isCleaningMode && focusedItem?.id === item.id && undoStack.length > 0 && (
-                            <button
-                              title={`Undo last removal (${undoStack.length} steps)`}
-                              onClick={e => { e.stopPropagation(); handleUndo(); }}
-                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
-                            >
-                              <Undo2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
                           {/* OWNER SPEC (Nov 28 2026): the selected-card row is state driven.
                               • Card selected, not editing  → Edit + Import only (no Save yet)
                               • Edit mode (cleaning)        → Save, Bulk delete (brush), point count
@@ -1707,6 +1698,16 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                               className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 disabled:opacity-50 transition-colors"
                             >
                               {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                          {/* OWNER SPEC (Nov 28 2026): Save sits BEFORE Undo when both show */}
+                          {isCleaningMode && focusedItem?.id === item.id && undoStack.length > 0 && (
+                            <button
+                              title={`Undo last removal (${undoStack.length} steps)`}
+                              onClick={e => { e.stopPropagation(); handleUndo(); }}
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
+                            >
+                              <Undo2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                           {/* Bulk delete (brush) — EDIT MODE ONLY */}
@@ -1912,11 +1913,6 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
           <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
             {/* OWNER SPEC (Nov 28 2026): same state-driven row as the selected card.
                 Selected → Edit + Import. Edit mode → Save, Bulk delete (brush), point count. */}
-            {isEditingCrumb && undoStack.length > 0 && (
-              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors">
-                <Undo2 className="w-3.5 h-3.5" />
-              </button>
-            )}
             {!isEditingCrumb && !(crumb.imported_from_delivery && crumb.saved_to_route === false) && (
               <button title="Edit crumb points manually" onClick={e => { e.stopPropagation(); handleToggleCleaningMode(crumb); setFocusedGroup(group); }} className="p-1 rounded hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-600 dark:text-orange-400 transition-colors">
                 <Pencil className="w-3.5 h-3.5" />
@@ -1931,6 +1927,12 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
             {isEditingCrumb && (
               <button title="Save crumb polyline to delivery" onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(crumb); }} disabled={isSavingCrumb} className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 disabled:opacity-50 transition-colors">
                 {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              </button>
+            )}
+            {/* OWNER SPEC (Nov 28 2026): Save sits BEFORE Undo when both show */}
+            {isEditingCrumb && undoStack.length > 0 && (
+              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors">
+                <Undo2 className="w-3.5 h-3.5" />
               </button>
             )}
             {isEditingCrumb && (
