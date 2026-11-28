@@ -71,37 +71,57 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
       const { updateDeliveryLocal } = await import('@/components/utils/offlineMutations');
 
       // OWNER RULE (Nov 27 2026): a cycling marker move must land in BOTH places,
-      // and the Start and End markers of the route must never disagree:
-      //   1. the saved CyclingLocation spot (so picking it again lands there)
-      //   2. every cycling marker that uses that same saved spot (start AND end)
-      // Then the whole marker set is re-read from the saved spot on next load, so
-      // the delivery copy can never drift from the library.
+      // and the START and END markers of a route are a pair — moving one moves the
+      // other, always. So a move writes:
+      //   1. this marker's saved CyclingLocation spot (so picking it again lands there)
+      //   2. the paired marker's own saved spot, when it is a different one, so the
+      //      load-time reconciliation cannot pull the pair back apart
+      //   3. every cycling marker on this route (the pair) plus any other marker
+      //      sharing the same saved spot
       const targetName = normalizeCyclingName(delivery.cycling_location_name);
-      let spotMoved = false;
       let markersMoved = 0;
+      const movedSpots = [];
 
       let locations = [];
       try { locations = await getCyclingLocationsCached(); } catch (_) { locations = []; }
       const matched = matchCyclingLocation(delivery, locations);
 
-      if (matched?.id) {
-        try {
-          await base44.entities.CyclingLocation.update(matched.id, { latitude: lat, longitude: lng });
-          invalidateCyclingLocationCache();
-          spotMoved = true;
-        } catch (err) {
-          console.warn('[CyclingMarkerStopCard] saved CyclingLocation not moved:', err?.message);
-        }
+      // The opposite marker: same driver + same delivery date (a cycling route has
+      // exactly one start and one end marker).
+      const sameRoute = (d) => (
+        d?.is_cycling_marker && d.id && d.id !== delivery.id &&
+        (!delivery.delivery_date || !d.delivery_date || d.delivery_date === delivery.delivery_date) &&
+        (!delivery.driver_id || !d.driver_id || d.driver_id === delivery.driver_id)
+      );
+      const sameSpot = (d) => (
+        d?.is_cycling_marker && d.id && d.id !== delivery.id &&
+        targetName && normalizeCyclingName(d.cycling_location_name) === targetName
+      );
+      const partners = [];
+      for (const d of (allDeliveries || [])) {
+        if ((sameRoute(d) || sameSpot(d)) && !partners.some((p) => p.id === d.id)) partners.push(d);
       }
 
-      const siblings = (allDeliveries || []).filter((d) => (
-        d?.is_cycling_marker &&
-        d.id &&
-        (d.id === delivery.id ||
-          (targetName && normalizeCyclingName(d.cycling_location_name) === targetName))
-      ));
-      const toWrite = siblings.length ? siblings : [delivery];
-      for (const marker of toWrite) {
+      // Move this marker's spot, then the partner's own spot if it differs.
+      const spotUpdates = [];
+      if (matched?.id) spotUpdates.push({ id: matched.id, name: matched.name });
+      for (const partner of partners) {
+        const partnerSpot = matchCyclingLocation(partner, locations);
+        if (partnerSpot?.id && !spotUpdates.some((sp) => sp.id === partnerSpot.id)) {
+          spotUpdates.push({ id: partnerSpot.id, name: partnerSpot.name });
+        }
+      }
+      for (const spot of spotUpdates) {
+        try {
+          await base44.entities.CyclingLocation.update(spot.id, { latitude: lat, longitude: lng });
+          movedSpots.push(spot.name);
+        } catch (err) {
+          console.warn('[CyclingMarkerStopCard] saved CyclingLocation not moved:', spot?.name, err?.message);
+        }
+      }
+      if (movedSpots.length) invalidateCyclingLocationCache();
+
+      for (const marker of [delivery, ...partners]) {
         try {
           await updateDeliveryLocal(marker.id, {
             cycling_latitude: lat,
@@ -118,9 +138,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
       if (!markersMoved) throw new Error('Could not save the new marker position');
 
       const parts = [`${markersMoved} marker${markersMoved === 1 ? '' : 's'} moved${updateSource === 'crosshair' ? ' to crosshair' : ''}`];
-      if (spotMoved) parts.push(`saved spot "${delivery.cycling_location_name}" updated`);
+      if (movedSpots.length) parts.push(`saved spot${movedSpots.length === 1 ? '' : 's'} ${movedSpots.map((n) => `"${n}"`).join(', ')} updated`);
       else if (targetName) parts.push('saved spot not found in library');
-      toast.success('Cycling marker moved', { description: parts.join(' · ') });
+      toast.success('Cycling markers moved', { description: parts.join(' · ') });
     } catch (err) {
       toast.error('Update GPS failed', { description: err?.message || 'Could not read your location' });
     } finally {
