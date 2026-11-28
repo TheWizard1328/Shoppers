@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getCyclingLocationsCached, invalidateCyclingLocationCache } from '@/components/utils/cyclingLocationCache';
 import { matchCyclingLocation, normalizeCyclingName } from '@/components/utils/cyclingMarkerCoordSync';
+import { resolveGpsUpdateCoords } from '@/components/utils/patientGPSUpdater';
+import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { base44 } from '@/api/base44Client';
 
 const getCyclingType = (delivery) => {
@@ -46,12 +48,25 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     if (updatingGps) return;
     setUpdatingGps(true);
     try {
-      const { locationTracker } = await import('@/components/utils/locationTracker');
-      const pos = await locationTracker.getFreshPosition({ timeout: 10000, maximumAge: 0, enableHighAccuracy: true });
-      const lat = Number(pos?.latitude);
-      const lng = Number(pos?.longitude);
+      // OWNER RULE (Nov 27 2026): cycling markers use the SAME Update GPS rules as
+      // every other stop type — completed stops (and desktop devices) take the map
+      // CROSSHAIR, not the device position, so a finished cycling marker is never
+      // dragged to wherever the driver happens to be standing. The source rule
+      // lives in patientGPSUpdater.resolveGpsUpdateCoords, shared by patient,
+      // store, InterStore and cycling markers.
+      const preferCrosshair = delivery?.status === 'completed' || !isMobileDevice();
+      const { nextLatitude, nextLongitude, updateSource } = await resolveGpsUpdateCoords({
+        mapCrosshairCoords: (typeof window !== 'undefined' ? window.__mapCrosshairCoords : null) || null,
+        preferCrosshair,
+        currentCoords: {
+          latitude: Number(delivery.cycling_latitude ?? delivery.latitude),
+          longitude: Number(delivery.cycling_longitude ?? delivery.longitude),
+        },
+      });
+      const lat = Number(nextLatitude);
+      const lng = Number(nextLongitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        throw new Error('No GPS fix available yet');
+        throw new Error('No valid coordinates available for GPS update');
       }
       const { updateDeliveryLocal } = await import('@/components/utils/offlineMutations');
 
@@ -102,7 +117,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
       if (!markersMoved) throw new Error('Could not save the new marker position');
 
-      const parts = [`${markersMoved} marker${markersMoved === 1 ? '' : 's'} moved`];
+      const parts = [`${markersMoved} marker${markersMoved === 1 ? '' : 's'} moved${updateSource === 'crosshair' ? ' to crosshair' : ''}`];
       if (spotMoved) parts.push(`saved spot "${delivery.cycling_location_name}" updated`);
       else if (targetName) parts.push('saved spot not found in library');
       toast.success('Cycling marker moved', { description: parts.join(' · ') });

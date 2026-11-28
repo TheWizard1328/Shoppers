@@ -231,7 +231,11 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
 //     an immediate re-index of the shared location cache and an
 //     'interStoreGpsUpdated' window event (useInterStoreLocation updates
 //     mounted cards live).
-const resolveUpdateCoords = async ({ mapCrosshairCoords, preferCrosshair, currentCoords }) => {
+/** Shared Update GPS source rule (crosshair vs fresh device GPS).
+ *  OWNER RULE (Nov 27 2026): every marker type — patient, store, InterStore and
+ *  cycling — must resolve its new coordinates through this one function, so a
+ *  completed stop never jumps to the device's current position. */
+export const resolveGpsUpdateCoords = async ({ mapCrosshairCoords, preferCrosshair, currentCoords }) => {
   const hasCrosshairCoords = Number.isFinite(mapCrosshairCoords?.latitude) && Number.isFinite(mapCrosshairCoords?.longitude);
   const fresh = preferCrosshair && hasCrosshairCoords ? null : await getFreshDeviceLocation();
   let nextLatitude = fresh?.latitude;
@@ -282,7 +286,7 @@ export const updateStoreGPS = async ({ storeId, mapCrosshairCoords = null, prefe
   if (!_gpsThrottleGate()) return { success: false, message: "GPS update already in progress" };
   try {
     if (!storeId) throw new Error("Store not resolved — cannot update GPS");
-    const { nextLatitude, nextLongitude, updateSource } = await resolveUpdateCoords({
+    const { nextLatitude, nextLongitude, updateSource } = await resolveGpsUpdateCoords({
       mapCrosshairCoords, preferCrosshair, currentCoords: currentStoreCoords,
     });
     await updateStoreLocal(storeId, { latitude: nextLatitude, longitude: nextLongitude });
@@ -306,7 +310,7 @@ export const updateInterStoreGPS = async ({ interStoreLocation, mapCrosshairCoor
   try {
     const recordId = interStoreLocation?.id;
     if (!recordId) throw new Error("InterStore location not resolved — cannot update GPS");
-    const { nextLatitude, nextLongitude, updateSource } = await resolveUpdateCoords({
+    const { nextLatitude, nextLongitude, updateSource } = await resolveGpsUpdateCoords({
       mapCrosshairCoords, preferCrosshair, currentCoords,
     });
     // Write through IDB first (offline safe). If the InterStoreLocation row is
