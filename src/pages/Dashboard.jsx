@@ -694,7 +694,7 @@ function Dashboard() {
     const isISP=(d)=>getDeliveryTypeFlags(d).isISP;
     // sd = patient deliveries + ISD (count as deliveries); ap = store pickups + ISP (count as pickups)
     const sd=rd.filter((d)=>d&&!d.is_cycling_marker&&(d.patient_id||isISD(d))); const ap=rd.filter((d)=>d&&!d.is_cycling_marker&&!d.patient_id&&!isISD(d));
-    if (!Array.isArray(sd)) return {total:0,inTransit:0,enRoute:0,completed:0,failed:0,returned:0,totalDrivers:0,inTransitDrivers:0,completedDrivers:0,totalPickups:0,completedPickups:0};
+    if (!Array.isArray(sd)) return {total:0,inTransit:0,pending:0,enRoute:0,completed:0,failed:0,returned:0,totalDrivers:0,inTransitDrivers:0,completedDrivers:0,totalPickups:0,completedPickups:0};
     const pm=new Map((patients||[]).filter((p)=>p&&p.id).map((p)=>[p.id,p]));
     const isRtn=(d)=>d&&d.status==='completed'&&(pm.get(d.patient_id)?.address||'').toUpperCase().includes('(RTN)');
     const total=sd.length+ap.filter((d)=>d&&isISP(d)&&!d.after_hours_pickup).length; /* excl AH pickups, keep AH deliveries 1x */
@@ -714,9 +714,14 @@ function Dashboard() {
     const completedPickups=ap.filter((d)=>d&&!isISP(d)&&(d.status==='completed'||d.status==='cancelled')).length;
     const totalPickups=ap.filter((d)=>d&&!isISP(d)).length;
     const isdIspCount=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))).length;
+    // OWNER REQUEST (Nov 27 2026): the stats row shows Active/Pending together, so
+    // the card needs the pending count too. Same stop population as total: pending
+    // patient deliveries (ISD included) plus pending ISP pickups, never cycling
+    // markers, and AH pickups excluded the same way total excludes them.
+    const pending=sd.filter((d)=>d&&d.status==='pending').length+rd.filter((d)=>d&&!d.is_cycling_marker&&isISP(d)&&d.status==='pending').length;
     let totalDrivers=0,inTransitDrivers=0,completedDrivers=0;
     if(isDispatcher||isAdmin){const aids=new Set(rd.map((d)=>d?.driver_id).filter(Boolean));totalDrivers=aids.size;inTransitDrivers=new Set(rd.filter((d)=>d&&(d.status==='in_transit'||d.status==='en_route')).map((d)=>d?.driver_id).filter(Boolean)).size;aids.forEach((did)=>{const ds=rd.filter((d)=>d?.driver_id===did);if(ds.some((d)=>d&&d.status==='completed')&&ds.every((d)=>d&&['completed','failed','cancelled'].includes(d.status)))completedDrivers++;});}
-    return {total,inTransit,enRoute,activePickupsEnRoute:enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp,completedIsdIsp};
+    return {total,inTransit,pending,enRoute,activePickupsEnRoute:enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp,completedIsdIsp};
   }, [filteredDeliveries, patients, isDispatcher, currentUserStoreIds, isAdmin]);
 
   const isDateFinished = useMemo(() => { const tod = startOfDay(new Date()); const sel = startOfDay(selectedDate); if (sel >= tod) return false; return filteredDeliveries.length > 0 && filteredDeliveries.every((d) => d && ['completed','failed','cancelled'].includes(d.status)); }, [selectedDate, filteredDeliveries]);

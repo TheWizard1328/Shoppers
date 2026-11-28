@@ -62,6 +62,7 @@ export default function ActivePayStats({
   const stats = localStats || {
     total: 0,
     inTransit: 0,
+    pending: 0,
     completed: 0,
     failed: 0,
     returned: 0,
@@ -93,7 +94,7 @@ export default function ActivePayStats({
     `In Transit Deliveries: ${stats.inTransit} (${stats.inTransitDrivers} on-duty drivers)` :
     isDriver && stats.activePickupsEnRoute > 0 ?
     `In Transit Deliveries: ${stats.inTransit}, En Route Pickups: ${stats.activePickupsEnRoute}` :
-    `Active Stops: ${stats.inTransit}`,
+    `Active Stops: ${stats.inTransit}, Pending Stops: ${stats.pending || 0}`,
     completed: isDispatcher ?
     `Completed Deliveries: ${stats.completed} (${stats.completedDrivers} drivers)` :
     isDriver && stats.completedPickups > 0 ?
@@ -129,11 +130,11 @@ export default function ActivePayStats({
 
         <StatBadge
           icon={Truck}
-          value={stats.inTransit}
+          value={`${stats.inTransit}/${stats.pending || 0}`}
           driverCount={isDispatcher ? stats.inTransitDrivers : (isDriver || isAdmin) && stats.activePickupsEnRoute > 0 ? stats.activePickupsEnRoute : undefined}
           superscript={inTransitIsdIsp > 0 ? inTransitIsdIsp : undefined}
           color="purple"
-          label="Active"
+          label="Active/Pending"
           tooltip={`${tooltipValues.activeStops}${inTransitIsdIsp > 0 ? `, ISD/ISP: ${inTransitIsdIsp}` : ''}`} />
 
         <StatBadge
