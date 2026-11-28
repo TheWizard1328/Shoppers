@@ -1669,7 +1669,11 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                               <Undo2 className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {/* Pencil — only when NOT in cleaning mode (hidden once edit is active) */}
+                          {/* OWNER SPEC (Nov 28 2026): the selected-card row is state driven.
+                              • Card selected, not editing  → Edit + Import only (no Save yet)
+                              • Edit mode (cleaning)        → Save, Bulk delete (brush), point count
+                              Save is meaningless before Edit is pressed, so it no longer
+                              appears on a plain selection. */}
                           {!(isCleaningMode && focusedItem?.id === item.id) && (
                             <button
                               title="Edit crumb points manually"
@@ -1679,18 +1683,8 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {/* Brush — only when IN cleaning mode */}
-                          {isCleaningMode && focusedItem?.id === item.id && (
-                            <button
-                              title={isBrushPickMode ? 'Cancel brush — back to point edit' : 'Brush: click map to remove points within 25 m'}
-                              onClick={e => { e.stopPropagation(); handleToggleBrushMode(); }}
-                              className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700'}`}
-                            >
-                              <Brush className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {/* Save — only when NOT in brush pick mode */}
-                          {!(isCleaningMode && focusedItem?.id === item.id) || !isBrushPickMode ? (
+                          {/* Save — EDIT MODE ONLY, and not while the brush is armed */}
+                          {isCleaningMode && focusedItem?.id === item.id && !isBrushPickMode && (
                             <button
                               title="Save crumb polyline to delivery"
                               onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(item); }}
@@ -1699,8 +1693,18 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
                             >
                               {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                             </button>
-                          ) : null}
-                          {/* Point count sits to the RIGHT of the icons, beside the save disk (owner spec Nov 13 2026) */}
+                          )}
+                          {/* Bulk delete (brush) — EDIT MODE ONLY */}
+                          {isCleaningMode && focusedItem?.id === item.id && (
+                            <button
+                              title={isBrushPickMode ? 'Cancel brush — back to point edit' : 'Bulk delete: click map to remove points within 5 m'}
+                              onClick={e => { e.stopPropagation(); handleToggleBrushMode(); }}
+                              className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700'}`}
+                            >
+                              <Brush className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {/* Point count — EDIT MODE ONLY */}
                           {isCleaningMode && focusedItem?.id === item.id && (
                             <span className="text-xs text-orange-700 dark:text-orange-300 font-medium ml-1">
                               {cleanedPoints.length} pts
@@ -1891,9 +1895,8 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
         {/* Breadcrumb editing buttons — only when this group is focused and has a crumb */}
         {isFocused && crumb && (
           <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
-            {isEditingCrumb && (
-              <span className="text-xs text-orange-700 dark:text-orange-300 font-medium mr-1">{cleanedPoints.length} pts</span>
-            )}
+            {/* OWNER SPEC (Nov 28 2026): same state-driven row as the selected card.
+                Selected → Edit + Import. Edit mode → Save, Bulk delete (brush), point count. */}
             {isEditingCrumb && undoStack.length > 0 && (
               <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors">
                 <Undo2 className="w-3.5 h-3.5" />
@@ -1905,17 +1908,22 @@ stops used ${d.stopsUsed} (skipped ${d.skippedStops}), vias ${d.viaCount}`);
               </button>
             )}
             {isEditingCrumb && (
+              <button title="Save crumb polyline to delivery" onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(crumb); }} disabled={isSavingCrumb} className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 disabled:opacity-50 transition-colors">
+                {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              </button>
+            )}
+            {isEditingCrumb && (
               <button
-                title={isBrushPickMode ? 'Cancel brush' : 'Brush: click map to remove nearby points'}
+                title={isBrushPickMode ? 'Cancel brush' : 'Bulk delete: click map to remove nearby points'}
                 onClick={e => { e.stopPropagation(); handleToggleBrushMode(); }}
                 className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700'}`}
               >
                 <Brush className="w-3.5 h-3.5" />
               </button>
             )}
-            <button title="Save crumb polyline to delivery" onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(crumb); }} disabled={isSavingCrumb} className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 disabled:opacity-50 transition-colors">
-              {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            </button>
+            {isEditingCrumb && (
+              <span className="text-xs text-orange-700 dark:text-orange-300 font-medium ml-1">{cleanedPoints.length} pts</span>
+            )}
             {!isEditingCrumb && (
               pendingImportItem?.id === crumb.id ? (
                 <ImportConfirmInline
